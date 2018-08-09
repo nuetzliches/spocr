@@ -4,15 +4,47 @@
 
 # How it works
 - spocr generates the DataContex-Folder with all required C# Code for your Web-API
-./DataContext
-./DataContext/Models/[StoredProcedureName].cs
-./DataContext/StoredProcedures/[EntityName]Extensions.cs
-./DataContext/AppDbContext.cs
-./DataContext/SqlDataReaderExtensions.cs
+./DataContext<br>
+./DataContext/Models/[StoredProcedureName].cs<br>
+./DataContext/StoredProcedures/[EntityName]Extensions.cs<br>
+./DataContext/AppDbContext.cs<br>
+./DataContext/SqlDataReaderExtensions.cs<br>
 
-# Restrictions (TODO: define the restrictions)
+- Register AppDbContex in Startup.cs
+```csharp
+services.AddTransient<AppDbContext>();
+```
+
+- Inject AppDbContext in your Managers
+```csharp
+private readonly AppDbContext _context;
+constructor MyManager(AppDbContext context) 
+{ 
+    _context = context;
+}
+```
+
+- Run StoredProcedure in a Manager-Method
+```csharp
+public Task<List<UserList>> ListAsync(CancellationToken cancellationToken = default(CancellationToken))
+{
+    return _dbContext.UserListAsync(User.Id, cancellationToken);
+}
+```
+
+# Restrictions (TODO: define restrictions and the effects)
+
 ## StoredProcedure-Naming
 - `[EntityName][Action][Suffix]`
+- EntityName (required): Name of base SQL-Table
+- Action (required): Create | Update | Delete | Merge | FindBy | List
+- Suffix: WithChildren | (custom suffix)
+
+## First param in every StoredProcedure
+- @UserId INT
+
+## Required result for CRUD-Actions (Create, Update, Delete, Merge)
+- [ResultId] INT, [RecordId] INT
 
 # Requirements
 - Database:     SQL-Server Version 2012
@@ -43,3 +75,5 @@ Clone and Download Repository
 
 ### 3. (Re-)build your DataContext-Folder
 > spocr build
+
+# TODO: Demo-Project with StoredProcedures and API-Implementation
