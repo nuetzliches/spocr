@@ -80,3 +80,7 @@ Clone and Download Repository
 > spocr build
 
 # TODO: Demo-Project with StoredProcedures and API-Implementation
+
+# Resources
+- http://roslynquoter.azurewebsites.net/
+- https://natemcmaster.com/blog/2018/05/12/dotnet-global-tools/
