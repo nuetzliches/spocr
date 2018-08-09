@@ -4,6 +4,8 @@
 
 # How it works
 - spocr generates the DataContex-Folder with all required C# Code for your Web-API
+- spocr parse all StoredProcedures from a given ConnectionString
+<br>
 ./DataContext<br>
 ./DataContext/Models/[StoredProcedureName].cs<br>
 ./DataContext/StoredProcedures/[EntityName]Extensions.cs<br>
