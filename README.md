@@ -35,7 +35,7 @@ public Task<List<UserList>> ListAsync(CancellationToken cancellationToken = defa
 # Restrictions (TODO: define restrictions and the effects)
 
 ## StoredProcedure-Naming
-- `[EntityName][Action][Suffix]`
+#### `[EntityName][Action][Suffix]`
 - EntityName (required): Name of base SQL-Table
 - Action (required): Create | Update | Delete | Merge | FindBy | List
 - Suffix: WithChildren | (custom suffix)
@@ -59,9 +59,9 @@ public Task<List<UserList>> ListAsync(CancellationToken cancellationToken = defa
 
 ### a. From GitHub
 Clone and Download Repository
-> git clone https://github.com/nuetzliches/spocr.git
-> dotnet pack --output ./
-> dotnet tool install -g spocr --add-source ./
+> git clone https://github.com/nuetzliches/spocr.git<br>
+> dotnet pack --output ./<br>
+> dotnet tool install -g spocr --add-source ./<br>
 
 ### b. From NPM (TODO: Upload NPM-Package)
 
