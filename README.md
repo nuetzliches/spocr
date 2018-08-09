@@ -3,9 +3,10 @@
 - Simply managed by the console (ComandLineInterface/CLI)
 
 # How it works
-- spocr generates the DataContex-Folder with all required C# Code for your Web-API
-- spocr parse all StoredProcedures from a given ConnectionString
-<br>
+spocr generates the DataContex-Folder with all required C# Code for your Web-API<br>
+spocr parse all StoredProcedures from a given ConnectionString and creates models an extension methods<br>
+
+### Generated Folder and Files
 ./DataContext<br>
 ./DataContext/Models/[StoredProcedureName].cs<br>
 ./DataContext/StoredProcedures/[EntityName]Extensions.cs<br>
