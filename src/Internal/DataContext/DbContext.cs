@@ -16,8 +16,6 @@ namespace SpocR.Internal.DataContext
 
         private readonly List<AppSqlTransaction> _transactions = new List<AppSqlTransaction>();
 
-        public readonly int SystemUserId;
-
         public DbContext(string connectionString = null)
         {
             SetConnectionString(connectionString);
