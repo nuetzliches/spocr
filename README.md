@@ -63,6 +63,7 @@ public Task<List<UserList>> ListAsync(CancellationToken cancellationToken = defa
 ### a. From GitHub
 Clone and Download Repository
 > git clone https://github.com/nuetzliches/spocr.git<br>
+> cd repo/src
 > dotnet pack --output ./<br>
 > dotnet tool install -g spocr --add-source ./<br>
 
