@@ -18,6 +18,6 @@ namespace SpocR.Internal.Managers
         }
 
         internal DbContext DbContext => _dbContext ?? (_dbContext = (DbContext)_serviceProvider.GetService(typeof(DbContext)));
-        internal Engine SpocR => _engine ?? (_engine = (Engine)_serviceProvider.GetService(typeof(Engine)));
+        internal Engine Engine => _engine ?? (_engine = (Engine)_serviceProvider.GetService(typeof(Engine)));
     }
 }
