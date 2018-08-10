@@ -62,8 +62,8 @@ namespace SpocR.Internal.Common
 
         public string GetApplicationRoot()
         {
-            var exePath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().CodeBase);
-            return new Regex(@"(?<!fil)[A-Za-z]:\\+[\S\s]*?(?=\\+bin)").Match(exePath).Value;
+            var codeBase = Path.GetDirectoryName(Assembly.GetExecutingAssembly().CodeBase);
+            return Regex.Replace(codeBase, @"^(file\:\\)", string.Empty);
         }
 
         internal DirectoryInfo GetSourceStructureRootDir()

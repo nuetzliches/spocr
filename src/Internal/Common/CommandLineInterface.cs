@@ -138,6 +138,20 @@ namespace SpocR.Internal.Common
             {
                 buildCmd.OnExecute(() =>
                 {
+                    if (!engine.ConfigFileExists())
+                    {
+                        reporter.Error($"File not found: {Configuration.ConfigurationFile}");
+                        reporter.Output($"\tPlease make sure you are in the right working directory");
+                        return (int)ExecuteResultEnum.Error;
+                    }
+
+                    if (!(engine.Config?.Schema?.Any() ?? false))
+                    {
+                        reporter.Error($"Schema is empty: {Configuration.ConfigurationFile}");
+                        reporter.Output($"\tPlease run pull to get the DB-Schema.");
+                        return (int)ExecuteResultEnum.Error;
+                    }
+
                     var stopwatch = new Stopwatch();
                     stopwatch.Start();
 
