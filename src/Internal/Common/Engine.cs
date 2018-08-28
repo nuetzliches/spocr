@@ -9,6 +9,7 @@ using McMaster.Extensions.CommandLineUtils;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using Microsoft.CodeAnalysis.Text;
 using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
 using SpocR.Internal.Common;
@@ -156,7 +157,7 @@ namespace SpocR.Internal.Common
             return SyntaxFactory.ParseTypeName(clrType.ToGenericTypeString());
         }
 
-        internal string GetModelTextForStoredProcedure(SchemaDefinition schema, StoredProcedureDefinition storedProcedure)
+        internal SourceText GetModelTextForStoredProcedure(SchemaDefinition schema, StoredProcedureDefinition storedProcedure)
         {
             var rootDir = GetSourceStructureRootDir();
             var fileContent = File.ReadAllText(Path.Combine(rootDir.FullName, "DataContext", "Models", "Model.cs"));
@@ -198,7 +199,7 @@ namespace SpocR.Internal.Common
             classNode = (ClassDeclarationSyntax)nsNode.Members[0];
             root = root.ReplaceNode(classNode, classNode.WithMembers(new SyntaxList<MemberDeclarationSyntax>(classNode.Members.Cast<PropertyDeclarationSyntax>().Skip(1))));
 
-            return root.GetText().WithMetadataToString();
+            return root.GetText();
         }
 
         internal void GenerateDataContextModels()
@@ -227,10 +228,35 @@ namespace SpocR.Internal.Common
                 foreach (var storedProcedure in storedProcedures)
                 {
                     var fileName = Path.Combine(path, $"{storedProcedure.Name}.cs");
-                    var codeText = GetModelTextForStoredProcedure(schema, storedProcedure);
-                    File.WriteAllText(fileName, codeText);
+                    var sourceText = GetModelTextForStoredProcedure(schema, storedProcedure);
+
+                    if (ExistingModelFileMatching(fileName, sourceText)) {
+                        // Existing Model and new Model matching
+                        continue;
+                    }
+
+                    File.WriteAllText(fileName, sourceText.WithMetadataToString());
                 }
             }
+        }
+
+        private bool ExistingModelFileMatching(string fileName, SourceText sourceText)
+        {
+            if(File.Exists(fileName)) {
+                var oldFileContent = File.ReadAllText(fileName);
+                var oldTree = CSharpSyntaxTree.ParseText(oldFileContent);
+                var oldRoot = oldTree.GetCompilationUnitRoot();
+                var oldNsNode = (NamespaceDeclarationSyntax)oldRoot.Members[0];
+
+                var newTree = CSharpSyntaxTree.ParseText(sourceText);
+                var newRoot = newTree.GetCompilationUnitRoot();
+                var newNsNode = (NamespaceDeclarationSyntax)newRoot.Members[0];
+
+                if(oldNsNode.GetText().ToString().Equals(newNsNode.GetText().ToString())) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         internal string GetStoredProcedureText(SchemaDefinition schema, List<StoredProcedureDefinition> storedProcedures)
