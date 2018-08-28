@@ -230,7 +230,7 @@ namespace SpocR.Internal.Common
                     var fileName = Path.Combine(path, $"{storedProcedure.Name}.cs");
                     var sourceText = GetModelTextForStoredProcedure(schema, storedProcedure);
 
-                    if (ExistingModelFileMatching(fileName, sourceText)) {
+                    if (ExistingFileMatching(fileName, sourceText)) {
                         // Existing Model and new Model matching
                         continue;
                     }
@@ -240,7 +240,7 @@ namespace SpocR.Internal.Common
             }
         }
 
-        private bool ExistingModelFileMatching(string fileName, SourceText sourceText)
+        private bool ExistingFileMatching(string fileName, SourceText sourceText)
         {
             if(File.Exists(fileName)) {
                 var oldFileContent = File.ReadAllText(fileName);
@@ -259,7 +259,7 @@ namespace SpocR.Internal.Common
             return false;
         }
 
-        internal string GetStoredProcedureText(SchemaDefinition schema, List<StoredProcedureDefinition> storedProcedures)
+        internal SourceText GetStoredProcedureText(SchemaDefinition schema, List<StoredProcedureDefinition> storedProcedures)
         {
             var first = storedProcedures.First();
             var rootDir = GetSourceStructureRootDir();
@@ -404,7 +404,7 @@ namespace SpocR.Internal.Common
             classNode = (ClassDeclarationSyntax)nsNode.Members[0];
             root = root.ReplaceNode(classNode, classNode.WithMembers(new SyntaxList<MemberDeclarationSyntax>(classNode.Members.Cast<MethodDeclarationSyntax>().Skip(1))));
 
-            return root.GetText().WithMetadataToString();
+            return root.GetText();
         }
 
         internal void GenerateDataContextStoredProcedures()
@@ -433,8 +433,14 @@ namespace SpocR.Internal.Common
                 {
                     var first = groupedStoredProcedures.First();
                     var fileName = Path.Combine(path, $"{first.EntityName}Extensions.cs");
-                    var codeText = GetStoredProcedureText(schema, groupedStoredProcedures);
-                    File.WriteAllText(fileName, codeText);
+                    var sourceText = GetStoredProcedureText(schema, groupedStoredProcedures);
+
+                    if (ExistingFileMatching(fileName, sourceText)) {
+                        // Existing StoredProcedure and new StoredProcedure matching
+                        continue;
+                    }
+
+                    File.WriteAllText(fileName, sourceText.WithMetadataToString());
                 }
             }
         }
