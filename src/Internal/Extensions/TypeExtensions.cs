@@ -73,6 +73,10 @@ namespace SpocR.Internal.Extensions
                     return "decimal";
                 case "System.Nullable<decimal>":
                     return "decimal?";
+                 case "System.Double":
+                    return "double";
+                case "System.Nullable<double>":
+                    return "double?";
                 case "System.Float":
                     return "float";
                 case "System.Nullable<float>":
