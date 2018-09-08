@@ -117,6 +117,8 @@ namespace Source.DataContext
                     return SqlDbType.UniqueIdentifier;
                 case decimal _:
                     return SqlDbType.Decimal;
+                case double _:
+                    return SqlDbType.Float;
                 case null:
                     return SqlDbType.NVarChar;
                 default:
