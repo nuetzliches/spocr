@@ -32,7 +32,7 @@ namespace SpocR.Internal.Common
             return this;
         }
 
-        new public int Execute(params string[] args)
+        public new int Execute(params string[] args)
         {
             if (ServiceProvider == null)
             {
