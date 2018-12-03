@@ -19,6 +19,7 @@ namespace SpocR.Internal.Common
                 case SqlDbType.Bit:
                     return isNullable ? typeof(bool?) : typeof(bool);
 
+                case SqlDbType.VarChar:
                 case SqlDbType.NVarChar:
                     return typeof(string);
 
