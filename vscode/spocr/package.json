@@ -11,17 +11,44 @@
         "Other"
     ],
     "activationEvents": [
-        "onCommand:extension.sayHello"
+        "onView:spocrExplorer",
+        "onLanguage:sql",
+        "onLanguage:csharp"
     ],
     "main": "./out/extension",
-    "icon": "images/spocr-logo.png",
     "contributes": {
-        "commands": [
-            {
-                "command": "extension.sayHello",
-                "title": "Hello World"
-            }
-        ]
+        "viewsContainers": {
+            "activitybar": [
+                {
+                    "id": "spocr",
+                    "title": "SpocR",
+                    "icon": "media/spocr.svg"
+                }
+            ]
+        },
+        "views": {
+            "spocr": [
+                {
+                    "id": "spocr.spocrExplorer:spocr",
+                    "name": "Explorer",
+                    "when": "spocr:enabled && spocr:spocrExplorer == spocr"
+                }
+            ],
+            "explorer": [
+                {
+                    "id": "spocr.spocrExplorer:explorer",
+                    "name": "Spocr",
+                    "when": "spocr:enabled && spocr:spocrExplorer == explorer"
+                }
+            ],
+            "scm": [
+                {
+                    "id": "spocr.spocrExplorer:scm",
+                    "name": "Spocr",
+                    "when": "spocr:enabled && spocr:spocrExplorer == scm"
+                }
+            ]
+        }
     },
     "scripts": {
         "vscode:prepublish": "npm run compile",
@@ -36,5 +63,8 @@
         "tslint": "^5.8.0",
         "@types/node": "^7.0.43",
         "@types/mocha": "^2.2.42"
+    },
+    "dependencies": {
+        "vscode-uri": "^1.0.6"
     }
 }
