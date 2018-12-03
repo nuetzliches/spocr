@@ -205,7 +205,7 @@ namespace SpocR.Internal.Common
         internal void GenerateDataContextModels()
         {
             var schemas = Config.Schema
-                .Where(i => i.StoredProcedures?.Any() ?? false)
+                .Where(i => i.Status == SchemaStatusEnum.Build && (i.StoredProcedures?.Any() ?? false))
                 .Select(i => Definitions.ForSchema(i));
 
             foreach (var schema in schemas)
@@ -410,7 +410,7 @@ namespace SpocR.Internal.Common
         internal void GenerateDataContextStoredProcedures()
         {
             var schemas = Config.Schema
-                .Where(i => i.StoredProcedures?.Any() ?? false)
+                .Where(i => i.Status == SchemaStatusEnum.Build && (i.StoredProcedures?.Any() ?? false))
                 .Select(i => Definitions.ForSchema(i));
 
             foreach (var schema in schemas)

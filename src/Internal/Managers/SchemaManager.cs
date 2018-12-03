@@ -15,15 +15,25 @@ namespace SpocR.Internal.Managers
         {
         }
 
-        public async Task<List<SchemaModel>> ListAsync(bool withStoredProcedures, CancellationToken cancellationToken = default(CancellationToken))
+        public async Task<List<SchemaModel>> ListAsync(bool withStoredProcedures, ConfigurationModel config, CancellationToken cancellationToken = default(CancellationToken))
         {
-            var schemas = await DbContext.SchemaListAsync(cancellationToken);
-            var result = schemas?.Select(i => new SchemaModel(i)).ToList();
-            if(withStoredProcedures) {
+            var dbSchemas = await DbContext.SchemaListAsync(cancellationToken);
+            var schemas = dbSchemas?.Select(i => new SchemaModel(i)).ToList();
+            
+            // overwrite with current config
+            if (config?.Schema != null)
+            {
+                foreach (var schema in schemas)
+                {
+                    var currentSchema = config.Schema.FirstOrDefault(i => i.Id == schema.Id);
+                    schema.Status = currentSchema != null ? currentSchema.Status : SchemaStatusEnum.Build;
+                }
+            }
 
-                var schemaListString = string.Join(',', schemas.Select(i => i.Id));
+            if(withStoredProcedures) {
+                var schemaListString = string.Join(',', schemas.Where(i => i.Status != SchemaStatusEnum.Ignore).Select(i => i.Id));
                 var storedProcedures = await DbContext.StoredProcedureListAsync(schemaListString, cancellationToken);
-                foreach(var schema in result) {
+                foreach(var schema in schemas) {
                     schema.StoredProcedures = storedProcedures.Where(i => i.SchemaId.Equals(schema.Id)).Select(i => new StoredProcedureModel(i)).ToList();
                     foreach(var storedProcedure in schema.StoredProcedures) {
                         var input = await DbContext.StoredProcedureInputListAsync(storedProcedure.Id, cancellationToken);
@@ -35,7 +45,7 @@ namespace SpocR.Internal.Managers
                     }
                 }
             }
-            return result;
+            return schemas;
         }
     }
 }

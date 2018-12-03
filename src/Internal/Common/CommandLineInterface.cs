@@ -122,7 +122,21 @@ namespace SpocR.Internal.Common
                     var stopwatch = new Stopwatch();
                     stopwatch.Start();
 
-                    shemaManager.ListAsync(true).ContinueWith(t => engine.Config.Schema = t.Result).Wait();
+                    shemaManager.ListAsync(true, engine.Config).ContinueWith(t =>
+                    {
+                        var result = t.Result;
+                        // overwrite with current config
+                        if (engine.Config?.Schema != null)
+                        {
+                            foreach (var schema in result)
+                            {
+                                var currentSchema = engine.Config.Schema.FirstOrDefault(i => i.Id == schema.Id);
+                                schema.Status = currentSchema != null ? currentSchema.Status : SchemaStatusEnum.Build;
+                            }
+                        }
+                        engine.Config.Schema = result;
+
+                    }).Wait();
 
                     var spCount = engine.Config.Schema.SelectMany(x => x.StoredProcedures).Count();
                     var scCount = engine.Config.Schema.Count();
@@ -162,13 +176,13 @@ namespace SpocR.Internal.Common
                     stopwatch.Restart();
 
                     engine.GenerateDataContextModels();
-                    
+
                     reporter.Output($"DataContextModels generated in {stopwatch.ElapsedMilliseconds} ms.");
 
                     stopwatch.Restart();
 
                     engine.GenerateDataContextStoredProcedures();
-                    
+
                     reporter.Output($"DataContextStoredProcedures generated in {stopwatch.ElapsedMilliseconds} ms.");
 
                     return (int)ExecuteResultEnum.Succeeded;
