@@ -25,14 +25,14 @@ namespace Source.DataContext.Models
             _modified = modified;
         }
         
-        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
-        public bool Succeeded => _succeeded ?? ((_succeeded = ResultId == 1) ?? false);
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
+        public bool Succeeded => _succeeded ?? (_succeeded = ResultId == 1) ?? false;
 
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
-        public bool Modified => _modified ?? ((_modified = ResultId == -10) ?? false);
+        public bool? Modified => _modified ?? (_modified = ResultId == -10);
 
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
-        public bool HasDependencies => _hasDependencies ?? ((_hasDependencies = ResultId == -2) ?? false);
+        public bool? HasDependencies => _hasDependencies ?? (_hasDependencies = ResultId == -2);
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public int? ResultId { get; set; }
@@ -43,8 +43,8 @@ namespace Source.DataContext.Models
 
     public interface ICrudResult
     {
+        bool Succeeded { get; }
         int? ResultId { get; }
-
         int? RecordId { get; }
     }
 }
