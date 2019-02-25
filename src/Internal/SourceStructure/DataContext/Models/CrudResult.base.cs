@@ -29,10 +29,10 @@ namespace Source.DataContext.Models
         public bool Succeeded => _succeeded ?? (_succeeded = ResultId == 1) ?? false;
 
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
-        public bool? Modified => _modified ?? (_modified = ResultId == -10);
+        public bool Modified => _modified ?? (_modified = ResultId == -10) ?? false;
 
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
-        public bool? HasDependencies => _hasDependencies ?? (_hasDependencies = ResultId == -2);
+        public bool HasDependencies => _hasDependencies ?? (_hasDependencies = ResultId == -2) ?? false;
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public int? ResultId { get; set; }
