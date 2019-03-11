@@ -12,14 +12,14 @@ namespace Source.DataContext
     public interface IAppDbContext
     {
         Task<List<T>> ExecuteListAsync<T>(string procedureName, List<SqlParameter> parameters,
-            CancellationToken cancellationToken = default(CancellationToken), AppDbContext.AppSqlTransaction transaction = null) where T : class, new();
+            CancellationToken cancellationToken = default(CancellationToken), AppSqlTransaction transaction = null) where T : class, new();
 
-        Task<AppDbContext.AppSqlTransaction> BeginTransactionAsync(string transactionName, CancellationToken cancellationToken = default(CancellationToken));
-        void CommitTransaction(AppDbContext.AppSqlTransaction transaction);
-        void RollbackTransaction(AppDbContext.AppSqlTransaction transaction);
+        Task<AppSqlTransaction> BeginTransactionAsync(string transactionName, CancellationToken cancellationToken = default(CancellationToken));
+        void CommitTransaction(AppSqlTransaction transaction);
+        void RollbackTransaction(AppSqlTransaction transaction);
 
         Task<T> ExecuteSingleAsync<T>(string procedureName, List<SqlParameter> parameters,
-            CancellationToken cancellationToken = default(CancellationToken), AppDbContext.AppSqlTransaction transaction = null) where T : class, new();
+            CancellationToken cancellationToken = default(CancellationToken), AppSqlTransaction transaction = null) where T : class, new();
         void Dispose();
     }
 
@@ -140,10 +140,10 @@ namespace Source.DataContext
                     throw new NotImplementedException($"{nameof(AppDbContext)}.{nameof(GetSqlDbType)} - System.Type {value.GetType()} not defined!");
             }
         }
+    }
 
-        public class AppSqlTransaction
-        {
-            public SqlTransaction Transaction { get; set; }
-        }
+    public class AppSqlTransaction
+    {
+        public SqlTransaction Transaction { get; set; }
     }
 }

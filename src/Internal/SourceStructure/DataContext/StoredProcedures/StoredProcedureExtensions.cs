@@ -18,7 +18,7 @@ namespace Source.DataContext.StoredProcedures.Schema
 {
     public static class StoredProcedureExtensions
     {
-        public static Task<CrudResult> CrudActionAsync(this AppDbContext context, int userId, CancellationToken cancellationToken, AppDbContext.AppSqlTransaction transaction = null)
+        public static Task<CrudResult> CrudActionAsync(this IAppDbContext context, int userId, CancellationToken cancellationToken, AppSqlTransaction transaction = null)
         {
             if (context == null)
             {
