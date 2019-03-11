@@ -67,6 +67,7 @@ Clone and Download Repository
 `> cd src`<br>
 `> dotnet pack --output ./`<br>
 `> dotnet tool install -g spocr --add-source ./`<br>
+`> (dotnet tool uninstall -g spocr)`<br>
 
 ### b. From NPM (TODO: Upload NPM-Package)
 
