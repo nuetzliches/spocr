@@ -9,7 +9,21 @@ using System.Threading.Tasks;
 
 namespace Source.DataContext
 {
-    public class AppDbContext : IDisposable
+    public interface IAppDbContext
+    {
+        Task<List<T>> ExecuteListAsync<T>(string procedureName, List<SqlParameter> parameters,
+            CancellationToken cancellationToken = default(CancellationToken), AppDbContext.AppSqlTransaction transaction = null) where T : class, new();
+
+        Task<AppDbContext.AppSqlTransaction> BeginTransactionAsync(string transactionName, CancellationToken cancellationToken = default(CancellationToken));
+        void CommitTransaction(AppDbContext.AppSqlTransaction transaction);
+        void RollbackTransaction(AppDbContext.AppSqlTransaction transaction);
+
+        Task<T> ExecuteSingleAsync<T>(string procedureName, List<SqlParameter> parameters,
+            CancellationToken cancellationToken = default(CancellationToken), AppDbContext.AppSqlTransaction transaction = null) where T : class, new();
+        void Dispose();
+    }
+
+    public class AppDbContext : IAppDbContext, IDisposable
     {
         private readonly SqlConnection _connection;
         private readonly List<AppSqlTransaction> _transactions;
