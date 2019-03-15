@@ -40,13 +40,13 @@ public Task<List<UserList>> ListAsync(CancellationToken cancellationToken = defa
 ## StoredProcedure-Naming
 #### `[EntityName][Action][Suffix]`
 - EntityName (required): Name of base SQL-Table
-- Action (required): Create | Update | Delete | Merge | FindBy | List
+- Action (required): Create | Update | Delete | (Merge, Upsert) | FindBy | List
 - Suffix: WithChildren | (custom suffix)
 
 ## First param in every StoredProcedure
 - @UserId INT
 
-## Required result for CRUD-Actions (Create, Update, Delete, Merge)
+## Required result for CRUD-Actions (Create, Update, Delete, Merge, Upsert)
 - [ResultId] INT, [RecordId] INT
 
 # Requirements
