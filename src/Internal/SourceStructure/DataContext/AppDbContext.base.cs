@@ -11,15 +11,16 @@ namespace Source.DataContext
 {
     public interface IAppDbContext
     {
-        Task<List<T>> ExecuteListAsync<T>(string procedureName, List<SqlParameter> parameters,
-            CancellationToken cancellationToken = default(CancellationToken), AppSqlTransaction transaction = null) where T : class, new();
+        Task<List<T>> ExecuteListAsync<T>(string procedureName, List<SqlParameter> parameters, CancellationToken cancellationToken, AppSqlTransaction transaction = null) where T : class, new();
 
-        Task<AppSqlTransaction> BeginTransactionAsync(string transactionName, CancellationToken cancellationToken = default(CancellationToken));
+        Task<AppSqlTransaction> BeginTransactionAsync(CancellationToken cancellationToken);
+        Task<AppSqlTransaction> BeginTransactionAsync(string transactionName, CancellationToken cancellationToken);
+        Task<AppSqlTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken);
+        Task<AppSqlTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, string transactionName, CancellationToken cancellationToken);
         void CommitTransaction(AppSqlTransaction transaction);
         void RollbackTransaction(AppSqlTransaction transaction);
 
-        Task<T> ExecuteSingleAsync<T>(string procedureName, List<SqlParameter> parameters,
-            CancellationToken cancellationToken = default(CancellationToken), AppSqlTransaction transaction = null) where T : class, new();
+        Task<T> ExecuteSingleAsync<T>(string procedureName, List<SqlParameter> parameters, CancellationToken cancellationToken, AppSqlTransaction transaction = null) where T : class, new();
         void Dispose();
     }
 
@@ -38,7 +39,7 @@ namespace Source.DataContext
         {
             if (_connection?.State == ConnectionState.Open)
             {
-                if (_transactions.Any()) _transactions.ForEach(t => t.Transaction.Rollback());
+                if (_transactions.Any()) _transactions.ForEach(RollbackTransaction);
                 _connection.Close();
             }
 
@@ -62,20 +63,37 @@ namespace Source.DataContext
 
             var result = new List<T>();
 
-            using (var reader = await command.ExecuteReaderAsync(cancellationToken))
-            {
-                while (reader.Read()) result.Add(reader.ConvertToObject<T>());
-            }
-
-            if (!_transactions.Any()) _connection.Close();
+            var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken)) result.Add(reader.ConvertToObject<T>());
+            reader.Close();
 
             return result;
         }
 
-        public async Task<AppSqlTransaction> BeginTransactionAsync(string transactionName, CancellationToken cancellationToken = default(CancellationToken))
+        public Task<AppSqlTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default(CancellationToken))
+        {
+            return BeginTransactionAsync(null, cancellationToken);
+        }
+
+        public Task<AppSqlTransaction> BeginTransactionAsync(string transactionName, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            return BeginTransactionAsync(IsolationLevel.Unspecified, transactionName, cancellationToken);
+        }
+
+        public Task<AppSqlTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            return BeginTransactionAsync(isolationLevel, null, cancellationToken);
+        }
+
+        public async Task<AppSqlTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, string transactionName, CancellationToken cancellationToken = default(CancellationToken))
         {
             if (_connection.State != ConnectionState.Open) await _connection.OpenAsync(cancellationToken);
-            var transaction = new AppSqlTransaction { Transaction = _connection.BeginTransaction(transactionName) };
+            var transaction = new AppSqlTransaction
+            {
+                Transaction = !string.IsNullOrEmpty(transactionName)
+                        ? _connection.BeginTransaction(isolationLevel, transactionName)
+                        : _connection.BeginTransaction(isolationLevel)
+            };
             _transactions.Add(transaction);
             return transaction;
         }
