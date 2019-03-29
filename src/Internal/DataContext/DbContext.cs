@@ -166,6 +166,8 @@ namespace SpocR.Internal.DataContext
                     return SqlDbType.Decimal;
                 case double _:
                     return SqlDbType.Float;
+                case byte[] _:
+                    return SqlDbType.VarBinary;
                 case null:
                     return SqlDbType.NVarChar;
                 default:
