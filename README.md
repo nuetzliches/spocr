@@ -65,7 +65,7 @@ Clone and Download Repository
 
 `> git clone https://github.com/nuetzliches/spocr.git`<br>
 `> cd src`<br>
-`> dotnet pack --output ./`<br>
+`> dotnet pack --output ./ --configuration Release`<br>
 `> dotnet tool install -g spocr --add-source ./`<br>
 `> (dotnet tool uninstall -g spocr)`<br>
 

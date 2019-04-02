@@ -61,153 +61,53 @@ namespace SpocR.Internal.Common
             cli.HelpOption(inherited: true);
             cli.Command("create", createCmd =>
             {
+                var dryrun = createCmd.Option("-d|--dry-run", "Run test without any changes", CommandOptionType.NoValue).HasValue();
+
                 createCmd.OnExecute(() =>
                 {
-                    if (engine.ConfigFileExists())
-                    {
-                        reporter.Error($"File already exists: {Configuration.ConfigurationFile}");
-                        reporter.Output($"\tPlease run: {Configuration.Name} status");
-                        return (int)ExecuteResultEnum.Error;
-                    }
-
-                    var proceed = Prompt.GetYesNo("Create a new SpocR Project?", true);
-                    if (!proceed) return (int)ExecuteResultEnum.Aborted;
-
-                    var appNamespace = Prompt.GetString("Your Project Namespace:", new DirectoryInfo(cli.WorkingDirectory).Name);
-                    var connectionString = Prompt.GetString("Your ConnectionString:");
-
-                    var config = new ConfigurationModel
-                    {
-                        Version = Configuration.Version,
-                        Modified = DateTime.Now,
-                        Project = new ProjectModel
-                        {
-                            Namespace = appNamespace,
-                            DataBase = new DataBaseModel
-                            {
-                                RuntimeConnectionStringIdentifier = "DefaultConnection",
-                                ConnectionString = connectionString ?? ""
-                            },
-                            Structure = engine.GetStructureModelListFromSource()
-                        },
-                        Schema = new List<SchemaModel>()
-                    };
-
-                    engine.SaveConfigFile(config);
-                    reporter.Output($"{Configuration.Name} successfully created.");
-
-                    return (int)ExecuteResultEnum.Succeeded;
+                    OnCreate(cli, dryrun);
                 });
 
             });
 
             cli.Command("pull", pullCmd =>
             {
+                var dryrun = pullCmd.Option("-d|--dry-run", "Run test without any changes", CommandOptionType.NoValue).HasValue();
+
                 pullCmd.OnExecute(() =>
                 {
-                    if (!engine.ConfigFileExists())
-                    {
-                        reporter.Error($"File not found: {Configuration.ConfigurationFile}");
-                        reporter.Output($"\tPlease make sure you are in the right working directory");
-                        return (int)ExecuteResultEnum.Error;
-                    }
-
-                    if (string.IsNullOrWhiteSpace(engine.Config.Project.DataBase.ConnectionString))
-                    {
-                        reporter.Error($"ConnectionString is empty: {Configuration.ConfigurationFile}");
-                        reporter.Output($"\tPlease run {Configuration.Name} set --cs <ConnectionString>");
-                        return (int)ExecuteResultEnum.Error;
-                    }
-
-                    var stopwatch = new Stopwatch();
-                    stopwatch.Start();
-
-                    shemaManager.ListAsync(true, engine.Config).ContinueWith(t =>
-                    {
-                        var result = t.Result;
-                        // overwrite with current config
-                        if (engine.Config?.Schema != null)
-                        {
-                            foreach (var schema in result)
-                            {
-                                var currentSchema = engine.Config.Schema.FirstOrDefault(i => i.Id == schema.Id);
-                                schema.Status = currentSchema != null ? currentSchema.Status : SchemaStatusEnum.Build;
-                            }
-                        }
-                        engine.Config.Schema = result;
-
-                    }).Wait();
-
-                    var spCount = engine.Config.Schema.SelectMany(x => x.StoredProcedures).Count();
-                    var scCount = engine.Config.Schema.Count();
-                    reporter.Output($"Pulled {spCount} StoredProcedures from {scCount} Schemas in {stopwatch.ElapsedMilliseconds} ms.");
-
-                    engine.SaveConfigFile(engine.Config);
-
-                    return (int)ExecuteResultEnum.Succeeded;
+                    OnPull(cli, dryrun);
                 });
             });
 
             cli.Command("build", buildCmd =>
             {
+                var dryrun = buildCmd.Option("-d|--dry-run", "Run test without any changes", CommandOptionType.NoValue).HasValue();
+
                 buildCmd.OnExecute(() =>
                 {
-                    if (!engine.ConfigFileExists())
-                    {
-                        reporter.Error($"File not found: {Configuration.ConfigurationFile}");
-                        reporter.Output($"\tPlease make sure you are in the right working directory");
-                        return (int)ExecuteResultEnum.Error;
-                    }
-
-                    if (!(engine.Config?.Schema?.Any() ?? false))
-                    {
-                        reporter.Error($"Schema is empty: {Configuration.ConfigurationFile}");
-                        reporter.Output($"\tPlease run pull to get the DB-Schema.");
-                        return (int)ExecuteResultEnum.Error;
-                    }
-
-                    var stopwatch = new Stopwatch();
-                    stopwatch.Start();
-
-                    engine.GenerateCodeBase();
-
-                    reporter.Output($"CodeBase generated in {stopwatch.ElapsedMilliseconds} ms.");
-
-                    stopwatch.Restart();
-
-                    engine.GenerateDataContextModels();
-
-                    reporter.Output($"DataContextModels generated in {stopwatch.ElapsedMilliseconds} ms.");
-
-                    stopwatch.Restart();
-
-                    engine.GenerateDataContextStoredProcedures();
-
-                    reporter.Output($"DataContextStoredProcedures generated in {stopwatch.ElapsedMilliseconds} ms.");
-
-                    return (int)ExecuteResultEnum.Succeeded;
+                    OnBuild(cli, dryrun);
                 });
             });
 
-            cli.Command("remove", statusCmd =>
+            cli.Command("rebuild", rebuildCmd =>
             {
-                statusCmd.OnExecute(() =>
+                var dryrun = rebuildCmd.Option("-d|--dry-run", "Run test without any changes", CommandOptionType.NoValue).HasValue();
+
+                rebuildCmd.OnExecute(() =>
                 {
-                    var proceed1 = Prompt.GetYesNo("Remove all generated files?", true);
-                    if (!proceed1) return (int)ExecuteResultEnum.Aborted;
+                    if (OnPull(cli, dryrun) == 1)
+                        OnBuild(cli, dryrun);
+                });
+            });
 
-                    engine.RemoveGeneratedFiles();
+            cli.Command("remove", removeCmd =>
+            {
+                var dryrun = removeCmd.Option("-d|--dry-run", "Run test without any changes", CommandOptionType.NoValue).HasValue();
 
-                    reporter.Output($"Generated folder and files removed.");
-
-                    var proceed2 = Prompt.GetYesNo($"Remove {Configuration.ConfigurationFile}?", true);
-                    if (!proceed2) return (int)ExecuteResultEnum.Aborted;
-
-                    engine.RemoveConfig();
-
-                    reporter.Output($"{Configuration.ConfigurationFile} removed.");
-
-                    return (int)ExecuteResultEnum.Succeeded;
+                removeCmd.OnExecute(() =>
+                {
+                    OnRemove(cli, dryrun);
                 });
             });
 
@@ -270,6 +170,182 @@ namespace SpocR.Internal.Common
             #endregion
 
             return cli;
+        }
+
+        private static int OnCreate(CommandLineInterface cli, bool dryrun)
+        {
+            var engine = cli.ServiceProvider.GetService<Engine>();
+            var reporter = cli.ServiceProvider.GetService<IReporter>();
+
+            if (engine.ConfigFileExists())
+            {
+                reporter.Error($"File already exists: {Configuration.ConfigurationFile}");
+                reporter.Output($"\tPlease run: {Configuration.Name} status");
+                return (int)ExecuteResultEnum.Error;
+            }
+
+            var proceed = Prompt.GetYesNo("Create a new SpocR Project?", true);
+            if (!proceed) return (int)ExecuteResultEnum.Aborted;
+
+            var appNamespace = Prompt.GetString("Your Project Namespace:", new DirectoryInfo(cli.WorkingDirectory).Name);
+            var connectionString = Prompt.GetString("Your ConnectionString:");
+
+            var roleKindString = Prompt.GetString("SpocR Role [Default, Lib, Extension]:", "Default");
+            var roleKind = default(ERoleKind);
+            Enum.TryParse(roleKindString, true, out roleKind);
+
+            var role = new RoleModel
+            {
+                Kind = roleKind,
+                LibNamespace = roleKind == ERoleKind.Extension
+                    ? Prompt.GetString("SpocR Lib Namespace:", "Nuts.DbContext")
+                    : null
+            };
+
+            var config = new ConfigurationModel
+            {
+                Version = Configuration.Version,
+                Modified = DateTime.Now,
+                Project = new ProjectModel
+                {
+                    Namespace = appNamespace,
+                    Role = role,
+                    DataBase = new DataBaseModel
+                    {
+                        RuntimeConnectionStringIdentifier = "DefaultConnection",
+                        ConnectionString = connectionString ?? ""
+                    },
+                    Structure = engine.GetStructureModelListFromSource()
+                },
+                Schema = new List<SchemaModel>()
+            };
+
+            engine.SaveConfigFile(config);
+            reporter.Output($"{Configuration.Name} successfully created.");
+
+            return (int)ExecuteResultEnum.Succeeded;
+        }
+
+        private static int OnPull(CommandLineInterface cli, bool dryrun)
+        {
+            var engine = cli.ServiceProvider.GetService<Engine>();
+            var reporter = cli.ServiceProvider.GetService<IReporter>();
+            var shemaManager = cli.ServiceProvider.GetService<SchemaManager>();
+
+            if (!engine.ConfigFileExists())
+            {
+                reporter.Error($"File not found: {Configuration.ConfigurationFile}");
+                reporter.Output($"\tPlease make sure you are in the right working directory");
+                return (int)ExecuteResultEnum.Error;
+            }
+
+            if (string.IsNullOrWhiteSpace(engine.Config.Project.DataBase.ConnectionString))
+            {
+                reporter.Error($"ConnectionString is empty: {Configuration.ConfigurationFile}");
+                reporter.Output($"\tPlease run {Configuration.Name} set --cs <ConnectionString>");
+                return (int)ExecuteResultEnum.Error;
+            }
+
+            var stopwatch = new Stopwatch();
+            stopwatch.Start();
+
+            shemaManager.ListAsync(true, engine.Config).ContinueWith(t =>
+            {
+                var result = t.Result;
+                // overwrite with current config
+                if (engine.Config?.Schema != null)
+                {
+                    foreach (var schema in result)
+                    {
+                        var currentSchema = engine.Config.Schema.FirstOrDefault(i => i.Id == schema.Id);
+                        schema.Status = currentSchema != null ? currentSchema.Status : SchemaStatusEnum.Build;
+                    }
+                }
+                engine.Config.Schema = result;
+
+            }).Wait();
+
+            var spCount = engine.Config.Schema.SelectMany(x => x.StoredProcedures).Count();
+            var scCount = engine.Config.Schema.Count();
+            reporter.Output($"Pulled {spCount} StoredProcedures from {scCount} Schemas in {stopwatch.ElapsedMilliseconds} ms.");
+
+            if (!dryrun)
+                engine.SaveConfigFile(engine.Config);
+
+            return (int)ExecuteResultEnum.Succeeded;
+        }
+
+        private static int OnBuild(CommandLineInterface cli, bool dryrun)
+        {
+            var engine = cli.ServiceProvider.GetService<Engine>();
+            var reporter = cli.ServiceProvider.GetService<IReporter>();
+
+            if (!engine.ConfigFileExists())
+            {
+                reporter.Error($"File not found: {Configuration.ConfigurationFile}");
+                reporter.Output($"\tPlease make sure you are in the right working directory");
+                return (int)ExecuteResultEnum.Error;
+            }
+
+            if (!(engine.Config?.Schema?.Any() ?? false))
+            {
+                reporter.Error($"Schema is empty: {Configuration.ConfigurationFile}");
+                reporter.Output($"\tPlease run pull to get the DB-Schema.");
+                return (int)ExecuteResultEnum.Error;
+            }
+
+            var stopwatch = new Stopwatch();
+            stopwatch.Start();
+
+            if(engine.Config.Project.Role.Kind != ERoleKind.Extension)
+            {
+                // we dont have a codebase, so generate it
+                engine.GenerateCodeBase(dryrun);
+                
+                reporter.Output($"CodeBase generated in {stopwatch.ElapsedMilliseconds} ms.");
+            }
+
+            if(engine.Config.Project.Role.Kind == ERoleKind.Lib) 
+            {
+                // its only a lib
+                return (int)ExecuteResultEnum.Succeeded;
+            }
+
+            stopwatch.Restart();
+
+            engine.GenerateDataContextModels(dryrun);
+
+            reporter.Output($"DataContextModels generated in {stopwatch.ElapsedMilliseconds} ms.");
+
+            stopwatch.Restart();
+
+            engine.GenerateDataContextStoredProcedures(dryrun);
+
+            reporter.Output($"DataContextStoredProcedures generated in {stopwatch.ElapsedMilliseconds} ms.");
+
+            return (int)ExecuteResultEnum.Succeeded;
+        }
+
+        private static int OnRemove(CommandLineInterface cli, bool dryrun)
+        {
+            var engine = cli.ServiceProvider.GetService<Engine>();
+            var reporter = cli.ServiceProvider.GetService<IReporter>();
+
+            var proceed1 = Prompt.GetYesNo("Remove all generated files?", true);
+            if (!proceed1) return (int)ExecuteResultEnum.Aborted;
+
+            engine.RemoveGeneratedFiles();
+
+            reporter.Output($"Generated folder and files removed.");
+
+            var proceed2 = Prompt.GetYesNo($"Remove {Configuration.ConfigurationFile}?", true);
+            if (!proceed2) return (int)ExecuteResultEnum.Aborted;
+
+            engine.RemoveConfig();
+
+            reporter.Output($"{Configuration.ConfigurationFile} removed.");
+
+            return (int)ExecuteResultEnum.Succeeded;
         }
     }
 
