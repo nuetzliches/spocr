@@ -241,6 +241,12 @@ namespace SpocR.Internal.Common
 
                 foreach (var storedProcedure in storedProcedures)
                 {
+                    var isScalar = storedProcedure.Output.Count() == 1;
+                    if (isScalar)
+                    {
+                        continue;
+                    }
+
                     var fileName = Path.Combine(path, $"{storedProcedure.Name}.cs");
                     var sourceText = GetModelTextForStoredProcedure(schema, storedProcedure);
 
@@ -296,7 +302,7 @@ namespace SpocR.Internal.Common
             }
 
             // If its an extension, add usings for the lib
-            if(Config.Project.Role.Kind == ERoleKind.Extension) 
+            if (Config.Project.Role.Kind == ERoleKind.Extension)
             {
                 var libUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{Config.Project.Role.LibNamespace}"));
                 root = root.AddUsings(libUsingDirective.NormalizeWhitespace().WithLeadingTrivia(SyntaxFactory.CarriageReturnLineFeed));
@@ -393,24 +399,36 @@ namespace SpocR.Internal.Common
                 var returnExpression = $"context.ExecuteSingleAsync<CrudResult>(\"{storedProcedure.SqlObjectName}\", parameters, cancellationToken, transaction)";
                 var returnModel = "CrudResult";
 
-                switch (storedProcedure.OperationKind)
+                var isScalar = storedProcedure.Output.Count() == 1;
+                if (isScalar)
                 {
-                    case OperationKindEnum.FindBy:
-                    case OperationKindEnum.List:
-                        returnModel = storedProcedure.Name;
-                        break;
+                    var output = storedProcedure.Output.FirstOrDefault();
+                    returnModel = ParseTypeFromSqlDbTypeName(output.SqlTypeName, output.IsNullable).ToString();
+                
+                    returnType = $"Task<{returnModel}>";
+                    returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", $"ExecuteScalarAsync<{returnModel}>");         
                 }
-
-                switch (storedProcedure.ResultKind)
+                else
                 {
-                    case ResultKindEnum.Single:
-                        returnType = $"Task<{returnModel}>";
-                        returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", $"ExecuteSingleAsync<{returnModel}>");
-                        break;
-                    case ResultKindEnum.List:
-                        returnType = $"Task<List<{returnModel}>>";
-                        returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", $"ExecuteListAsync<{returnModel}>");
-                        break;
+                    switch (storedProcedure.OperationKind)
+                    {
+                        case OperationKindEnum.FindBy:
+                        case OperationKindEnum.List:
+                            returnModel = storedProcedure.Name;
+                            break;
+                    }
+
+                    switch (storedProcedure.ResultKind)
+                    {
+                        case ResultKindEnum.Single:
+                            returnType = $"Task<{returnModel}>";
+                            returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", $"ExecuteSingleAsync<{returnModel}>");
+                            break;
+                        case ResultKindEnum.List:
+                            returnType = $"Task<List<{returnModel}>>";
+                            returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", $"ExecuteListAsync<{returnModel}>");
+                            break;
+                    }
                 }
 
                 methodNode = methodNode.WithReturnType(SyntaxFactory.ParseTypeName(returnType).WithTrailingTrivia(SyntaxFactory.Space));

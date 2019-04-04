@@ -12,15 +12,15 @@ namespace Source.DataContext
     public interface IAppDbContext
     {
         Task<List<T>> ExecuteListAsync<T>(string procedureName, List<SqlParameter> parameters, CancellationToken cancellationToken, AppSqlTransaction transaction = null) where T : class, new();
-
+        Task<T> ExecuteSingleAsync<T>(string procedureName, List<SqlParameter> parameters, CancellationToken cancellationToken, AppSqlTransaction transaction = null) where T : class, new();
+        Task<T> ExecuteScalarAsync<T>(string procedureName, List<SqlParameter> parameters,
+            CancellationToken cancellationToken = default(CancellationToken), AppSqlTransaction transaction = null) where T : class;
         Task<AppSqlTransaction> BeginTransactionAsync(CancellationToken cancellationToken);
         Task<AppSqlTransaction> BeginTransactionAsync(string transactionName, CancellationToken cancellationToken);
         Task<AppSqlTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken);
         Task<AppSqlTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, string transactionName, CancellationToken cancellationToken);
         void CommitTransaction(AppSqlTransaction transaction);
         void RollbackTransaction(AppSqlTransaction transaction);
-
-        Task<T> ExecuteSingleAsync<T>(string procedureName, List<SqlParameter> parameters, CancellationToken cancellationToken, AppSqlTransaction transaction = null) where T : class, new();
         void Dispose();
     }
 
@@ -120,6 +120,30 @@ namespace Source.DataContext
             cancellationToken.ThrowIfCancellationRequested();
 
             return (await ExecuteListAsync<T>(procedureName, parameters, cancellationToken, transaction)).SingleOrDefault();
+        }
+
+        public async Task<T> ExecuteScalarAsync<T>(string procedureName, List<SqlParameter> parameters,
+            CancellationToken cancellationToken = default(CancellationToken), AppSqlTransaction transaction = null) where T : class
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (_connection.State != ConnectionState.Open) await _connection.OpenAsync(cancellationToken);
+
+            var command = new SqlCommand(procedureName, _connection)
+            {
+                CommandType = CommandType.StoredProcedure,
+                Transaction = transaction?.Transaction
+            };
+
+            if (parameters?.Any() ?? false) command.Parameters.AddRange(parameters.ToArray());
+
+            var result = default(T);
+
+            var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken)) result = (T)reader.GetValue(0);
+            reader.Close();
+
+            return result;
         }
 
         public static SqlParameter GetParameter(string parameter, object value)
