@@ -36,8 +36,12 @@ namespace SpocR.Internal.Managers
                 foreach(var schema in schemas) {
                     schema.StoredProcedures = storedProcedures.Where(i => i.SchemaId.Equals(schema.Id)).Select(i => new StoredProcedureModel(i)).ToList();
                     foreach(var storedProcedure in schema.StoredProcedures) {
-                        var input = await DbContext.StoredProcedureInputListAsync(storedProcedure.Id, cancellationToken);
-                        storedProcedure.Input = input.Select(i => new StoredProcedureInputModel(i)).ToList();
+                        var inputs = await DbContext.StoredProcedureInputListAsync(storedProcedure.Id, cancellationToken);
+                        foreach(var input in inputs.Where(i => i.IsTableType).ToList())
+                        {
+                            input.TableTypeColumns = await DbContext.UserTableTypeColumnListAsync(input.UserTypeId ?? -1, cancellationToken);
+                        }
+                        storedProcedure.Input = inputs.Select(i => new StoredProcedureInputModel(i)).ToList();
                     }
                     foreach(var storedProcedure in schema.StoredProcedures) {
                         var output = await DbContext.StoredProcedureOutputListAsync(storedProcedure.Id, cancellationToken);

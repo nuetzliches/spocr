@@ -345,7 +345,7 @@ namespace SpocR.Internal.Common
                 var parameters = storedProcedure.Input.Skip(1).Select(i =>
                 {
                     return SyntaxFactory.Parameter(SyntaxFactory.Identifier($"{i.Name.Remove(0, 1).FirstCharToLower()}"))
-                        .WithType(ParseTypeFromSqlDbTypeName(i.SqlTypeName, i.IsNullable))
+                        .WithType(ParseTypeFromSqlDbTypeName(i.SqlTypeName, i.IsNullable ?? false))
                         .NormalizeWhitespace()
                         .WithLeadingTrivia(SyntaxFactory.Space);
                 });

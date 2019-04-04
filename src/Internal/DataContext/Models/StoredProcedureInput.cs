@@ -1,22 +1,22 @@
 using System;
+using System.Collections.Generic;
 using SpocR.Internal.DataContext.Attributes;
 
 namespace SpocR.Internal.DataContext.Models
 {
-    public class StoredProcedureInput
-    {
-        public string Name { get; set; }
-
-        [SqlFieldName("is_nullable")]
-        public bool IsNullable { get; set; }
-
-        [SqlFieldName("system_type_name")]
-        public string SqlTypeName { get; set; }
-        
-        [SqlFieldName("max_length")]
-        public int MaxLength { get; set; }
-        
+    public class StoredProcedureInput : ColumnDefinition
+    {        
         [SqlFieldName("is_output")]
         public bool IsOutput { get; set; }
+        
+        [SqlFieldName("is_table_type")]
+        public bool IsTableType { get; set; }
+        
+        [SqlFieldName("user_type_name")]
+        public string UserTypeName { get; set; }
+        
+        [SqlFieldName("user_type_id")]
+        public int? UserTypeId { get; set; }
+        public List<ColumnDefinition> TableTypeColumns { get; set; }
     }
 }
