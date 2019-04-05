@@ -171,6 +171,12 @@ namespace SpocR.Internal.Common
             return SyntaxFactory.ParseTypeName(clrType.ToGenericTypeString());
         }
 
+        internal TypeSyntax GetInputTypeNameForTableType(StoredProcedureDefinition storedProcedure, StoredProcedureInputModel input)
+        {
+            var typeName = $"{storedProcedure.Name}{input.Name.Replace("@", "")}";
+            return SyntaxFactory.ParseTypeName(typeName);
+        }
+
         internal SourceText GetModelTextForStoredProcedure(SchemaDefinition schema, StoredProcedureDefinition storedProcedure)
         {
             var rootDir = GetSourceStructureRootDir();
@@ -214,6 +220,109 @@ namespace SpocR.Internal.Common
             root = root.ReplaceNode(classNode, classNode.WithMembers(new SyntaxList<MemberDeclarationSyntax>(classNode.Members.Cast<PropertyDeclarationSyntax>().Skip(1))));
 
             return root.GetText();
+        }
+
+        internal SourceText GetParamsTextForStoredProcedure(SchemaDefinition schema, StoredProcedureDefinition storedProcedure)
+        {
+            var rootDir = GetSourceStructureRootDir();
+            var fileContent = File.ReadAllText(Path.Combine(rootDir.FullName, "DataContext", "Params", "Params.cs"));
+
+            var tree = CSharpSyntaxTree.ParseText(fileContent);
+            var root = tree.GetCompilationUnitRoot();
+
+            // Replace Namespace
+            var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
+            var fullSchemaName = SyntaxFactory.ParseName($"{nsNode.Name.ToString().Replace("Source.DataContext", GetDataContextNamespace()).Replace("Schema", schema.Name)}{Environment.NewLine}");
+            root = root.ReplaceNode(nsNode, nsNode.WithName(fullSchemaName));
+
+            var inputs = storedProcedure.Input.Where(i => i.IsTableType ?? false);
+            var classNodeIx = 0;
+            foreach (var input in inputs)
+            {
+                nsNode = (NamespaceDeclarationSyntax)root.Members[0];
+
+                // Replace ClassName
+                var classNode = (ClassDeclarationSyntax)nsNode.Members[0];
+                var classIdentifier = SyntaxFactory.ParseToken($"{classNode.Identifier.ValueText.Replace("Params", $"{GetInputTypeNameForTableType(storedProcedure, input).ToFullString()}")} ");
+                classNode = classNode.WithIdentifier(classIdentifier);
+
+                root = root.ReplaceNode(nsNode, nsNode.AddMembers(classNode));
+                classNodeIx++;
+
+                // Create Properties
+                if (input.Columns != null)
+                {
+                    foreach (var column in input.Columns)
+                    {
+                        nsNode = (NamespaceDeclarationSyntax)root.Members[0];
+                        classNode = (ClassDeclarationSyntax)nsNode.Members[classNodeIx];
+                        var propertyNode = (PropertyDeclarationSyntax)classNode.Members[0];
+
+                        var propertyIdentifier = SyntaxFactory.ParseToken($" {column.Name} ");
+                        // propertyNode = propertyNode
+                        //     .WithType(ParseTypeFromSqlDbTypeName(column.SqlTypeName, column.IsNullable ?? false));
+                        propertyNode = propertyNode
+                            .WithType(SyntaxFactory.ParseTypeName("int"));
+
+                        propertyNode = propertyNode
+                            .WithIdentifier(propertyIdentifier);
+
+                        root = root.AddProperty(classNode, propertyNode);
+                    }
+                }
+
+                // Remove template Property
+                nsNode = (NamespaceDeclarationSyntax)root.Members[0];
+                classNode = (ClassDeclarationSyntax)nsNode.Members[classNodeIx];
+                root = root.ReplaceNode(classNode, classNode.WithMembers(new SyntaxList<MemberDeclarationSyntax>(classNode.Members.Cast<PropertyDeclarationSyntax>().Skip(1))));
+
+            }
+
+            // Remove template Class
+            nsNode = (NamespaceDeclarationSyntax)root.Members[0];
+            root = root.ReplaceNode(nsNode, nsNode.WithMembers(new SyntaxList<MemberDeclarationSyntax>(nsNode.Members.Cast<ClassDeclarationSyntax>().Skip(1))));
+
+            return root.GetText();
+        }
+
+        internal void GenerateDataContextParams(bool dryrun)
+        {
+            var schemas = Config.Schema
+                .Where(i => i.Status == SchemaStatusEnum.Build && (i.StoredProcedures?.Any() ?? false))
+                .Select(i => Definitions.ForSchema(i));
+
+            foreach (var schema in schemas)
+            {
+                var storedProcedures = schema.StoredProcedures
+                    .Where(sp => sp.Input.Any(i => (i.IsTableType ?? false)));
+
+                if (!(storedProcedures.Any()))
+                {
+                    continue;
+                }
+
+                var dataContextModelPath = GetCustomStructure("DataContext", "Params").Path;
+                var path = Path.Combine(dataContextModelPath, schema.Path);
+                if (!Directory.Exists(path) && !dryrun)
+                {
+                    Directory.CreateDirectory(path);
+                }
+
+                foreach (var storedProcedure in storedProcedures)
+                {
+                    var fileName = Path.Combine(path, $"{storedProcedure.Name}Params.cs");
+                    var sourceText = GetParamsTextForStoredProcedure(schema, storedProcedure);
+
+                    if (ExistingFileMatching(fileName, sourceText))
+                    {
+                        // Existing Params and new Params matching
+                        continue;
+                    }
+
+                    if (!dryrun)
+                        File.WriteAllText(fileName, sourceText.WithMetadataToString());
+                }
+            }
         }
 
         internal void GenerateDataContextModels(bool dryrun)
@@ -283,6 +392,15 @@ namespace SpocR.Internal.Common
             return false;
         }
 
+        internal string GetIdentifierFromSqlInputParam(string name) {
+            name = $"{name.Remove(0, 1).FirstCharToLower()}";
+            var reservedKeyWords = new [] { "params" };
+            if(reservedKeyWords.Contains(name)) {
+                name = $"{name}_";
+            }
+            return name;
+        }
+
         internal SourceText GetStoredProcedureText(SchemaDefinition schema, List<StoredProcedureDefinition> storedProcedures)
         {
             var first = storedProcedures.First();
@@ -305,17 +423,24 @@ namespace SpocR.Internal.Common
             if (Config.Project.Role.Kind == ERoleKind.Extension)
             {
                 var libUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{Config.Project.Role.LibNamespace}"));
-                root = root.AddUsings(libUsingDirective.NormalizeWhitespace().WithLeadingTrivia(SyntaxFactory.CarriageReturnLineFeed));
+                root = root.AddUsings(libUsingDirective.NormalizeWhitespace());
 
                 var libModelUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{Config.Project.Role.LibNamespace}.Models"));
-                root = root.AddUsings(libModelUsingDirective.NormalizeWhitespace().WithLeadingTrivia(SyntaxFactory.CarriageReturnLineFeed));
+                root = root.AddUsings(libModelUsingDirective.NormalizeWhitespace());
             }
 
             // Add Using for Models
             if (storedProcedures.Any(i => i.ReadWriteKind == ReadWriteKindEnum.Read))
             {
                 var modelUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{GetDataContextNamespace()}.Models.{schema.Name}"));
-                root = root.AddUsings(modelUsingDirective.NormalizeWhitespace().WithLeadingTrivia(SyntaxFactory.CarriageReturnLineFeed));
+                root = root.AddUsings(modelUsingDirective.NormalizeWhitespace());
+            }
+
+            // Add Usings for Params
+            if (storedProcedures.Any(s => s.Input?.Any(i => i.IsTableType ?? false) ?? false))
+            {
+                var paramUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{GetDataContextNamespace()}.Params.{schema.Name}"));
+                root = root.AddUsings(paramUsingDirective.NormalizeWhitespace().WithLeadingTrivia(SyntaxFactory.CarriageReturnLineFeed));
             }
 
             // Replace Namespace
@@ -342,10 +467,14 @@ namespace SpocR.Internal.Common
                 methodNode = methodNode.WithIdentifier(methodIdentifier);
 
                 // Generate Method params
-                var parameters = storedProcedure.Input.Skip(1).Select(i =>
+                var parameters = storedProcedure.Input.Skip(1).Select(input =>
                 {
-                    return SyntaxFactory.Parameter(SyntaxFactory.Identifier($"{i.Name.Remove(0, 1).FirstCharToLower()}"))
-                        .WithType(ParseTypeFromSqlDbTypeName(i.SqlTypeName, i.IsNullable ?? false))
+                    return SyntaxFactory.Parameter(SyntaxFactory.Identifier(GetIdentifierFromSqlInputParam(input.Name)))
+                        .WithType(
+                            input.IsTableType ?? false
+                            ? GetInputTypeNameForTableType(storedProcedure, input)
+                            : ParseTypeFromSqlDbTypeName(input.SqlTypeName, input.IsNullable ?? false)
+                        )
                         .NormalizeWhitespace()
                         .WithLeadingTrivia(SyntaxFactory.Space);
                 });
@@ -373,7 +502,7 @@ namespace SpocR.Internal.Common
                                     SyntaxFactory.Argument(SyntaxFactory.LiteralExpression(
                                         SyntaxKind.StringLiteralExpression, SyntaxFactory.Literal(i.Name.Remove(0, 1)))),
                                         SyntaxFactory.Token(SyntaxKind.CommaToken),
-                                        SyntaxFactory.Argument(SyntaxFactory.IdentifierName(i.Name.Remove(0, 1).FirstCharToLower()))
+                                        SyntaxFactory.Argument(SyntaxFactory.IdentifierName(GetIdentifierFromSqlInputParam(i.Name)))
                                 }))));
                     arguments.Add(SyntaxFactory.Token(SyntaxKind.CommaToken));
                 });
@@ -399,14 +528,14 @@ namespace SpocR.Internal.Common
                 var returnExpression = $"context.ExecuteSingleAsync<CrudResult>(\"{storedProcedure.SqlObjectName}\", parameters, cancellationToken, transaction)";
                 var returnModel = "CrudResult";
 
-                var isScalar = storedProcedure.Output.Count() == 1;
+                var isScalar = storedProcedure.Output?.Count() == 1;
                 if (isScalar)
                 {
                     var output = storedProcedure.Output.FirstOrDefault();
                     returnModel = ParseTypeFromSqlDbTypeName(output.SqlTypeName, output.IsNullable).ToString();
-                
+
                     returnType = $"Task<{returnModel}>";
-                    returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", $"ExecuteScalarAsync<{returnModel}>");         
+                    returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", $"ExecuteScalarAsync<{returnModel}>");
                 }
                 else
                 {

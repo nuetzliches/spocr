@@ -14,7 +14,11 @@ namespace SpocR.Internal.Models
             _item = item ?? new StoredProcedureInput();
         }
 
-        public bool? IsTableType => _item.IsTableType ? (bool?)true : null;
+        public bool? IsTableType
+        {
+            get => _item.IsTableType ? (bool?)true : null;
+            set => _item.IsTableType = value == true ? true : false;
+        }
 
         public List<ColumnModel> Columns => _item.TableTypeColumns?
             .Select(i => new ColumnModel(i))

@@ -61,10 +61,10 @@ namespace SpocR.Internal.Common
             cli.HelpOption(inherited: true);
             cli.Command("create", createCmd =>
             {
-                var dryrun = createCmd.Option("-d|--dry-run", "Run test without any changes", CommandOptionType.NoValue).HasValue();
-
+                var dryrunOption = createCmd.Option("-d|--dry-run", "Run test without any changes", CommandOptionType.NoValue);
                 createCmd.OnExecute(() =>
                 {
+                    var dryrun = dryrunOption.HasValue();
                     OnCreate(cli, dryrun);
                 });
 
@@ -72,30 +72,30 @@ namespace SpocR.Internal.Common
 
             cli.Command("pull", pullCmd =>
             {
-                var dryrun = pullCmd.Option("-d|--dry-run", "Run test without any changes", CommandOptionType.NoValue).HasValue();
-
+                var dryrunOption = pullCmd.Option("-d|--dry-run", "Run test without any changes", CommandOptionType.NoValue);
                 pullCmd.OnExecute(() =>
                 {
+                    var dryrun = dryrunOption.HasValue();
                     OnPull(cli, dryrun);
                 });
             });
 
             cli.Command("build", buildCmd =>
             {
-                var dryrun = buildCmd.Option("-d|--dry-run", "Run test without any changes", CommandOptionType.NoValue).HasValue();
-
+                var dryrunOption = buildCmd.Option("-d|--dry-run", "Run test without any changes", CommandOptionType.NoValue);
                 buildCmd.OnExecute(() =>
                 {
+                    var dryrun = dryrunOption.HasValue();
                     OnBuild(cli, dryrun);
                 });
             });
 
             cli.Command("rebuild", rebuildCmd =>
             {
-                var dryrun = rebuildCmd.Option("-d|--dry-run", "Run test without any changes", CommandOptionType.NoValue).HasValue();
-
+                var dryrunOption = rebuildCmd.Option("-d|--dry-run", "Run test without any changes", CommandOptionType.NoValue);
                 rebuildCmd.OnExecute(() =>
                 {
+                    var dryrun = dryrunOption.HasValue();
                     if (OnPull(cli, dryrun) == 1)
                         OnBuild(cli, dryrun);
                 });
@@ -103,10 +103,10 @@ namespace SpocR.Internal.Common
 
             cli.Command("remove", removeCmd =>
             {
-                var dryrun = removeCmd.Option("-d|--dry-run", "Run test without any changes", CommandOptionType.NoValue).HasValue();
-
+                var dryrunOption = removeCmd.Option("-d|--dry-run", "Run test without any changes", CommandOptionType.NoValue);
                 removeCmd.OnExecute(() =>
                 {
+                    var dryrun = dryrunOption.HasValue();
                     OnRemove(cli, dryrun);
                 });
             });
@@ -280,6 +280,11 @@ namespace SpocR.Internal.Common
             var engine = cli.ServiceProvider.GetService<Engine>();
             var reporter = cli.ServiceProvider.GetService<IReporter>();
 
+            if(dryrun) 
+            {
+                reporter.Output($"Build as dry run.");
+            }
+
             if (!engine.ConfigFileExists())
             {
                 reporter.Error($"File not found: {Configuration.ConfigurationFile}");
@@ -316,6 +321,12 @@ namespace SpocR.Internal.Common
             engine.GenerateDataContextModels(dryrun);
 
             reporter.Output($"DataContextModels generated in {stopwatch.ElapsedMilliseconds} ms.");
+
+            stopwatch.Restart();
+
+            engine.GenerateDataContextParams(dryrun);
+
+            reporter.Output($"DataContextParams generated in {stopwatch.ElapsedMilliseconds} ms.");
 
             stopwatch.Restart();
 
