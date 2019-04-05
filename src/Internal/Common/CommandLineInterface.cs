@@ -184,6 +184,11 @@ namespace SpocR.Internal.Common
                 return (int)ExecuteResultEnum.Error;
             }
 
+            if(dryrun) 
+            {
+                reporter.Output($"Create as dry run.");
+            }
+
             var proceed = Prompt.GetYesNo("Create a new SpocR Project?", true);
             if (!proceed) return (int)ExecuteResultEnum.Aborted;
 
@@ -231,6 +236,11 @@ namespace SpocR.Internal.Common
             var engine = cli.ServiceProvider.GetService<Engine>();
             var reporter = cli.ServiceProvider.GetService<IReporter>();
             var shemaManager = cli.ServiceProvider.GetService<SchemaManager>();
+
+            if(dryrun) 
+            {
+                reporter.Output($"Pull as dry run.");
+            }
 
             if (!engine.ConfigFileExists())
             {
@@ -341,6 +351,11 @@ namespace SpocR.Internal.Common
         {
             var engine = cli.ServiceProvider.GetService<Engine>();
             var reporter = cli.ServiceProvider.GetService<IReporter>();
+
+            if(dryrun) 
+            {
+                reporter.Output($"Remove as dry run.");
+            }
 
             var proceed1 = Prompt.GetYesNo("Remove all generated files?", true);
             if (!proceed1) return (int)ExecuteResultEnum.Aborted;
