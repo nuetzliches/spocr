@@ -29,7 +29,7 @@ constructor MyManager(AppDbContext context)
 
 - Run StoredProcedure in a Manager-Method
 ```csharp
-public Task<List<UserList>> ListAsync(CancellationToken cancellationToken = default(CancellationToken))
+public Task<List<UserList>> ListAsync(CancellationToken cancellationToken = default)
 {
     return _dbContext.UserListAsync(User.Id, cancellationToken);
 }

@@ -15,7 +15,7 @@ namespace SpocR.Internal.Managers
         {
         }
 
-        public async Task<List<SchemaModel>> ListAsync(bool withStoredProcedures, ConfigurationModel config, CancellationToken cancellationToken = default(CancellationToken))
+        public async Task<List<SchemaModel>> ListAsync(bool withStoredProcedures, ConfigurationModel config, CancellationToken cancellationToken = default)
         {
             var dbSchemas = await DbContext.SchemaListAsync(cancellationToken);
             var schemas = dbSchemas?.Select(i => new SchemaModel(i)).ToList();

@@ -14,7 +14,7 @@ namespace Source.DataContext
         Task<List<T>> ExecuteListAsync<T>(string procedureName, List<SqlParameter> parameters, CancellationToken cancellationToken, AppSqlTransaction transaction = null) where T : class, new();
         Task<T> ExecuteSingleAsync<T>(string procedureName, List<SqlParameter> parameters, CancellationToken cancellationToken, AppSqlTransaction transaction = null) where T : class, new();
         Task<T> ExecuteScalarAsync<T>(string procedureName, List<SqlParameter> parameters,
-            CancellationToken cancellationToken = default(CancellationToken), AppSqlTransaction transaction = null) where T : class;
+            CancellationToken cancellationToken = default, AppSqlTransaction transaction = null) where T : class;
         Task<AppSqlTransaction> BeginTransactionAsync(CancellationToken cancellationToken);
         Task<AppSqlTransaction> BeginTransactionAsync(string transactionName, CancellationToken cancellationToken);
         Task<AppSqlTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken);
@@ -47,7 +47,7 @@ namespace Source.DataContext
         }
 
         public async Task<List<T>> ExecuteListAsync<T>(string procedureName, List<SqlParameter> parameters,
-            CancellationToken cancellationToken = default(CancellationToken), AppSqlTransaction transaction = null) where T : class, new()
+            CancellationToken cancellationToken = default, AppSqlTransaction transaction = null) where T : class, new()
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -70,22 +70,22 @@ namespace Source.DataContext
             return result;
         }
 
-        public Task<AppSqlTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default(CancellationToken))
+        public Task<AppSqlTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
         {
             return BeginTransactionAsync(null, cancellationToken);
         }
 
-        public Task<AppSqlTransaction> BeginTransactionAsync(string transactionName, CancellationToken cancellationToken = default(CancellationToken))
+        public Task<AppSqlTransaction> BeginTransactionAsync(string transactionName, CancellationToken cancellationToken = default)
         {
             return BeginTransactionAsync(IsolationLevel.Unspecified, transactionName, cancellationToken);
         }
 
-        public Task<AppSqlTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken = default(CancellationToken))
+        public Task<AppSqlTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken = default)
         {
             return BeginTransactionAsync(isolationLevel, null, cancellationToken);
         }
 
-        public async Task<AppSqlTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, string transactionName, CancellationToken cancellationToken = default(CancellationToken))
+        public async Task<AppSqlTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, string transactionName, CancellationToken cancellationToken = default)
         {
             if (_connection.State != ConnectionState.Open) await _connection.OpenAsync(cancellationToken);
             var transaction = new AppSqlTransaction
@@ -115,7 +115,7 @@ namespace Source.DataContext
         }
 
         public async Task<T> ExecuteSingleAsync<T>(string procedureName, List<SqlParameter> parameters,
-            CancellationToken cancellationToken = default(CancellationToken), AppSqlTransaction transaction = null) where T : class, new()
+            CancellationToken cancellationToken = default, AppSqlTransaction transaction = null) where T : class, new()
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -123,7 +123,7 @@ namespace Source.DataContext
         }
 
         public async Task<T> ExecuteScalarAsync<T>(string procedureName, List<SqlParameter> parameters,
-            CancellationToken cancellationToken = default(CancellationToken), AppSqlTransaction transaction = null) where T : class
+            CancellationToken cancellationToken = default, AppSqlTransaction transaction = null) where T : class
         {
             cancellationToken.ThrowIfCancellationRequested();
 
