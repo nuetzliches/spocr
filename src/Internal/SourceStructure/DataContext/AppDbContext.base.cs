@@ -1,9 +1,11 @@
 using Microsoft.Extensions.Configuration;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -13,8 +15,8 @@ namespace Source.DataContext
     {
         Task<List<T>> ExecuteListAsync<T>(string procedureName, List<SqlParameter> parameters, CancellationToken cancellationToken, AppSqlTransaction transaction = null) where T : class, new();
         Task<T> ExecuteSingleAsync<T>(string procedureName, List<SqlParameter> parameters, CancellationToken cancellationToken, AppSqlTransaction transaction = null) where T : class, new();
-        Task<T> ExecuteScalarAsync<T>(string procedureName, List<SqlParameter> parameters,
-            CancellationToken cancellationToken = default, AppSqlTransaction transaction = null) where T : class;
+        Task<string> ReadJsonAsync(string procedureName, List<SqlParameter> parameters,
+            CancellationToken cancellationToken = default, AppSqlTransaction transaction = null);
         Task<AppSqlTransaction> BeginTransactionAsync(CancellationToken cancellationToken);
         Task<AppSqlTransaction> BeginTransactionAsync(string transactionName, CancellationToken cancellationToken);
         Task<AppSqlTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken);
@@ -122,8 +124,8 @@ namespace Source.DataContext
             return (await ExecuteListAsync<T>(procedureName, parameters, cancellationToken, transaction)).SingleOrDefault();
         }
 
-        public async Task<T> ExecuteScalarAsync<T>(string procedureName, List<SqlParameter> parameters,
-            CancellationToken cancellationToken = default, AppSqlTransaction transaction = null) where T : class
+        public async Task<string> ReadJsonAsync(string procedureName, List<SqlParameter> parameters,
+            CancellationToken cancellationToken = default, AppSqlTransaction transaction = null)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -136,18 +138,29 @@ namespace Source.DataContext
             };
 
             if (parameters?.Any() ?? false) command.Parameters.AddRange(parameters.ToArray());
-
-            var result = default(T);
+            
+            var result = new StringBuilder();
 
             var reader = await command.ExecuteReaderAsync(cancellationToken);
-            while (await reader.ReadAsync(cancellationToken)) result = (T)reader.GetValue(0);
+            while (reader.Read()) result.Append(reader.GetValue(0).ToString());
             reader.Close();
 
-            return result;
+            return result.ToString();
         }
 
         public static SqlParameter GetParameter(string parameter, object value)
         {
+            var valueType = value?.GetType();
+            var isCollection = typeof(IEnumerable<>).IsAssignableFrom(valueType);
+            if (isCollection)
+            {
+                return new SqlParameter(parameter, value?.ToSqlParamCollection())
+                {
+                    Direction = ParameterDirection.Input,
+                    SqlDbType = SqlDbType.Structured
+                };
+            }
+
             return new SqlParameter(parameter, value ?? DBNull.Value)
             {
                 Direction = ParameterDirection.Input,

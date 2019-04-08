@@ -171,9 +171,14 @@ namespace SpocR.Internal.Common
             return SyntaxFactory.ParseTypeName(clrType.ToGenericTypeString());
         }
 
-        internal TypeSyntax GetInputTypeNameForTableType(StoredProcedureDefinition storedProcedure, StoredProcedureInputModel input)
+        internal string GetInputTypeNameForTableType(StoredProcedureDefinition storedProcedure, StoredProcedureInputModel input)
         {
-            var typeName = $"{storedProcedure.Name}{input.Name.Replace("@", "")}";
+            return $"{storedProcedure.Name}{input.Name.Replace("@", "")}";
+        }
+
+        internal TypeSyntax GetInputTypeForTableType(StoredProcedureDefinition storedProcedure, StoredProcedureInputModel input)
+        {
+            var typeName = $"IEnumerable<{GetInputTypeNameForTableType(storedProcedure, input)}>";
             return SyntaxFactory.ParseTypeName(typeName);
         }
 
@@ -243,7 +248,7 @@ namespace SpocR.Internal.Common
 
                 // Replace ClassName
                 var classNode = (ClassDeclarationSyntax)nsNode.Members[0];
-                var classIdentifier = SyntaxFactory.ParseToken($"{classNode.Identifier.ValueText.Replace("Params", $"{GetInputTypeNameForTableType(storedProcedure, input).ToFullString()}")} ");
+                var classIdentifier = SyntaxFactory.ParseToken($"{classNode.Identifier.ValueText.Replace("Params", $"{GetInputTypeNameForTableType(storedProcedure, input)}")} ");
                 classNode = classNode.WithIdentifier(classIdentifier);
 
                 root = root.ReplaceNode(nsNode, nsNode.AddMembers(classNode));
@@ -430,7 +435,8 @@ namespace SpocR.Internal.Common
             }
 
             // Add Using for Models
-            if (storedProcedures.Any(i => i.ReadWriteKind == ReadWriteKindEnum.Read))
+            // TODO: i.Output?.Count() -> Implement a Property "IsScalar" and "IsJson"
+            if (storedProcedures.Any(i => i.ReadWriteKind == ReadWriteKindEnum.Read && i.Output?.Count() > 1))
             {
                 var modelUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{GetDataContextNamespace()}.Models.{schema.Name}"));
                 root = root.AddUsings(modelUsingDirective.NormalizeWhitespace());
@@ -472,7 +478,7 @@ namespace SpocR.Internal.Common
                     return SyntaxFactory.Parameter(SyntaxFactory.Identifier(GetIdentifierFromSqlInputParam(input.Name)))
                         .WithType(
                             input.IsTableType ?? false
-                            ? GetInputTypeNameForTableType(storedProcedure, input)
+                            ? GetInputTypeForTableType(storedProcedure, input)
                             : ParseTypeFromSqlDbTypeName(input.SqlTypeName, input.IsNullable ?? false)
                         )
                         .NormalizeWhitespace()
@@ -528,6 +534,7 @@ namespace SpocR.Internal.Common
                 var returnExpression = $"context.ExecuteSingleAsync<CrudResult>(\"{storedProcedure.SqlObjectName}\", parameters, cancellationToken, transaction)";
                 var returnModel = "CrudResult";
 
+                // TODO: i.Output?.Count() -> Implement a Property "IsScalar" and "IsJson"
                 var isScalar = storedProcedure.Output?.Count() == 1;
                 if (isScalar)
                 {
@@ -535,7 +542,7 @@ namespace SpocR.Internal.Common
                     returnModel = ParseTypeFromSqlDbTypeName(output.SqlTypeName, output.IsNullable).ToString();
 
                     returnType = $"Task<{returnModel}>";
-                    returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", $"ExecuteScalarAsync<{returnModel}>");
+                    returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", $"ReadJsonAsync");
                 }
                 else
                 {
