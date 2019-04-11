@@ -12,6 +12,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
+using SpocR.Enums;
 using SpocR.Internal.Common;
 using SpocR.Internal.Extensions;
 using SpocR.Internal.Models;
@@ -19,28 +20,28 @@ using static SpocR.Internal.Common.Definitions;
 
 namespace SpocR.Internal.Common
 {
-    internal class Engine
+    public class Engine
     {
-        internal readonly IServiceCollection Services;
+        public readonly IServiceCollection Services;
 
         private ConfigurationModel _config;
-        internal ConfigurationModel Config
+        public ConfigurationModel Config
         {
             get => _config ?? (_config = ReadConfigFile());
             set => _config = value;
         }
 
-        internal Engine(IServiceCollection services)
+        public Engine(IServiceCollection services)
         {
             Services = services;
         }
 
-        internal bool ConfigFileExists()
+        public bool ConfigFileExists()
         {
             return File.Exists(Configuration.ConfigurationFile);
         }
 
-        internal void SaveConfigFile(ConfigurationModel config)
+        public void SaveConfigFile(ConfigurationModel config)
         {
             var jsonSettings = new JsonSerializerSettings
             {
@@ -51,7 +52,7 @@ namespace SpocR.Internal.Common
             File.WriteAllText(Configuration.ConfigurationFile, json);
         }
 
-        internal ConfigurationModel ReadConfigFile()
+        public ConfigurationModel ReadConfigFile()
         {
             if (!ConfigFileExists())
             {
@@ -70,12 +71,12 @@ namespace SpocR.Internal.Common
             return Regex.Replace(codeBase, @"^(file\:\\)", string.Empty);
         }
 
-        internal DirectoryInfo GetSourceStructureRootDir()
+        public DirectoryInfo GetSourceStructureRootDir()
         {
             return new DirectoryInfo(Path.Combine(GetApplicationRoot(), "Internal", "SourceStructure"));
         }
 
-        internal IEnumerable<StructureModel> GetStructureModelListFromSource(DirectoryInfo rootDir = null, string parentPath = null)
+        public IEnumerable<StructureModel> GetStructureModelListFromSource(DirectoryInfo rootDir = null, string parentPath = null)
         {
             rootDir = rootDir ?? GetSourceStructureRootDir();
             foreach (var child in rootDir.GetDirectories())
@@ -112,7 +113,7 @@ namespace SpocR.Internal.Common
             return strutureNode;
         }
 
-        internal string GetDataContextNamespace()
+        public string GetDataContextNamespace()
         {
             var dataContextNode = Config.Project.Structure.SingleOrDefault(i => i.Name.Equals("DataContext"));
             var path = dataContextNode.Path.Replace("./", "");
@@ -121,7 +122,7 @@ namespace SpocR.Internal.Common
         }
 
         // https://docs.microsoft.com/de-de/dotnet/csharp/roslyn-sdk/get-started/syntax-analysis
-        internal void GenerateCodeBase(bool dryrun)
+        public void GenerateCodeBase(bool dryrun)
         {
 
             var rootDir = GetSourceStructureRootDir();
@@ -151,19 +152,19 @@ namespace SpocR.Internal.Common
             }
         }
 
-        internal StructureModel GetCustomStructure(params string[] names)
+        public StructureModel GetCustomStructure(params string[] names)
         {
             return GetCustomStructure(Config.Project.Structure, names);
         }
 
-        internal StructureModel GetCustomStructure(IEnumerable<StructureModel> structures = null, params string[] names)
+        public StructureModel GetCustomStructure(IEnumerable<StructureModel> structures = null, params string[] names)
         {
             return names.Length > 1
                     ? GetCustomStructure(structures.Single(i => i.Name.Equals(names.First())).Children, names.Skip(1).ToArray())
                     : structures.Single(i => i.Name.Equals(names.First()));
         }
 
-        internal TypeSyntax ParseTypeFromSqlDbTypeName(string sqlTypeName, bool isNullable)
+        public TypeSyntax ParseTypeFromSqlDbTypeName(string sqlTypeName, bool isNullable)
         {
             sqlTypeName = sqlTypeName.Split('(')[0];
             var sqlType = (SqlDbType)Enum.Parse(typeof(SqlDbType), sqlTypeName, true);
@@ -171,18 +172,18 @@ namespace SpocR.Internal.Common
             return SyntaxFactory.ParseTypeName(clrType.ToGenericTypeString());
         }
 
-        internal string GetInputTypeNameForTableType(StoredProcedureDefinition storedProcedure, StoredProcedureInputModel input)
+        public string GetInputTypeNameForTableType(StoredProcedureDefinition storedProcedure, StoredProcedureInputModel input)
         {
             return $"{storedProcedure.Name}{input.Name.Replace("@", "")}";
         }
 
-        internal TypeSyntax GetInputTypeForTableType(StoredProcedureDefinition storedProcedure, StoredProcedureInputModel input)
+        public TypeSyntax GetInputTypeForTableType(StoredProcedureDefinition storedProcedure, StoredProcedureInputModel input)
         {
             var typeName = $"IEnumerable<{GetInputTypeNameForTableType(storedProcedure, input)}>";
             return SyntaxFactory.ParseTypeName(typeName);
         }
 
-        internal SourceText GetModelTextForStoredProcedure(SchemaDefinition schema, StoredProcedureDefinition storedProcedure)
+        public SourceText GetModelTextForStoredProcedure(SchemaDefinition schema, StoredProcedureDefinition storedProcedure)
         {
             var rootDir = GetSourceStructureRootDir();
             var fileContent = File.ReadAllText(Path.Combine(rootDir.FullName, "DataContext", "Models", "Model.cs"));
@@ -227,7 +228,7 @@ namespace SpocR.Internal.Common
             return root.GetText();
         }
 
-        internal SourceText GetParamsTextForStoredProcedure(SchemaDefinition schema, StoredProcedureDefinition storedProcedure)
+        public SourceText GetParamsTextForStoredProcedure(SchemaDefinition schema, StoredProcedureDefinition storedProcedure)
         {
             var rootDir = GetSourceStructureRootDir();
             var fileContent = File.ReadAllText(Path.Combine(rootDir.FullName, "DataContext", "Params", "Params.cs"));
@@ -290,7 +291,7 @@ namespace SpocR.Internal.Common
             return root.GetText();
         }
 
-        internal void GenerateDataContextParams(bool dryrun)
+        public void GenerateDataContextParams(bool dryrun)
         {
             var schemas = Config.Schema
                 .Where(i => i.Status == SchemaStatusEnum.Build && (i.StoredProcedures?.Any() ?? false))
@@ -330,7 +331,7 @@ namespace SpocR.Internal.Common
             }
         }
 
-        internal void GenerateDataContextModels(bool dryrun)
+        public void GenerateDataContextModels(bool dryrun)
         {
             var schemas = Config.Schema
                 .Where(i => i.Status == SchemaStatusEnum.Build && (i.StoredProcedures?.Any() ?? false))
@@ -397,7 +398,7 @@ namespace SpocR.Internal.Common
             return false;
         }
 
-        internal string GetIdentifierFromSqlInputParam(string name) {
+        public string GetIdentifierFromSqlInputParam(string name) {
             name = $"{name.Remove(0, 1).FirstCharToLower()}";
             var reservedKeyWords = new [] { "params" };
             if(reservedKeyWords.Contains(name)) {
@@ -406,7 +407,7 @@ namespace SpocR.Internal.Common
             return name;
         }
 
-        internal SourceText GetStoredProcedureText(SchemaDefinition schema, List<StoredProcedureDefinition> storedProcedures)
+        public SourceText GetStoredProcedureText(SchemaDefinition schema, List<StoredProcedureDefinition> storedProcedures)
         {
             var first = storedProcedures.First();
             var rootDir = GetSourceStructureRootDir();
@@ -590,7 +591,7 @@ namespace SpocR.Internal.Common
             return root.GetText();
         }
 
-        internal void GenerateDataContextStoredProcedures(bool dryrun)
+        public void GenerateDataContextStoredProcedures(bool dryrun)
         {
             var schemas = Config.Schema
                 .Where(i => i.Status == SchemaStatusEnum.Build && (i.StoredProcedures?.Any() ?? false))
@@ -630,7 +631,7 @@ namespace SpocR.Internal.Common
             }
         }
 
-        internal void RemoveGeneratedFiles(IEnumerable<StructureModel> structures = null)
+        public void RemoveGeneratedFiles(IEnumerable<StructureModel> structures = null)
         {
             structures = structures ?? Config.Project.Structure;
             foreach (var structure in structures)
@@ -642,7 +643,7 @@ namespace SpocR.Internal.Common
             }
         }
 
-        internal void RemoveConfig()
+        public void RemoveConfig()
         {
             if (File.Exists(Configuration.ConfigurationFile))
             {
@@ -651,9 +652,9 @@ namespace SpocR.Internal.Common
         }
     }
 
-    internal static class SpocRServiceCollectionExtensions
+    public static class SpocRServiceCollectionExtensions
     {
-        internal static IServiceCollection AddSpocR(this IServiceCollection services)
+        public static IServiceCollection AddSpocR(this IServiceCollection services)
         {
             services.AddSingleton(new Engine(services));
             return services;

@@ -8,7 +8,7 @@ using SpocR.Internal.Models;
 
 namespace SpocR.Internal.Managers
 {
-    internal class SchemaManager : ManagerBase
+    public class SchemaManager : ManagerBase
     {
         public SchemaManager(IServiceProvider serviceProvider)
             : base(serviceProvider)
