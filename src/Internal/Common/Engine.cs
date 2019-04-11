@@ -13,11 +13,13 @@ using Microsoft.CodeAnalysis.Text;
 using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
 using SpocR.Enums;
+using SpocR.Extensions;
 using SpocR.Internal.Common;
 using SpocR.Internal.Extensions;
 using SpocR.Internal.Models;
 using SpocR.Managers;
 using SpocR.Services;
+using SpocR.Utils;
 using static SpocR.Internal.Common.Definitions;
 
 namespace SpocR.Internal.Common
@@ -25,112 +27,21 @@ namespace SpocR.Internal.Common
     public class Engine
     {
         private readonly ConfigFileManager _configFile;
-        private readonly SpocrService _service;
+        private readonly SpocrService _spocr;
+        private readonly OutputService _output;
 
-        public Engine(ConfigFileManager configFile, SpocrService service)
+        public Engine(ConfigFileManager configFile, SpocrService spocr)
         {
             _configFile = configFile;
-            _service = service;
+            _spocr = spocr;
         }
 
-        public string GetApplicationRoot()
+        public OutputModel GetCustomStructure(params string[] names)
         {
-#if DEBUG
-            return Directory.GetCurrentDirectory();
-#endif
-            var codeBase = Path.GetDirectoryName(Assembly.GetExecutingAssembly().CodeBase);
-            return Regex.Replace(codeBase, @"^(file\:\\)", string.Empty);
+            return GetCustomStructure(_configFile.Config.Project.Output, names);
         }
 
-        // TODO: MoveTo?
-        public DirectoryInfo GetSourceStructureRootDir()
-        {
-            return new DirectoryInfo(Path.Combine(GetApplicationRoot(), "Internal", "SourceStructure"));
-        }
-
-        // TODO: MoveTo?
-        public IEnumerable<StructureModel> GetStructureModelListFromSource(DirectoryInfo rootDir = null, string parentPath = null)
-        {
-            rootDir = rootDir ?? GetSourceStructureRootDir();
-            foreach (var child in rootDir.GetDirectories())
-            {
-                var path = $"{parentPath ?? "."}/{child.Name}";
-                yield return new StructureModel
-                {
-                    Name = child.Name,
-                    Path = path,
-                    Children = GetStructureModelListFromSource(child, path)
-                };
-            }
-        }
-
-        private StructureModel GetStructureNodeBySourcePath(string path)
-        {
-            var info = new DirectoryInfo(path);
-            var rootDir = GetSourceStructureRootDir();
-            var relativePath = info.FullName.Replace(rootDir.FullName, "");
-
-            var directories = relativePath
-                                .Split(Path.DirectorySeparatorChar)
-                                .Where(i => !string.IsNullOrWhiteSpace(i));
-
-            var strutureNode = directories.Any()
-                ? _configFile.Config.Project.Structure.SingleOrDefault(i => i.Name.Equals(directories.First()))
-                : null;
-
-            foreach (var dirName in directories.Skip(1))
-            {
-                strutureNode = strutureNode.Children.SingleOrDefault(i => i.Name.Equals(dirName));
-            }
-
-            return strutureNode;
-        }
-
-        public string GetDataContextNamespace()
-        {
-            var dataContextNode = _configFile.Config.Project.Structure.SingleOrDefault(i => i.Name.Equals("DataContext"));
-            var path = dataContextNode.Path.Replace("./", "");
-            path = Path.Combine(_configFile.Config.Project.Namespace, path);
-            return path.Replace('\\', '.');
-        }
-
-        // https://docs.microsoft.com/de-de/dotnet/csharp/roslyn-sdk/get-started/syntax-analysis
-        public void GenerateCodeBase(bool dryrun)
-        {
-
-            var rootDir = GetSourceStructureRootDir();
-            var baseFiles = rootDir.GetFiles("*.base.cs", SearchOption.AllDirectories);
-
-            foreach (var file in baseFiles)
-            {
-                var fileContent = File.ReadAllText(file.FullName);
-
-                var tree = CSharpSyntaxTree.ParseText(fileContent);
-                var root = tree.GetCompilationUnitRoot();
-
-                // Replace Namespace
-                var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-                var name = SyntaxFactory.ParseName($"{nsNode.Name.ToString().Replace("Source.DataContext", GetDataContextNamespace())}{Environment.NewLine}");
-                root = root.ReplaceNode(nsNode, nsNode.WithName(name));
-
-                if (dryrun)
-                    return;
-
-                var targetDir = Path.Combine(Directory.GetCurrentDirectory(), GetStructureNodeBySourcePath(file.DirectoryName).Path);
-                if (!Directory.Exists(targetDir))
-                {
-                    Directory.CreateDirectory(targetDir);
-                }
-                File.WriteAllText(Path.Combine(targetDir, file.Name.Replace(".base.cs", ".cs")), root.GetText().ToString());
-            }
-        }
-
-        public StructureModel GetCustomStructure(params string[] names)
-        {
-            return GetCustomStructure(_configFile.Config.Project.Structure, names);
-        }
-
-        public StructureModel GetCustomStructure(IEnumerable<StructureModel> structures = null, params string[] names)
+        public OutputModel GetCustomStructure(IEnumerable<OutputModel> structures = null, params string[] names)
         {
             return names.Length > 1
                     ? GetCustomStructure(structures.Single(i => i.Name.Equals(names.First())).Children, names.Skip(1).ToArray())
@@ -158,7 +69,7 @@ namespace SpocR.Internal.Common
 
         public SourceText GetModelTextForStoredProcedure(SchemaDefinition schema, StoredProcedureDefinition storedProcedure)
         {
-            var rootDir = GetSourceStructureRootDir();
+            var rootDir = _output.GetSourceStructureRootDir();
             var fileContent = File.ReadAllText(Path.Combine(rootDir.FullName, "DataContext", "Models", "Model.cs"));
 
             var tree = CSharpSyntaxTree.ParseText(fileContent);
@@ -166,7 +77,7 @@ namespace SpocR.Internal.Common
 
             // Replace Namespace
             var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-            var fullSchemaName = SyntaxFactory.ParseName($"{nsNode.Name.ToString().Replace("Source.DataContext", GetDataContextNamespace()).Replace("Schema", schema.Name)}{Environment.NewLine}");
+            var fullSchemaName = SyntaxFactory.ParseName($"{nsNode.Name.ToString().Replace("Source.DataContext", _configFile.GetDataContextNamespace()).Replace("Schema", schema.Name)}{Environment.NewLine}");
             root = root.ReplaceNode(nsNode, nsNode.WithName(fullSchemaName));
 
             // Replace ClassName
@@ -203,7 +114,7 @@ namespace SpocR.Internal.Common
 
         public SourceText GetParamsTextForStoredProcedure(SchemaDefinition schema, StoredProcedureDefinition storedProcedure)
         {
-            var rootDir = GetSourceStructureRootDir();
+            var rootDir = _output.GetSourceStructureRootDir();
             var fileContent = File.ReadAllText(Path.Combine(rootDir.FullName, "DataContext", "Params", "Params.cs"));
 
             var tree = CSharpSyntaxTree.ParseText(fileContent);
@@ -211,7 +122,7 @@ namespace SpocR.Internal.Common
 
             // Replace Namespace
             var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-            var fullSchemaName = SyntaxFactory.ParseName($"{nsNode.Name.ToString().Replace("Source.DataContext", GetDataContextNamespace()).Replace("Schema", schema.Name)}{Environment.NewLine}");
+            var fullSchemaName = SyntaxFactory.ParseName($"{nsNode.Name.ToString().Replace("Source.DataContext", _configFile.GetDataContextNamespace()).Replace("Schema", schema.Name)}{Environment.NewLine}");
             root = root.ReplaceNode(nsNode, nsNode.WithName(fullSchemaName));
 
             var inputs = storedProcedure.Input.Where(i => i.IsTableType ?? false);
@@ -299,7 +210,7 @@ namespace SpocR.Internal.Common
                     }
 
                     if (!dryrun)
-                        File.WriteAllText(fileName, sourceText.WithMetadataToString(_service.Version));
+                        File.WriteAllText(fileName, sourceText.WithMetadataToString(_spocr.Version));
                 }
             }
         }
@@ -345,7 +256,7 @@ namespace SpocR.Internal.Common
                     }
 
                     if (!dryrun)
-                        File.WriteAllText(fileName, sourceText.WithMetadataToString(_service.Version));
+                        File.WriteAllText(fileName, sourceText.WithMetadataToString(_spocr.Version));
                 }
             }
         }
@@ -385,7 +296,7 @@ namespace SpocR.Internal.Common
         public SourceText GetStoredProcedureText(SchemaDefinition schema, List<StoredProcedureDefinition> storedProcedures)
         {
             var first = storedProcedures.First();
-            var rootDir = GetSourceStructureRootDir();
+            var rootDir = _output.GetSourceStructureRootDir();
             var fileContent = File.ReadAllText(Path.Combine(rootDir.FullName, "DataContext", "StoredProcedures", "StoredProcedureExtensions.cs"));
 
             var tree = CSharpSyntaxTree.ParseText(fileContent);
@@ -396,7 +307,7 @@ namespace SpocR.Internal.Common
             {
                 var usingDirective = root.Usings[i];
                 var newUsingName = SyntaxFactory.ParseName(
-                    $"{usingDirective.Name.ToString().Replace("Source.DataContext", GetDataContextNamespace())}");
+                    $"{usingDirective.Name.ToString().Replace("Source.DataContext", _configFile.GetDataContextNamespace())}");
                 root = root.ReplaceNode(usingDirective, usingDirective.WithName(newUsingName));
             }
 
@@ -414,21 +325,21 @@ namespace SpocR.Internal.Common
             // TODO: i.Output?.Count() -> Implement a Property "IsScalar" and "IsJson"
             if (storedProcedures.Any(i => i.ReadWriteKind == ReadWriteKindEnum.Read && i.Output?.Count() > 1))
             {
-                var modelUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{GetDataContextNamespace()}.Models.{schema.Name}"));
+                var modelUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.GetDataContextNamespace()}.Models.{schema.Name}"));
                 root = root.AddUsings(modelUsingDirective.NormalizeWhitespace());
             }
 
             // Add Usings for Params
             if (storedProcedures.Any(s => s.Input?.Any(i => i.IsTableType ?? false) ?? false))
             {
-                var paramUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{GetDataContextNamespace()}.Params.{schema.Name}"));
+                var paramUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.GetDataContextNamespace()}.Params.{schema.Name}"));
                 root = root.AddUsings(paramUsingDirective.NormalizeWhitespace().WithLeadingTrivia(SyntaxFactory.CarriageReturnLineFeed));
             }
 
             // Replace Namespace
             var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
             var fullSchemaName = SyntaxFactory.ParseName(
-                $"{nsNode.Name.ToString().Replace("Source.DataContext", GetDataContextNamespace()).Replace("Schema", schema.Name)}{Environment.NewLine}");
+                $"{nsNode.Name.ToString().Replace("Source.DataContext", _configFile.GetDataContextNamespace()).Replace("Schema", schema.Name)}{Environment.NewLine}");
             root = root.ReplaceNode(nsNode, nsNode.WithName(fullSchemaName));
 
             // Replace ClassName
@@ -601,14 +512,14 @@ namespace SpocR.Internal.Common
                     }
 
                     if (!dryrun)
-                        File.WriteAllText(fileName, sourceText.WithMetadataToString(_service.Version));
+                        File.WriteAllText(fileName, sourceText.WithMetadataToString(_spocr.Version));
                 }
             }
         }
 
-        public void RemoveGeneratedFiles(IEnumerable<StructureModel> structures = null)
+        public void RemoveGeneratedFiles(IEnumerable<OutputModel> structures = null)
         {
-            structures = structures ?? _configFile.Config.Project.Structure;
+            structures = structures ?? _configFile.Config.Project.Output;
             foreach (var structure in structures)
             {
                 if (Directory.Exists(structure.Path))
