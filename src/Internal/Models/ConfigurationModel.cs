@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
+using SpocR.Enums;
 using SpocR.Internal.Models;
 
 namespace SpocR.Internal.Models
@@ -29,13 +30,6 @@ namespace SpocR.Internal.Models
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public string LibNamespace { get; set; }
-    }
-
-    public enum ERoleKind
-    {
-        Default,
-        Lib,
-        Extension
     }
 
     public class DataBaseModel
