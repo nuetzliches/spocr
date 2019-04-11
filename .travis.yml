@@ -4,5 +4,5 @@ os: linux
 dist: trusty
 dotnet: 2.1
 script:
-  - dotnet build -c Release
-  - dotnet pack -c Release
+  - dotnet build src/ -c Release
+  - dotnet pack src/ --output ./ -c Release
