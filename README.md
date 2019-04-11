@@ -1,4 +1,5 @@
-# spocr
+# spocr [![Build Status](https://travis-ci.org/nuetzliches/spocr.svg?branch=master)](https://travis-ci.org/nuetzliches/spocr)
+
 - Scaffolds your StoredProcedures into a C# DataContext structure. Be supriesed by many more features.
 - Simply managed by the console (ComandLineInterface/CLI)
 
@@ -29,7 +30,7 @@ constructor MyManager(AppDbContext context)
 
 - Run StoredProcedure in a Manager-Method
 ```csharp
-public Task<List<UserList>> ListAsync(CancellationToken cancellationToken = default(CancellationToken))
+public Task<List<UserList>> ListAsync(CancellationToken cancellationToken = default)
 {
     return _dbContext.UserListAsync(User.Id, cancellationToken);
 }
@@ -40,13 +41,13 @@ public Task<List<UserList>> ListAsync(CancellationToken cancellationToken = defa
 ## StoredProcedure-Naming
 #### `[EntityName][Action][Suffix]`
 - EntityName (required): Name of base SQL-Table
-- Action (required): Create | Update | Delete | Merge | FindBy | List
+- Action (required): Create | Update | Delete | (Merge, Upsert) | FindBy | List
 - Suffix: WithChildren | (custom suffix)
 
 ## First param in every StoredProcedure
 - @UserId INT
 
-## Required result for CRUD-Actions (Create, Update, Delete, Merge)
+## Required result for CRUD-Actions (Create, Update, Delete, Merge, Upsert)
 - [ResultId] INT, [RecordId] INT
 
 # Requirements
@@ -62,10 +63,12 @@ public Task<List<UserList>> ListAsync(CancellationToken cancellationToken = defa
 
 ### a. From GitHub
 Clone and Download Repository
-> git clone https://github.com/nuetzliches/spocr.git<br>
-> cd src<br>
-> dotnet pack --output ./<br>
-> dotnet tool install -g spocr --add-source ./<br>
+
+`> git clone https://github.com/nuetzliches/spocr.git`<br>
+`> cd src`<br>
+`> dotnet pack --output ./ --configuration Release`<br>
+`> dotnet tool install -g spocr --add-source ./`<br>
+`> (dotnet tool uninstall -g spocr)`<br>
 
 ### b. From NPM (TODO: Upload NPM-Package)
 

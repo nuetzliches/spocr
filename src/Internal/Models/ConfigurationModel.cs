@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 using SpocR.Internal.Models;
 
 namespace SpocR.Internal.Models
@@ -15,8 +17,25 @@ namespace SpocR.Internal.Models
     public class ProjectModel
     {
         public string Namespace { get; set; }
+        public RoleModel Role { get; set; }
         public DataBaseModel DataBase { get; set; }
         public IEnumerable<StructureModel> Structure { get; set; }
+    }
+
+    public class RoleModel
+    {
+        [JsonConverter(typeof(StringEnumConverter))]
+        public ERoleKind Kind { get; set; } = ERoleKind.Default;
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public string LibNamespace { get; set; }
+    }
+
+    public enum ERoleKind
+    {
+        Default,
+        Lib,
+        Extension
     }
 
     public class DataBaseModel

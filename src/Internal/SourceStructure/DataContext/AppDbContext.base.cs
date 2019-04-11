@@ -1,15 +1,32 @@
 using Microsoft.Extensions.Configuration;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace Source.DataContext
 {
-    public class AppDbContext : IDisposable
+    public interface IAppDbContext
+    {
+        Task<List<T>> ExecuteListAsync<T>(string procedureName, List<SqlParameter> parameters, CancellationToken cancellationToken, AppSqlTransaction transaction = null) where T : class, new();
+        Task<T> ExecuteSingleAsync<T>(string procedureName, List<SqlParameter> parameters, CancellationToken cancellationToken, AppSqlTransaction transaction = null) where T : class, new();
+        Task<string> ReadJsonAsync(string procedureName, List<SqlParameter> parameters,
+            CancellationToken cancellationToken = default, AppSqlTransaction transaction = null);
+        Task<AppSqlTransaction> BeginTransactionAsync(CancellationToken cancellationToken);
+        Task<AppSqlTransaction> BeginTransactionAsync(string transactionName, CancellationToken cancellationToken);
+        Task<AppSqlTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken);
+        Task<AppSqlTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, string transactionName, CancellationToken cancellationToken);
+        void CommitTransaction(AppSqlTransaction transaction);
+        void RollbackTransaction(AppSqlTransaction transaction);
+        void Dispose();
+    }
+
+    public class AppDbContext : IAppDbContext, IDisposable
     {
         private readonly SqlConnection _connection;
         private readonly List<AppSqlTransaction> _transactions;
@@ -24,7 +41,7 @@ namespace Source.DataContext
         {
             if (_connection?.State == ConnectionState.Open)
             {
-                if (_transactions.Any()) _transactions.ForEach(t => t.Transaction.Rollback());
+                if (_transactions.Any()) _transactions.ForEach(RollbackTransaction);
                 _connection.Close();
             }
 
@@ -32,7 +49,7 @@ namespace Source.DataContext
         }
 
         public async Task<List<T>> ExecuteListAsync<T>(string procedureName, List<SqlParameter> parameters,
-            CancellationToken cancellationToken = default(CancellationToken), AppSqlTransaction transaction = null) where T : class, new()
+            CancellationToken cancellationToken = default, AppSqlTransaction transaction = null) where T : class, new()
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -48,20 +65,37 @@ namespace Source.DataContext
 
             var result = new List<T>();
 
-            using (var reader = await command.ExecuteReaderAsync(cancellationToken))
-            {
-                while (reader.Read()) result.Add(reader.ConvertToObject<T>());
-            }
-
-            if (!_transactions.Any()) _connection.Close();
+            var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken)) result.Add(reader.ConvertToObject<T>());
+            reader.Close();
 
             return result;
         }
 
-        public async Task<AppSqlTransaction> BeginTransactionAsync(string transactionName, CancellationToken cancellationToken = default(CancellationToken))
+        public Task<AppSqlTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
+        {
+            return BeginTransactionAsync(null, cancellationToken);
+        }
+
+        public Task<AppSqlTransaction> BeginTransactionAsync(string transactionName, CancellationToken cancellationToken = default)
+        {
+            return BeginTransactionAsync(IsolationLevel.Unspecified, transactionName, cancellationToken);
+        }
+
+        public Task<AppSqlTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken = default)
+        {
+            return BeginTransactionAsync(isolationLevel, null, cancellationToken);
+        }
+
+        public async Task<AppSqlTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, string transactionName, CancellationToken cancellationToken = default)
         {
             if (_connection.State != ConnectionState.Open) await _connection.OpenAsync(cancellationToken);
-            var transaction = new AppSqlTransaction { Transaction = _connection.BeginTransaction(transactionName) };
+            var transaction = new AppSqlTransaction
+            {
+                Transaction = !string.IsNullOrEmpty(transactionName)
+                        ? _connection.BeginTransaction(isolationLevel, transactionName)
+                        : _connection.BeginTransaction(isolationLevel)
+            };
             _transactions.Add(transaction);
             return transaction;
         }
@@ -83,15 +117,50 @@ namespace Source.DataContext
         }
 
         public async Task<T> ExecuteSingleAsync<T>(string procedureName, List<SqlParameter> parameters,
-            CancellationToken cancellationToken = default(CancellationToken), AppSqlTransaction transaction = null) where T : class, new()
+            CancellationToken cancellationToken = default, AppSqlTransaction transaction = null) where T : class, new()
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             return (await ExecuteListAsync<T>(procedureName, parameters, cancellationToken, transaction)).SingleOrDefault();
         }
 
+        public async Task<string> ReadJsonAsync(string procedureName, List<SqlParameter> parameters,
+            CancellationToken cancellationToken = default, AppSqlTransaction transaction = null)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (_connection.State != ConnectionState.Open) await _connection.OpenAsync(cancellationToken);
+
+            var command = new SqlCommand(procedureName, _connection)
+            {
+                CommandType = CommandType.StoredProcedure,
+                Transaction = transaction?.Transaction
+            };
+
+            if (parameters?.Any() ?? false) command.Parameters.AddRange(parameters.ToArray());
+            
+            var result = new StringBuilder();
+
+            var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (reader.Read()) result.Append(reader.GetValue(0).ToString());
+            reader.Close();
+
+            return result.ToString();
+        }
+
         public static SqlParameter GetParameter(string parameter, object value)
         {
+            var valueType = value?.GetType();
+            var isCollection = typeof(IEnumerable<>).IsAssignableFrom(valueType);
+            if (isCollection)
+            {
+                return new SqlParameter(parameter, value?.ToSqlParamCollection())
+                {
+                    Direction = ParameterDirection.Input,
+                    SqlDbType = SqlDbType.Structured
+                };
+            }
+
             return new SqlParameter(parameter, value ?? DBNull.Value)
             {
                 Direction = ParameterDirection.Input,
@@ -119,6 +188,8 @@ namespace Source.DataContext
                     return SqlDbType.Decimal;
                 case double _:
                     return SqlDbType.Float;
+                case byte[] _:
+                    return SqlDbType.VarBinary;
                 case null:
                     return SqlDbType.NVarChar;
                 default:
@@ -126,10 +197,10 @@ namespace Source.DataContext
                     throw new NotImplementedException($"{nameof(AppDbContext)}.{nameof(GetSqlDbType)} - System.Type {value.GetType()} not defined!");
             }
         }
+    }
 
-        public class AppSqlTransaction
-        {
-            public SqlTransaction Transaction { get; set; }
-        }
+    public class AppSqlTransaction
+    {
+        public SqlTransaction Transaction { get; set; }
     }
 }

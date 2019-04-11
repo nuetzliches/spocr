@@ -43,7 +43,7 @@ namespace SpocR.Internal.DataContext
         }
 
         public async Task<List<T>> ExecuteListAsync<T>(string procedureName, List<SqlParameter> parameters,
-            CancellationToken cancellationToken = default(CancellationToken), AppSqlTransaction transaction = null) where T : class, new()
+            CancellationToken cancellationToken = default, AppSqlTransaction transaction = null) where T : class, new()
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -71,7 +71,7 @@ namespace SpocR.Internal.DataContext
         }
 
         public async Task<T> ExecuteSingleAsync<T>(string procedureName, List<SqlParameter> parameters,
-            CancellationToken cancellationToken = default(CancellationToken), AppSqlTransaction transaction = null) where T : class, new()
+            CancellationToken cancellationToken = default, AppSqlTransaction transaction = null) where T : class, new()
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -79,7 +79,7 @@ namespace SpocR.Internal.DataContext
         }
 
         public async Task<List<T>> ListAsync<T>(string queryString, List<SqlParameter> parameters,
-            CancellationToken cancellationToken = default(CancellationToken), AppSqlTransaction transaction = null) where T : class, new()
+            CancellationToken cancellationToken = default, AppSqlTransaction transaction = null) where T : class, new()
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -106,14 +106,14 @@ namespace SpocR.Internal.DataContext
         }
 
         public async Task<T> SingleAsync<T>(string queryString, List<SqlParameter> parameters,
-            CancellationToken cancellationToken = default(CancellationToken), AppSqlTransaction transaction = null) where T : class, new()
+            CancellationToken cancellationToken = default, AppSqlTransaction transaction = null) where T : class, new()
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             return (await ListAsync<T>(queryString, parameters, cancellationToken, transaction)).SingleOrDefault();
         }
 
-        public async Task<AppSqlTransaction> BeginTransactionAsync(string transactionName, CancellationToken cancellationToken = default(CancellationToken))
+        public async Task<AppSqlTransaction> BeginTransactionAsync(string transactionName, CancellationToken cancellationToken = default)
         {
             if (_connection.State != ConnectionState.Open) await _connection.OpenAsync(cancellationToken);
             var transaction = new AppSqlTransaction { Transaction = _connection.BeginTransaction(transactionName) };
@@ -166,6 +166,8 @@ namespace SpocR.Internal.DataContext
                     return SqlDbType.Decimal;
                 case double _:
                     return SqlDbType.Float;
+                case byte[] _:
+                    return SqlDbType.VarBinary;
                 case null:
                     return SqlDbType.NVarChar;
                 default:

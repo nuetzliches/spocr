@@ -14,6 +14,7 @@ namespace SpocR.Internal.Common
             Update,
             Delete,
             Merge,
+            Upsert,
             FindBy,
             List
         }
