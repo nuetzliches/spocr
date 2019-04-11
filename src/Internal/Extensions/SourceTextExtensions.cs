@@ -10,7 +10,6 @@ namespace SpocR.Internal.Extensions
             var sourceString = sourceText.ToString();
             sourceString = sourceString.Replace("@[Name]", Configuration.Name);
             sourceString = sourceString.Replace("@[Version]", version.ToVersionString());
-            sourceString = sourceString.Replace("@[Locked]", false.ToString());
             return sourceString;
         }
     }

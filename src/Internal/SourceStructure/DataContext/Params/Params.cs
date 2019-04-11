@@ -5,7 +5,6 @@
 
     @@[Name] 
     Version: @[Version]
-    Locked: @[Locked]
 */
 
 using System;
