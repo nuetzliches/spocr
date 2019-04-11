@@ -30,22 +30,11 @@ namespace SpocR.Internal.Common
         private readonly SpocrService _spocr;
         private readonly OutputService _output;
 
-        public Engine(ConfigFileManager configFile, SpocrService spocr)
+        public Engine(ConfigFileManager configFile, SpocrService spocr, OutputService output)
         {
             _configFile = configFile;
             _spocr = spocr;
-        }
-
-        public OutputModel GetCustomStructure(params string[] names)
-        {
-            return GetCustomStructure(_configFile.Config.Project.Output, names);
-        }
-
-        public OutputModel GetCustomStructure(IEnumerable<OutputModel> structures = null, params string[] names)
-        {
-            return names.Length > 1
-                    ? GetCustomStructure(structures.Single(i => i.Name.Equals(names.First())).Children, names.Skip(1).ToArray())
-                    : structures.Single(i => i.Name.Equals(names.First()));
+            _output = output;
         }
 
         public TypeSyntax ParseTypeFromSqlDbTypeName(string sqlTypeName, bool isNullable)
@@ -77,7 +66,7 @@ namespace SpocR.Internal.Common
 
             // Replace Namespace
             var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-            var fullSchemaName = SyntaxFactory.ParseName($"{nsNode.Name.ToString().Replace("Source.DataContext", _configFile.GetDataContextNamespace()).Replace("Schema", schema.Name)}{Environment.NewLine}");
+            var fullSchemaName = SyntaxFactory.ParseName($"{nsNode.Name.ToString().Replace("Source.DataContext", _configFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name)}{Environment.NewLine}");
             root = root.ReplaceNode(nsNode, nsNode.WithName(fullSchemaName));
 
             // Replace ClassName
@@ -122,7 +111,7 @@ namespace SpocR.Internal.Common
 
             // Replace Namespace
             var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-            var fullSchemaName = SyntaxFactory.ParseName($"{nsNode.Name.ToString().Replace("Source.DataContext", _configFile.GetDataContextNamespace()).Replace("Schema", schema.Name)}{Environment.NewLine}");
+            var fullSchemaName = SyntaxFactory.ParseName($"{nsNode.Name.ToString().Replace("Source.DataContext", _configFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name)}{Environment.NewLine}");
             root = root.ReplaceNode(nsNode, nsNode.WithName(fullSchemaName));
 
             var inputs = storedProcedure.Input.Where(i => i.IsTableType ?? false);
@@ -191,7 +180,7 @@ namespace SpocR.Internal.Common
                     continue;
                 }
 
-                var dataContextModelPath = GetCustomStructure("DataContext", "Params").Path;
+                var dataContextModelPath = Path.Combine(_configFile.Config.Project.Output.DataContext.Path, _configFile.Config.Project.Output.DataContext.Params.Path);
                 var path = Path.Combine(dataContextModelPath, schema.Path);
                 if (!Directory.Exists(path) && !dryrun)
                 {
@@ -231,7 +220,7 @@ namespace SpocR.Internal.Common
                     continue;
                 }
 
-                var dataContextModelPath = GetCustomStructure("DataContext", "Models").Path;
+                var dataContextModelPath = Path.Combine(_configFile.Config.Project.Output.DataContext.Path, _configFile.Config.Project.Output.DataContext.Models.Path);
                 var path = Path.Combine(dataContextModelPath, schema.Path);
                 if (!Directory.Exists(path) && !dryrun)
                 {
@@ -307,7 +296,7 @@ namespace SpocR.Internal.Common
             {
                 var usingDirective = root.Usings[i];
                 var newUsingName = SyntaxFactory.ParseName(
-                    $"{usingDirective.Name.ToString().Replace("Source.DataContext", _configFile.GetDataContextNamespace())}");
+                    $"{usingDirective.Name.ToString().Replace("Source.DataContext", _configFile.Config.Project.Output.Namespace)}");
                 root = root.ReplaceNode(usingDirective, usingDirective.WithName(newUsingName));
             }
 
@@ -325,21 +314,21 @@ namespace SpocR.Internal.Common
             // TODO: i.Output?.Count() -> Implement a Property "IsScalar" and "IsJson"
             if (storedProcedures.Any(i => i.ReadWriteKind == ReadWriteKindEnum.Read && i.Output?.Count() > 1))
             {
-                var modelUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.GetDataContextNamespace()}.Models.{schema.Name}"));
+                var modelUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.Models.{schema.Name}"));
                 root = root.AddUsings(modelUsingDirective.NormalizeWhitespace());
             }
 
             // Add Usings for Params
             if (storedProcedures.Any(s => s.Input?.Any(i => i.IsTableType ?? false) ?? false))
             {
-                var paramUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.GetDataContextNamespace()}.Params.{schema.Name}"));
+                var paramUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.Params.{schema.Name}"));
                 root = root.AddUsings(paramUsingDirective.NormalizeWhitespace().WithLeadingTrivia(SyntaxFactory.CarriageReturnLineFeed));
             }
 
             // Replace Namespace
             var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
             var fullSchemaName = SyntaxFactory.ParseName(
-                $"{nsNode.Name.ToString().Replace("Source.DataContext", _configFile.GetDataContextNamespace()).Replace("Schema", schema.Name)}{Environment.NewLine}");
+                $"{nsNode.Name.ToString().Replace("Source.DataContext", _configFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name)}{Environment.NewLine}");
             root = root.ReplaceNode(nsNode, nsNode.WithName(fullSchemaName));
 
             // Replace ClassName
@@ -492,7 +481,7 @@ namespace SpocR.Internal.Common
                     continue;
                 }
 
-                var dataContextStoredProcedurePath = GetCustomStructure("DataContext", "StoredProcedures").Path;
+                var dataContextStoredProcedurePath = Path.Combine(_configFile.Config.Project.Output.DataContext.Path, _configFile.Config.Project.Output.DataContext.StoredProcedures.Path);
                 var path = Path.Combine(dataContextStoredProcedurePath, schema.Path);
                 if (!Directory.Exists(path) && !dryrun)
                 {
@@ -517,15 +506,12 @@ namespace SpocR.Internal.Common
             }
         }
 
-        public void RemoveGeneratedFiles(IEnumerable<OutputModel> structures = null)
+        public void RemoveGeneratedFiles()
         {
-            structures = structures ?? _configFile.Config.Project.Output;
-            foreach (var structure in structures)
+            var pathToDelete = _configFile.Config.Project.Output.DataContext.Path;
+            if (Directory.Exists(pathToDelete))
             {
-                if (Directory.Exists(structure.Path))
-                {
-                    Directory.Delete(structure.Path, true);
-                }
+                Directory.Delete(pathToDelete, true);
             }
         }
     }

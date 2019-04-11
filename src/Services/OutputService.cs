@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -16,74 +17,56 @@ namespace SpocR.Services
         {
             return new DirectoryInfo(Path.Combine(DirectoryUtils.GetApplicationRoot(), "Internal", "SourceStructure"));
         }
-        
-        public IEnumerable<OutputModel> GetStructureModelListFromSource(DirectoryInfo rootDir = null, string parentPath = null, string nameSpace = null)
+
+        // Static implementation to copy files
+        public void GenerateCodeBase(OutputModel output, bool dryrun)
         {
-            rootDir = rootDir ?? GetSourceStructureRootDir();
-            foreach (var child in rootDir.GetDirectories())
-            {
-                var path = $"{parentPath ?? "."}/{child.Name}";
-                yield return new OutputModel
-                {
-                    Namespace = nameSpace,
-                    Name = child.Name,
-                    Path = path,
-                    Children = GetStructureModelListFromSource(child, path)
-                };
-            }
+            var dir = GetSourceStructureRootDir();
+
+            var targetDir = Path.Combine(Directory.GetCurrentDirectory(), output.DataContext.Path);
+            CopyAllFileFromTo(Path.Combine(dir.FullName, "DataContext"), targetDir, output.Namespace, dryrun);
+
+            var modelTargetDir = Path.Combine(Directory.GetCurrentDirectory(), targetDir, output.DataContext.Models.Path);
+            CopyAllFileFromTo(Path.Combine(dir.FullName, "DataContext/Models"), modelTargetDir, output.Namespace, dryrun);
+
+            var paramsTargetDir = Path.Combine(Directory.GetCurrentDirectory(), targetDir, output.DataContext.Params.Path);
+            CopyAllFileFromTo(Path.Combine(dir.FullName, "DataContext/Params"), paramsTargetDir, output.Namespace, dryrun);
+
+            var spTargetDir = Path.Combine(Directory.GetCurrentDirectory(), targetDir, output.DataContext.StoredProcedures.Path);
+            CopyAllFileFromTo(Path.Combine(dir.FullName, "DataContext/StoredProcedures"), spTargetDir, output.Namespace, dryrun);
         }
 
-        public void GenerateCodeBase(string nameSpace, bool dryrun)
+        private void CopyAllFileFromTo(string sourceDir, string targetDir, string nameSpace, bool dryrun)
         {
-
-            var rootDir = GetSourceStructureRootDir();
-            var baseFiles = rootDir.GetFiles("*.base.cs", SearchOption.AllDirectories);
-
+            var baseFiles = new DirectoryInfo(sourceDir).GetFiles("*.base.cs", SearchOption.TopDirectoryOnly);
             foreach (var file in baseFiles)
             {
-                var fileContent = File.ReadAllText(file.FullName);
-
-                var tree = CSharpSyntaxTree.ParseText(fileContent);
-                var root = tree.GetCompilationUnitRoot();
-
-                // Replace Namespace
-                var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-                var name = SyntaxFactory.ParseName($"{nsNode.Name.ToString().Replace("Source.DataContext", nameSpace)}{Environment.NewLine}");
-                root = root.ReplaceNode(nsNode, nsNode.WithName(name));
-
-                if (dryrun)
-                    return;
-
-                var targetDir = Path.Combine(Directory.GetCurrentDirectory(), GetStructureNodeBySourcePath(file.DirectoryName).Path);
-                if (!Directory.Exists(targetDir))
-                {
-                    Directory.CreateDirectory(targetDir);
-                }
-                File.WriteAllText(Path.Combine(targetDir, file.Name.Replace(".base.cs", ".cs")), root.GetText().ToString());
+                CopyFile(file, Path.Combine(targetDir, file.Name.Replace(".base", "")), nameSpace, dryrun);
             }
         }
 
-        private OutputModel GetStructureNodeBySourcePath(string path)
+        private void CopyFile(FileInfo file, string targetFileName, string nameSpace, bool dryrun)
         {
-            var info = new DirectoryInfo(path);
-            var rootDir = GetSourceStructureRootDir();
-            var relativePath = info.FullName.Replace(rootDir.FullName, "");
+            var fileContent = File.ReadAllText(file.FullName);
 
-            var directories = relativePath
-                                .Split(Path.DirectorySeparatorChar)
-                                .Where(i => !string.IsNullOrWhiteSpace(i));
+            var tree = CSharpSyntaxTree.ParseText(fileContent);
+            var root = tree.GetCompilationUnitRoot();
 
-            // CHECK ME
-            var strutureNode = directories.Any()
-                ? _configFile.Config.Project.Output.SingleOrDefault(i => i.Name.Equals(directories.First()))
-                : null;
+            // Replace Namespace
+            var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
+            var name = SyntaxFactory.ParseName($"{nsNode.Name.ToString().Replace("Source.DataContext", nameSpace)}{Environment.NewLine}");
+            root = root.ReplaceNode(nsNode, nsNode.WithName(name));
 
-            foreach (var dirName in directories.Skip(1))
+            if (dryrun)
+                return;
+
+            var targetDir = Path.GetDirectoryName(targetFileName);
+            if (!Directory.Exists(targetDir))
             {
-                strutureNode = strutureNode.Children.SingleOrDefault(i => i.Name.Equals(dirName));
+                Directory.CreateDirectory(targetDir);
             }
 
-            return strutureNode;
+            File.WriteAllText(targetFileName, root.GetText().ToString());
         }
     }
 }

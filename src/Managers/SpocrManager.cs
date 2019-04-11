@@ -79,7 +79,21 @@ namespace SpocR.Managers
                         RuntimeConnectionStringIdentifier = "DefaultConnection",
                         ConnectionString = connectionString ?? ""
                     },
-                    Output = _output.GetStructureModelListFromSource(null, null, appNamespace)
+                    Output = new OutputModel {
+                        Namespace = appNamespace,
+                        DataContext = new DataContextModel {
+                            Path = "./DataContext",
+                            Models = new DataContextModelsModel {
+                                Path = "./Models",
+                            },
+                            Params = new DataContextParamsModel {
+                                Path = "./Params",
+                            },
+                            StoredProcedures = new DataContextStoredProceduresModel {
+                                Path = "./StoredProcedures",
+                            }
+                        }
+                    }
                 },
                 Schema = new List<SchemaModel>()
             };
@@ -167,7 +181,7 @@ namespace SpocR.Managers
             if (_configFile.Config.Project.Role.Kind != ERoleKind.Extension)
             {
                 // we dont have a codebase, so generate it
-                _output.GenerateCodeBase(_configFile.Config.Project.Output.First().Namespace, dryRun);
+                _output.GenerateCodeBase(_configFile.Config.Project.Output, dryRun);
 
                 _reporter.Output($"CodeBase generated in {stopwatch.ElapsedMilliseconds} ms.");
             }

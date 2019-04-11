@@ -19,7 +19,7 @@ namespace SpocR.Internal.Models
     {
         public RoleModel Role { get; set; }
         public DataBaseModel DataBase { get; set; }
-        public IEnumerable<OutputModel> Output { get; set; }
+        public OutputModel Output { get; set; }
     }
 
     public class RoleModel
@@ -40,10 +40,48 @@ namespace SpocR.Internal.Models
     public class OutputModel
     {
         public string Namespace { get; set; }
-        public string Name { get; set; }
-        public string Path { get; set; }
-        public IEnumerable<OutputModel> Children { get; set; }
+        public DataContextModel DataContext { get; set; }
     }
+
+    public class DataContextModel : IDirectoryModel
+    {
+        public string Path { get; set; }
+        public DataContextModelsModel Models { get; set; }
+        public DataContextParamsModel Params { get; set; }
+        public DataContextStoredProceduresModel StoredProcedures { get; set; }
+    }
+
+    public class DataContextModelsModel : IDirectoryModel
+    {
+        public string Path { get; set; }
+    }
+    public class DataContextParamsModel : IDirectoryModel
+    {
+        public string Path { get; set; }
+    }
+    public class DataContextStoredProceduresModel : IDirectoryModel
+    {
+        public string Path { get; set; }
+    }
+
+    public interface IDirectoryModel
+    {
+        string Path { get; set; }
+    }
+
+
+    // "DataContext": {
+    //     "Path": "./DataContext",
+    //     "Models": {
+    //       "Path": "./Models"
+    //     },
+    //     "Params": {
+    //       "Path": "./Params"
+    //     },
+    //     "StoredProcedures": {
+    //       "Path": "./StoredProcedures"
+    //     }
+    //   }
 
     public class ConfigurationJsonModel
     {

@@ -1,9 +1,10 @@
-﻿/*  Warning! This file is generated from @[Name].
-    Please read the documentation if changes are required.
+﻿/*  Warning! This file was auto-generated from @[Name].
+    Please don't hurt me, no more! 
+
+    Inherit me, to override my behaviour - if you'd like ;)
 
     @@[Name] 
     Version: @[Version]
-    LastModified: @[LastModified]
     Locked: @[Locked]
 */
 

@@ -11,6 +11,7 @@ namespace SpocR.Extensions
         public static IServiceCollection AddSpocR(this IServiceCollection services)
         {
             services.AddSingleton<SpocrService>();
+            services.AddSingleton<OutputService>();
             services.AddSingleton<SchemaManager>();
             services.AddSingleton<SpocrManager>();
             services.AddSingleton<ConfigFileManager>();
