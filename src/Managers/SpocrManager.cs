@@ -15,16 +15,18 @@ namespace SpocR.Managers
 {
     public class SpocrManager
     {
-        private readonly SpocrService _service;
+        private readonly SpocrService _spocr;
+        private readonly OutputService _output;
         private readonly Engine _engine;
         private readonly IReporter _reporter;
         private readonly SchemaManager _schemaManager;
         private readonly ConfigFileManager _configFile;
 
 
-        public SpocrManager(SpocrService service, Engine engine, IReporter reporter, SchemaManager schemaManager, ConfigFileManager configFile)
+        public SpocrManager(SpocrService spocr, OutputService output, Engine engine, IReporter reporter, SchemaManager schemaManager, ConfigFileManager configFile)
         {
-            _service = service;
+            _spocr = spocr;
+            _output = output;
             _engine = engine;
             _reporter = reporter;
             _schemaManager = schemaManager;
@@ -65,11 +67,10 @@ namespace SpocR.Managers
 
             var config = new ConfigurationModel
             {
-                Version = _service.Version,
+                Version = _spocr.Version,
                 Modified = DateTime.Now,
                 Project = new ProjectModel
                 {
-                    Namespace = appNamespace,
                     Role = role,
                     DataBase = new DataBaseModel
                     {
@@ -78,7 +79,21 @@ namespace SpocR.Managers
                         RuntimeConnectionStringIdentifier = "DefaultConnection",
                         ConnectionString = connectionString ?? ""
                     },
-                    Structure = _engine.GetStructureModelListFromSource()
+                    Output = new OutputModel {
+                        Namespace = appNamespace,
+                        DataContext = new DataContextModel {
+                            Path = "./DataContext",
+                            Models = new DataContextModelsModel {
+                                Path = "./Models",
+                            },
+                            Params = new DataContextParamsModel {
+                                Path = "./Params",
+                            },
+                            StoredProcedures = new DataContextStoredProceduresModel {
+                                Path = "./StoredProcedures",
+                            }
+                        }
+                    }
                 },
                 Schema = new List<SchemaModel>()
             };
@@ -166,7 +181,7 @@ namespace SpocR.Managers
             if (_configFile.Config.Project.Role.Kind != ERoleKind.Extension)
             {
                 // we dont have a codebase, so generate it
-                _engine.GenerateCodeBase(dryRun);
+                _output.GenerateCodeBase(_configFile.Config.Project.Output, dryRun);
 
                 _reporter.Output($"CodeBase generated in {stopwatch.ElapsedMilliseconds} ms.");
             }
