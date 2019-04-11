@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
+using SpocR.Enums;
 using SpocR.Internal.Models;
 
 namespace SpocR.Internal.Models
@@ -16,10 +17,9 @@ namespace SpocR.Internal.Models
 
     public class ProjectModel
     {
-        public string Namespace { get; set; }
         public RoleModel Role { get; set; }
         public DataBaseModel DataBase { get; set; }
-        public IEnumerable<StructureModel> Structure { get; set; }
+        public OutputModel Output { get; set; }
     }
 
     public class RoleModel
@@ -31,25 +31,57 @@ namespace SpocR.Internal.Models
         public string LibNamespace { get; set; }
     }
 
-    public enum ERoleKind
-    {
-        Default,
-        Lib,
-        Extension
-    }
-
     public class DataBaseModel
     {
         public string RuntimeConnectionStringIdentifier { get; set; }
         public string ConnectionString { get; set; }
     }
 
-    public class StructureModel
+    public class OutputModel
     {
-        public string Name { get; set; }
-        public string Path { get; set; }
-        public IEnumerable<StructureModel> Children { get; set; }
+        public string Namespace { get; set; }
+        public DataContextModel DataContext { get; set; }
     }
+
+    public class DataContextModel : IDirectoryModel
+    {
+        public string Path { get; set; }
+        public DataContextModelsModel Models { get; set; }
+        public DataContextParamsModel Params { get; set; }
+        public DataContextStoredProceduresModel StoredProcedures { get; set; }
+    }
+
+    public class DataContextModelsModel : IDirectoryModel
+    {
+        public string Path { get; set; }
+    }
+    public class DataContextParamsModel : IDirectoryModel
+    {
+        public string Path { get; set; }
+    }
+    public class DataContextStoredProceduresModel : IDirectoryModel
+    {
+        public string Path { get; set; }
+    }
+
+    public interface IDirectoryModel
+    {
+        string Path { get; set; }
+    }
+
+
+    // "DataContext": {
+    //     "Path": "./DataContext",
+    //     "Models": {
+    //       "Path": "./Models"
+    //     },
+    //     "Params": {
+    //       "Path": "./Params"
+    //     },
+    //     "StoredProcedures": {
+    //       "Path": "./StoredProcedures"
+    //     }
+    //   }
 
     public class ConfigurationJsonModel
     {

@@ -5,19 +5,19 @@ using SpocR.Internal.Models;
 
 namespace SpocR.Internal.Managers
 {
-    internal class ManagerBase
+    public class ManagerBase
     {
         private readonly IServiceProvider _serviceProvider;
 
         private DbContext _dbContext;
         private Engine _engine;
 
-        internal ManagerBase(IServiceProvider serviceProvider)
+        public ManagerBase(IServiceProvider serviceProvider)
         {
             _serviceProvider = serviceProvider;
         }
 
-        internal DbContext DbContext => _dbContext ?? (_dbContext = (DbContext)_serviceProvider.GetService(typeof(DbContext)));
-        internal Engine Engine => _engine ?? (_engine = (Engine)_serviceProvider.GetService(typeof(Engine)));
+        public DbContext DbContext => _dbContext ?? (_dbContext = (DbContext)_serviceProvider.GetService(typeof(DbContext)));
+        public Engine Engine => _engine ?? (_engine = (Engine)_serviceProvider.GetService(typeof(Engine)));
     }
 }

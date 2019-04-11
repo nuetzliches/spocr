@@ -88,3 +88,32 @@ Clone and Download Repository
 # Resources
 - http://roslynquoter.azurewebsites.net/
 - https://natemcmaster.com/blog/2018/05/12/dotnet-global-tools/
+
+
+# Example for vscode launch.json
+```
+{
+   "version": "0.2.0",
+   "configurations": [
+        {
+            "name": ".NET Core Launch (console)",
+            "type": "coreclr",
+            "request": "launch",
+            "preLaunchTask": "build",
+            "program": "${workspaceFolder}/src/bin/Debug/netcoreapp2.1/SpocR.dll",
+            // awailable commands: "create", "pull", "build", "rebuild", "remove", options: "-d|--dry-run"
+            "args": ["create", "-d"], 
+            "cwd": "${workspaceFolder}/src",
+            "console": "integratedTerminal",
+            "stopAtEntry": false,
+            "internalConsoleOptions": "openOnSessionStart"
+        },
+        {
+            "name": ".NET Core Attach",
+            "type": "coreclr",
+            "request": "attach",
+            "processId": "${command:pickProcess}"
+        }
+    ,]
+}
+```
