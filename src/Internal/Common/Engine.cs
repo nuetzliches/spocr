@@ -16,50 +16,21 @@ using SpocR.Enums;
 using SpocR.Internal.Common;
 using SpocR.Internal.Extensions;
 using SpocR.Internal.Models;
+using SpocR.Managers;
+using SpocR.Services;
 using static SpocR.Internal.Common.Definitions;
 
 namespace SpocR.Internal.Common
 {
     public class Engine
     {
-        public readonly IServiceCollection Services;
+        private readonly ConfigFileManager _configFile;
+        private readonly SpocrService _service;
 
-        private ConfigurationModel _config;
-        public ConfigurationModel Config
+        public Engine(ConfigFileManager configFile, SpocrService service)
         {
-            get => _config ?? (_config = ReadConfigFile());
-            set => _config = value;
-        }
-
-        public Engine(IServiceCollection services)
-        {
-            Services = services;
-        }
-
-        public bool ConfigFileExists()
-        {
-            return File.Exists(Configuration.ConfigurationFile);
-        }
-
-        public void SaveConfigFile(ConfigurationModel config)
-        {
-            var jsonSettings = new JsonSerializerSettings
-            {
-                NullValueHandling = NullValueHandling.Ignore,
-                ContractResolver = new SerializeContractResolver()
-            };
-            var json = JsonConvert.SerializeObject(new ConfigurationJsonModel(config), Formatting.Indented, jsonSettings);
-            File.WriteAllText(Configuration.ConfigurationFile, json);
-        }
-
-        public ConfigurationModel ReadConfigFile()
-        {
-            if (!ConfigFileExists())
-            {
-                return null;
-            }
-            var content = File.ReadAllText(Configuration.ConfigurationFile);
-            return JsonConvert.DeserializeObject<ConfigurationModel>(content);
+            _configFile = configFile;
+            _service = service;
         }
 
         public string GetApplicationRoot()
@@ -71,11 +42,13 @@ namespace SpocR.Internal.Common
             return Regex.Replace(codeBase, @"^(file\:\\)", string.Empty);
         }
 
+        // TODO: MoveTo?
         public DirectoryInfo GetSourceStructureRootDir()
         {
             return new DirectoryInfo(Path.Combine(GetApplicationRoot(), "Internal", "SourceStructure"));
         }
 
+        // TODO: MoveTo?
         public IEnumerable<StructureModel> GetStructureModelListFromSource(DirectoryInfo rootDir = null, string parentPath = null)
         {
             rootDir = rootDir ?? GetSourceStructureRootDir();
@@ -102,7 +75,7 @@ namespace SpocR.Internal.Common
                                 .Where(i => !string.IsNullOrWhiteSpace(i));
 
             var strutureNode = directories.Any()
-                ? Config.Project.Structure.SingleOrDefault(i => i.Name.Equals(directories.First()))
+                ? _configFile.Config.Project.Structure.SingleOrDefault(i => i.Name.Equals(directories.First()))
                 : null;
 
             foreach (var dirName in directories.Skip(1))
@@ -115,9 +88,9 @@ namespace SpocR.Internal.Common
 
         public string GetDataContextNamespace()
         {
-            var dataContextNode = Config.Project.Structure.SingleOrDefault(i => i.Name.Equals("DataContext"));
+            var dataContextNode = _configFile.Config.Project.Structure.SingleOrDefault(i => i.Name.Equals("DataContext"));
             var path = dataContextNode.Path.Replace("./", "");
-            path = Path.Combine(Config.Project.Namespace, path);
+            path = Path.Combine(_configFile.Config.Project.Namespace, path);
             return path.Replace('\\', '.');
         }
 
@@ -154,7 +127,7 @@ namespace SpocR.Internal.Common
 
         public StructureModel GetCustomStructure(params string[] names)
         {
-            return GetCustomStructure(Config.Project.Structure, names);
+            return GetCustomStructure(_configFile.Config.Project.Structure, names);
         }
 
         public StructureModel GetCustomStructure(IEnumerable<StructureModel> structures = null, params string[] names)
@@ -293,7 +266,7 @@ namespace SpocR.Internal.Common
 
         public void GenerateDataContextParams(bool dryrun)
         {
-            var schemas = Config.Schema
+            var schemas = _configFile.Config.Schema
                 .Where(i => i.Status == SchemaStatusEnum.Build && (i.StoredProcedures?.Any() ?? false))
                 .Select(i => Definitions.ForSchema(i));
 
@@ -326,14 +299,14 @@ namespace SpocR.Internal.Common
                     }
 
                     if (!dryrun)
-                        File.WriteAllText(fileName, sourceText.WithMetadataToString());
+                        File.WriteAllText(fileName, sourceText.WithMetadataToString(_service.Version));
                 }
             }
         }
 
         public void GenerateDataContextModels(bool dryrun)
         {
-            var schemas = Config.Schema
+            var schemas = _configFile.Config.Schema
                 .Where(i => i.Status == SchemaStatusEnum.Build && (i.StoredProcedures?.Any() ?? false))
                 .Select(i => Definitions.ForSchema(i));
 
@@ -372,7 +345,7 @@ namespace SpocR.Internal.Common
                     }
 
                     if (!dryrun)
-                        File.WriteAllText(fileName, sourceText.WithMetadataToString());
+                        File.WriteAllText(fileName, sourceText.WithMetadataToString(_service.Version));
                 }
             }
         }
@@ -398,10 +371,12 @@ namespace SpocR.Internal.Common
             return false;
         }
 
-        public string GetIdentifierFromSqlInputParam(string name) {
+        public string GetIdentifierFromSqlInputParam(string name)
+        {
             name = $"{name.Remove(0, 1).FirstCharToLower()}";
-            var reservedKeyWords = new [] { "params" };
-            if(reservedKeyWords.Contains(name)) {
+            var reservedKeyWords = new[] { "params" };
+            if (reservedKeyWords.Contains(name))
+            {
                 name = $"{name}_";
             }
             return name;
@@ -426,12 +401,12 @@ namespace SpocR.Internal.Common
             }
 
             // If its an extension, add usings for the lib
-            if (Config.Project.Role.Kind == ERoleKind.Extension)
+            if (_configFile.Config.Project.Role.Kind == ERoleKind.Extension)
             {
-                var libUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{Config.Project.Role.LibNamespace}"));
+                var libUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Role.LibNamespace}"));
                 root = root.AddUsings(libUsingDirective.NormalizeWhitespace());
 
-                var libModelUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{Config.Project.Role.LibNamespace}.Models"));
+                var libModelUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Role.LibNamespace}.Models"));
                 root = root.AddUsings(libModelUsingDirective.NormalizeWhitespace());
             }
 
@@ -593,7 +568,7 @@ namespace SpocR.Internal.Common
 
         public void GenerateDataContextStoredProcedures(bool dryrun)
         {
-            var schemas = Config.Schema
+            var schemas = _configFile.Config.Schema
                 .Where(i => i.Status == SchemaStatusEnum.Build && (i.StoredProcedures?.Any() ?? false))
                 .Select(i => Definitions.ForSchema(i));
 
@@ -626,14 +601,14 @@ namespace SpocR.Internal.Common
                     }
 
                     if (!dryrun)
-                        File.WriteAllText(fileName, sourceText.WithMetadataToString());
+                        File.WriteAllText(fileName, sourceText.WithMetadataToString(_service.Version));
                 }
             }
         }
 
         public void RemoveGeneratedFiles(IEnumerable<StructureModel> structures = null)
         {
-            structures = structures ?? Config.Project.Structure;
+            structures = structures ?? _configFile.Config.Project.Structure;
             foreach (var structure in structures)
             {
                 if (Directory.Exists(structure.Path))
@@ -641,23 +616,6 @@ namespace SpocR.Internal.Common
                     Directory.Delete(structure.Path, true);
                 }
             }
-        }
-
-        public void RemoveConfig()
-        {
-            if (File.Exists(Configuration.ConfigurationFile))
-            {
-                File.Delete(Configuration.ConfigurationFile);
-            }
-        }
-    }
-
-    public static class SpocRServiceCollectionExtensions
-    {
-        public static IServiceCollection AddSpocR(this IServiceCollection services)
-        {
-            services.AddSingleton(new Engine(services));
-            return services;
         }
     }
 }

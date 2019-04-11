@@ -1,11 +1,9 @@
-using System;
-using System.ComponentModel.DataAnnotations;
+
 using McMaster.Extensions.CommandLineUtils;
 using Microsoft.Extensions.DependencyInjection;
 using SpocR.Commands;
-using SpocR.Internal.Common;
+using SpocR.Extensions;
 using SpocR.Internal.DataContext;
-using SpocR.Internal.Managers;
 using SpocR.Managers;
 
 namespace SpocR
@@ -25,16 +23,14 @@ namespace SpocR
                 .AddSpocR()
                 .AddDbContext()
                 .AddSingleton<IReporter>(new ConsoleReporter(PhysicalConsole.Singleton))
-                .AddSingleton<SchemaManager>()
-                .AddSingleton<SpocrManager>()
                 .BuildServiceProvider();
 
             var dbContext = serviceProvider.GetService<DbContext>();
-            var engine = serviceProvider.GetService<Engine>();
+            var configFile = serviceProvider.GetService<ConfigFileManager>();
             
-            if (!string.IsNullOrWhiteSpace(engine.Config?.Project?.DataBase?.ConnectionString))
+            if (!string.IsNullOrWhiteSpace(configFile.Config?.Project?.DataBase?.ConnectionString))
             {
-                dbContext.SetConnectionString(engine.Config.Project.DataBase.ConnectionString);
+                dbContext.SetConnectionString(configFile.Config.Project.DataBase.ConnectionString);
             }
 
             var app = new CommandLineApplication<Program>
