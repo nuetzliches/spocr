@@ -8,3 +8,10 @@ script:
   - dotnet restore
   - dotnet build -c Release
   - dotnet pack --output ../ -c Release
+deploy:
+  skip_cleanup: true
+  provider: script
+  script: dotnet nuget push src/SampleNetLib/bin/Release/SampleNetLib.*.nupkg --api-key $NUGET_API_KEY
+  on:
+    tags: true
+    condition: $TRAVIS_TAG =~ ^(\d+\.)?(\d+\.)?(\*|\d+)$

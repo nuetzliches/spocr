@@ -16,7 +16,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="Internal\SourceStructure\**\*" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="Output\**\*" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
