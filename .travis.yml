@@ -4,6 +4,7 @@ os: linux
 dist: trusty
 dotnet: 2.1
 script:
+  - cd src
   - dotnet restore
-  - dotnet build src/ -c Release
-  - dotnet pack src/ --output ./ -c Release
+  - dotnet build -c Release
+  - dotnet pack -c Release
