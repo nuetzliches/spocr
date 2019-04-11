@@ -7,4 +7,4 @@ script:
   - cd src
   - dotnet restore
   - dotnet build -c Release
-  - dotnet pack -c Release
+  - dotnet pack --output ../ -c Release
