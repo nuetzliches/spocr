@@ -66,7 +66,7 @@ namespace SpocR.Internal.Common
 
             // Replace Namespace
             var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-            var fullSchemaName = SyntaxFactory.ParseName($"{nsNode.Name.ToString().Replace("Source.DataContext", _configFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name)}{Environment.NewLine}");
+            var fullSchemaName = SyntaxFactory.ParseName($"{nsNode.Name.ToString().Replace("Source", _configFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name)}{Environment.NewLine}");
             root = root.ReplaceNode(nsNode, nsNode.WithName(fullSchemaName));
 
             // Replace ClassName
@@ -111,7 +111,7 @@ namespace SpocR.Internal.Common
 
             // Replace Namespace
             var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-            var fullSchemaName = SyntaxFactory.ParseName($"{nsNode.Name.ToString().Replace("Source.DataContext", _configFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name)}{Environment.NewLine}");
+            var fullSchemaName = SyntaxFactory.ParseName($"{nsNode.Name.ToString().Replace("Source", _configFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name)}{Environment.NewLine}");
             root = root.ReplaceNode(nsNode, nsNode.WithName(fullSchemaName));
 
             var inputs = storedProcedure.Input.Where(i => i.IsTableType ?? false);
@@ -296,7 +296,7 @@ namespace SpocR.Internal.Common
             {
                 var usingDirective = root.Usings[i];
                 var newUsingName = SyntaxFactory.ParseName(
-                    $"{usingDirective.Name.ToString().Replace("Source.DataContext", _configFile.Config.Project.Output.Namespace)}");
+                    $"{usingDirective.Name.ToString().Replace("Source", _configFile.Config.Project.Output.Namespace)}");
                 root = root.ReplaceNode(usingDirective, usingDirective.WithName(newUsingName));
             }
 
@@ -314,21 +314,21 @@ namespace SpocR.Internal.Common
             // TODO: i.Output?.Count() -> Implement a Property "IsScalar" and "IsJson"
             if (storedProcedures.Any(i => i.ReadWriteKind == ReadWriteKindEnum.Read && i.Output?.Count() > 1))
             {
-                var modelUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.Models.{schema.Name}"));
+                var modelUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.DataContext.Models.{schema.Name}"));
                 root = root.AddUsings(modelUsingDirective.NormalizeWhitespace());
             }
 
             // Add Usings for Params
             if (storedProcedures.Any(s => s.Input?.Any(i => i.IsTableType ?? false) ?? false))
             {
-                var paramUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.Params.{schema.Name}"));
+                var paramUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.DataContext.Params.{schema.Name}"));
                 root = root.AddUsings(paramUsingDirective.NormalizeWhitespace().WithLeadingTrivia(SyntaxFactory.CarriageReturnLineFeed));
             }
 
             // Replace Namespace
             var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
             var fullSchemaName = SyntaxFactory.ParseName(
-                $"{nsNode.Name.ToString().Replace("Source.DataContext", _configFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name)}{Environment.NewLine}");
+                $"{nsNode.Name.ToString().Replace("Source", _configFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name)}{Environment.NewLine}");
             root = root.ReplaceNode(nsNode, nsNode.WithName(fullSchemaName));
 
             // Replace ClassName
