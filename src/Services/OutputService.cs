@@ -54,7 +54,7 @@ namespace SpocR.Services
 
             // Replace Namespace
             var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-            var name = SyntaxFactory.ParseName($"{nsNode.Name.ToString().Replace("Source.DataContext", nameSpace)}{Environment.NewLine}");
+            var name = SyntaxFactory.ParseName($"{nsNode.Name.ToString().Replace("Source", nameSpace)}{Environment.NewLine}");
             root = root.ReplaceNode(nsNode, nsNode.WithName(name));
 
             if (dryrun)
