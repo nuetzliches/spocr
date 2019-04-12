@@ -1,4 +1,4 @@
-# spocr [![Build Status](https://travis-ci.org/nuetzliches/spocr.svg?branch=master)](https://travis-ci.org/nuetzliches/spocr)
+# spocr [![Build Status](https://travis-ci.org/nuetzliches/spocr.svg?branch=master)](https://travis-ci.org/nuetzliches/spocr) [![NuGet Badge](https://buildstats.info/nuget/spocr)](https://www.nuget.org/packages/SpocR/)
 
 - Scaffolds your StoredProcedures into a C# DataContext structure. Be supriesed by many more features.
 - Simply managed by the console (ComandLineInterface/CLI)

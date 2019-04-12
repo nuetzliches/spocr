@@ -35,3 +35,4 @@ msbuild.wrn
 
 # Custom vscode extension
 vscode/spocr/node_modules/
+src/*.nupkg
