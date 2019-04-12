@@ -1,28 +1,39 @@
-# spocr [![Build Status](https://travis-ci.org/nuetzliches/spocr.svg?branch=master)](https://travis-ci.org/nuetzliches/spocr) [![NuGet Badge](https://buildstats.info/nuget/spocr)](https://www.nuget.org/packages/SpocR/)
+# SpocR [![Build Status](https://travis-ci.org/nuetzliches/spocr.svg?branch=master)](https://travis-ci.org/nuetzliches/spocr) [![NuGet Badge](https://buildstats.info/nuget/spocr)](https://www.nuget.org/packages/SpocR/)
 
-- Scaffolds your StoredProcedures into a C# DataContext structure. Be supriesed by many more features.
-- Simply managed by the console (ComandLineInterface/CLI)
+- Scaffolds your StoredProcedures and Models to C# Files
+- Easy managed by CLI
+- Skallable and expandable
+- no rigid dependencies
 
-# How it works
-spocr generates the DataContex-Folder with all required C# Code for your Web-API<br>
-spocr parse all StoredProcedures from a given ConnectionString and creates models and extension methods<br>
+# How SpocR works
+SpocR pulls the DB scheme over a given ConnectionString into spocr.json
+The spocr.json is configurable (e.g. You can choose which scheme to build or ignore)
+SpocR generates the DataContext-Folder with all required C# Code for your .net core Application (App, API or Services)<br>
+SpocR is highly skallable. You can build it as Library, Extension or Default (both together as single Project)
+
+You can use UserDefinedTableFunctions or single Values as Parameters.
+The result of your StoredProcedures will be mapped as Model or List<Model>
+SpocR also is supporting pure JSON-String Result from StoredProcedure without building any Models.
 
 ### Generated Folder and Files
 ./DataContext<br>
 ./DataContext/Models/[StoredProcedureName].cs<br>
+./DataContext/Params/[StoredProcedureName].cs<br>
 ./DataContext/StoredProcedures/[EntityName]Extensions.cs<br>
 ./DataContext/AppDbContext.cs<br>
+./DataContext/AppDbContextExtensions.cs<br>
 ./DataContext/SqlDataReaderExtensions.cs<br>
+./DataContext/SqlParameterExtensions.cs<br>
 
-- Register AppDbContex in Startup.cs
+- Register IAppDbContext in Startup.cs
 ```csharp
-services.AddTransient<AppDbContext>();
+services.AddAppDbContext();
 ```
 
-- Inject AppDbContext in your Managers
+- Inject IAppDbContext in your Managers
 ```csharp
-private readonly AppDbContext _context;
-constructor MyManager(AppDbContext context) 
+private readonly IAppDbContext _context;
+constructor MyManager(IAppDbContext context) 
 { 
     _context = context;
 }
@@ -61,7 +72,11 @@ public Task<List<UserList>> ListAsync(CancellationToken cancellationToken = defa
 # Installation
 - Install [.NET Core 2.1](https://www.microsoft.com/net/download)
 
-### a. From GitHub
+### a. From NPM
+
+`> dotnet tool install --global SpocR`<br>
+
+### b. From GitHub
 Clone and Download Repository
 
 `> git clone https://github.com/nuetzliches/spocr.git`<br>
@@ -70,18 +85,24 @@ Clone and Download Repository
 `> dotnet tool install -g spocr --add-source ./`<br>
 `> (dotnet tool uninstall -g spocr)`<br>
 
-### b. From NPM (TODO: Upload NPM-Package)
-
 # Use spocr
 
-### 1. Create your spocr.json and configure it
+### 1. Create spocr.json and configure it
 > spocr create
 
-### 2. Pull Database Schema (always after changes)
+### 2. Pull schemes & Build DataContext-Folder
+> spocr rebuild
+
+## Or in single steps
+
+### 2.1 Pull Database Schemes and update spocr.json
 > spocr pull
 
-### 3. (Re-)build your DataContext-Folder
+### 2.2 Build DataContext-Folder 
 > spocr build
+
+### Remove SpocR (config and or DataContext)
+> spocr remove
 
 # TODO: Demo-Project with StoredProcedures and API-Implementation
 
