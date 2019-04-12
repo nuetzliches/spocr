@@ -112,18 +112,22 @@ Clone and Download Repository
 
 
 # Example for vscode launch.json
-```
+
+- available commands for args:  "create", "pull", "build", "rebuild", "remove", 
+- options: "-d|--dry-run"
+
+```json
 {
-   "version": "0.2.0",
-   "configurations": [
+    "version": "0.2.0",
+    "configurations": [
         {
-            "name": ".NET Core Launch (console)",
+            "name": "Debug spocr (console)",
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build",
             "program": "${workspaceFolder}/src/bin/Debug/netcoreapp2.1/SpocR.dll",
-            // awailable commands: "create", "pull", "build", "rebuild", "remove", options: "-d|--dry-run"
-            "args": ["create", "-d"], 
+            
+            "args": ["${input:command}", "${input:option}"],
             "cwd": "${workspaceFolder}/src",
             "console": "integratedTerminal",
             "stopAtEntry": false,
@@ -135,6 +139,22 @@ Clone and Download Repository
             "request": "attach",
             "processId": "${command:pickProcess}"
         }
-    ,]
+    ],
+    "inputs": [
+        {
+            "id": "command",
+            "description": "spocr command",
+            "default": "version",
+            "options": ["create", "pull", "build", "rebuild", "remove", "version"],
+            "type": "pickString"
+        },
+        {
+            "id": "option",
+            "description": "spocr options",
+            "default": "",
+            "options": ["", "--dry-run"],
+            "type": "pickString"
+        }
+    ]
 }
 ```
