@@ -3,7 +3,7 @@ using McMaster.Extensions.CommandLineUtils;
 using Microsoft.Extensions.DependencyInjection;
 using SpocR.Commands;
 using SpocR.Extensions;
-using SpocR.Internal.DataContext;
+using SpocR.DataContext;
 using SpocR.Managers;
 
 namespace SpocR
@@ -14,6 +14,7 @@ namespace SpocR
     [Subcommand("build", typeof(BuildCommand))]
     [Subcommand("rebuild", typeof(RebuildCommand))]
     [Subcommand("remove", typeof(RemoveCommand))]
+    [Subcommand("version", typeof(VersionCommand))]
     [HelpOption("-?|-h|--help")]
     public class Program
     {

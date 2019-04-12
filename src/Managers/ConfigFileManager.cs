@@ -1,8 +1,8 @@
 
 using System.IO;
 using Newtonsoft.Json;
-using SpocR.Internal.Common;
-using SpocR.Internal.Models;
+using SpocR.Common;
+using SpocR.Models;
 
 namespace SpocR.Managers
 {

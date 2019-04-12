@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <Version>0.1.1</Version>
+    <Version>0.1.2</Version>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -16,7 +16,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="Internal\SourceStructure\**\*" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="Output\**\*" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

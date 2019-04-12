@@ -6,22 +6,22 @@ using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using SpocR.Internal.Models;
+using SpocR.Models;
 using SpocR.Utils;
 
 namespace SpocR.Services
 {
     public class OutputService
     {
-        public DirectoryInfo GetSourceStructureRootDir()
+        public DirectoryInfo GetOutputRootDir()
         {
-            return new DirectoryInfo(Path.Combine(DirectoryUtils.GetApplicationRoot(), "Internal", "SourceStructure"));
+            return new DirectoryInfo(Path.Combine(DirectoryUtils.GetApplicationRoot(), "Output"));
         }
 
         // Static implementation to copy files
         public void GenerateCodeBase(OutputModel output, bool dryrun)
         {
-            var dir = GetSourceStructureRootDir();
+            var dir = GetOutputRootDir();
 
             var targetDir = Path.Combine(Directory.GetCurrentDirectory(), output.DataContext.Path);
             CopyAllFileFromTo(Path.Combine(dir.FullName, "DataContext"), targetDir, output.Namespace, dryrun);

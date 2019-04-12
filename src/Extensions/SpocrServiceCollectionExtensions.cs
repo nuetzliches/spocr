@@ -1,6 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
-using SpocR.Internal.Common;
-using SpocR.Internal.Managers;
+using SpocR.Common;
 using SpocR.Managers;
 using SpocR.Services;
 

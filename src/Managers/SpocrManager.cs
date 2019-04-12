@@ -6,9 +6,10 @@ using System.Linq;
 using McMaster.Extensions.CommandLineUtils;
 using SpocR.Commands;
 using SpocR.Enums;
-using SpocR.Internal.Common;
-using SpocR.Internal.Managers;
-using SpocR.Internal.Models;
+using SpocR.Extensions;
+using SpocR.Common;
+using SpocR.Managers;
+using SpocR.Models;
 using SpocR.Services;
 
 namespace SpocR.Managers
@@ -233,6 +234,13 @@ namespace SpocR.Managers
             _configFile.Remove();
 
             _reporter.Output($"{Configuration.ConfigurationFile} removed.");
+
+            return ExecuteResultEnum.Succeeded;
+        }
+
+        public ExecuteResultEnum GetVersion() 
+        {
+            _reporter.Output($"Version: {_spocr.Version.ToVersionString()}.");
 
             return ExecuteResultEnum.Succeeded;
         }
