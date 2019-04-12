@@ -6,6 +6,7 @@ using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using SpocR.Extensions;
 using SpocR.Models;
 using SpocR.Utils;
 
@@ -52,10 +53,7 @@ namespace SpocR.Services
             var tree = CSharpSyntaxTree.ParseText(fileContent);
             var root = tree.GetCompilationUnitRoot();
 
-            // Replace Namespace
-            var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-            var name = SyntaxFactory.ParseName($"{nsNode.Name.ToString().Replace("Source", nameSpace)}{Environment.NewLine}");
-            root = root.ReplaceNode(nsNode, nsNode.WithName(name));
+            root = root.ReplaceNamespace(ns => ns.Replace("Source", nameSpace));
 
             if (dryrun)
                 return;
@@ -67,6 +65,15 @@ namespace SpocR.Services
             }
 
             File.WriteAllText(targetFileName, root.GetText().ToString());
+        }
+
+        public void RemoveGeneratedFiles(string pathToDelete, bool dryRun)
+        {
+            if (Directory.Exists(pathToDelete))
+            {
+                if (!dryRun)
+                    Directory.Delete(pathToDelete, true);
+            }
         }
     }
 }

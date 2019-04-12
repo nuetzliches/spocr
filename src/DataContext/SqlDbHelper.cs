@@ -1,7 +1,7 @@
 using System;
 using System.Data;
 
-namespace SpocR.Common
+namespace SpocR.DataContext
 {
     internal static class SqlDbHelper
     {

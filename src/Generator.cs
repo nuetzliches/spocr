@@ -3,33 +3,27 @@ using System.Collections.Generic;
 using System.Data;
 using System.IO;
 using System.Linq;
-using System.Reflection;
-using System.Text.RegularExpressions;
-using McMaster.Extensions.CommandLineUtils;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
-using Microsoft.Extensions.DependencyInjection;
-using Newtonsoft.Json;
+using SpocR.Contracts;
+using SpocR.DataContext;
 using SpocR.Enums;
 using SpocR.Extensions;
-using SpocR.Common;
-using SpocR.Models;
 using SpocR.Managers;
+using SpocR.Models;
 using SpocR.Services;
-using SpocR.Utils;
-using static SpocR.Common.Definitions;
 
-namespace SpocR.Common
+namespace SpocR
 {
-    public class Engine
+    public class Generator
     {
         private readonly ConfigFileManager _configFile;
         private readonly SpocrService _spocr;
         private readonly OutputService _output;
 
-        public Engine(ConfigFileManager configFile, SpocrService spocr, OutputService output)
+        public Generator(ConfigFileManager configFile, SpocrService spocr, OutputService output)
         {
             _configFile = configFile;
             _spocr = spocr;
@@ -44,18 +38,18 @@ namespace SpocR.Common
             return SyntaxFactory.ParseTypeName(clrType.ToGenericTypeString());
         }
 
-        public string GetInputTypeNameForTableType(StoredProcedureDefinition storedProcedure, StoredProcedureInputModel input)
+        public string GetInputTypeNameForTableType(Definition.StoredProcedure storedProcedure, StoredProcedureInputModel input)
         {
             return $"{storedProcedure.Name}{input.Name.Replace("@", "")}";
         }
 
-        public TypeSyntax GetInputTypeForTableType(StoredProcedureDefinition storedProcedure, StoredProcedureInputModel input)
+        public TypeSyntax GetInputTypeForTableType(Definition.StoredProcedure storedProcedure, StoredProcedureInputModel input)
         {
             var typeName = $"IEnumerable<{GetInputTypeNameForTableType(storedProcedure, input)}>";
             return SyntaxFactory.ParseTypeName(typeName);
         }
 
-        public SourceText GetModelTextForStoredProcedure(SchemaDefinition schema, StoredProcedureDefinition storedProcedure)
+        public SourceText GetModelTextForStoredProcedure(Definition.Schema schema, Definition.StoredProcedure storedProcedure)
         {
             var rootDir = _output.GetOutputRootDir();
             var fileContent = File.ReadAllText(Path.Combine(rootDir.FullName, "DataContext", "Models", "Model.cs"));
@@ -64,18 +58,15 @@ namespace SpocR.Common
             var root = tree.GetCompilationUnitRoot();
 
             // Replace Namespace
-            var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-            var fullSchemaName = SyntaxFactory.ParseName($"{nsNode.Name.ToString().Replace("Source", _configFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name)}{Environment.NewLine}");
-            root = root.ReplaceNode(nsNode, nsNode.WithName(fullSchemaName));
+            root = root.ReplaceNamespace(ns => ns.Replace("Source", _configFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name));
 
             // Replace ClassName
-            nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-            var classNode = (ClassDeclarationSyntax)nsNode.Members[0];
-            var classIdentifier = SyntaxFactory.ParseToken($"{classNode.Identifier.ValueText.Replace("Model", storedProcedure.Name)}{Environment.NewLine}");
-            root = root.ReplaceNode(classNode, classNode.WithIdentifier(classIdentifier));
+            root = root.ReplaceClassName(ci => ci.Replace("Model", storedProcedure.Name));
 
             // Generate Properies
             // https://stackoverflow.com/questions/45160694/adding-new-field-declaration-to-class-with-roslyn
+            var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
+            var classNode = (ClassDeclarationSyntax)nsNode.Members[0];
             var propertyNode = (PropertyDeclarationSyntax)classNode.Members[0];
             foreach (var item in storedProcedure.Output)
             {
@@ -100,7 +91,7 @@ namespace SpocR.Common
             return root.GetText();
         }
 
-        public SourceText GetParamsTextForStoredProcedure(SchemaDefinition schema, StoredProcedureDefinition storedProcedure)
+        public SourceText GetParamsTextForStoredProcedure(Definition.Schema schema, Definition.StoredProcedure storedProcedure)
         {
             var rootDir = _output.GetOutputRootDir();
             var fileContent = File.ReadAllText(Path.Combine(rootDir.FullName, "DataContext", "Params", "Params.cs"));
@@ -109,10 +100,9 @@ namespace SpocR.Common
             var root = tree.GetCompilationUnitRoot();
 
             // Replace Namespace
-            var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-            var fullSchemaName = SyntaxFactory.ParseName($"{nsNode.Name.ToString().Replace("Source", _configFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name)}{Environment.NewLine}");
-            root = root.ReplaceNode(nsNode, nsNode.WithName(fullSchemaName));
+            root = root.ReplaceNamespace(ns => ns.Replace("Source", _configFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name));
 
+            var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
             var inputs = storedProcedure.Input.Where(i => i.IsTableType ?? false);
             var classNodeIx = 0;
             foreach (var input in inputs)
@@ -167,7 +157,7 @@ namespace SpocR.Common
         {
             var schemas = _configFile.Config.Schema
                 .Where(i => i.Status == SchemaStatusEnum.Build && (i.StoredProcedures?.Any() ?? false))
-                .Select(i => Definitions.ForSchema(i));
+                .Select(i => Definition.ForSchema(i));
 
             foreach (var schema in schemas)
             {
@@ -207,12 +197,12 @@ namespace SpocR.Common
         {
             var schemas = _configFile.Config.Schema
                 .Where(i => i.Status == SchemaStatusEnum.Build && (i.StoredProcedures?.Any() ?? false))
-                .Select(i => Definitions.ForSchema(i));
+                .Select(i => Definition.ForSchema(i));
 
             foreach (var schema in schemas)
             {
                 var storedProcedures = schema.StoredProcedures
-                    .Where(i => i.ReadWriteKind == ReadWriteKindEnum.Read);
+                    .Where(i => i.ReadWriteKind == Definition.ReadWriteKindEnum.Read);
 
                 if (!(storedProcedures.Any()))
                 {
@@ -281,7 +271,7 @@ namespace SpocR.Common
             return name;
         }
 
-        public SourceText GetStoredProcedureText(SchemaDefinition schema, List<StoredProcedureDefinition> storedProcedures)
+        public SourceText GetStoredProcedureText(Definition.Schema schema, List<Definition.StoredProcedure> storedProcedures)
         {
             var first = storedProcedures.First();
             var rootDir = _output.GetOutputRootDir();
@@ -311,7 +301,7 @@ namespace SpocR.Common
 
             // Add Using for Models
             // TODO: i.Output?.Count() -> Implement a Property "IsScalar" and "IsJson"
-            if (storedProcedures.Any(i => i.ReadWriteKind == ReadWriteKindEnum.Read && i.Output?.Count() > 1))
+            if (storedProcedures.Any(i => i.ReadWriteKind == Definition.ReadWriteKindEnum.Read && i.Output?.Count() > 1))
             {
                 var modelUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.DataContext.Models.{schema.Name}"));
                 root = root.AddUsings(modelUsingDirective.NormalizeWhitespace());
@@ -325,16 +315,13 @@ namespace SpocR.Common
             }
 
             // Replace Namespace
-            var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-            var fullSchemaName = SyntaxFactory.ParseName(
-                $"{nsNode.Name.ToString().Replace("Source", _configFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name)}{Environment.NewLine}");
-            root = root.ReplaceNode(nsNode, nsNode.WithName(fullSchemaName));
+            root = root.ReplaceNamespace(ns => ns.Replace("Source", _configFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name));
 
             // Replace ClassName
-            nsNode = (NamespaceDeclarationSyntax)root.Members[0];
+            root = root.ReplaceClassName(ci => ci.Replace("StoredProcedure", first.EntityName));
+
+            var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
             var classNode = (ClassDeclarationSyntax)nsNode.Members[0];
-            var classIdentifier = SyntaxFactory.ParseToken($"{classNode.Identifier.ValueText.Replace("StoredProcedure", first.EntityName)}{Environment.NewLine}");
-            root = root.ReplaceNode(classNode, classNode.WithIdentifier(classIdentifier));
 
             // Generate Methods
             foreach (var storedProcedure in storedProcedures)
@@ -423,19 +410,19 @@ namespace SpocR.Common
                 {
                     switch (storedProcedure.OperationKind)
                     {
-                        case OperationKindEnum.FindBy:
-                        case OperationKindEnum.List:
+                        case Definition.OperationKindEnum.FindBy:
+                        case Definition.OperationKindEnum.List:
                             returnModel = storedProcedure.Name;
                             break;
                     }
 
                     switch (storedProcedure.ResultKind)
                     {
-                        case ResultKindEnum.Single:
+                        case Definition.ResultKindEnum.Single:
                             returnType = $"Task<{returnModel}>";
                             returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", $"ExecuteSingleAsync<{returnModel}>");
                             break;
-                        case ResultKindEnum.List:
+                        case Definition.ResultKindEnum.List:
                             returnType = $"Task<List<{returnModel}>>";
                             returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", $"ExecuteListAsync<{returnModel}>");
                             break;
@@ -469,7 +456,7 @@ namespace SpocR.Common
         {
             var schemas = _configFile.Config.Schema
                 .Where(i => i.Status == SchemaStatusEnum.Build && (i.StoredProcedures?.Any() ?? false))
-                .Select(i => Definitions.ForSchema(i));
+                .Select(i => Definition.ForSchema(i));
 
             foreach (var schema in schemas)
             {
@@ -502,15 +489,6 @@ namespace SpocR.Common
                     if (!dryrun)
                         File.WriteAllText(fileName, sourceText.WithMetadataToString(_spocr.Version));
                 }
-            }
-        }
-
-        public void RemoveGeneratedFiles()
-        {
-            var pathToDelete = _configFile.Config.Project.Output.DataContext.Path;
-            if (Directory.Exists(pathToDelete))
-            {
-                Directory.Delete(pathToDelete, true);
             }
         }
     }

@@ -7,7 +7,6 @@ using McMaster.Extensions.CommandLineUtils;
 using SpocR.Commands;
 using SpocR.Enums;
 using SpocR.Extensions;
-using SpocR.Common;
 using SpocR.Managers;
 using SpocR.Models;
 using SpocR.Services;
@@ -18,13 +17,13 @@ namespace SpocR.Managers
     {
         private readonly SpocrService _spocr;
         private readonly OutputService _output;
-        private readonly Engine _engine;
+        private readonly Generator _engine;
         private readonly IReporter _reporter;
         private readonly SchemaManager _schemaManager;
         private readonly ConfigFileManager _configFile;
 
 
-        public SpocrManager(SpocrService spocr, OutputService output, Engine engine, IReporter reporter, SchemaManager schemaManager, ConfigFileManager configFile)
+        public SpocrManager(SpocrService spocr, OutputService output, Generator engine, IReporter reporter, SchemaManager schemaManager, ConfigFileManager configFile)
         {
             _spocr = spocr;
             _output = output;
@@ -224,14 +223,14 @@ namespace SpocR.Managers
             var proceed1 = Prompt.GetYesNo("Remove all generated files?", true);
             if (!proceed1) return ExecuteResultEnum.Aborted;
 
-            _engine.RemoveGeneratedFiles();
+            _output.RemoveGeneratedFiles(_configFile.Config.Project.Output.DataContext.Path, dryRun);
 
             _reporter.Output($"Generated folder and files removed.");
 
             var proceed2 = Prompt.GetYesNo($"Remove {Configuration.ConfigurationFile}?", true);
             if (!proceed2) return ExecuteResultEnum.Aborted;
 
-            _configFile.Remove();
+            _configFile.Remove(dryRun);
 
             _reporter.Output($"{Configuration.ConfigurationFile} removed.");
 

@@ -1,4 +1,3 @@
-
 using McMaster.Extensions.CommandLineUtils;
 using Microsoft.Extensions.DependencyInjection;
 using SpocR.Commands;

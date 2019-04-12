@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using SpocR.Models;
 
-namespace SpocR.Common
+namespace SpocR.Contracts
 {
-    public static class Definitions
+    public static class Definition
     {
         public enum OperationKindEnum
         {
@@ -33,21 +33,21 @@ namespace SpocR.Common
             List
         }
 
-        public static SchemaDefinition ForSchema(SchemaModel schema)
+        public static Schema ForSchema(SchemaModel schema)
         {
-            return new SchemaDefinition(schema);
+            return new Schema(schema);
         }
 
-        public static StoredProcedureDefinition ForStoredProcedure(StoredProcedureModel storedProcedure, SchemaDefinition schema)
+        public static StoredProcedure ForStoredProcedure(StoredProcedureModel storedProcedure, Schema schema)
         {
-            return new StoredProcedureDefinition(storedProcedure, schema);
+            return new StoredProcedure(storedProcedure, schema);
         }
 
-        public class SchemaDefinition
+        public class Schema
         {
             private readonly SchemaModel _schema;
 
-            public SchemaDefinition(SchemaModel schema)
+            public Schema(SchemaModel schema)
             {
                 _schema = schema;
                 var name = schema.Name.ToLower();
@@ -58,15 +58,15 @@ namespace SpocR.Common
             public string Name { get; }
             public string Path { get; }
 
-            private IEnumerable<StoredProcedureDefinition> _storedProcedures;
-            public IEnumerable<StoredProcedureDefinition> StoredProcedures
-                => _storedProcedures ?? (_storedProcedures = _schema.StoredProcedures.Select(i => Definitions.ForStoredProcedure(i, this)));
+            private IEnumerable<StoredProcedure> _storedProcedures;
+            public IEnumerable<StoredProcedure> StoredProcedures
+                => _storedProcedures ?? (_storedProcedures = _schema.StoredProcedures.Select(i => ForStoredProcedure(i, this)));
         }
 
-        public class StoredProcedureDefinition
+        public class StoredProcedure
         {
             private readonly StoredProcedureModel _storedProcedure;
-            private readonly SchemaDefinition _schema;
+            private readonly Schema _schema;
             private string _sqlObjectName;
             private string _name;
             private string _entityName;
@@ -75,7 +75,7 @@ namespace SpocR.Common
             private ReadWriteKindEnum _readWriteKind;
             private ResultKindEnum _resultKind;
 
-            public StoredProcedureDefinition(StoredProcedureModel storedProcedure, SchemaDefinition schema)
+            public StoredProcedure(StoredProcedureModel storedProcedure, Schema schema)
             {
                 _storedProcedure = storedProcedure;
                 _schema = schema;

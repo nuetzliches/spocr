@@ -1,5 +1,4 @@
-﻿
-using McMaster.Extensions.CommandLineUtils;
+﻿using McMaster.Extensions.CommandLineUtils;
 using SpocR.Enums;
 using SpocR.Managers;
 
