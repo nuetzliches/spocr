@@ -3,15 +3,21 @@ mono: none
 os: linux
 dist: trusty
 dotnet: 2.1
+
+install:
+  - dotnet restore ./src/SpocR.csproj
+
 script:
   - cd src
-  - dotnet restore
   - dotnet build -c Release
   - dotnet pack --output ./ -c Release
+
 deploy:
   skip_cleanup: true
   provider: script
-  script: dotnet nuget push src/*.nupkg --api-key $NUGET_API_KEY --source nuget.org
+  script: 
+    - cd src
+    - dotnet nuget push *.nupkg --api-key $NUGET_API_KEY --source nuget.org
   on:
     tags: true
     condition: $TRAVIS_TAG =~ ^(\d+\.)?(\d+\.)?(\*|\d+)$
