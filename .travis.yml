@@ -5,8 +5,7 @@ dist: trusty
 dotnet: 2.1
 
 install:
-  - cd src
-  - dotnet restore
+  - dotnet restore ./src/SpocR.csproj
 
 script:
   - cd src
