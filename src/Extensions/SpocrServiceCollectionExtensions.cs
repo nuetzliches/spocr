@@ -1,5 +1,4 @@
 using Microsoft.Extensions.DependencyInjection;
-using SpocR.Common;
 using SpocR.Managers;
 using SpocR.Services;
 
@@ -14,7 +13,7 @@ namespace SpocR.Extensions
             services.AddSingleton<SchemaManager>();
             services.AddSingleton<SpocrManager>();
             services.AddSingleton<ConfigFileManager>();
-            services.AddSingleton<Engine>();
+            services.AddSingleton<Generator>();
             return services;
         }
     }

@@ -6,7 +6,7 @@ using System.Reflection;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 
-namespace SpocR.Common
+namespace SpocR.Serialization
 {
     public class SerializeContractResolver : DefaultContractResolver
     {

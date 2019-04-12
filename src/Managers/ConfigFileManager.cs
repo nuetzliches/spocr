@@ -1,8 +1,8 @@
 
 using System.IO;
 using Newtonsoft.Json;
-using SpocR.Common;
 using SpocR.Models;
+using SpocR.Serialization;
 
 namespace SpocR.Managers
 {
@@ -41,11 +41,12 @@ namespace SpocR.Managers
             File.WriteAllText(Configuration.ConfigurationFile, json);
         }
 
-        public void Remove()
+        public void Remove(bool dryRun)
         {
             if (Exists())
             {
-                File.Delete(Configuration.ConfigurationFile);
+                if (!dryRun)
+                    File.Delete(Configuration.ConfigurationFile);
             }
         }
     }
