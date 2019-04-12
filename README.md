@@ -6,13 +6,13 @@
 - no rigid dependencies
 
 # How SpocR works
-SpocR pulls the DB scheme over a given ConnectionString into spocr.json
-The spocr.json is configurable (e.g. You can choose which scheme to build or ignore)
+SpocR pulls the DB scheme over a given ConnectionString into spocr.json<br>
+The spocr.json is configurable (e.g. You can choose which scheme to build or ignore)<br>
 SpocR generates the DataContext-Folder with all required C# Code for your .net core Application (App, API or Services)<br>
 SpocR is highly skallable. You can build it as Library, Extension or Default (both together as single Project)
 
-You can use UserDefinedTableFunctions or single Values as Parameters.
-The result of your StoredProcedures will be mapped as Model or List<Model>
+You can use UserDefinedTableFunctions or single Values as Parameters.<br>
+The result of your StoredProcedures will be mapped as Model or List<Model><br>
 SpocR also is supporting pure JSON-String Result from StoredProcedure without building any Models.
 
 ### Generated Folder and Files
