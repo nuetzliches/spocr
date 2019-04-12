@@ -15,9 +15,7 @@ script:
 deploy:
   skip_cleanup: true
   provider: script
-  script: 
-    - cd src
-    - dotnet nuget push *.nupkg --api-key $NUGET_API_KEY --source nuget.org
+  script: dotnet nuget push ./src/*.nupkg --api-key $NUGET_API_KEY --source nuget.org
   on:
     tags: true
     condition: $TRAVIS_TAG =~ ^(\d+\.)?(\d+\.)?(\*|\d+)$
