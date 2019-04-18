@@ -6,20 +6,19 @@ namespace SpocR.Commands
 {
     [HelpOption("-?|-h|--help")]
     [Command("rebuild", Description = "Pull DB Schema and Build DataContext")]
-    public class RebuildCommand : IAppCommand
+    public class RebuildCommand : CommandBase
     {
         private readonly SpocrManager _spocrManager;
-
-        [Option("-d|--dry-run", "Run build without any changes", CommandOptionType.NoValue)]
-        public bool DryRun { get; set; }
 
         public RebuildCommand(SpocrManager spocrManager)
         {
             _spocrManager = spocrManager;
         }
 
-        public int OnExecute()
+        public override int OnExecute()
         {
+            base.OnExecute();
+            
             if (_spocrManager.Pull(DryRun) == ExecuteResultEnum.Succeeded
                 && _spocrManager.Build(DryRun) == ExecuteResultEnum.Succeeded)
                 return (int)ExecuteResultEnum.Succeeded;

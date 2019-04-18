@@ -5,20 +5,18 @@ namespace SpocR.Commands
 {
     [HelpOption("-?|-h|--help")]
     [Command("pull", Description = "Pull all schema informations from DB into spocr.json")]
-    public class PullCommand : IAppCommand
+    public class PullCommand : CommandBase
     {
         private readonly SpocrManager _spocrManager;
-
-        [Option("-d|--dry-run", "Run pull without any changes", CommandOptionType.NoValue)]
-        public bool DryRun { get; set; }
 
         public PullCommand(SpocrManager spocrManager)
         {
             _spocrManager = spocrManager;
         }
 
-        public int OnExecute()
+        public override int OnExecute()
         {
+            base.OnExecute();
             return (int)_spocrManager.Pull(DryRun);
         }
     }
