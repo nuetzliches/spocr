@@ -65,13 +65,13 @@ namespace SpocR.Services
             if (_configFile.Config.Project.Role.Kind == ERoleKind.Lib)
             {
                 root = root.ReplaceUsings(u => u.Replace("Source.DataContext", $"{nameSpace}"));
+                root = root.ReplaceNamespace(ns => ns.Replace("Source.DataContext", nameSpace));
             }
             else
             {
                 root = root.ReplaceUsings(u => u.Replace("Source.", $"{nameSpace}."));
+                root = root.ReplaceNamespace(ns => ns.Replace("Source.", $"{nameSpace}."));
             }
-
-            root = root.ReplaceNamespace(ns => ns.Replace("Source", nameSpace));
 
             if (dryrun)
                 return;
