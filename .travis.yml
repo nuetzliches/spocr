@@ -4,6 +4,9 @@ os: linux
 dist: xenial
 dotnet: 2.1
 
+notifications:
+  email: false
+
 install:
   - dotnet restore ./src/SpocR.csproj
 
