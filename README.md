@@ -17,19 +17,14 @@ SpocR also is supporting pure JSON-String Result from StoredProcedure without bu
 
 ## Generated Folder Structure
 
-.
-└── DataContext
-    └── Models
-        └── `[StoredProcedureName]`.cs
-            ├── Params
-            │   └── `[StoredProcedureName]`.cs
-            ├── StoredProcedures
-            │   └── `[EntityName]`Extensions.cs
-            ├── AppDbContext.cs
-            ├── AppDbContextExtensions.cs
-            ├── SqlDataReaderExtensions.cs
-            └── SqlParameterExtensions.cs
-
+./DataContext
+./DataContext/Models/[StoredProcedureName].cs
+./DataContext/Params/[StoredProcedureName].cs
+./DataContext/StoredProcedures/[EntityName]Extensions.cs
+./DataContext/AppDbContext.cs
+./DataContext/AppDbContextExtensions.cs
+./DataContext/SqlDataReaderExtensions.cs
+./DataContext/SqlParameterExtensions.csmeterExtensions.cs
 
 ## Use the generated SpocR code
 
