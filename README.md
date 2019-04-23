@@ -9,37 +9,49 @@
 SpocR pulls the DB scheme over a given ConnectionString into spocr.json
 The spocr.json is configurable (e.g. You can choose which scheme to build or ignore)
 SpocR generates the DataContext-Folder with all required C# Code for your .net core Application (App, API or Services)<br>
-SpocR is highly skallable. You can build it as Library, Extension or Default (both together as single Project)
+SpocR is highly scalable. You can build it as Library, Extension or Default (both together as single Project)
 
 You can use UserDefinedTableFunctions or single Values as Parameters.
 The result of your StoredProcedures will be mapped as Model or List<Model>
 SpocR also is supporting pure JSON-String Result from StoredProcedure without building any Models.
 
-### Generated Folder and Files
-./DataContext<br>
-./DataContext/Models/[StoredProcedureName].cs<br>
-./DataContext/Params/[StoredProcedureName].cs<br>
-./DataContext/StoredProcedures/[EntityName]Extensions.cs<br>
-./DataContext/AppDbContext.cs<br>
-./DataContext/AppDbContextExtensions.cs<br>
-./DataContext/SqlDataReaderExtensions.cs<br>
-./DataContext/SqlParameterExtensions.cs<br>
+## Generated Folder Structure
 
-- Register IAppDbContext in Startup.cs
+.
+└── DataContext
+    └── Models
+        └── `[StoredProcedureName]`.cs
+            ├── Params
+            │   └── `[StoredProcedureName]`.cs
+            ├── StoredProcedures
+            │   └── `[EntityName]`Extensions.cs
+            ├── AppDbContext.cs
+            ├── AppDbContextExtensions.cs
+            ├── SqlDataReaderExtensions.cs
+            └── SqlParameterExtensions.cs
+
+
+## Use the generated SpocR code
+
+- Register `IAppDbContext` in Startup.cs
+
 ```csharp
 services.AddAppDbContext();
 ```
 
-- Inject IAppDbContext in your Managers
+- Inject IAppDbContext into your business logic, e.g. your managers or services.
+  
 ```csharp
 private readonly IAppDbContext _context;
+
 constructor MyManager(IAppDbContext context) 
 { 
     _context = context;
 }
 ```
 
-- Run StoredProcedure in a Manager-Method
+- Call a stored procedure method
+  
 ```csharp
 public Task<List<UserList>> ListAsync(CancellationToken cancellationToken = default)
 {
@@ -112,18 +124,22 @@ Clone and Download Repository
 
 
 # Example for vscode launch.json
-```
+
+- available commands for args:  "create", "pull", "build", "rebuild", "remove", 
+- options: "-d|--dry-run"
+
+```json
 {
-   "version": "0.2.0",
-   "configurations": [
+    "version": "0.2.0",
+    "configurations": [
         {
-            "name": ".NET Core Launch (console)",
+            "name": "Debug spocr (console)",
             "type": "coreclr",
             "request": "launch",
             "preLaunchTask": "build",
             "program": "${workspaceFolder}/src/bin/Debug/netcoreapp2.1/SpocR.dll",
-            // awailable commands: "create", "pull", "build", "rebuild", "remove", options: "-d|--dry-run"
-            "args": ["create", "-d"], 
+            
+            "args": ["${input:command}", "${input:option}"],
             "cwd": "${workspaceFolder}/src",
             "console": "integratedTerminal",
             "stopAtEntry": false,
@@ -135,6 +151,22 @@ Clone and Download Repository
             "request": "attach",
             "processId": "${command:pickProcess}"
         }
-    ,]
+    ],
+    "inputs": [
+        {
+            "id": "command",
+            "description": "spocr command",
+            "default": "version",
+            "options": ["create", "pull", "build", "rebuild", "remove", "version"],
+            "type": "pickString"
+        },
+        {
+            "id": "option",
+            "description": "spocr options",
+            "default": "",
+            "options": ["", "--dry-run"],
+            "type": "pickString"
+        }
+    ]
 }
 ```
