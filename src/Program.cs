@@ -1,9 +1,12 @@
+
+using System;
 using McMaster.Extensions.CommandLineUtils;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SpocR.Commands;
-using SpocR.Extensions;
 using SpocR.DataContext;
-using SpocR.Managers;
+using SpocR.Extensions;
+using SpocR.Utils;
 
 namespace SpocR
 {
@@ -19,19 +22,21 @@ namespace SpocR
     {
         static void Main(string[] args)
         {
+            var aspNetCoreEnvironment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+
+            var builder = new ConfigurationBuilder()
+                .SetBasePath(DirectoryUtils.GetApplicationRoot())
+                .AddJsonFile("appsettings.json", true, true)
+                .AddJsonFile($"appsettings.{aspNetCoreEnvironment}.json", true, true);
+
+            var configuration = builder.Build();
+
             var serviceProvider = new ServiceCollection()
                 .AddSpocR()
                 .AddDbContext()
                 .AddSingleton<IReporter>(new ConsoleReporter(PhysicalConsole.Singleton))
+                .AddSingleton<IConfiguration>(configuration)
                 .BuildServiceProvider();
-
-            var dbContext = serviceProvider.GetService<DbContext>();
-            var configFile = serviceProvider.GetService<ConfigFileManager>();
-            
-            if (!string.IsNullOrWhiteSpace(configFile.Config?.Project?.DataBase?.ConnectionString))
-            {
-                dbContext.SetConnectionString(configFile.Config.Project.DataBase.ConnectionString);
-            }
 
             var app = new CommandLineApplication<Program>
             {

@@ -2,6 +2,7 @@ using System.IO;
 using Newtonsoft.Json;
 using SpocR.Models;
 using SpocR.Serialization;
+using SpocR.Utils;
 
 namespace SpocR.Managers
 {
@@ -16,7 +17,8 @@ namespace SpocR.Managers
 
         public bool Exists()
         {
-            return File.Exists(Configuration.ConfigurationFile);
+            var fileName = DirectoryUtils.GetWorkingDirectory(Configuration.ConfigurationFile);
+            return File.Exists(fileName);
         }
 
         public ConfigurationModel Read()
@@ -25,7 +27,8 @@ namespace SpocR.Managers
             {
                 return null;
             }
-            var content = File.ReadAllText(Configuration.ConfigurationFile);
+            var fileName = DirectoryUtils.GetWorkingDirectory(Configuration.ConfigurationFile);
+            var content = File.ReadAllText(fileName);
             return JsonConvert.DeserializeObject<ConfigurationModel>(content);
         }
 
@@ -37,7 +40,9 @@ namespace SpocR.Managers
                 ContractResolver = new SerializeContractResolver()
             };
             var json = JsonConvert.SerializeObject(new ConfigurationJsonModel(config), Formatting.Indented, jsonSettings);
-            File.WriteAllText(Configuration.ConfigurationFile, json);
+            var fileName = DirectoryUtils.GetWorkingDirectory(Configuration.ConfigurationFile);
+            Directory.CreateDirectory(Path.GetDirectoryName(fileName));
+            File.WriteAllText(fileName, json);
         }
 
         public void Remove(bool dryRun)

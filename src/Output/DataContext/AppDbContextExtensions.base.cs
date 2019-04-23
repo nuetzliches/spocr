@@ -1,7 +1,7 @@
-using Microsoft.Extensions.DependencyInjection;
+using Source.DataContext;
 using System;
 
-namespace Source.DataContext
+namespace Microsoft.Extensions.DependencyInjection
 {
     public static class AppDbContextExtensions
     {

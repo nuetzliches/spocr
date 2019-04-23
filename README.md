@@ -6,40 +6,47 @@
 - no rigid dependencies
 
 # How SpocR works
-SpocR pulls the DB scheme over a given ConnectionString into spocr.json<br>
-The spocr.json is configurable (e.g. You can choose which scheme to build or ignore)<br>
+SpocR pulls the DB scheme over a given ConnectionString into spocr.json
+The spocr.json is configurable (e.g. You can choose which scheme to build or ignore)
 SpocR generates the DataContext-Folder with all required C# Code for your .net core Application (App, API or Services)<br>
-SpocR is highly skallable. You can build it as Library, Extension or Default (both together as single Project)
+SpocR is highly scalable. You can build it as Library, Extension or Default (both together as single Project)
 
-You can use UserDefinedTableFunctions or single Values as Parameters.<br>
-The result of your StoredProcedures will be mapped as Model or List<Model><br>
+You can use UserDefinedTableFunctions or single Values as Parameters.
+The result of your StoredProcedures will be mapped as Model or List<Model>
 SpocR also is supporting pure JSON-String Result from StoredProcedure without building any Models.
 
-### Generated Folder and Files
-./DataContext<br>
-./DataContext/Models/[StoredProcedureName].cs<br>
-./DataContext/Params/[StoredProcedureName].cs<br>
-./DataContext/StoredProcedures/[EntityName]Extensions.cs<br>
-./DataContext/AppDbContext.cs<br>
-./DataContext/AppDbContextExtensions.cs<br>
-./DataContext/SqlDataReaderExtensions.cs<br>
-./DataContext/SqlParameterExtensions.cs<br>
+## Generated Folder Structure
 
-- Register IAppDbContext in Startup.cs
+./DataContext
+./DataContext/Models/[StoredProcedureName].cs
+./DataContext/Params/[StoredProcedureName].cs
+./DataContext/StoredProcedures/[EntityName]Extensions.cs
+./DataContext/AppDbContext.cs
+./DataContext/AppDbContextExtensions.cs
+./DataContext/SqlDataReaderExtensions.cs
+./DataContext/SqlParameterExtensions.csmeterExtensions.cs
+
+## Use the generated SpocR code
+
+- Register `IAppDbContext` in Startup.cs
+
 ```csharp
 services.AddAppDbContext();
 ```
 
-- Inject IAppDbContext in your Managers
+- Inject IAppDbContext into your business logic, e.g. your managers or services.
+  
 ```csharp
 private readonly IAppDbContext _context;
+
 constructor MyManager(IAppDbContext context) 
 { 
     _context = context;
 }
 ```
 
-- Run StoredProcedure in a Manager-Method
+- Call a stored procedure method
+  
 ```csharp
 public Task<List<UserList>> ListAsync(CancellationToken cancellationToken = default)
 {

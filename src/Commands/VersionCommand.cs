@@ -4,7 +4,7 @@ using SpocR.Managers;
 namespace SpocR.Commands
 {
     [Command("version", Description = "Show version information")]
-    public class VersionCommand : IAppCommand
+    public class VersionCommand : CommandBase
     {
         private readonly SpocrManager _spocrManager;
 
@@ -13,8 +13,9 @@ namespace SpocR.Commands
             _spocrManager = spocrManager;
         }
 
-        public int OnExecute()
+        public override int OnExecute()
         {
+            base.OnExecute();
             return (int)_spocrManager.GetVersion();
         }
     }
