@@ -4,7 +4,9 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using McMaster.Extensions.CommandLineUtils;
+using Microsoft.Extensions.Configuration;
 using SpocR.Commands;
+using SpocR.DataContext;
 using SpocR.Enums;
 using SpocR.Extensions;
 using SpocR.Managers;
@@ -15,22 +17,25 @@ namespace SpocR.Managers
 {
     public class SpocrManager
     {
+        private readonly IConfiguration _configuration;
         private readonly SpocrService _spocr;
         private readonly OutputService _output;
         private readonly Generator _engine;
         private readonly IReporter _reporter;
         private readonly SchemaManager _schemaManager;
         private readonly ConfigFileManager _configFile;
+        private readonly DbContext _dbContext;
 
-
-        public SpocrManager(SpocrService spocr, OutputService output, Generator engine, IReporter reporter, SchemaManager schemaManager, ConfigFileManager configFile)
+        public SpocrManager(IConfiguration configuration, SpocrService spocr, OutputService output, Generator engine, IReporter reporter, SchemaManager schemaManager, ConfigFileManager configFile, DbContext dbContext)
         {
+            _configuration = configuration;
             _spocr = spocr;
             _output = output;
             _engine = engine;
             _reporter = reporter;
             _schemaManager = schemaManager;
             _configFile = configFile;
+            _dbContext = dbContext;
         }
 
         public ExecuteResultEnum Create(bool dryRun)
@@ -51,7 +56,21 @@ namespace SpocR.Managers
             if (!proceed) return ExecuteResultEnum.Aborted;
 
             var appNamespace = Prompt.GetString("Your Project Namespace:", new DirectoryInfo(Directory.GetCurrentDirectory()).Name);
-            var connectionString = Prompt.GetString("Your ConnectionString:");
+
+            // var configurationFileExists = _configuration.FileExists();
+            // if(!configurationFileExists) 
+            // {
+            //     var fileName = Extensions.ConfigurationExtensions.FileName;
+            //     var proceedAppsettings = Prompt.GetYesNo("Create a new SpocR Project?", true);
+            //     if (!proceedAppsettings) return ExecuteResultEnum.Aborted;
+            // }
+
+            // Prompt.OnSelection("Please choose an option", )
+            // var optionKey = 1;
+            // foreach(var identifier in _configuration.GetSection("ConnectionStrings").GetChildren()) {
+            //     _reporter.Output($"{optionKey}");            
+            // }
+            var connectionString = "";
 
             var roleKindString = Prompt.GetString("SpocR Role [Default, Lib, Extension]:", "Default");
             var roleKind = default(ERoleKind);
@@ -116,6 +135,11 @@ namespace SpocR.Managers
 
         public ExecuteResultEnum Pull(bool dryRun)
         {
+            if (!string.IsNullOrWhiteSpace(_configFile.Config?.Project?.DataBase?.ConnectionString))
+            {
+                _dbContext.SetConnectionString(_configFile.Config.Project.DataBase.ConnectionString);
+            }
+
             if (dryRun)
             {
                 _reporter.Output($"Pull as dry run.");
@@ -166,6 +190,11 @@ namespace SpocR.Managers
 
         public ExecuteResultEnum Build(bool dryRun)
         {
+            if (!string.IsNullOrWhiteSpace(_configFile.Config?.Project?.DataBase?.ConnectionString))
+            {
+                _dbContext.SetConnectionString(_configFile.Config.Project.DataBase.ConnectionString);
+            }
+            
             if (dryRun)
             {
                 _reporter.Output($"Build as dry run.");

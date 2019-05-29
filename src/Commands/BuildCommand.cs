@@ -5,20 +5,18 @@ namespace SpocR.Commands
 {
     [HelpOption("-?|-h|--help")]
     [Command("build", Description = "Build DataContex depending on spocr.json")]
-    public class BuildCommand : IAppCommand
+    public class BuildCommand : CommandBase
     {
         private readonly SpocrManager _spocrManager;
-
-        [Option("-d|--dry-run", "Run build without any changes", CommandOptionType.NoValue)]
-        public bool DryRun { get; set; }
 
         public BuildCommand(SpocrManager spocrManager)
         {
             _spocrManager = spocrManager;
         }
 
-        public int OnExecute()
+        public override int OnExecute()
         {
+            base.OnExecute();
             return (int)_spocrManager.Build(DryRun);
         }
     }

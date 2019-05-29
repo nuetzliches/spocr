@@ -7,6 +7,18 @@ namespace SpocR.Extensions
 {
     internal static class CompilationUnitSyntaxExtensions
     {
+        internal static CompilationUnitSyntax ReplaceUsings(this CompilationUnitSyntax root, Func<string, string> replacer) 
+        {
+            var newUsings = new SyntaxList<UsingDirectiveSyntax>();
+            foreach(var u in root.Usings) 
+            {
+                var uValue = replacer.Invoke(u.Name.ToString());
+                var usingName = SyntaxFactory.ParseName(uValue);
+                newUsings = newUsings.Add(u.WithName(usingName));
+            }
+            return root.WithUsings(newUsings);
+        }
+
         internal static CompilationUnitSyntax ReplaceNamespace(this CompilationUnitSyntax root, Func<string, string> replacer) 
         {
             var nsNode = (NamespaceDeclarationSyntax)root.Members[0];

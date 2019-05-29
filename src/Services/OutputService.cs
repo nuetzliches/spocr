@@ -6,7 +6,9 @@ using System.Reflection;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using SpocR.Enums;
 using SpocR.Extensions;
+using SpocR.Managers;
 using SpocR.Models;
 using SpocR.Utils;
 
@@ -14,6 +16,13 @@ namespace SpocR.Services
 {
     public class OutputService
     {
+        private readonly ConfigFileManager _configFile;
+
+        public OutputService(ConfigFileManager configFile)
+        {
+            _configFile = configFile;
+        }
+
         public DirectoryInfo GetOutputRootDir()
         {
             return new DirectoryInfo(Path.Combine(DirectoryUtils.GetApplicationRoot(), "Output"));
@@ -24,16 +33,16 @@ namespace SpocR.Services
         {
             var dir = GetOutputRootDir();
 
-            var targetDir = Path.Combine(Directory.GetCurrentDirectory(), output.DataContext.Path);
+            var targetDir = DirectoryUtils.GetWorkingDirectory(output.DataContext.Path);
             CopyAllFileFromTo(Path.Combine(dir.FullName, "DataContext"), targetDir, output.Namespace, dryrun);
 
-            var modelTargetDir = Path.Combine(Directory.GetCurrentDirectory(), targetDir, output.DataContext.Models.Path);
+            var modelTargetDir = DirectoryUtils.GetWorkingDirectory(targetDir, output.DataContext.Models.Path);
             CopyAllFileFromTo(Path.Combine(dir.FullName, "DataContext/Models"), modelTargetDir, output.Namespace, dryrun);
 
-            var paramsTargetDir = Path.Combine(Directory.GetCurrentDirectory(), targetDir, output.DataContext.Params.Path);
+            var paramsTargetDir = DirectoryUtils.GetWorkingDirectory(targetDir, output.DataContext.Params.Path);
             CopyAllFileFromTo(Path.Combine(dir.FullName, "DataContext/Params"), paramsTargetDir, output.Namespace, dryrun);
 
-            var spTargetDir = Path.Combine(Directory.GetCurrentDirectory(), targetDir, output.DataContext.StoredProcedures.Path);
+            var spTargetDir = DirectoryUtils.GetWorkingDirectory(targetDir, output.DataContext.StoredProcedures.Path);
             CopyAllFileFromTo(Path.Combine(dir.FullName, "DataContext/StoredProcedures"), spTargetDir, output.Namespace, dryrun);
         }
 
@@ -53,7 +62,16 @@ namespace SpocR.Services
             var tree = CSharpSyntaxTree.ParseText(fileContent);
             var root = tree.GetCompilationUnitRoot();
 
-            root = root.ReplaceNamespace(ns => ns.Replace("Source", nameSpace));
+            if (_configFile.Config.Project.Role.Kind == ERoleKind.Lib)
+            {
+                root = root.ReplaceUsings(u => u.Replace("Source.DataContext", $"{nameSpace}"));
+                root = root.ReplaceNamespace(ns => ns.Replace("Source.DataContext", nameSpace));
+            }
+            else
+            {
+                root = root.ReplaceUsings(u => u.Replace("Source.", $"{nameSpace}."));
+                root = root.ReplaceNamespace(ns => ns.Replace("Source.", $"{nameSpace}."));
+            }
 
             if (dryrun)
                 return;

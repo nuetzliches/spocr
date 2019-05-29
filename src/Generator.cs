@@ -14,6 +14,7 @@ using SpocR.Extensions;
 using SpocR.Managers;
 using SpocR.Models;
 using SpocR.Services;
+using SpocR.Utils;
 
 namespace SpocR
 {
@@ -169,8 +170,8 @@ namespace SpocR
                     continue;
                 }
 
-                var dataContextModelPath = Path.Combine(_configFile.Config.Project.Output.DataContext.Path, _configFile.Config.Project.Output.DataContext.Params.Path);
-                var path = Path.Combine(dataContextModelPath, schema.Path);
+                var dataContextParamsPath = DirectoryUtils.GetWorkingDirectory(_configFile.Config.Project.Output.DataContext.Path, _configFile.Config.Project.Output.DataContext.Params.Path);
+                var path = Path.Combine(dataContextParamsPath, schema.Path);
                 if (!Directory.Exists(path) && !dryrun)
                 {
                     Directory.CreateDirectory(path);
@@ -209,7 +210,7 @@ namespace SpocR
                     continue;
                 }
 
-                var dataContextModelPath = Path.Combine(_configFile.Config.Project.Output.DataContext.Path, _configFile.Config.Project.Output.DataContext.Models.Path);
+                var dataContextModelPath = DirectoryUtils.GetWorkingDirectory(_configFile.Config.Project.Output.DataContext.Path, _configFile.Config.Project.Output.DataContext.Models.Path);
                 var path = Path.Combine(dataContextModelPath, schema.Path);
                 if (!Directory.Exists(path) && !dryrun)
                 {
@@ -478,7 +479,7 @@ namespace SpocR
                     continue;
                 }
 
-                var dataContextStoredProcedurePath = Path.Combine(_configFile.Config.Project.Output.DataContext.Path, _configFile.Config.Project.Output.DataContext.StoredProcedures.Path);
+                var dataContextStoredProcedurePath = DirectoryUtils.GetWorkingDirectory(_configFile.Config.Project.Output.DataContext.Path, _configFile.Config.Project.Output.DataContext.StoredProcedures.Path);
                 var path = Path.Combine(dataContextStoredProcedurePath, schema.Path);
                 if (!Directory.Exists(path) && !dryrun)
                 {

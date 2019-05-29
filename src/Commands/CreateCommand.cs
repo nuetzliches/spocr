@@ -1,24 +1,24 @@
 ﻿using McMaster.Extensions.CommandLineUtils;
 using SpocR.Managers;
+using SpocR.Utils;
 
 namespace SpocR.Commands
 {
     [HelpOption("-?|-h|--help")]
     [Command("create", Description = "Creates a new SpocR Project")]
-    public class CreateCommand : IAppCommand
+    public class CreateCommand : CommandBase
     {
         private readonly SpocrManager _spocrManager;
-
-        [Option("-d|--dry-run", "Run create without any changes", CommandOptionType.NoValue)]
-        public bool DryRun { get; set; }
 
         public CreateCommand(SpocrManager spocrManager)
         {
             _spocrManager = spocrManager;
+
         }
 
-        public int OnExecute()
+        public override int OnExecute()
         {
+            base.OnExecute();         
             return (int)_spocrManager.Create(DryRun);
         }
     }
