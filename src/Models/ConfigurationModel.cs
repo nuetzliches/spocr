@@ -17,9 +17,10 @@ namespace SpocR.Models
 
     public class ProjectModel
     {
-        public RoleModel Role { get; set; }
-        public DataBaseModel DataBase { get; set; }
-        public OutputModel Output { get; set; }
+        public RoleModel Role { get; set; } = new RoleModel();
+        public IdentityModel Identity { get; set; } = new IdentityModel();
+        public DataBaseModel DataBase { get; set; } = new DataBaseModel();
+        public OutputModel Output { get; set; } = new OutputModel();
     }
 
     public class RoleModel
@@ -29,6 +30,12 @@ namespace SpocR.Models
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public string LibNamespace { get; set; }
+    }
+
+    public class IdentityModel
+    {
+        [JsonConverter(typeof(StringEnumConverter))]
+        public EIdentityKind Kind { get; set; } = EIdentityKind.WithUserId;
     }
 
     public class DataBaseModel
