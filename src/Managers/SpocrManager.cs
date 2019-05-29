@@ -65,6 +65,15 @@ namespace SpocR.Managers
                     : null
             };
 
+            var identityKindString = Prompt.GetString("SpocR Identity [WithUserId, None]:", "WithUserId");
+            var identityKind = default(EIdentityKind);
+            Enum.TryParse(identityKindString, true, out identityKind);
+
+            var identity = new IdentityModel
+            {
+                Kind = identityKind
+            };
+
             var config = new ConfigurationModel
             {
                 Version = _spocr.Version,
@@ -72,6 +81,7 @@ namespace SpocR.Managers
                 Project = new ProjectModel
                 {
                     Role = role,
+                    Identity = identity,
                     DataBase = new DataBaseModel
                     {
                         // the default appsettings.json ConnectString Identifier

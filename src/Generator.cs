@@ -334,8 +334,15 @@ namespace SpocR
                 var methodIdentifier = SyntaxFactory.ParseToken($"{storedProcedure.Name}Async");
                 methodNode = methodNode.WithIdentifier(methodIdentifier);
 
+                var withUserId = _configFile.Config.Project.Identity.Kind == EIdentityKind.WithUserId;
+
+                if(withUserId && (storedProcedure.Input.Count() < 1 || storedProcedure.Input.First().Name != "@UserId"))
+                {
+                    throw new InvalidOperationException($"The StoredProcedure `{storedProcedure.Name}` requires a first Parameter with Name `@UserId`");
+                }
+
                 // Generate Method params
-                var parameters = storedProcedure.Input.Skip(1).Select(input =>
+                var parameters = storedProcedure.Input.Skip(withUserId ? 1 : 0).Select(input =>
                 {
                     return SyntaxFactory.Parameter(SyntaxFactory.Identifier(GetIdentifierFromSqlInputParam(input.Name)))
                         .WithType(
@@ -347,7 +354,11 @@ namespace SpocR
                         .WithLeadingTrivia(SyntaxFactory.Space);
                 });
                 var parameterList = methodNode.ParameterList;
-                parameterList = parameterList.WithParameters(parameterList.Parameters.InsertRange(2, parameters));
+                parameterList = parameterList.WithParameters(
+                    withUserId
+                    ? parameterList.Parameters.InsertRange(2, parameters)
+                    : parameterList.Parameters.InsertRange(2, parameters).RemoveAt(1)                    
+                );
                 methodNode = methodNode.WithParameterList(parameterList);
 
                 // Get Method Body as Statements
@@ -388,7 +399,7 @@ namespace SpocR
                     .WithLeadingTrivia(SyntaxFactory.Tab, SyntaxFactory.Tab, SyntaxFactory.Tab)
                     .WithTrailingTrivia(SyntaxFactory.CarriageReturn);
 
-                methodBody = methodBody.WithStatements(new SyntaxList<StatementSyntax>(statements));
+                methodBody = methodBody.WithStatements(new SyntaxList<StatementSyntax>(statements.Skip(withUserId ? 0 : 1)));
                 methodNode = methodNode.WithBody(methodBody);
 
                 // Replace ReturnType and ReturnLine
