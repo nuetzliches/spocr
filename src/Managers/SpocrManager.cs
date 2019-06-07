@@ -225,11 +225,12 @@ namespace SpocR.Managers
                 _reporter.Output($"CodeBase generated in {stopwatch.ElapsedMilliseconds} ms.");
             }
 
-            if (_configFile.Config.Project.Role.Kind == ERoleKind.Lib)
-            {
-                // its only a lib
-                return ExecuteResultEnum.Succeeded;
-            }
+            // We would have StoredProcedures and Models inside the Lib too
+            // if (_configFile.Config.Project.Role.Kind == ERoleKind.Lib)
+            // {
+            //     // its only a lib
+            //     return ExecuteResultEnum.Succeeded;
+            // }
 
             stopwatch.Restart();
 
