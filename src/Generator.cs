@@ -59,7 +59,14 @@ namespace SpocR
             var root = tree.GetCompilationUnitRoot();
 
             // Replace Namespace
-            root = root.ReplaceNamespace(ns => ns.Replace("Source", _configFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name));
+            if (_configFile.Config.Project.Role.Kind == ERoleKind.Lib)
+            {
+                root = root.ReplaceNamespace(ns => ns.Replace("Source.DataContext", _configFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name));
+            }
+            else
+            {
+                root = root.ReplaceNamespace(ns => ns.Replace("Source", _configFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name));
+            }
 
             // Replace ClassName
             root = root.ReplaceClassName(ci => ci.Replace("Model", storedProcedure.Name));
@@ -101,7 +108,14 @@ namespace SpocR
             var root = tree.GetCompilationUnitRoot();
 
             // Replace Namespace
-            root = root.ReplaceNamespace(ns => ns.Replace("Source", _configFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name));
+            if (_configFile.Config.Project.Role.Kind == ERoleKind.Lib)
+            {
+                root = root.ReplaceNamespace(ns => ns.Replace("Source.DataContext", _configFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name));
+            }
+            else
+            {
+                root = root.ReplaceNamespace(ns => ns.Replace("Source", _configFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name));
+            }
 
             var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
             var inputs = storedProcedure.Input.Where(i => i.IsTableType ?? false);
@@ -285,8 +299,9 @@ namespace SpocR
             for (var i = 0; i < root.Usings.Count; i++)
             {
                 var usingDirective = root.Usings[i];
-                var newUsingName = SyntaxFactory.ParseName(
-                    $"{usingDirective.Name.ToString().Replace("Source", _configFile.Config.Project.Output.Namespace)}");
+                var newUsingName = _configFile.Config.Project.Role.Kind == ERoleKind.Lib
+                    ? SyntaxFactory.ParseName($"{usingDirective.Name.ToString().Replace("Source.DataContext", _configFile.Config.Project.Output.Namespace)}")
+                    : SyntaxFactory.ParseName($"{usingDirective.Name.ToString().Replace("Source", _configFile.Config.Project.Output.Namespace)}");
                 root = root.ReplaceNode(usingDirective, usingDirective.WithName(newUsingName));
             }
 
@@ -294,29 +309,40 @@ namespace SpocR
             if (_configFile.Config.Project.Role.Kind == ERoleKind.Extension)
             {
                 var libUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Role.LibNamespace}"));
-                root = root.AddUsings(libUsingDirective.NormalizeWhitespace());
+                root = root.AddUsings(libUsingDirective).NormalizeWhitespace();
 
                 var libModelUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Role.LibNamespace}.Models"));
-                root = root.AddUsings(libModelUsingDirective.NormalizeWhitespace());
+                root = root.AddUsings(libModelUsingDirective).NormalizeWhitespace();
             }
 
             // Add Using for Models
             // TODO: i.Output?.Count() -> Implement a Property "IsScalar" and "IsJson"
             if (storedProcedures.Any(i => i.ReadWriteKind == Definition.ReadWriteKindEnum.Read && i.Output?.Count() > 1))
             {
-                var modelUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.DataContext.Models.{schema.Name}"));
-                root = root.AddUsings(modelUsingDirective.NormalizeWhitespace());
+                var modelUsingDirective = _configFile.Config.Project.Role.Kind == ERoleKind.Lib
+                    ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.Models.{schema.Name}"))
+                    : SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.DataContext.Models.{schema.Name}"));
+                root = root.AddUsings(modelUsingDirective).NormalizeWhitespace();
             }
 
             // Add Usings for Params
             if (storedProcedures.Any(s => s.Input?.Any(i => i.IsTableType ?? false) ?? false))
             {
-                var paramUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.DataContext.Params.{schema.Name}"));
-                root = root.AddUsings(paramUsingDirective.NormalizeWhitespace().WithLeadingTrivia(SyntaxFactory.CarriageReturnLineFeed));
+                var paramUsingDirective = _configFile.Config.Project.Role.Kind == ERoleKind.Lib
+                    ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.Params.{schema.Name}"))
+                    : SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.DataContext.Params.{schema.Name}"));
+                root = root.AddUsings(paramUsingDirective.NormalizeWhitespace().WithLeadingTrivia(SyntaxFactory.CarriageReturnLineFeed)).WithTrailingTrivia(SyntaxFactory.CarriageReturnLineFeed);
             }
 
             // Replace Namespace
-            root = root.ReplaceNamespace(ns => ns.Replace("Source", _configFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name));
+            if (_configFile.Config.Project.Role.Kind == ERoleKind.Lib)
+            {
+                root = root.ReplaceNamespace(ns => ns.Replace("Source.DataContext", _configFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name));
+            }
+            else
+            {
+                root = root.ReplaceNamespace(ns => ns.Replace("Source", _configFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name));
+            }
 
             // Replace ClassName
             root = root.ReplaceClassName(ci => ci.Replace("StoredProcedure", first.EntityName));
@@ -461,7 +487,7 @@ namespace SpocR
             classNode = (ClassDeclarationSyntax)nsNode.Members[0];
             root = root.ReplaceNode(classNode, classNode.WithMembers(new SyntaxList<MemberDeclarationSyntax>(classNode.Members.Cast<MethodDeclarationSyntax>().Skip(1))));
 
-            return root.GetText();
+            return root.NormalizeWhitespace().GetText();
         }
 
         public void GenerateDataContextStoredProcedures(bool dryrun)
