@@ -13,10 +13,11 @@ namespace Source.DataContext.Models
             // require parameterless constructor
         }
 
-        public CrudResult(int resultId, int? recordId = null)
+        public CrudResult(int resultId, int? recordId = null, long? rowVersion = null)
         {
             ResultId = resultId;
             RecordId = recordId;
+            RowVersion = rowVersion;
         }
 
         public CrudResult(bool succeeded, bool? modified = false)
@@ -39,6 +40,9 @@ namespace Source.DataContext.Models
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public int? RecordId { get; set; }
+
+        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        public long? RowVersion { get; set; }
     }
 
     public interface ICrudResult
@@ -46,5 +50,6 @@ namespace Source.DataContext.Models
         bool Succeeded { get; }
         int? ResultId { get; }
         int? RecordId { get; }
+        long? RowVersion { get; }
     }
 }
