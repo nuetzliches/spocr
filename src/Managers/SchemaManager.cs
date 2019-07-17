@@ -40,7 +40,7 @@ namespace SpocR.Managers
                 var schemaListString = string.Join(',', schemas.Where(i => i.Status != SchemaStatusEnum.Ignore).Select(i => i.Id));
                 if (string.IsNullOrEmpty(schemaListString))
                 {
-                    _reporter.Warn("No schemas found!");
+                    _reporter.Warn("No schemas found or all schemas ignored!");
                 }
                 else
                 {

@@ -117,6 +117,13 @@ namespace SpocR
                 root = root.ReplaceNamespace(ns => ns.Replace("Source", _configFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name));
             }
 
+            // If its an extension, add usings for the lib
+            if (_configFile.Config.Project.Role.Kind == ERoleKind.Extension)
+            {
+                var libModelUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Role.LibNamespace}.Params"));
+                root = root.AddUsings(libModelUsingDirective).NormalizeWhitespace();
+            }
+
             var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
             var inputs = storedProcedure.Input.Where(i => i.IsTableType ?? false);
             var classNodeIx = 0;
