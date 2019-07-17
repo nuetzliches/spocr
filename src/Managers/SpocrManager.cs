@@ -178,8 +178,8 @@ namespace SpocR.Managers
 
             }).Wait();
 
-            var spCount = _configFile.Config.Schema?.SelectMany(x => x.StoredProcedures)?.Count() ?? 0;
             var scCount = _configFile.Config.Schema?.Count() ?? 0;
+            var spCount = _configFile.Config.Schema?.SelectMany(x => x.StoredProcedures ?? new List<StoredProcedureModel>())?.Count() ?? 0;
             _reporter.Output($"Pulled {spCount} StoredProcedures from {scCount} Schemas in {stopwatch.ElapsedMilliseconds} ms.");
 
             if (!dryRun)
