@@ -14,7 +14,7 @@ namespace SpocR.DataContext
     {
         private SqlConnection _connection;
 
-        private readonly List<AppSqlTransaction> _transactions = new List<AppSqlTransaction>();
+        private List<AppSqlTransaction> _transactions;
 
         public DbContext(string connectionString = null)
         {
@@ -29,13 +29,16 @@ namespace SpocR.DataContext
         public void SetConnectionString(string connectionString)
         {
             _connection = new SqlConnection(connectionString);
+            _transactions = new List<AppSqlTransaction>();
         }
 
         public void Dispose()
         {
             if (_connection?.State == ConnectionState.Open)
             {
-                if (_transactions.Any()) _transactions.ForEach(t => t.Transaction.Rollback());
+                if (_transactions.Any()) 
+                    // We need a copy - Rollback will modify this List
+                    _transactions.ToList().ForEach(RollbackTransaction);
                 _connection.Close();
             }
 
