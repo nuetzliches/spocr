@@ -1,11 +1,5 @@
-using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Reflection;
-using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using SpocR.Enums;
 using SpocR.Extensions;
 using SpocR.Managers;
@@ -28,25 +22,24 @@ namespace SpocR.Services
             return new DirectoryInfo(Path.Combine(DirectoryUtils.GetApplicationRoot(), "Output"));
         }
 
-        // Static implementation to copy files
         public void GenerateCodeBase(OutputModel output, bool dryrun)
         {
             var dir = GetOutputRootDir();
 
             var targetDir = DirectoryUtils.GetWorkingDirectory(output.DataContext.Path);
-            CopyAllFileFromTo(Path.Combine(dir.FullName, "DataContext"), targetDir, output.Namespace, dryrun);
+            CopyAllFiles(Path.Combine(dir.FullName, "DataContext"), targetDir, output.Namespace, dryrun);
 
             var modelTargetDir = DirectoryUtils.GetWorkingDirectory(targetDir, output.DataContext.Models.Path);
-            CopyAllFileFromTo(Path.Combine(dir.FullName, "DataContext/Models"), modelTargetDir, output.Namespace, dryrun);
+            CopyAllFiles(Path.Combine(dir.FullName, "DataContext/Models"), modelTargetDir, output.Namespace, dryrun);
 
             var paramsTargetDir = DirectoryUtils.GetWorkingDirectory(targetDir, output.DataContext.Params.Path);
-            CopyAllFileFromTo(Path.Combine(dir.FullName, "DataContext/Params"), paramsTargetDir, output.Namespace, dryrun);
+            CopyAllFiles(Path.Combine(dir.FullName, "DataContext/Params"), paramsTargetDir, output.Namespace, dryrun);
 
             var spTargetDir = DirectoryUtils.GetWorkingDirectory(targetDir, output.DataContext.StoredProcedures.Path);
-            CopyAllFileFromTo(Path.Combine(dir.FullName, "DataContext/StoredProcedures"), spTargetDir, output.Namespace, dryrun);
+            CopyAllFiles(Path.Combine(dir.FullName, "DataContext/StoredProcedures"), spTargetDir, output.Namespace, dryrun);
         }
 
-        private void CopyAllFileFromTo(string sourceDir, string targetDir, string nameSpace, bool dryrun)
+        private void CopyAllFiles(string sourceDir, string targetDir, string nameSpace, bool dryrun)
         {
             var baseFiles = new DirectoryInfo(sourceDir).GetFiles("*.base.cs", SearchOption.TopDirectoryOnly);
             foreach (var file in baseFiles)

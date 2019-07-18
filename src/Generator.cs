@@ -203,9 +203,9 @@ namespace SpocR
                     var fileName = Path.Combine(path, $"{storedProcedure.Name}Params.cs");
                     var sourceText = GetParamsTextForStoredProcedure(schema, storedProcedure);
 
-                    if (ExistingFileMatching(fileName, sourceText))
+                    if (ExistingFileMatches(fileName, sourceText))
                     {
-                        // Existing Params and new Params matching
+                        // Existing Params and new Params matches
                         continue;
                     }
 
@@ -249,9 +249,9 @@ namespace SpocR
                     var fileName = Path.Combine(path, $"{storedProcedure.Name}.cs");
                     var sourceText = GetModelTextForStoredProcedure(schema, storedProcedure);
 
-                    if (ExistingFileMatching(fileName, sourceText))
+                    if (ExistingFileMatches(fileName, sourceText))
                     {
-                        // Existing Model and new Model matching
+                        // Existing Model and new Model matches
                         continue;
                     }
 
@@ -261,7 +261,7 @@ namespace SpocR
             }
         }
 
-        private bool ExistingFileMatching(string fileName, SourceText sourceText)
+        private bool ExistingFileMatches(string fileName, SourceText sourceText)
         {
             if (File.Exists(fileName))
             {
@@ -370,7 +370,7 @@ namespace SpocR
 
                 var withUserId = _configFile.Config.Project.Identity.Kind == EIdentityKind.WithUserId;
 
-                if(withUserId && (storedProcedure.Input.Count() < 1 || storedProcedure.Input.First().Name != "@UserId"))
+                if (withUserId && (storedProcedure.Input.Count() < 1 || storedProcedure.Input.First().Name != "@UserId"))
                 {
                     throw new InvalidOperationException($"The StoredProcedure `{storedProcedure.Name}` requires a first Parameter with Name `@UserId`");
                 }
@@ -391,7 +391,7 @@ namespace SpocR
                 parameterList = parameterList.WithParameters(
                     withUserId
                     ? parameterList.Parameters.InsertRange(2, parameters)
-                    : parameterList.Parameters.InsertRange(2, parameters).RemoveAt(1)                    
+                    : parameterList.Parameters.InsertRange(2, parameters).RemoveAt(1)
                 );
                 methodNode = methodNode.WithParameterList(parameterList);
 
@@ -525,9 +525,9 @@ namespace SpocR
                     var fileName = Path.Combine(path, $"{first.EntityName}Extensions.cs");
                     var sourceText = GetStoredProcedureText(schema, groupedStoredProcedures);
 
-                    if (ExistingFileMatching(fileName, sourceText))
+                    if (ExistingFileMatches(fileName, sourceText))
                     {
-                        // Existing StoredProcedure and new StoredProcedure matching
+                        // Existing StoredProcedure and new StoredProcedure matches
                         continue;
                     }
 
