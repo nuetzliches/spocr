@@ -41,7 +41,9 @@ namespace Source.DataContext
         {
             if (_connection?.State == ConnectionState.Open)
             {
-                if (_transactions.Any()) _transactions.ForEach(RollbackTransaction);
+                if (_transactions.Any()) 
+                    // We need a copy - Rollback will modify this List
+                    _transactions.ToList().ForEach(RollbackTransaction);
                 _connection.Close();
             }
 
