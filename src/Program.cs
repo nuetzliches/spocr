@@ -17,6 +17,7 @@ namespace SpocR
     [Subcommand("rebuild", typeof(RebuildCommand))]
     [Subcommand("remove", typeof(RemoveCommand))]
     [Subcommand("version", typeof(VersionCommand))]
+    [Subcommand("config", typeof(ConfigCommand))]
     [HelpOption("-?|-h|--help")]
     public class Program
     {
@@ -47,6 +48,8 @@ namespace SpocR
             app.Conventions
                .UseDefaultConventions()
                .UseConstructorInjection(serviceProvider);
+
+            app.InitializeGlobalConfig(serviceProvider);
 
             app.OnExecute(() =>
             {
