@@ -10,9 +10,9 @@ namespace SpocR.Services
 {
     public class OutputService
     {
-        private readonly ConfigFileManager _configFile;
+        private readonly FileManager<ConfigurationModel> _configFile;
 
-        public OutputService(ConfigFileManager configFile)
+        public OutputService(FileManager<ConfigurationModel> configFile)
         {
             _configFile = configFile;
         }

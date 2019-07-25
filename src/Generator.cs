@@ -20,11 +20,11 @@ namespace SpocR
 {
     public class Generator
     {
-        private readonly ConfigFileManager _configFile;
+        private readonly FileManager<ConfigurationModel> _configFile;
         private readonly SpocrService _spocr;
         private readonly OutputService _output;
 
-        public Generator(ConfigFileManager configFile, SpocrService spocr, OutputService output)
+        public Generator(FileManager<ConfigurationModel> configFile, SpocrService spocr, OutputService output)
         {
             _configFile = configFile;
             _spocr = spocr;
