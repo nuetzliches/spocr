@@ -1,6 +1,5 @@
 ﻿using McMaster.Extensions.CommandLineUtils;
 using SpocR.Enums;
-using SpocR.Managers;
 using SpocR.Utils;
 
 namespace SpocR.Commands

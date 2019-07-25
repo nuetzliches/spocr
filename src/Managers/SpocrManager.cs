@@ -5,11 +5,9 @@ using System.IO;
 using System.Linq;
 using McMaster.Extensions.CommandLineUtils;
 using Microsoft.Extensions.Configuration;
-using SpocR.Commands;
 using SpocR.DataContext;
 using SpocR.Enums;
 using SpocR.Extensions;
-using SpocR.Managers;
 using SpocR.Models;
 using SpocR.Services;
 
@@ -23,17 +21,28 @@ namespace SpocR.Managers
         private readonly Generator _engine;
         private readonly IReporter _reporter;
         private readonly SchemaManager _schemaManager;
-        private readonly ConfigFileManager _configFile;
+        private readonly FileManager<GlobalConfigurationModel> _globalConfigFile;
+        private readonly FileManager<ConfigurationModel> _configFile;
         private readonly DbContext _dbContext;
 
-        public SpocrManager(IConfiguration configuration, SpocrService spocr, OutputService output, Generator engine, IReporter reporter, SchemaManager schemaManager, ConfigFileManager configFile, DbContext dbContext)
-        {
+        public SpocrManager(
+            IConfiguration configuration, 
+            SpocrService spocr, 
+            OutputService output, 
+            Generator engine, 
+            IReporter reporter, 
+            SchemaManager schemaManager, 
+            FileManager<GlobalConfigurationModel> globalConfigFile, 
+            FileManager<ConfigurationModel> configFile, 
+            DbContext dbContext
+        ) {
             _configuration = configuration;
             _spocr = spocr;
             _output = output;
             _engine = engine;
             _reporter = reporter;
             _schemaManager = schemaManager;
+            _globalConfigFile = globalConfigFile;
             _configFile = configFile;
             _dbContext = dbContext;
         }
@@ -135,11 +144,6 @@ namespace SpocR.Managers
 
         public ExecuteResultEnum Pull(bool dryRun)
         {
-            if (!string.IsNullOrWhiteSpace(_configFile.Config?.Project?.DataBase?.ConnectionString))
-            {
-                _dbContext.SetConnectionString(_configFile.Config.Project.DataBase.ConnectionString);
-            }
-
             if (dryRun)
             {
                 _reporter.Output($"Pull as dry run.");
@@ -150,6 +154,20 @@ namespace SpocR.Managers
                 _reporter.Error($"File not found: {Configuration.ConfigurationFile}");
                 _reporter.Output($"\tPlease make sure you are in the right working directory");
                 return ExecuteResultEnum.Error;
+            }
+
+            var userConfigFileName = Configuration.UserConfigurationFile.Replace("{userId}", _globalConfigFile.Config.UserId);
+            var userConfigFile = new FileManager<ConfigurationModel>(userConfigFileName);
+
+            if(userConfigFile.Exists()) 
+            {
+                var userConfig = userConfigFile.Read();
+                _configFile.OverwriteWithConfig = userConfig;
+            }
+
+            if (!string.IsNullOrWhiteSpace(_configFile.Config?.Project?.DataBase?.ConnectionString))
+            {
+                _dbContext.SetConnectionString(_configFile.Config.Project.DataBase.ConnectionString);
             }
 
             if (string.IsNullOrWhiteSpace(_configFile.Config.Project.DataBase.ConnectionString))

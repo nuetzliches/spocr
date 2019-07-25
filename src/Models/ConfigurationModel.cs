@@ -2,13 +2,23 @@ using System;
 using System.Collections.Generic;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
+using SpocR.Attributes;
+using SpocR.Converters;
 using SpocR.Enums;
-using SpocR.Models;
 
 namespace SpocR.Models
 {
+    public class GlobalConfigurationModel
+    {
+        [JsonConverter(typeof(StringVersionConverter)), WriteProtectedBySystem]
+        public Version Version { get; set; }
+    
+        public string UserId { get; set; }
+    }
+
     public class ConfigurationModel
     {
+        [JsonConverter(typeof(StringVersionConverter))]
         public Version Version { get; set; }
         public DateTime Modified { get; set; }
         public ProjectModel Project { get; set; }
@@ -89,17 +99,4 @@ namespace SpocR.Models
     //       "Path": "./StoredProcedures"
     //     }
     //   }
-
-    public class ConfigurationJsonModel
-    {
-        private readonly ConfigurationModel _item;
-        public ConfigurationJsonModel(ConfigurationModel item)
-        {
-            _item = item;
-        }
-        public string Version => $"{_item.Version.Major}.{_item.Version.Minor}.{_item.Version.Build}";
-        public DateTime Modified => _item.Modified;
-        public ProjectModel Project => _item.Project;
-        public IEnumerable<SchemaModel> Schema => _item.Schema;
-    }
 }
