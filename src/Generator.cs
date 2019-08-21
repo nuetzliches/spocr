@@ -390,8 +390,8 @@ namespace SpocR
                 var parameterList = methodNode.ParameterList;
                 parameterList = parameterList.WithParameters(
                     withUserId
-                    ? parameterList.Parameters.InsertRange(2, parameters)
-                    : parameterList.Parameters.InsertRange(2, parameters).RemoveAt(1)
+                    ? parameterList.Parameters.InsertRange(3, parameters).RemoveAt(2) // remove tableType
+                    : parameterList.Parameters.InsertRange(3, parameters).RemoveAt(1).RemoveAt(1) // remove userId and tableType
                 );
                 methodNode = methodNode.WithParameterList(parameterList);
 
@@ -408,7 +408,8 @@ namespace SpocR
                 {
                     arguments.Add(SyntaxFactory.InvocationExpression(
                         SyntaxFactory.MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
-                            SyntaxFactory.IdentifierName("AppDbContext"), SyntaxFactory.IdentifierName("GetParameter")))
+                            SyntaxFactory.IdentifierName("AppDbContext"),
+                                SyntaxFactory.IdentifierName((i.IsTableType ?? false) ? "GetCollectionParameter" : "GetParameter")))
                             .WithArgumentList(SyntaxFactory.ArgumentList(SyntaxFactory.SeparatedList<ArgumentSyntax>(
                                 new SyntaxNodeOrToken[]
                                 {
@@ -433,7 +434,7 @@ namespace SpocR
                     .WithLeadingTrivia(SyntaxFactory.Tab, SyntaxFactory.Tab, SyntaxFactory.Tab)
                     .WithTrailingTrivia(SyntaxFactory.CarriageReturn);
 
-                methodBody = methodBody.WithStatements(new SyntaxList<StatementSyntax>(statements.Skip(withUserId ? 0 : 1)));
+                methodBody = methodBody.WithStatements(new SyntaxList<StatementSyntax>(statements.Skip(withUserId ? 1 : 2)));
                 methodNode = methodNode.WithBody(methodBody);
 
                 // Replace ReturnType and ReturnLine

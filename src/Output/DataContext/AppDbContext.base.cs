@@ -41,7 +41,7 @@ namespace Source.DataContext
         {
             if (_connection?.State == ConnectionState.Open)
             {
-                if (_transactions.Any()) 
+                if (_transactions.Any())
                     // We need a copy - Rollback will modify this List
                     _transactions.ToList().ForEach(RollbackTransaction);
                 _connection.Close();
@@ -140,7 +140,7 @@ namespace Source.DataContext
             };
 
             if (parameters?.Any() ?? false) command.Parameters.AddRange(parameters.ToArray());
-            
+
             var result = new StringBuilder();
 
             var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -152,21 +152,19 @@ namespace Source.DataContext
 
         public static SqlParameter GetParameter(string parameter, object value)
         {
-            var valueType = value?.GetType();
-            var isCollection = typeof(IEnumerable<>).IsAssignableFrom(valueType);
-            if (isCollection)
-            {
-                return new SqlParameter(parameter, value?.ToSqlParamCollection())
-                {
-                    Direction = ParameterDirection.Input,
-                    SqlDbType = SqlDbType.Structured
-                };
-            }
-
             return new SqlParameter(parameter, value ?? DBNull.Value)
             {
                 Direction = ParameterDirection.Input,
                 SqlDbType = GetSqlDbType(value)
+            };
+        }
+
+        public static SqlParameter GetCollectionParameter(string parameter, object value)
+        {
+            return new SqlParameter(parameter, value?.ToSqlParamCollection())
+            {
+                Direction = ParameterDirection.Input,
+                SqlDbType = SqlDbType.Structured
             };
         }
 
