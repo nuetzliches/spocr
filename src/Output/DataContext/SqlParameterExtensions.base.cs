@@ -10,7 +10,7 @@ namespace Source.DataContext
         public static IEnumerable<SqlDataRecord> ToSqlParamCollection(this object value)
         {
             var collection = new List<SqlDataRecord>();
-            var list = (IList)value;
+            var list = (IEnumerable)value;
             foreach(var row in list)
             {
                 var rowType = row.GetType();
@@ -28,7 +28,11 @@ namespace Source.DataContext
                 record.SetValues(values.ToArray());
                 collection.Add(record);
             }
-            return collection;
+
+            // If there are no records in the collection, use a null reference for the value instead.
+            return collection.Count > 0
+                ? collection
+                : null;
         }
     }
 }

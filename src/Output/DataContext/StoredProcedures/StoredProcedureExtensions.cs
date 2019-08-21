@@ -18,7 +18,7 @@ namespace Source.DataContext.StoredProcedures.Schema
 {
     public static class StoredProcedureExtensions
     {
-        public static Task<CrudResult> CrudActionAsync(this IAppDbContext context, int userId, CancellationToken cancellationToken, AppSqlTransaction transaction = null)
+        public static Task<CrudResult> CrudActionAsync(this IAppDbContext context, int userId, IEnumerable<object> tableType, CancellationToken cancellationToken, AppSqlTransaction transaction = null)
         {
             if (context == null)
             {
@@ -27,7 +27,8 @@ namespace Source.DataContext.StoredProcedures.Schema
 
             var parameters = new List<SqlParameter>
             {
-                AppDbContext.GetParameter("UserId", userId)
+                AppDbContext.GetParameter("UserId", userId),
+                AppDbContext.GetCollectionParameter("TableType", tableType)
             };
             return context.ExecuteSingleAsync<CrudResult>("schema.CrudAction", parameters, cancellationToken, transaction);
         }
