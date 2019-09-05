@@ -149,10 +149,9 @@ namespace SpocR
                         var propertyNode = (PropertyDeclarationSyntax)classNode.Members[0];
 
                         var propertyIdentifier = SyntaxFactory.ParseToken($" {column.Name} ");
-                        // propertyNode = propertyNode
-                        //     .WithType(ParseTypeFromSqlDbTypeName(column.SqlTypeName, column.IsNullable ?? false));
+
                         propertyNode = propertyNode
-                            .WithType(SyntaxFactory.ParseTypeName("int"));
+                            .WithType(ParseTypeFromSqlDbTypeName(column.SqlTypeName, column.IsNullable ?? false));
 
                         propertyNode = propertyNode
                             .WithIdentifier(propertyIdentifier);
