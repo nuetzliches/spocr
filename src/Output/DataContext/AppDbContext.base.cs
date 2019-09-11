@@ -151,7 +151,7 @@ namespace Source.DataContext
 
         public static SqlParameter GetParameter<T>(string parameter, T value)
         {
-            return new SqlParameter(parameter, !EqualityComparer<T>.Default.Equals(value, default) ? value : (object)DBNull.Value)
+            return new SqlParameter(parameter, (value as object) ?? DBNull.Value)
             {
                 Direction = ParameterDirection.Input,
                 SqlDbType = GetSqlDbType(typeof(T))
