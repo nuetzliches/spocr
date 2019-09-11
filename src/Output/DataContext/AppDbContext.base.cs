@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Configuration;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
@@ -150,16 +149,16 @@ namespace Source.DataContext
             return result.ToString();
         }
 
-        public static SqlParameter GetParameter(string parameter, object value)
+        public static SqlParameter GetParameter<T>(string parameter, T value)
         {
-            return new SqlParameter(parameter, value ?? DBNull.Value)
+            return new SqlParameter(parameter, !EqualityComparer<T>.Default.Equals(value, default) ? value : (object)DBNull.Value)
             {
                 Direction = ParameterDirection.Input,
-                SqlDbType = GetSqlDbType(value)
+                SqlDbType = GetSqlDbType(typeof(T))
             };
         }
 
-        public static SqlParameter GetCollectionParameter(string parameter, object value)
+        public static SqlParameter GetCollectionParameter<T>(string parameter, T value)
         {
             return new SqlParameter(parameter, value?.ToSqlParamCollection())
             {
@@ -168,33 +167,31 @@ namespace Source.DataContext
             };
         }
 
-        public static SqlDbType GetSqlDbType(object value)
+        public static SqlDbType GetSqlDbType(Type type)
         {
-            switch (value)
+            switch (type)
             {
-                case int _:
+                case Type t when t == typeof(int) || t == typeof(int?):
                     return SqlDbType.Int;
-                case long _:
+                case Type t when t == typeof(long) || t == typeof(long?):
                     return SqlDbType.BigInt;
-                case string _:
+                case Type t when t == typeof(string):
                     return SqlDbType.NVarChar;
-                case bool _:
+                case Type t when t == typeof(bool) || t == typeof(bool?):
                     return SqlDbType.Bit;
-                case DateTime _:
+                case Type t when t == typeof(DateTime) || t == typeof(DateTime?):
                     return SqlDbType.DateTime2;
-                case Guid _:
+                case Type t when t == typeof(Guid) || t == typeof(Guid?):
                     return SqlDbType.UniqueIdentifier;
-                case decimal _:
+                case Type t when t == typeof(decimal) || t == typeof(decimal?):
                     return SqlDbType.Decimal;
-                case double _:
+                case Type t when t == typeof(double) || t == typeof(double?):
                     return SqlDbType.Float;
-                case byte[] _:
+                case Type t when t == typeof(byte[]) || t == typeof(byte?[]):
                     return SqlDbType.VarBinary;
-                case null:
-                    return SqlDbType.NVarChar;
                 default:
                     // NOTE: https://docs.microsoft.com/en-us/dotnet/framework/data/adonet/sql-server-data-type-mappings
-                    throw new NotImplementedException($"{nameof(AppDbContext)}.{nameof(GetSqlDbType)} - System.Type {value.GetType()} not defined!");
+                    throw new NotImplementedException($"{nameof(AppDbContext)}.{nameof(GetSqlDbType)} - System.Type {type} not defined!");
             }
         }
     }
