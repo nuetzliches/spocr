@@ -1,6 +1,7 @@
 using Microsoft.SqlServer.Server;
 using System.Collections;
 using System.Collections.Generic;
+using System.Data;
 using System.Reflection;
 
 namespace Source.DataContext
@@ -23,9 +24,13 @@ namespace Source.DataContext
                     var propVal = property.GetValue(row);
                     var propName = property.Name;
                     var sqlType = AppDbContext.GetSqlDbType(property.PropertyType);
-                    if(property.PropertyType == typeof(string))
+                    if(sqlType == SqlDbType.NVarChar)
                     {
                         metas.Add(new SqlMetaData(propName, sqlType, propVal?.ToString().Length ?? 0));
+                    }
+                    else if (sqlType == SqlDbType.Decimal)
+                    {
+                        metas.Add(new SqlMetaData(propName, sqlType, 18, 4));
                     }
                     else
                     {
