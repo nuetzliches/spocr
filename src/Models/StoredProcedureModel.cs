@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using SpocR.DataContext.Models;
 
@@ -22,11 +21,12 @@ namespace SpocR.Models
             get => _item.Name;
             set => _item.Name = value;
         }
-        public DateTime Modified
-        {
-            get => _item.Modified;
-            set => _item.Modified = value;
-        }
+
+        // public DateTime Modified
+        // {
+        //     get => _item.Modified;
+        //     set => _item.Modified = value;
+        // }
 
         public IEnumerable<StoredProcedureInputModel> Input { get; set; }
         public IEnumerable<StoredProcedureOutputModel> Output { get; set; }

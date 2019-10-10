@@ -70,7 +70,7 @@ namespace SpocR.Managers
             var json = JsonConvert.SerializeObject(config, Formatting.Indented, jsonSettings);
             var fileName = DirectoryUtils.GetWorkingDirectory(Configuration.ConfigurationFile);
             Directory.CreateDirectory(Path.GetDirectoryName(fileName));
-            File.WriteAllText(_fileName, json);
+            File.WriteAllText(fileName, json);
         }
 
         public void Remove(bool dryRun = false)
