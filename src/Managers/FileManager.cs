@@ -68,7 +68,7 @@ namespace SpocR.Managers
                 ContractResolver = new SerializeContractResolver()
             };
             var json = JsonConvert.SerializeObject(config, Formatting.Indented, jsonSettings);
-            var fileName = DirectoryUtils.GetWorkingDirectory(Configuration.ConfigurationFile);
+            var fileName = DirectoryUtils.GetWorkingDirectory(_fileName);
             Directory.CreateDirectory(Path.GetDirectoryName(fileName));
             File.WriteAllText(fileName, json);
         }
