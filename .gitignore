@@ -6,12 +6,11 @@ project.lock.json
 nupkg/
 
 # Visual Studio Code
-.vscode
+.vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
-.history/*
 
 # User-specific files
 *.suo
@@ -41,3 +40,4 @@ msbuild.wrn
 # Custom vscode extension
 vscode/spocr/node_modules/
 src/*.nupkg
+samples/
