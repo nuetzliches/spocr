@@ -156,7 +156,7 @@ namespace SpocR.Managers
                 return ExecuteResultEnum.Error;
             }
 
-            var userConfigFileName = Configuration.UserConfigurationFile.Replace("{userId}", _globalConfigFile.Config.UserId);
+            var userConfigFileName = Configuration.UserConfigurationFile.Replace("{userId}", _globalConfigFile.Config?.UserId);
             var userConfigFile = new FileManager<ConfigurationModel>(userConfigFileName);
 
             if(userConfigFile.Exists()) 
