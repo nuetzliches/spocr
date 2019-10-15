@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Data;
 using System.IO;
 using System.Linq;
+using System.Text;
+using McMaster.Extensions.CommandLineUtils;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -23,12 +25,14 @@ namespace SpocR
         private readonly FileManager<ConfigurationModel> _configFile;
         private readonly SpocrService _spocr;
         private readonly OutputService _output;
+        private readonly IReporter _reporter;
 
-        public Generator(FileManager<ConfigurationModel> configFile, SpocrService spocr, OutputService output)
+        public Generator(FileManager<ConfigurationModel> configFile, SpocrService spocr, OutputService output, IReporter reporter)
         {
             _configFile = configFile;
             _spocr = spocr;
             _output = output;
+            _reporter = reporter;
         }
 
         public TypeSyntax ParseTypeFromSqlDbTypeName(string sqlTypeName, bool isNullable)
@@ -371,7 +375,18 @@ namespace SpocR
 
                 if (withUserId && (storedProcedure.Input.Count() < 1 || storedProcedure.Input.First().Name != "@UserId"))
                 {
-                    throw new InvalidOperationException($"The StoredProcedure `{storedProcedure.Name}` requires a first Parameter with Name `@UserId`");
+                    // ? This is just to prevent follow-up issues, as long as the architecture handles SPs like this
+                    withUserId = false; 
+
+                    _reporter.Warn(
+                        new StringBuilder()
+                        .Append("[WARNING]: ")
+                        .Append($"The StoredProcedure {storedProcedure.SqlObjectName} violates the requirement: ")
+                        .Append("First Parameter with Name '@UserId'")
+                        .Append(" (this can lead to unpredictable issues)")
+                        .ToString()
+                    );
+                    // throw new InvalidOperationException($"The StoredProcedure `{storedProcedure.Name}` requires a first Parameter with Name `@UserId`");
                 }
 
                 // Generate Method params
