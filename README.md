@@ -73,6 +73,7 @@ public Task<List<UserList>> ListAsync(CancellationToken cancellationToken = defa
 # Required .NET Core Packages for Web-API
 - Newtonsoft.Json
 - System.Data.SqlClient
+- Microsoft.Extensions.Configuration
 
 # Installation
 - Install [.NET Core 2.1](https://www.microsoft.com/net/download)
