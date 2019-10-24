@@ -26,13 +26,15 @@ namespace SpocR
         private readonly SpocrService _spocr;
         private readonly OutputService _output;
         private readonly IReporter _reporter;
+        private readonly IReportService _reportService;
 
-        public Generator(FileManager<ConfigurationModel> configFile, SpocrService spocr, OutputService output, IReporter reporter)
+        public Generator(FileManager<ConfigurationModel> configFile, SpocrService spocr, OutputService output, IReporter reporter, IReportService reportService)
         {
             _configFile = configFile;
             _spocr = spocr;
             _output = output;
             _reporter = reporter;
+            _reportService = reportService;
         }
 
         public TypeSyntax ParseTypeFromSqlDbTypeName(string sqlTypeName, bool isNullable)
@@ -209,8 +211,11 @@ namespace SpocR
                     if (ExistingFileMatches(fileName, sourceText))
                     {
                         // Existing Params and new Params matches
+                        _reportService.Yellow($"CREATE: {fileName}");
                         continue;
                     }
+
+                    _reportService.Yellow($"CREATE: {fileName} [Modified]");
 
                     if (!dryrun)
                         File.WriteAllText(fileName, sourceText.WithMetadataToString(_spocr.Version));
@@ -255,11 +260,16 @@ namespace SpocR
                     if (ExistingFileMatches(fileName, sourceText))
                     {
                         // Existing Model and new Model matches
+                        _reportService.Yellow($"CREATE: {fileName}");
                         continue;
                     }
 
+                    _reportService.Yellow($"CREATE: {fileName} [Modified]");
+
                     if (!dryrun)
+                    {
                         File.WriteAllText(fileName, sourceText.WithMetadataToString(_spocr.Version));
+                    }
                 }
             }
         }
@@ -376,7 +386,7 @@ namespace SpocR
                 if (withUserId && (storedProcedure.Input.Count() < 1 || storedProcedure.Input.First().Name != "@UserId"))
                 {
                     // ? This is just to prevent follow-up issues, as long as the architecture handles SPs like this
-                    withUserId = false; 
+                    withUserId = false;
 
                     _reporter.Warn(
                         new StringBuilder()
@@ -543,8 +553,11 @@ namespace SpocR
                     if (ExistingFileMatches(fileName, sourceText))
                     {
                         // Existing StoredProcedure and new StoredProcedure matches
+                        _reportService.Yellow($"CREATE: {fileName}");
                         continue;
                     }
+
+                    _reportService.Yellow($"CREATE: {fileName} [Modified]");
 
                     if (!dryrun)
                         File.WriteAllText(fileName, sourceText.WithMetadataToString(_spocr.Version));

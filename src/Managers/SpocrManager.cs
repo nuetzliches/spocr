@@ -5,10 +5,12 @@ using System.IO;
 using System.Linq;
 using McMaster.Extensions.CommandLineUtils;
 using Microsoft.Extensions.Configuration;
+using Newtonsoft.Json;
 using SpocR.DataContext;
 using SpocR.Enums;
 using SpocR.Extensions;
 using SpocR.Models;
+using SpocR.Serialization;
 using SpocR.Services;
 
 namespace SpocR.Managers
@@ -51,7 +53,7 @@ namespace SpocR.Managers
             _dbContext = dbContext;
         }
 
-        public ExecuteResultEnum Create(bool dryRun)
+        public ExecuteResultEnum Create(bool isDryRun)
         {
             if (_configFile.Exists())
             {
@@ -60,7 +62,7 @@ namespace SpocR.Managers
                 return ExecuteResultEnum.Error;
             }
 
-            if (dryRun)
+            if (isDryRun)
             {
                 _reporter.Output($"Create as dry run.");
             }
@@ -145,8 +147,16 @@ namespace SpocR.Managers
                 Schema = new List<SchemaModel>()
             };
 
-            _configFile.Save(config);
-            _reporter.Output($"{Configuration.Name} successfully created.");
+            if (isDryRun)
+            {
+                _reportService.PrintConfiguration(config);
+                _reportService.PrintDryRunMessage();
+            }
+            else
+            {
+                _configFile.Save(config);
+                _reporter.Output($"{Configuration.Name} successfully created.");
+            }
 
             return ExecuteResultEnum.Succeeded;
         }
@@ -208,13 +218,13 @@ namespace SpocR.Managers
 
             var pulledStoredProcedures = pullSchemas.SelectMany(x => x.StoredProcedures ?? new List<StoredProcedureModel>()).ToList();
             var pulledSchemasWithStoredProcedures = pullSchemas
-                .Select(x => new 
+                .Select(x => new
                 {
                     Schema = x,
                     StoredProcedures = x.StoredProcedures.ToList() ?? new List<StoredProcedureModel>()
                 }).ToList();
 
-            pulledSchemasWithStoredProcedures.ForEach(schema => 
+            pulledSchemasWithStoredProcedures.ForEach(schema =>
             {
                 schema.StoredProcedures.ForEach((sp => _reporter.Output($"PULL: [{schema.Schema.Name}].[{sp.Name}]")));
             });
@@ -226,7 +236,7 @@ namespace SpocR.Managers
                 _reporter.Output("");
             }
 
-            _reporter.Output($"Pulled {pulledStoredProcedures.Count()} StoredProcedures from {pullSchemas.Count()} Schemas  [{string.Join(", ", pullSchemas.Select(x => x.Name))}] in {stopwatch.ElapsedMilliseconds} ms.");
+            _reporter.Output($"Pulled {pulledStoredProcedures.Count()} StoredProcedures from {pullSchemas.Count()} Schemas [{string.Join(", ", pullSchemas.Select(x => x.Name))}] in {stopwatch.ElapsedMilliseconds} ms.");
             _reporter.Output("");
 
             if (isDryRun)
@@ -235,7 +245,6 @@ namespace SpocR.Managers
             }
             else
             {
-                // TODO: make this one better pls
                 config.Schema = configSchemas;
                 _configFile.Save(config);
             }
@@ -245,38 +254,43 @@ namespace SpocR.Managers
 
         public ExecuteResultEnum Build(bool dryRun)
         {
-            if (!string.IsNullOrWhiteSpace(_configFile.Config?.Project?.DataBase?.ConnectionString))
-            {
-                _dbContext.SetConnectionString(_configFile.Config.Project.DataBase.ConnectionString);
-            }
-
-            if (dryRun)
-            {
-                _reporter.Output($"Build as dry run.");
-            }
-
             if (!_configFile.Exists())
             {
-                _reporter.Error($"File not found: {Configuration.ConfigurationFile}");
+                _reporter.Error($"Config file not found: {Configuration.ConfigurationFile}");   // why do we use Configuration here?
                 _reporter.Output($"\tPlease make sure you are in the right working directory");
                 return ExecuteResultEnum.Error;
             }
 
-            if (!(_configFile.Config?.Schema?.Any() ?? false))
+            var config = _configFile.Config;
+            var project = config?.Project;
+            var schemas = config?.Schema;
+            var connectionString = project?.DataBase?.ConnectionString;
+
+            var hasProject = project != null;
+            var hasSchemas = schemas?.Any() ?? false;
+            var hasConnectionString = string.IsNullOrWhiteSpace(connectionString);
+
+            if (!hasConnectionString)
             {
-                _reporter.Error($"Schema is empty: {Configuration.ConfigurationFile}");
+                _dbContext.SetConnectionString(connectionString);
+            }
+
+            if (!hasSchemas)
+            {
+                _reporter.Error($"Schema is empty: {Configuration.ConfigurationFile}"); // why do we use Configuration here?
                 _reporter.Output($"\tPlease run pull to get the DB-Schema.");
                 return ExecuteResultEnum.Error;
             }
 
             var stopwatch = new Stopwatch();
-            stopwatch.Start();
 
-            if (_configFile.Config.Project.Role.Kind != ERoleKind.Extension)
+            // var hasNoCodeBase = project.Role.Kind != ERoleKind.Extension;
+            var existsCodeBase = project.Role.Kind == ERoleKind.Extension;
+            if (!existsCodeBase)
             {
+                stopwatch.Start();
                 // we dont have a codebase, so generate it
-                _output.GenerateCodeBase(_configFile.Config.Project.Output, dryRun);
-
+                _output.GenerateCodeBase(project.Output, dryRun);
                 _reporter.Output($"CodeBase generated in {stopwatch.ElapsedMilliseconds} ms.");
             }
 

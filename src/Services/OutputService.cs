@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text;
 using Microsoft.CodeAnalysis.CSharp;
 using SpocR.Enums;
 using SpocR.Extensions;
@@ -11,10 +12,12 @@ namespace SpocR.Services
     public class OutputService
     {
         private readonly FileManager<ConfigurationModel> _configFile;
+        private readonly IReportService _reportService;
 
-        public OutputService(FileManager<ConfigurationModel> configFile)
+        public OutputService(FileManager<ConfigurationModel> configFile, IReportService reportService)
         {
             _configFile = configFile;
+            _reportService = reportService;
         }
 
         public DirectoryInfo GetOutputRootDir()
@@ -48,10 +51,9 @@ namespace SpocR.Services
             }
         }
 
-        private void CopyFile(FileInfo file, string targetFileName, string nameSpace, bool dryrun)
+        private void CopyFile(FileInfo file, string targetFileName, string nameSpace, bool isDryRun)
         {
             var fileContent = File.ReadAllText(file.FullName);
-
             var tree = CSharpSyntaxTree.ParseText(fileContent);
             var root = tree.GetCompilationUnitRoot();
 
@@ -66,8 +68,8 @@ namespace SpocR.Services
                 root = root.ReplaceNamespace(ns => ns.Replace("Source.", $"{nameSpace}."));
             }
 
-            if (dryrun)
-                return;
+            // if (isDryRun)
+            //     return;
 
             var targetDir = Path.GetDirectoryName(targetFileName);
             if (!Directory.Exists(targetDir))
@@ -75,13 +77,37 @@ namespace SpocR.Services
                 Directory.CreateDirectory(targetDir);
             }
 
-            File.WriteAllText(targetFileName, root.GetText().ToString());
+            var sourceCode = root.GetText().ToString();
+
+            if (File.Exists(targetFileName))
+            {
+                var targetFileBytes = File.ReadAllBytes(targetFileName);
+                var encoding = Encoding.Default;
+                var sourceCodeBytes = encoding.GetBytes(sourceCode);
+                var hasFileChanges = byte.Equals(sourceCodeBytes, targetFileBytes);
+
+                if (!hasFileChanges)
+                {
+                    _reportService.Yellow($"WRITE: {file.Name}");
+                    return;
+                }
+            }
+
+            _reportService.Yellow($"WRITE: {file.Name} [Modified]");
+
+
+            if (!isDryRun)
+            {
+                File.WriteAllText(targetFileName, sourceCode);
+            }
         }
 
         public void RemoveGeneratedFiles(string pathToDelete, bool dryRun)
         {
             if (Directory.Exists(pathToDelete))
             {
+                _reportService.Warn($"DELETE: Generated spocr files");
+
                 if (!dryRun)
                     Directory.Delete(pathToDelete, true);
             }
