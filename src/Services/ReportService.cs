@@ -70,7 +70,7 @@ namespace SpocR.Services
             };
             var json = JsonConvert.SerializeObject(config, Formatting.Indented, jsonSettings);
 
-            Output(json);
+            _reporter.Warn(json);
             Output("");
         }
 

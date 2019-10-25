@@ -62,10 +62,10 @@ namespace SpocR.Managers
                 return ExecuteResultEnum.Error;
             }
 
-            if (isDryRun)
-            {
-                _reporter.Output($"Create as dry run.");
-            }
+            // if (isDryRun)
+            // {
+            //     _reporter.Output($"Create as dry run.");
+            // }
 
             var proceed = Prompt.GetYesNo("Create a new SpocR Project?", true);
             if (!proceed) return ExecuteResultEnum.Aborted;
