@@ -95,7 +95,11 @@ namespace SpocR.Contracts
             // Returns:
             //     The part of the Name before the [Operation] starts. 
             //     e.g.: "User" from Name "UserCreate"
-            public string EntityName => _entityName ?? (_entityName = Name.Substring(0, Name.IndexOf(OperationKind.ToString())));
+            public string EntityName => _entityName 
+                ?? (_entityName = OperationKind != OperationKindEnum.Undefined 
+                    ? Name.Substring(0, Name.IndexOf(OperationKind.ToString()))
+                    : Name
+            );
             public string Suffix => _suffix ?? (_suffix = Name.Substring(Name.IndexOf(OperationKind.ToString()) + OperationKind.ToString().Length));
             public OperationKindEnum OperationKind => _operationKind != OperationKindEnum.Undefined
                 ? _operationKind

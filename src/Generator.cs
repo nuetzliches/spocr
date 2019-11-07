@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Data;
 using System.IO;
 using System.Linq;
+using System.Text;
+using McMaster.Extensions.CommandLineUtils;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -23,12 +25,16 @@ namespace SpocR
         private readonly FileManager<ConfigurationModel> _configFile;
         private readonly SpocrService _spocr;
         private readonly OutputService _output;
+        private readonly IReporter _reporter;
+        private readonly IReportService _reportService;
 
-        public Generator(FileManager<ConfigurationModel> configFile, SpocrService spocr, OutputService output)
+        public Generator(FileManager<ConfigurationModel> configFile, SpocrService spocr, OutputService output, IReporter reporter, IReportService reportService)
         {
             _configFile = configFile;
             _spocr = spocr;
             _output = output;
+            _reporter = reporter;
+            _reportService = reportService;
         }
 
         public TypeSyntax ParseTypeFromSqlDbTypeName(string sqlTypeName, bool isNullable)
@@ -199,17 +205,20 @@ namespace SpocR
 
                 foreach (var storedProcedure in storedProcedures)
                 {
-                    var fileName = Path.Combine(path, $"{storedProcedure.Name}Params.cs");
+                    var fileName = $"{storedProcedure.Name}Params.cs";
+                    var fileNameWithPath = Path.Combine(path, fileName);
                     var sourceText = GetParamsTextForStoredProcedure(schema, storedProcedure);
 
-                    if (ExistingFileMatches(fileName, sourceText))
+                    if (ExistingFileMatches(fileNameWithPath, sourceText))
                     {
-                        // Existing Params and new Params matches
+                        _reportService.Gray($"{fileName} (up to date)");
                         continue;
                     }
 
+                    _reportService.Yellow($"{fileName} (modified)");
+
                     if (!dryrun)
-                        File.WriteAllText(fileName, sourceText.WithMetadataToString(_spocr.Version));
+                        File.WriteAllText(fileNameWithPath, sourceText.WithMetadataToString(_spocr.Version));
                 }
             }
         }
@@ -244,18 +253,22 @@ namespace SpocR
                     {
                         continue;
                     }
-
-                    var fileName = Path.Combine(path, $"{storedProcedure.Name}.cs");
+                    var fileName = $"{storedProcedure.Name}.cs";
+                    var fileNameWithPath = Path.Combine(path, fileName);
                     var sourceText = GetModelTextForStoredProcedure(schema, storedProcedure);
 
-                    if (ExistingFileMatches(fileName, sourceText))
+                    if (ExistingFileMatches(fileNameWithPath, sourceText))
                     {
-                        // Existing Model and new Model matches
+                        _reportService.Gray($"{fileName} (up to date)");
                         continue;
                     }
 
+                    _reportService.Yellow($"{fileName} (modified)");
+
                     if (!dryrun)
-                        File.WriteAllText(fileName, sourceText.WithMetadataToString(_spocr.Version));
+                    {
+                        File.WriteAllText(fileNameWithPath, sourceText.WithMetadataToString(_spocr.Version));
+                    }
                 }
             }
         }
@@ -371,7 +384,18 @@ namespace SpocR
 
                 if (withUserId && (storedProcedure.Input.Count() < 1 || storedProcedure.Input.First().Name != "@UserId"))
                 {
-                    throw new InvalidOperationException($"The StoredProcedure `{storedProcedure.Name}` requires a first Parameter with Name `@UserId`");
+                    // ? This is just to prevent follow-up issues, as long as the architecture handles SPs like this
+                    withUserId = false;
+
+                    _reporter.Warn(
+                        new StringBuilder()
+                        .Append("[WARNING]: ")
+                        .Append($"The StoredProcedure {storedProcedure.SqlObjectName} violates the requirement: ")
+                        .Append("First Parameter with Name '@UserId'")
+                        .Append(" (this can lead to unpredictable issues)")
+                        .ToString()
+                    );
+                    // throw new InvalidOperationException($"The StoredProcedure `{storedProcedure.Name}` requires a first Parameter with Name `@UserId`");
                 }
 
                 // Generate Method params
@@ -522,17 +546,22 @@ namespace SpocR
                 foreach (var groupedStoredProcedures in storedProcedures.GroupBy(i => i.EntityName, (key, group) => group.ToList()))
                 {
                     var first = groupedStoredProcedures.First();
-                    var fileName = Path.Combine(path, $"{first.EntityName}Extensions.cs");
+
+                    var fileName = $"{first.EntityName}Extensions.cs";
+                    var fileNameWithPath = Path.Combine(path, fileName);
+
                     var sourceText = GetStoredProcedureText(schema, groupedStoredProcedures);
 
-                    if (ExistingFileMatches(fileName, sourceText))
+                    if (ExistingFileMatches(fileNameWithPath, sourceText))
                     {
-                        // Existing StoredProcedure and new StoredProcedure matches
+                        _reportService.Gray($"{fileName} (up to date)");
                         continue;
                     }
 
+                    _reportService.Yellow($"{fileName} (modified)");
+
                     if (!dryrun)
-                        File.WriteAllText(fileName, sourceText.WithMetadataToString(_spocr.Version));
+                        File.WriteAllText(fileNameWithPath, sourceText.WithMetadataToString(_spocr.Version));
                 }
             }
         }

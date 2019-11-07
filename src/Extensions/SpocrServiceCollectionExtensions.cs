@@ -24,6 +24,7 @@ namespace SpocR.Extensions
             services.AddSingleton<FileManager<GlobalConfigurationModel>>(new FileManager<GlobalConfigurationModel>(globalConfigurationFileName));
             services.AddSingleton<FileManager<ConfigurationModel>>(new FileManager<ConfigurationModel>(Configuration.ConfigurationFile));
             services.AddSingleton<Generator>();
+            services.AddSingleton<IReportService, ReportService>();
 
             return services;
         }

@@ -35,7 +35,7 @@ namespace SpocR
             var serviceProvider = new ServiceCollection()
                 .AddSpocR()
                 .AddDbContext()
-                .AddSingleton<IReporter>(new ConsoleReporter(PhysicalConsole.Singleton))
+                .AddSingleton<IReporter>(new ConsoleReporter(PhysicalConsole.Singleton, true, false))
                 .AddSingleton<IConfiguration>(configuration)
                 .BuildServiceProvider();
 
