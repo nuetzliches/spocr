@@ -79,6 +79,7 @@ namespace SpocR.Services
 
             var sourceCode = root.GetText().ToString();
 
+            var fileName = Path.GetFileName(targetFileName);
             if (File.Exists(targetFileName))
             {
                 var targetFileBytes = File.ReadAllBytes(targetFileName);
@@ -88,13 +89,12 @@ namespace SpocR.Services
 
                 if (!hasFileChanges)
                 {
-                    _reportService.Yellow($"WRITE: {file.Name}");
+                    _reportService.Gray($"{fileName} (up to date)");
                     return;
                 }
             }
 
-            _reportService.Yellow($"WRITE: {file.Name} [Modified]");
-
+            _reportService.Yellow($"{fileName} (modified)");
 
             if (!isDryRun)
             {

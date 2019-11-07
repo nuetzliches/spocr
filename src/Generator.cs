@@ -205,20 +205,20 @@ namespace SpocR
 
                 foreach (var storedProcedure in storedProcedures)
                 {
-                    var fileName = Path.Combine(path, $"{storedProcedure.Name}Params.cs");
+                    var fileName = $"{storedProcedure.Name}Params.cs";
+                    var fileNameWithPath = Path.Combine(path, fileName);
                     var sourceText = GetParamsTextForStoredProcedure(schema, storedProcedure);
 
-                    if (ExistingFileMatches(fileName, sourceText))
+                    if (ExistingFileMatches(fileNameWithPath, sourceText))
                     {
-                        // Existing Params and new Params matches
-                        _reportService.Yellow($"CREATE: {fileName}");
+                        _reportService.Gray($"{fileName} (up to date)");
                         continue;
                     }
 
-                    _reportService.Yellow($"CREATE: {fileName} [Modified]");
+                    _reportService.Yellow($"{fileName} (modified)");
 
                     if (!dryrun)
-                        File.WriteAllText(fileName, sourceText.WithMetadataToString(_spocr.Version));
+                        File.WriteAllText(fileNameWithPath, sourceText.WithMetadataToString(_spocr.Version));
                 }
             }
         }
@@ -253,22 +253,21 @@ namespace SpocR
                     {
                         continue;
                     }
-
-                    var fileName = Path.Combine(path, $"{storedProcedure.Name}.cs");
+                    var fileName = $"{storedProcedure.Name}.cs";
+                    var fileNameWithPath = Path.Combine(path, fileName);
                     var sourceText = GetModelTextForStoredProcedure(schema, storedProcedure);
 
-                    if (ExistingFileMatches(fileName, sourceText))
+                    if (ExistingFileMatches(fileNameWithPath, sourceText))
                     {
-                        // Existing Model and new Model matches
-                        _reportService.Yellow($"CREATE: {fileName}");
+                        _reportService.Gray($"{fileName} (up to date)");
                         continue;
                     }
 
-                    _reportService.Yellow($"CREATE: {fileName} [Modified]");
+                    _reportService.Yellow($"{fileName} (modified)");
 
                     if (!dryrun)
                     {
-                        File.WriteAllText(fileName, sourceText.WithMetadataToString(_spocr.Version));
+                        File.WriteAllText(fileNameWithPath, sourceText.WithMetadataToString(_spocr.Version));
                     }
                 }
             }
@@ -547,20 +546,22 @@ namespace SpocR
                 foreach (var groupedStoredProcedures in storedProcedures.GroupBy(i => i.EntityName, (key, group) => group.ToList()))
                 {
                     var first = groupedStoredProcedures.First();
-                    var fileName = Path.Combine(path, $"{first.EntityName}Extensions.cs");
+
+                    var fileName = $"{first.EntityName}Extensions.cs";
+                    var fileNameWithPath = Path.Combine(path, fileName);
+
                     var sourceText = GetStoredProcedureText(schema, groupedStoredProcedures);
 
-                    if (ExistingFileMatches(fileName, sourceText))
+                    if (ExistingFileMatches(fileNameWithPath, sourceText))
                     {
-                        // Existing StoredProcedure and new StoredProcedure matches
-                        _reportService.Yellow($"CREATE: {fileName}");
+                        _reportService.Gray($"{fileName} (up to date)");
                         continue;
                     }
 
-                    _reportService.Yellow($"CREATE: {fileName} [Modified]");
+                    _reportService.Yellow($"{fileName} (modified)");
 
                     if (!dryrun)
-                        File.WriteAllText(fileName, sourceText.WithMetadataToString(_spocr.Version));
+                        File.WriteAllText(fileNameWithPath, sourceText.WithMetadataToString(_spocr.Version));
                 }
             }
         }

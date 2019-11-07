@@ -226,7 +226,7 @@ namespace SpocR.Managers
 
             pulledSchemasWithStoredProcedures.ForEach(schema =>
             {
-                schema.StoredProcedures.ForEach((sp => _reporter.Output($"PULL: [{schema.Schema.Name}].[{sp.Name}]")));
+                schema.StoredProcedures.ForEach((sp => _reporter.Verbose($"PULL: [{schema.Schema.Name}].[{sp.Name}]")));
             });
             _reporter.Output("");
 
