@@ -62,11 +62,6 @@ namespace SpocR.Managers
                 return ExecuteResultEnum.Error;
             }
 
-            // if (isDryRun)
-            // {
-            //     _reporter.Output($"Create as dry run.");
-            // }
-
             var proceed = Prompt.GetYesNo("Create a new SpocR Project?", true);
             if (!proceed) return ExecuteResultEnum.Aborted;
 
@@ -252,7 +247,7 @@ namespace SpocR.Managers
             return ExecuteResultEnum.Succeeded;
         }
 
-        public ExecuteResultEnum Build(bool dryRun)
+        public ExecuteResultEnum Build(bool isDryRun)
         {
             if (!_configFile.Exists())
             {
@@ -290,7 +285,7 @@ namespace SpocR.Managers
             {
                 stopwatch.Start();
                 // we dont have a codebase, so generate it
-                _output.GenerateCodeBase(project.Output, dryRun);
+                _output.GenerateCodeBase(project.Output, isDryRun);
                 _reporter.Output($"CodeBase generated in {stopwatch.ElapsedMilliseconds} ms.");
             }
 
@@ -303,21 +298,30 @@ namespace SpocR.Managers
 
             stopwatch.Restart();
 
-            _engine.GenerateDataContextModels(dryRun);
+            _engine.GenerateDataContextModels(isDryRun);
 
+            _reporter.Output("");
             _reporter.Output($"DataContextModels generated in {stopwatch.ElapsedMilliseconds} ms.");
 
             stopwatch.Restart();
 
-            _engine.GenerateDataContextParams(dryRun);
+            _engine.GenerateDataContextParams(isDryRun);
 
+            _reporter.Output("");
             _reporter.Output($"DataContextParams generated in {stopwatch.ElapsedMilliseconds} ms.");
 
             stopwatch.Restart();
 
-            _engine.GenerateDataContextStoredProcedures(dryRun);
+            _engine.GenerateDataContextStoredProcedures(isDryRun);
 
+            _reporter.Output("");
             _reporter.Output($"DataContextStoredProcedures generated in {stopwatch.ElapsedMilliseconds} ms.");
+
+            if (isDryRun) 
+            {
+                _reporter.Output("");
+                _reportService.PrintDryRunMessage();
+            }
 
             return ExecuteResultEnum.Succeeded;
         }

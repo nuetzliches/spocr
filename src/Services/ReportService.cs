@@ -58,7 +58,7 @@ namespace SpocR.Services
 
         public void PrintDryRunMessage()
         {
-            Note("Run with \"dry run\" no changes were made");
+            Note("Run with \"dry run\" means no changes were made");
         }
 
         public void PrintConfiguration(ConfigurationModel config)
