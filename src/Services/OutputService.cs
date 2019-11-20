@@ -68,9 +68,6 @@ namespace SpocR.Services
                 root = root.ReplaceNamespace(ns => ns.Replace("Source.", $"{nameSpace}."));
             }
 
-            // if (isDryRun)
-            //     return;
-
             var targetDir = Path.GetDirectoryName(targetFileName);
             if (!Directory.Exists(targetDir))
             {
@@ -78,8 +75,8 @@ namespace SpocR.Services
             }
 
             var sourceCode = root.GetText().ToString();
-
             var fileName = Path.GetFileName(targetFileName);
+            
             if (File.Exists(targetFileName))
             {
                 var targetFileBytes = File.ReadAllBytes(targetFileName);
@@ -89,12 +86,16 @@ namespace SpocR.Services
 
                 if (!hasFileChanges)
                 {
-                    _reportService.Gray($"{fileName} (up to date)");
+                    _reportService.PrintFileActionMessage(fileName, PrintFileAction.UpToDate);
                     return;
                 }
+                
+                _reportService.PrintFileActionMessage(fileName, PrintFileAction.Modified);
             }
-
-            _reportService.Yellow($"{fileName} (modified)");
+            else
+            {
+                _reportService.PrintFileActionMessage(fileName, PrintFileAction.Created);
+            }
 
             if (!isDryRun)
             {

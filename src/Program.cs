@@ -36,6 +36,7 @@ namespace SpocR
                 .AddSpocR()
                 .AddDbContext()
                 .AddSingleton<IReporter>(new ConsoleReporter(PhysicalConsole.Singleton, true, false))
+                .AddSingleton<IConsoleReporter>(new ColoredConsoleReporter(PhysicalConsole.Singleton, true, false))
                 .AddSingleton<IConfiguration>(configuration)
                 .BuildServiceProvider();
 
