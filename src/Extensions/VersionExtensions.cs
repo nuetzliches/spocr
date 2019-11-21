@@ -6,7 +6,8 @@ namespace SpocR.Extensions
     {
         internal static string ToVersionString(this Version version)
         {
-            return $"{version.Major}.{version.Minor}.{version.Build}.{version.Revision}";
+            return $"{version.Major}.{version.Minor}.{version.Build}";
+            // return $"{version.Major}.{version.Minor}.{version.Build}.{version.Revision}";
         }
     }
 }

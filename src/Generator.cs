@@ -180,7 +180,7 @@ namespace SpocR
             return root.GetText();
         }
 
-        public void GenerateDataContextParams(bool dryrun)
+        public void GenerateDataContextParams(bool isDryRun)
         {
             var schemas = _configFile.Config.Schema
                 .Where(i => i.Status == SchemaStatusEnum.Build && (i.StoredProcedures?.Any() ?? false))
@@ -198,7 +198,7 @@ namespace SpocR
 
                 var dataContextParamsPath = DirectoryUtils.GetWorkingDirectory(_configFile.Config.Project.Output.DataContext.Path, _configFile.Config.Project.Output.DataContext.Params.Path);
                 var path = Path.Combine(dataContextParamsPath, schema.Path);
-                if (!Directory.Exists(path) && !dryrun)
+                if (!Directory.Exists(path) && !isDryRun)
                 {
                     Directory.CreateDirectory(path);
                 }
@@ -209,21 +209,12 @@ namespace SpocR
                     var fileNameWithPath = Path.Combine(path, fileName);
                     var sourceText = GetParamsTextForStoredProcedure(schema, storedProcedure);
 
-                    if (ExistingFileMatches(fileNameWithPath, sourceText))
-                    {
-                        _reportService.Gray($"{fileName} (up to date)");
-                        continue;
-                    }
-
-                    _reportService.Yellow($"{fileName} (modified)");
-
-                    if (!dryrun)
-                        File.WriteAllText(fileNameWithPath, sourceText.WithMetadataToString(_spocr.Version));
+                    _output.Write(fileNameWithPath, sourceText, isDryRun);
                 }
             }
         }
 
-        public void GenerateDataContextModels(bool dryrun)
+        public void GenerateDataContextModels(bool isDryRun)
         {
             var schemas = _configFile.Config.Schema
                 .Where(i => i.Status == SchemaStatusEnum.Build && (i.StoredProcedures?.Any() ?? false))
@@ -241,7 +232,7 @@ namespace SpocR
 
                 var dataContextModelPath = DirectoryUtils.GetWorkingDirectory(_configFile.Config.Project.Output.DataContext.Path, _configFile.Config.Project.Output.DataContext.Models.Path);
                 var path = Path.Combine(dataContextModelPath, schema.Path);
-                if (!Directory.Exists(path) && !dryrun)
+                if (!Directory.Exists(path) && !isDryRun)
                 {
                     Directory.CreateDirectory(path);
                 }
@@ -257,43 +248,10 @@ namespace SpocR
                     var fileNameWithPath = Path.Combine(path, fileName);
                     var sourceText = GetModelTextForStoredProcedure(schema, storedProcedure);
 
-                    if (ExistingFileMatches(fileNameWithPath, sourceText))
-                    {
-                        _reportService.Gray($"{fileName} (up to date)");
-                        continue;
-                    }
-
-                    _reportService.Yellow($"{fileName} (modified)");
-
-                    if (!dryrun)
-                    {
-                        File.WriteAllText(fileNameWithPath, sourceText.WithMetadataToString(_spocr.Version));
-                    }
+                    _output.Write(fileNameWithPath, sourceText, isDryRun);
                 }
             }
         }
-
-        private bool ExistingFileMatches(string fileName, SourceText sourceText)
-        {
-            if (File.Exists(fileName))
-            {
-                var oldFileContent = File.ReadAllText(fileName);
-                var oldTree = CSharpSyntaxTree.ParseText(oldFileContent);
-                var oldRoot = oldTree.GetCompilationUnitRoot();
-                var oldNsNode = (NamespaceDeclarationSyntax)oldRoot.Members[0];
-
-                var newTree = CSharpSyntaxTree.ParseText(sourceText);
-                var newRoot = newTree.GetCompilationUnitRoot();
-                var newNsNode = (NamespaceDeclarationSyntax)newRoot.Members[0];
-
-                if (oldNsNode.GetText().ToString().Equals(newNsNode.GetText().ToString()))
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
-
         public string GetIdentifierFromSqlInputParam(string name)
         {
             name = $"{name.Remove(0, 1).FirstCharToLower()}";
@@ -521,7 +479,7 @@ namespace SpocR
             return root.NormalizeWhitespace().GetText();
         }
 
-        public void GenerateDataContextStoredProcedures(bool dryrun)
+        public void GenerateDataContextStoredProcedures(bool isDryRun)
         {
             var schemas = _configFile.Config.Schema
                 .Where(i => i.Status == SchemaStatusEnum.Build && (i.StoredProcedures?.Any() ?? false))
@@ -538,7 +496,7 @@ namespace SpocR
 
                 var dataContextStoredProcedurePath = DirectoryUtils.GetWorkingDirectory(_configFile.Config.Project.Output.DataContext.Path, _configFile.Config.Project.Output.DataContext.StoredProcedures.Path);
                 var path = Path.Combine(dataContextStoredProcedurePath, schema.Path);
-                if (!Directory.Exists(path) && !dryrun)
+                if (!Directory.Exists(path) && !isDryRun)
                 {
                     Directory.CreateDirectory(path);
                 }
@@ -552,16 +510,7 @@ namespace SpocR
 
                     var sourceText = GetStoredProcedureText(schema, groupedStoredProcedures);
 
-                    if (ExistingFileMatches(fileNameWithPath, sourceText))
-                    {
-                        _reportService.Gray($"{fileName} (up to date)");
-                        continue;
-                    }
-
-                    _reportService.Yellow($"{fileName} (modified)");
-
-                    if (!dryrun)
-                        File.WriteAllText(fileNameWithPath, sourceText.WithMetadataToString(_spocr.Version));
+                    _output.Write(fileNameWithPath, sourceText, isDryRun);
                 }
             }
         }

@@ -1,11 +1,19 @@
-using System;
-using McMaster.Extensions.CommandLineUtils;
+using System.Collections.Generic;
 using Newtonsoft.Json;
 using SpocR.Models;
 using SpocR.Serialization;
+using SpocR.Utils;
 
 namespace SpocR.Services
 {
+    public enum FileAction
+    {
+        Undefined,
+        Created,
+        Modified,
+        UpToDate
+    }
+
     public interface IReportService
     {
         void Output(string message);
@@ -13,52 +21,89 @@ namespace SpocR.Services
         void Warn(string message);
         void Verbose(string message);
 
+        void Green(string message);
         void Yellow(string message);
         void Red(string message);
         void Gray(string message);
 
         // Custom 
+        void PrintTitle(string title);
+        void PrintSubTitle(string title);
+        void PrintSummary(IEnumerable<string> summary);
+        void PrintTotal(string total);
         void PrintDryRunMessage();
         void PrintConfiguration(ConfigurationModel config);
+
+        void PrintFileActionMessage(string fileName, FileAction fileAction);
     }
 
     public class ReportService : IReportService
     {
-        private readonly IReporter _reporter;
+        private readonly string LineStar = new string('*', 50);
+        private readonly string LineMinus = new string('-', 50);
+        private readonly string LineUnderscore = new string('_', 50);
 
-        public ReportService(IReporter reporter)
+        private readonly IConsoleReporter _reporter;
+
+        public ReportService(IConsoleReporter reporter)
         {
             _reporter = reporter;
         }
 
         public void Output(string message)
-        {
-            _reporter.Output(message);
-        }
+            => _reporter.Output(message);
 
         public void Error(string message)
-        {
-            _reporter.Error($"ERROR: {message}");
-        }
+            => _reporter.Error($"ERROR: {message}");
 
         public void Warn(string message)
-        {
-            _reporter.Warn($"WARNING: {message}");
-        }
+            => _reporter.Warn($"WARNING: {message}");
+
+        public void Success(string message)
+            => _reporter.Success($"SUCCESS: {message}");
 
         public void Verbose(string message)
-        {
-            _reporter.Verbose($"VRB: {message}");
-        }
+            => _reporter.Verbose($"VRB: {message}");
 
         public void Note(string message)
-        {
-            _reporter.Warn($"NOTE: {message}");
+            => _reporter.Warn($"NOTE: {message}");
+
+        public void PrintTitle(string title) 
+        {            
+            Output("");
+            Output(LineStar);
+            Output(title);
+            Output(LineStar);
+        }
+
+        public void PrintSubTitle(string title) 
+        {            
+            Output("");
+            Output(title);
+            Output(LineUnderscore);
+        }
+
+        public void PrintSummary(IEnumerable<string> summary) 
+        {            
+            Green("");
+            Green(LineStar);
+            foreach(var message in summary) 
+            {
+                Green(message);
+            }
+        }
+
+        public void PrintTotal(string total) 
+        {            
+            Green(LineMinus);
+            Green(total);
+            Green("");
         }
 
         public void PrintDryRunMessage()
         {
-            Note("Run with \"dry run\" no changes were made");
+            Output("");
+            Note("Run with \"dry run\" means no changes were made");
         }
 
         public void PrintConfiguration(ConfigurationModel config)
@@ -74,19 +119,34 @@ namespace SpocR.Services
             Output("");
         }
 
+        public void Green(string message)
+            => _reporter.Success(message);
+
         public void Yellow(string message)
-        {
-            _reporter.Warn(message);
-        }
+            => _reporter.Warn(message);
 
         public void Red(string message)
-        {
-            _reporter.Error(message);
-        }
+            => _reporter.Error(message);
 
         public void Gray(string message)
+            => _reporter.Verbose(message);
+
+        public void PrintFileActionMessage(string fileName, FileAction fileAction)
         {
-            _reporter.Verbose(message);
+            switch (fileAction)
+            {
+                case FileAction.Created:
+                    this.Green($"{fileName} (created)");
+                    break;
+
+                case FileAction.Modified:
+                    this.Yellow($"{fileName} (modified)");
+                    break;
+
+                case FileAction.UpToDate:
+                    this.Gray($"{fileName} (up to date)");
+                    break;
+            }
         }
     }
 }
