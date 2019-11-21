@@ -1,5 +1,4 @@
-using System;
-using McMaster.Extensions.CommandLineUtils;
+using System.Collections.Generic;
 using Newtonsoft.Json;
 using SpocR.Models;
 using SpocR.Serialization;
@@ -7,8 +6,9 @@ using SpocR.Utils;
 
 namespace SpocR.Services
 {
-    public enum PrintFileAction
+    public enum FileAction
     {
+        Undefined,
         Created,
         Modified,
         UpToDate
@@ -27,14 +27,22 @@ namespace SpocR.Services
         void Gray(string message);
 
         // Custom 
+        void PrintTitle(string title);
+        void PrintSubTitle(string title);
+        void PrintSummary(IEnumerable<string> summary);
+        void PrintTotal(string total);
         void PrintDryRunMessage();
         void PrintConfiguration(ConfigurationModel config);
 
-        void PrintFileActionMessage(string fileName, PrintFileAction fileAction);
+        void PrintFileActionMessage(string fileName, FileAction fileAction);
     }
 
     public class ReportService : IReportService
     {
+        private readonly string LineStar = new string('*', 50);
+        private readonly string LineMinus = new string('-', 50);
+        private readonly string LineUnderscore = new string('_', 50);
+
         private readonly IConsoleReporter _reporter;
 
         public ReportService(IConsoleReporter reporter)
@@ -60,8 +68,43 @@ namespace SpocR.Services
         public void Note(string message)
             => _reporter.Warn($"NOTE: {message}");
 
+        public void PrintTitle(string title) 
+        {            
+            Output("");
+            Output(LineStar);
+            Output(title);
+            Output(LineStar);
+        }
+
+        public void PrintSubTitle(string title) 
+        {            
+            Output("");
+            Output(title);
+            Output(LineUnderscore);
+        }
+
+        public void PrintSummary(IEnumerable<string> summary) 
+        {            
+            Green("");
+            Green(LineStar);
+            foreach(var message in summary) 
+            {
+                Green(message);
+            }
+        }
+
+        public void PrintTotal(string total) 
+        {            
+            Green(LineMinus);
+            Green(total);
+            Green("");
+        }
+
         public void PrintDryRunMessage()
-            => Note("Run with \"dry run\" means no changes were made");
+        {
+            Output("");
+            Note("Run with \"dry run\" means no changes were made");
+        }
 
         public void PrintConfiguration(ConfigurationModel config)
         {
@@ -88,19 +131,19 @@ namespace SpocR.Services
         public void Gray(string message)
             => _reporter.Verbose(message);
 
-        public void PrintFileActionMessage(string fileName, PrintFileAction fileAction)
+        public void PrintFileActionMessage(string fileName, FileAction fileAction)
         {
             switch (fileAction)
             {
-                case PrintFileAction.Created:
+                case FileAction.Created:
                     this.Green($"{fileName} (created)");
                     break;
 
-                case PrintFileAction.Modified:
+                case FileAction.Modified:
                     this.Yellow($"{fileName} (modified)");
                     break;
 
-                case PrintFileAction.UpToDate:
+                case FileAction.UpToDate:
                     this.Gray($"{fileName} (up to date)");
                     break;
             }

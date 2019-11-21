@@ -209,23 +209,7 @@ namespace SpocR
                     var fileNameWithPath = Path.Combine(path, fileName);
                     var sourceText = GetParamsTextForStoredProcedure(schema, storedProcedure);
 
-                    if (ExistingFileMatches(fileNameWithPath, sourceText))
-                    {
-                        _reportService.PrintFileActionMessage(fileName, PrintFileAction.UpToDate);
-                        continue;
-                    }
-
-                    if (!File.Exists(fileNameWithPath))
-                    {
-                        _reportService.PrintFileActionMessage(fileName, PrintFileAction.Created);
-                    }
-                    else
-                    {
-                        _reportService.PrintFileActionMessage(fileName, PrintFileAction.Modified);
-                    }
-
-                    if (!isDryRun)
-                        File.WriteAllText(fileNameWithPath, sourceText.WithMetadataToString(_spocr.Version));
+                    _output.Write(fileNameWithPath, sourceText, isDryRun);
                 }
             }
         }
@@ -264,50 +248,10 @@ namespace SpocR
                     var fileNameWithPath = Path.Combine(path, fileName);
                     var sourceText = GetModelTextForStoredProcedure(schema, storedProcedure);
 
-                    if (ExistingFileMatches(fileNameWithPath, sourceText))
-                    {
-                        _reportService.PrintFileActionMessage(fileName, PrintFileAction.UpToDate);
-                        continue;
-                    }
-
-                    if (!File.Exists(fileNameWithPath))
-                    {
-                        _reportService.PrintFileActionMessage(fileName, PrintFileAction.Created);
-                    }
-                    else
-                    {
-                        _reportService.PrintFileActionMessage(fileName, PrintFileAction.Modified);
-                    }
-
-                    if (!isDryRun)
-                    {
-                        File.WriteAllText(fileNameWithPath, sourceText.WithMetadataToString(_spocr.Version));
-                    }
+                    _output.Write(fileNameWithPath, sourceText, isDryRun);
                 }
             }
         }
-
-        private bool ExistingFileMatches(string fileName, SourceText sourceText)
-        {
-            if (File.Exists(fileName))
-            {
-                var oldFileContent = File.ReadAllText(fileName);
-                var oldTree = CSharpSyntaxTree.ParseText(oldFileContent);
-                var oldRoot = oldTree.GetCompilationUnitRoot();
-                var oldNsNode = (NamespaceDeclarationSyntax)oldRoot.Members[0];
-
-                var newTree = CSharpSyntaxTree.ParseText(sourceText);
-                var newRoot = newTree.GetCompilationUnitRoot();
-                var newNsNode = (NamespaceDeclarationSyntax)newRoot.Members[0];
-
-                if (oldNsNode.GetText().ToString().Equals(newNsNode.GetText().ToString()))
-                {
-                    return true;
-                }
-            }
-            return false;
-        }
-
         public string GetIdentifierFromSqlInputParam(string name)
         {
             name = $"{name.Remove(0, 1).FirstCharToLower()}";
@@ -566,23 +510,7 @@ namespace SpocR
 
                     var sourceText = GetStoredProcedureText(schema, groupedStoredProcedures);
 
-                    if (ExistingFileMatches(fileNameWithPath, sourceText))
-                    {
-                        _reportService.PrintFileActionMessage(fileName, PrintFileAction.UpToDate);
-                        continue;
-                    }
-
-                    if (!File.Exists(fileNameWithPath))
-                    {
-                        _reportService.PrintFileActionMessage(fileName, PrintFileAction.Created);
-                    }
-                    else
-                    {
-                        _reportService.PrintFileActionMessage(fileName, PrintFileAction.Modified);
-                    }
-
-                    if (!isDryRun)
-                        File.WriteAllText(fileNameWithPath, sourceText.WithMetadataToString(_spocr.Version));
+                    _output.Write(fileNameWithPath, sourceText, isDryRun);
                 }
             }
         }
