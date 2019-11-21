@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.Text;
 using SpocR.Enums;
 using SpocR.Extensions;
 using SpocR.Managers;
@@ -68,38 +69,35 @@ namespace SpocR.Services
                 root = root.ReplaceNamespace(ns => ns.Replace("Source.", $"{nameSpace}."));
             }
 
-            // if (isDryRun)
-            //     return;
-
             var targetDir = Path.GetDirectoryName(targetFileName);
             if (!Directory.Exists(targetDir))
             {
                 Directory.CreateDirectory(targetDir);
             }
 
-            var sourceCode = root.GetText().ToString();
+            var sourceText = root.GetText();
 
+            Write(targetFileName, sourceText, isDryRun);
+        }
+
+        public void Write(string targetFileName, SourceText sourceText, bool isDryRun)
+        {
             var fileName = Path.GetFileName(targetFileName);
+            var fileAction = FileAction.Created;
+            var outputFileText = sourceText.ToString();
+
             if (File.Exists(targetFileName))
             {
-                var targetFileBytes = File.ReadAllBytes(targetFileName);
-                var encoding = Encoding.Default;
-                var sourceCodeBytes = encoding.GetBytes(sourceCode);
-                var hasFileChanges = byte.Equals(sourceCodeBytes, targetFileBytes);
+                var existingFileText = File.ReadAllText(targetFileName);
+                var upToDate = string.Equals(existingFileText, outputFileText);
 
-                if (!hasFileChanges)
-                {
-                    _reportService.Gray($"{fileName} (up to date)");
-                    return;
-                }
+                fileAction = upToDate ? FileAction.UpToDate : FileAction.Modified;
             }
 
-            _reportService.Yellow($"{fileName} (modified)");
+            if (!isDryRun && fileAction != FileAction.UpToDate)
+                File.WriteAllText(targetFileName, outputFileText);
 
-            if (!isDryRun)
-            {
-                File.WriteAllText(targetFileName, sourceCode);
-            }
+            _reportService.PrintFileActionMessage(fileName, fileAction);
         }
 
         public void RemoveGeneratedFiles(string pathToDelete, bool dryRun)
