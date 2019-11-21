@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Data.SqlClient;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using SpocR.DataContext.Models;
@@ -14,7 +13,7 @@ namespace SpocR.DataContext.Queries
             var parameters = new List<SqlParameter>
             {
             };
-            var queryString = "SELECT o.schema_id, o.name, o.object_id, o.modify_date FROM sys.objects AS o WHERE o.type = N'P' AND o.schema_id IN(@schemaList);".Replace("@schemaList", schemaList);
+            var queryString = "SELECT o.schema_id, o.name, o.object_id, o.modify_date FROM sys.objects AS o WHERE o.type = N'P' AND o.schema_id IN(@schemaList) ORDER BY o.name;".Replace("@schemaList", schemaList);
             return context.ListAsync<StoredProcedure>(queryString, parameters, cancellationToken);
         }
 

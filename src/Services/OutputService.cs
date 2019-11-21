@@ -82,6 +82,7 @@ namespace SpocR.Services
 
         public void Write(string targetFileName, SourceText sourceText, bool isDryRun)
         {
+            var folderName = new DirectoryInfo(Path.GetDirectoryName(targetFileName)).Name;
             var fileName = Path.GetFileName(targetFileName);
             var fileAction = FileAction.Created;
             var outputFileText = sourceText.ToString();
@@ -97,7 +98,7 @@ namespace SpocR.Services
             if (!isDryRun && fileAction != FileAction.UpToDate)
                 File.WriteAllText(targetFileName, outputFileText);
 
-            _reportService.PrintFileActionMessage(fileName, fileAction);
+            _reportService.PrintFileActionMessage($"{folderName}/{fileName}", fileAction);
         }
 
         public void RemoveGeneratedFiles(string pathToDelete, bool dryRun)

@@ -13,7 +13,7 @@ namespace SpocR.DataContext.Queries
             var parameters = new List<SqlParameter>
             {
             };
-            var queryString = "SELECT name, schema_id FROM sys.schemas WHERE principal_id = 1;";
+            var queryString = "SELECT name, schema_id FROM sys.schemas WHERE principal_id = 1 ORDER BY name;";
             return context.ListAsync<Schema>(queryString, parameters, cancellationToken);
         }
     }
