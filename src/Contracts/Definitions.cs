@@ -30,7 +30,8 @@ namespace SpocR.Contracts
         {
             Undefined,
             Single,
-            List
+            List,
+            Json
         }
 
         public static Schema ForSchema(SchemaModel schema)

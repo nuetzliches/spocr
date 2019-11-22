@@ -31,6 +31,7 @@ namespace SpocR.Models
         public IdentityModel Identity { get; set; } = new IdentityModel();
         public DataBaseModel DataBase { get; set; } = new DataBaseModel();
         public OutputModel Output { get; set; } = new OutputModel();
+        public IEnumerable<string> Sources { get; set; }
     }
 
     public class RoleModel

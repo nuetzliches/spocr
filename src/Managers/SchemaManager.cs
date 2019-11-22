@@ -3,24 +3,30 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using McMaster.Extensions.CommandLineUtils;
 using SpocR.DataContext.Queries;
 using SpocR.Models;
+using SpocR.Services;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace SpocR.Managers
 {
     public class SchemaManager : ManagerBase
     {
-        private readonly IReporter _reporter;
-        
-        public SchemaManager(IServiceProvider serviceProvider)
-            : base(serviceProvider)
-        {
-            _reporter = serviceProvider.GetService<IReporter>();
+        private readonly IReportService _reportService;
+        private readonly StoredProcedureManager _storedProcedureManager;
+
+        public SchemaManager(
+            IServiceProvider serviceProvider,
+            StoredProcedureManager storedProcedureManager,
+            IReportService reportService
+        ) : base(serviceProvider)
+        { 
+            // _reportService = serviceProvider.GetService<IReportService>();
+            _reportService = reportService;
+            _storedProcedureManager = storedProcedureManager;
         }
 
-        public async Task<List<SchemaModel>> ListAsync(bool withStoredProcedures, ConfigurationModel config, CancellationToken cancellationToken = default)
+        public async Task<List<SchemaModel>> ListAsync(ConfigurationModel config, bool withStoredProcedures = true, CancellationToken cancellationToken = default)
         {
             var dbSchemas = await DbContext.SchemaListAsync(cancellationToken);
             var schemas = dbSchemas?.Select(i => new SchemaModel(i)).ToList();
@@ -31,42 +37,25 @@ namespace SpocR.Managers
                 foreach (var schema in schemas)
                 {
                     var currentSchema = config.Schema.FirstOrDefault(i => i.Id == schema.Id);
+                    // TODO define a global and local Property "onNewSchemaFound" (IGNORE, BUILD, WARN, PROMPT) to set the default Status
                     schema.Status = currentSchema != null ? currentSchema.Status : SchemaStatusEnum.Build;
                 }
             }
 
             if (withStoredProcedures)
             {
-                var schemaListString = string.Join(',', schemas.Where(i => i.Status != SchemaStatusEnum.Ignore).Select(i => i.Id));
-                if (string.IsNullOrEmpty(schemaListString))
+                var schemasToPull = schemas.Where(i => i.Status != SchemaStatusEnum.Ignore).ToList();
+                if (!schemasToPull.Any())
                 {
-                    _reporter.Warn("No schemas found or all schemas ignored!");
+                    _reportService.Warn("No schemas found or all schemas ignored!");
                 }
                 else
                 {
-                    var storedProcedures = await DbContext.StoredProcedureListAsync(schemaListString, cancellationToken);
-                    
+                    var storedProcedures = await _storedProcedureManager.ListAsync(schemasToPull, config, cancellationToken);
+
                     foreach (var schema in schemas)
                     {
-                        schema.StoredProcedures = storedProcedures.Where(i => i.SchemaId.Equals(schema.Id)).Select(i => new StoredProcedureModel(i)).ToList();
-                        
-                        foreach (var storedProcedure in schema.StoredProcedures)
-                        {
-                            var inputs = await DbContext.StoredProcedureInputListAsync(storedProcedure.Id, cancellationToken);
-                            
-                            foreach (var input in inputs.Where(i => i.IsTableType).ToList())
-                            {
-                                input.TableTypeColumns = await DbContext.UserTableTypeColumnListAsync(input.UserTypeId ?? -1, cancellationToken);
-                            }
-                            
-                            storedProcedure.Input = inputs.Select(i => new StoredProcedureInputModel(i)).ToList();
-                        }
-                        
-                        foreach (var storedProcedure in schema.StoredProcedures)
-                        {
-                            var output = await DbContext.StoredProcedureOutputListAsync(storedProcedure.Id, cancellationToken);
-                            storedProcedure.Output = output.Select(i => new StoredProcedureOutputModel(i)).ToList();
-                        }
+                        schema.StoredProcedures = storedProcedures.Where(i => i.SchemaId.Equals(schema.Id)).ToList();
                     }
                 }
             }

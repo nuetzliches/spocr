@@ -22,11 +22,11 @@ namespace SpocR.Models
             set => _item.Name = value;
         }
 
-        // public DateTime Modified
-        // {
-        //     get => _item.Modified;
-        //     set => _item.Modified = value;
-        // }
+        public int SchemaId
+        {
+            get => _item.SchemaId;
+            set => _item.SchemaId = value;
+        }
 
         public IEnumerable<StoredProcedureInputModel> Input { get; set; }
         public IEnumerable<StoredProcedureOutputModel> Output { get; set; }

@@ -19,6 +19,7 @@ namespace SpocR.Extensions
             services.AddSingleton<SpocrService>();
             services.AddSingleton<OutputService>();
             services.AddSingleton<SchemaManager>();
+            services.AddSingleton<StoredProcedureManager>();
             services.AddSingleton<SpocrManager>();
             services.AddSingleton<SpocrConfigManager>();
             services.AddSingleton<FileManager<GlobalConfigurationModel>>(new FileManager<GlobalConfigurationModel>(globalConfigurationFileName));
