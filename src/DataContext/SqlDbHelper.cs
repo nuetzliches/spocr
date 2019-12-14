@@ -50,6 +50,8 @@ namespace SpocR.DataContext
                 case SqlDbType.DateTimeOffset:
                     return isNullable ? typeof(DateTimeOffset?) : typeof(DateTimeOffset);
 
+                case SqlDbType.Variant:
+                    return typeof(object);
                 default:
                     // https://docs.microsoft.com/en-us/dotnet/framework/data/adonet/sql-server-data-type-mappings
                     throw new ArgumentOutOfRangeException($"{nameof(SqlDbHelper)}.{nameof(GetType)} - SqlDbType {sqlType} not defined!");

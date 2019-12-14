@@ -39,6 +39,12 @@ namespace SpocR
 
         public TypeSyntax ParseTypeFromSqlDbTypeName(string sqlTypeName, bool isNullable)
         {
+            // temporary for #56: we shoulf not abort execution if config is corrupt
+            if (string.IsNullOrEmpty(sqlTypeName)) {
+                _reportService.PrintCorruptConfigMessage($"Could not parse 'SqlTypeName' - setting the type to dynamic");
+                sqlTypeName = "Variant";
+            }
+
             sqlTypeName = sqlTypeName.Split('(')[0];
             var sqlType = (SqlDbType)Enum.Parse(typeof(SqlDbType), sqlTypeName, true);
             var clrType = SqlDbHelper.GetType(sqlType, isNullable);

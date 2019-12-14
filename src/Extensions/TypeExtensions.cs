@@ -73,7 +73,7 @@ namespace SpocR.Extensions
                     return "decimal";
                 case "System.Nullable<decimal>":
                     return "decimal?";
-                 case "System.Double":
+                case "System.Double":
                     return "double";
                 case "System.Nullable<double>":
                     return "double?";
@@ -87,6 +87,8 @@ namespace SpocR.Extensions
                     return "Guid";
                 case "System.Nullable<Guid>":
                     return "Guid?";
+                case "System.Object":
+                    return "dynamic";
                 default:
                     throw new ArgumentOutOfRangeException($"{nameof(TypeExtensions)}.{nameof(ToSimplifiedName)} - System.Type {typeName} not defined!");
             }
