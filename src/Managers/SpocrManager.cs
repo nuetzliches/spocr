@@ -199,7 +199,7 @@ namespace SpocR.Managers
                 {
                     foreach (var schema in result)
                     {
-                        var currentSchema = configSchemas.FirstOrDefault(i => i.Id == schema.Id);
+                        var currentSchema = configSchemas.SingleOrDefault(i => i.Name == schema.Name);
                         schema.Status = currentSchema != null ? currentSchema.Status : SchemaStatusEnum.Build;
                     }
                 }

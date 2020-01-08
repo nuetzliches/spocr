@@ -13,25 +13,37 @@ namespace SpocR.DataContext.Queries
             var parameters = new List<SqlParameter>
             {
             };
-            var queryString = "SELECT o.schema_id, o.name, o.object_id, o.modify_date FROM sys.objects AS o WHERE o.type = N'P' AND o.schema_id IN(@schemaList) ORDER BY o.name;".Replace("@schemaList", schemaList);
+            var queryString = "SELECT s.name AS schema_name, o.name, o.modify_date FROM sys.objects AS o INNER JOIN sys.schemas AS s ON s.schema_id = o.schema_id WHERE o.type = N'P' AND s.name IN(@schemaList) ORDER BY o.name;".Replace("@schemaList", schemaList);
             return context.ListAsync<StoredProcedure>(queryString, parameters, cancellationToken);
         }
 
-        public static Task<List<StoredProcedureOutput>> StoredProcedureOutputListAsync(this DbContext context, int objectId, CancellationToken cancellationToken)
+        public static async Task<List<StoredProcedureOutput>> StoredProcedureOutputListAsync(this DbContext context, string schemaName, string name, CancellationToken cancellationToken)
         {
+            var storedProcedure = await context.ObjectAsync(schemaName, name, cancellationToken);
+            if(storedProcedure == null) {
+                return null;
+            }
+
             var parameters = new List<SqlParameter>
             {
-                new SqlParameter("@objectId", objectId)
+                new SqlParameter("@objectId", storedProcedure.Id)
             };
-            var queryString = "SELECT name, is_nullable, system_type_name, max_length, is_identity_column FROM sys.dm_exec_describe_first_result_set_for_object (@objectId, 0) ORDER BY column_ordinal;";
-            return context.ListAsync<StoredProcedureOutput>(queryString, parameters, cancellationToken);
+            var queryString = @"SELECT name, is_nullable, system_type_name, max_length, is_identity_column 
+                                FROM sys.dm_exec_describe_first_result_set_for_object (@objectId, 0) 
+                                ORDER BY column_ordinal;";
+            return await context.ListAsync<StoredProcedureOutput>(queryString, parameters, cancellationToken);
         }
 
-        public static Task<List<StoredProcedureInput>> StoredProcedureInputListAsync(this DbContext context, int objectId, CancellationToken cancellationToken)
+        public static async Task<List<StoredProcedureInput>> StoredProcedureInputListAsync(this DbContext context, string schemaName, string name, CancellationToken cancellationToken)
         {
+            var storedProcedure = await context.ObjectAsync(schemaName, name, cancellationToken);
+            if(storedProcedure == null) {
+                return null;
+            }
+
             var parameters = new List<SqlParameter>
             {
-                new SqlParameter("@objectId", objectId)
+                new SqlParameter("@objectId", storedProcedure.Id)
             };        
             // is_nullable kann beim Input nur über userdefined types definiert werden
             // var queryString = "SELECT p.name, p.is_nullable, t.name AS system_type_name, p.max_length, p.is_output FROM sys.parameters AS p INNER JOIN sys.types t on t.system_type_id = p.system_type_id AND t.user_type_id = p.system_type_id WHERE p.object_id = @objectId ORDER BY p.parameter_id;";
@@ -42,7 +54,22 @@ namespace SpocR.DataContext.Queries
                                 LEFT OUTER JOIN sys.types AS t1 ON t1.system_type_id = p.system_type_id AND t1.user_type_id = p.user_type_id
                                 LEFT OUTER JOIN sys.table_types AS tt ON tt.user_type_id = p.user_type_id
                                 WHERE p.object_id = @objectId ORDER BY p.parameter_id;";
-            return context.ListAsync<StoredProcedureInput>(queryString, parameters, cancellationToken);
+
+            return await context.ListAsync<StoredProcedureInput>(queryString, parameters, cancellationToken);
+        }
+
+        public static Task<Object> ObjectAsync(this DbContext context, string schemaName, string name, CancellationToken cancellationToken)
+        {
+            var parameters = new List<SqlParameter>
+            {
+                new SqlParameter("@schemaName", schemaName),
+                new SqlParameter("@name", name)
+            };
+            var queryString = @"SELECT o.object_id
+                                FROM sys.objects AS o
+                                INNER JOIN sys.schemas AS s ON s.schema_id = o.schema_id
+                                WHERE s.name = @schemaName AND o.name = @name;";
+            return context.SingleAsync<Object>(queryString, parameters, cancellationToken);
         }
     }
 }

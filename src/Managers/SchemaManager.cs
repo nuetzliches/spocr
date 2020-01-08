@@ -30,14 +30,16 @@ namespace SpocR.Managers
             {
                 foreach (var schema in schemas)
                 {
-                    var currentSchema = config.Schema.FirstOrDefault(i => i.Id == schema.Id);
+                    // ! Do not compare with Id. The Id is different for each SQL-Server Instance
+                    var currentSchema = config.Schema.SingleOrDefault(i => i.Name == schema.Name);
+                    // TODO define a global and local Property "onNewSchemaFound" (IGNORE, BUILD, WARN, PROMPT) to set the default Status
                     schema.Status = currentSchema != null ? currentSchema.Status : SchemaStatusEnum.Build;
                 }
             }
 
             if (withStoredProcedures)
             {
-                var schemaListString = string.Join(',', schemas.Where(i => i.Status != SchemaStatusEnum.Ignore).Select(i => i.Id));
+                var schemaListString = string.Join(',', schemas.Where(i => i.Status != SchemaStatusEnum.Ignore).Select(i => $"'{i.Name}'"));
                 if (string.IsNullOrEmpty(schemaListString))
                 {
                     _reporter.Warn("No schemas found or all schemas ignored!");
@@ -48,11 +50,11 @@ namespace SpocR.Managers
                     
                     foreach (var schema in schemas)
                     {
-                        schema.StoredProcedures = storedProcedures.Where(i => i.SchemaId.Equals(schema.Id)).Select(i => new StoredProcedureModel(i)).ToList();
+                        schema.StoredProcedures = storedProcedures.Where(i => i.SchemaName.Equals(schema.Name)).Select(i => new StoredProcedureModel(i)).ToList();
                         
                         foreach (var storedProcedure in schema.StoredProcedures)
                         {
-                            var inputs = await DbContext.StoredProcedureInputListAsync(storedProcedure.Id, cancellationToken);
+                            var inputs = await DbContext.StoredProcedureInputListAsync(storedProcedure.SchemaName, storedProcedure.Name, cancellationToken);
                             
                             foreach (var input in inputs.Where(i => i.IsTableType).ToList())
                             {
@@ -64,7 +66,7 @@ namespace SpocR.Managers
                         
                         foreach (var storedProcedure in schema.StoredProcedures)
                         {
-                            var output = await DbContext.StoredProcedureOutputListAsync(storedProcedure.Id, cancellationToken);
+                            var output = await DbContext.StoredProcedureOutputListAsync(storedProcedure.SchemaName, storedProcedure.Name, cancellationToken);
                             storedProcedure.Output = output.Select(i => new StoredProcedureOutputModel(i)).ToList();
                         }
                     }

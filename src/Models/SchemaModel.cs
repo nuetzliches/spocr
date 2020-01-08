@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
@@ -13,12 +12,6 @@ namespace SpocR.Models
         public SchemaModel(Schema item = null)
         {
             _item = item ?? new Schema();
-        }
-
-        public int Id
-        {
-            get => _item.Id;
-            set => _item.Id = value;
         }
 
         public string Name
