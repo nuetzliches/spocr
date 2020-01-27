@@ -39,6 +39,12 @@ namespace SpocR
 
         public TypeSyntax ParseTypeFromSqlDbTypeName(string sqlTypeName, bool isNullable)
         {
+            // temporary for #56: we shoulf not abort execution if config is corrupt
+            if (string.IsNullOrEmpty(sqlTypeName)) {
+                _reportService.PrintCorruptConfigMessage($"Could not parse 'SqlTypeName' - setting the type to dynamic");
+                sqlTypeName = "Variant";
+            }
+
             sqlTypeName = sqlTypeName.Split('(')[0];
             var sqlType = (SqlDbType)Enum.Parse(typeof(SqlDbType), sqlTypeName, true);
             var clrType = SqlDbHelper.GetType(sqlType, isNullable);
@@ -332,151 +338,167 @@ namespace SpocR
             {
                 nsNode = (NamespaceDeclarationSyntax)root.Members[0];
                 classNode = (ClassDeclarationSyntax)nsNode.Members[0];
-                var methodNode = (MethodDeclarationSyntax)classNode.Members[0];
+                
+                // Origin
+                var originMethodNode = (MethodDeclarationSyntax)classNode.Members[0];
+                originMethodNode = GenerateStoredProcedureMethodText(originMethodNode, storedProcedure);
+                root = root.AddMethod(classNode, originMethodNode);
 
-                // Replace MethodName
-                var methodIdentifier = SyntaxFactory.ParseToken($"{storedProcedure.Name}Async");
-                methodNode = methodNode.WithIdentifier(methodIdentifier);
+                nsNode = (NamespaceDeclarationSyntax)root.Members[0];
+                classNode = (ClassDeclarationSyntax)nsNode.Members[0];
 
-                var withUserId = _configFile.Config.Project.Identity.Kind == EIdentityKind.WithUserId;
-
-                if (withUserId && (storedProcedure.Input.Count() < 1 || storedProcedure.Input.First().Name != "@UserId"))
-                {
-                    // ? This is just to prevent follow-up issues, as long as the architecture handles SPs like this
-                    withUserId = false;
-
-                    _reporter.Warn(
-                        new StringBuilder()
-                        .Append("[WARNING]: ")
-                        .Append($"The StoredProcedure {storedProcedure.SqlObjectName} violates the requirement: ")
-                        .Append("First Parameter with Name '@UserId'")
-                        .Append(" (this can lead to unpredictable issues)")
-                        .ToString()
-                    );
-                    // throw new InvalidOperationException($"The StoredProcedure `{storedProcedure.Name}` requires a first Parameter with Name `@UserId`");
-                }
-
-                // Generate Method params
-                var parameters = storedProcedure.Input.Skip(withUserId ? 1 : 0).Select(input =>
-                {
-                    return SyntaxFactory.Parameter(SyntaxFactory.Identifier(GetIdentifierFromSqlInputParam(input.Name)))
-                        .WithType(
-                            input.IsTableType ?? false
-                            ? GetInputTypeForTableType(storedProcedure, input)
-                            : ParseTypeFromSqlDbTypeName(input.SqlTypeName, input.IsNullable ?? false)
-                        )
-                        .NormalizeWhitespace()
-                        .WithLeadingTrivia(SyntaxFactory.Space);
-                });
-                var parameterList = methodNode.ParameterList;
-                parameterList = parameterList.WithParameters(
-                    withUserId
-                    ? parameterList.Parameters.InsertRange(3, parameters).RemoveAt(2) // remove tableType
-                    : parameterList.Parameters.InsertRange(3, parameters).RemoveAt(1).RemoveAt(1) // remove userId and tableType
-                );
-                methodNode = methodNode.WithParameterList(parameterList);
-
-                // Get Method Body as Statements
-                var methodBody = methodNode.Body;
-                var statements = methodBody.Statements.ToList();
-
-                // Generate Sql-Parameters
-                var sqlParamSyntax = (LocalDeclarationStatementSyntax)statements.Single(i => i is LocalDeclarationStatementSyntax);
-                var sqlParamSyntaxIndex = statements.IndexOf(sqlParamSyntax);
-
-                var arguments = new List<SyntaxNodeOrToken>();
-                storedProcedure.Input.ToList().ForEach(i =>
-                {
-                    arguments.Add(SyntaxFactory.InvocationExpression(
-                        SyntaxFactory.MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
-                            SyntaxFactory.IdentifierName("AppDbContext"),
-                                SyntaxFactory.IdentifierName((i.IsTableType ?? false) ? "GetCollectionParameter" : "GetParameter")))
-                            .WithArgumentList(SyntaxFactory.ArgumentList(SyntaxFactory.SeparatedList<ArgumentSyntax>(
-                                new SyntaxNodeOrToken[]
-                                {
-                                    SyntaxFactory.Argument(SyntaxFactory.LiteralExpression(
-                                        SyntaxKind.StringLiteralExpression, SyntaxFactory.Literal(i.Name.Remove(0, 1)))),
-                                        SyntaxFactory.Token(SyntaxKind.CommaToken),
-                                        SyntaxFactory.Argument(SyntaxFactory.IdentifierName(GetIdentifierFromSqlInputParam(i.Name)))
-                                }))));
-                    arguments.Add(SyntaxFactory.Token(SyntaxKind.CommaToken));
-                });
-
-                statements[sqlParamSyntaxIndex] = SyntaxFactory.LocalDeclarationStatement(SyntaxFactory.VariableDeclaration(SyntaxFactory.IdentifierName("var"))
-                    .WithVariables(SyntaxFactory.SingletonSeparatedList(SyntaxFactory.VariableDeclarator(SyntaxFactory.Identifier("parameters"))
-                        .WithInitializer(SyntaxFactory.EqualsValueClause(
-                            SyntaxFactory.ObjectCreationExpression(
-                                SyntaxFactory.GenericName(
-                                    SyntaxFactory.Identifier("List"))
-                                        .WithTypeArgumentList(SyntaxFactory.TypeArgumentList(SyntaxFactory.SingletonSeparatedList<TypeSyntax>(SyntaxFactory.IdentifierName("SqlParameter")))))
-                                        .WithInitializer(SyntaxFactory.InitializerExpression(SyntaxKind.CollectionInitializerExpression,
-                                            SyntaxFactory.SeparatedList<ExpressionSyntax>(arguments))))))))
-                    .NormalizeWhitespace()
-                    .WithLeadingTrivia(SyntaxFactory.Tab, SyntaxFactory.Tab, SyntaxFactory.Tab)
-                    .WithTrailingTrivia(SyntaxFactory.CarriageReturn);
-
-                methodBody = methodBody.WithStatements(new SyntaxList<StatementSyntax>(statements.Skip(withUserId ? 1 : 2)));
-                methodNode = methodNode.WithBody(methodBody);
-
-                // Replace ReturnType and ReturnLine
-                var returnType = "Task<CrudResult>";
-                var returnExpression = $"context.ExecuteSingleAsync<CrudResult>(\"{storedProcedure.SqlObjectName}\", parameters, cancellationToken, transaction)";
-                var returnModel = "CrudResult";
-
-                // TODO: i.Output?.Count() -> Implement a Property "IsScalar" and "IsJson"
-                var isScalar = storedProcedure.Output?.Count() == 1;
-                if (isScalar)
-                {
-                    var output = storedProcedure.Output.FirstOrDefault();
-                    returnModel = ParseTypeFromSqlDbTypeName(output.SqlTypeName, output.IsNullable).ToString();
-
-                    returnType = $"Task<{returnModel}>";
-                    returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", $"ReadJsonAsync");
-                }
-                else
-                {
-                    switch (storedProcedure.OperationKind)
-                    {
-                        case Definition.OperationKindEnum.FindBy:
-                        case Definition.OperationKindEnum.List:
-                            returnModel = storedProcedure.Name;
-                            break;
-                    }
-
-                    switch (storedProcedure.ResultKind)
-                    {
-                        case Definition.ResultKindEnum.Single:
-                            returnType = $"Task<{returnModel}>";
-                            returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", $"ExecuteSingleAsync<{returnModel}>");
-                            break;
-                        case Definition.ResultKindEnum.List:
-                            returnType = $"Task<List<{returnModel}>>";
-                            returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", $"ExecuteListAsync<{returnModel}>");
-                            break;
-                    }
-                }
-
-                methodNode = methodNode.WithReturnType(SyntaxFactory.ParseTypeName(returnType).WithTrailingTrivia(SyntaxFactory.Space));
-
-                var returnStatementSyntax = statements.Single(i => i is ReturnStatementSyntax);
-                var returnStatementSyntaxIndex = statements.IndexOf(returnStatementSyntax);
-
-                statements[returnStatementSyntaxIndex] = SyntaxFactory.ReturnStatement(SyntaxFactory.ParseExpression(returnExpression).WithLeadingTrivia(SyntaxFactory.Space))
-                    .WithLeadingTrivia(SyntaxFactory.Tab, SyntaxFactory.Tab, SyntaxFactory.Tab)
-                    .WithTrailingTrivia(SyntaxFactory.CarriageReturn);
-
-                methodBody = methodBody.WithStatements(new SyntaxList<StatementSyntax>(statements));
-                methodNode = methodNode.WithBody(methodBody);
-
-                root = root.AddMethod(classNode, methodNode);
+                // Overloaded with IExecuteOptions
+                var overloadOptionsMethodNode = (MethodDeclarationSyntax)classNode.Members[1];
+                overloadOptionsMethodNode = GenerateStoredProcedureMethodText(overloadOptionsMethodNode, storedProcedure);
+                root = root.AddMethod(classNode, overloadOptionsMethodNode);
             }
 
             // Remove template Method
             nsNode = (NamespaceDeclarationSyntax)root.Members[0];
             classNode = (ClassDeclarationSyntax)nsNode.Members[0];
-            root = root.ReplaceNode(classNode, classNode.WithMembers(new SyntaxList<MemberDeclarationSyntax>(classNode.Members.Cast<MethodDeclarationSyntax>().Skip(1))));
+            root = root.ReplaceNode(classNode, classNode.WithMembers(new SyntaxList<MemberDeclarationSyntax>(classNode.Members.Cast<MethodDeclarationSyntax>().Skip(2))));
 
             return root.NormalizeWhitespace().GetText();
+        }
+
+        private MethodDeclarationSyntax GenerateStoredProcedureMethodText(MethodDeclarationSyntax methodNode, Definition.StoredProcedure storedProcedure)
+        {
+            // Replace MethodName
+            var methodIdentifier = SyntaxFactory.ParseToken($"{storedProcedure.Name}Async");
+            methodNode = methodNode.WithIdentifier(methodIdentifier);
+
+            var withUserId = _configFile.Config.Project.Identity.Kind == EIdentityKind.WithUserId;
+
+            if (withUserId && (storedProcedure.Input.Count() < 1 || storedProcedure.Input.First().Name != "@UserId"))
+            {
+                // ? This is just to prevent follow-up issues, as long as the architecture handles SPs like this
+                withUserId = false;
+
+                _reporter.Warn(
+                    new StringBuilder()
+                    .Append("[WARNING]: ")
+                    .Append($"The StoredProcedure {storedProcedure.SqlObjectName} violates the requirement: ")
+                    .Append("First Parameter with Name '@UserId'")
+                    .Append(" (this can lead to unpredictable issues)")
+                    .ToString()
+                );
+                // throw new InvalidOperationException($"The StoredProcedure `{storedProcedure.Name}` requires a first Parameter with Name `@UserId`");
+            }
+
+            // Generate Method params
+            var parameters = storedProcedure.Input.Skip(withUserId ? 1 : 0).Select(input =>
+            {
+                return SyntaxFactory.Parameter(SyntaxFactory.Identifier(GetIdentifierFromSqlInputParam(input.Name)))
+                    .WithType(
+                        input.IsTableType ?? false
+                        ? GetInputTypeForTableType(storedProcedure, input)
+                        : ParseTypeFromSqlDbTypeName(input.SqlTypeName, input.IsNullable ?? false)
+                    )
+                    .NormalizeWhitespace()
+                    .WithLeadingTrivia(SyntaxFactory.Space);
+            });
+            var parameterList = methodNode.ParameterList;
+            parameterList = parameterList.WithParameters(
+                withUserId
+                ? parameterList.Parameters.InsertRange(3, parameters).RemoveAt(2) // remove tableType
+                : parameterList.Parameters.InsertRange(3, parameters).RemoveAt(1).RemoveAt(1) // remove userId and tableType
+            );
+            methodNode = methodNode.WithParameterList(parameterList);
+
+            // Get Method Body as Statements
+            var methodBody = methodNode.Body;
+            var statements = methodBody.Statements.ToList();
+
+            // Generate Sql-Parameters
+            var sqlParamSyntax = (LocalDeclarationStatementSyntax)statements.Single(i => i is LocalDeclarationStatementSyntax);
+            var sqlParamSyntaxIndex = statements.IndexOf(sqlParamSyntax);
+
+            var arguments = new List<SyntaxNodeOrToken>();
+            storedProcedure.Input.ToList().ForEach(i =>
+            {
+                arguments.Add(SyntaxFactory.InvocationExpression(
+                    SyntaxFactory.MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
+                        SyntaxFactory.IdentifierName("AppDbContext"),
+                            SyntaxFactory.IdentifierName((i.IsTableType ?? false) ? "GetCollectionParameter" : "GetParameter")))
+                        .WithArgumentList(SyntaxFactory.ArgumentList(SyntaxFactory.SeparatedList<ArgumentSyntax>(
+                            new SyntaxNodeOrToken[]
+                            {
+                                SyntaxFactory.Argument(SyntaxFactory.LiteralExpression(
+                                    SyntaxKind.StringLiteralExpression, SyntaxFactory.Literal(i.Name.Remove(0, 1)))),
+                                    SyntaxFactory.Token(SyntaxKind.CommaToken),
+                                    SyntaxFactory.Argument(SyntaxFactory.IdentifierName(GetIdentifierFromSqlInputParam(i.Name)))
+                            }))));
+                arguments.Add(SyntaxFactory.Token(SyntaxKind.CommaToken));
+            });
+
+            statements[sqlParamSyntaxIndex] = SyntaxFactory.LocalDeclarationStatement(SyntaxFactory.VariableDeclaration(SyntaxFactory.IdentifierName("var"))
+                .WithVariables(SyntaxFactory.SingletonSeparatedList(SyntaxFactory.VariableDeclarator(SyntaxFactory.Identifier("parameters"))
+                    .WithInitializer(SyntaxFactory.EqualsValueClause(
+                        SyntaxFactory.ObjectCreationExpression(
+                            SyntaxFactory.GenericName(
+                                SyntaxFactory.Identifier("List"))
+                                    .WithTypeArgumentList(SyntaxFactory.TypeArgumentList(SyntaxFactory.SingletonSeparatedList<TypeSyntax>(SyntaxFactory.IdentifierName("SqlParameter")))))
+                                    .WithInitializer(SyntaxFactory.InitializerExpression(SyntaxKind.CollectionInitializerExpression,
+                                        SyntaxFactory.SeparatedList<ExpressionSyntax>(arguments))))))))
+                .NormalizeWhitespace()
+                .WithLeadingTrivia(SyntaxFactory.Tab, SyntaxFactory.Tab, SyntaxFactory.Tab)
+                .WithTrailingTrivia(SyntaxFactory.CarriageReturn);
+
+            methodBody = methodBody.WithStatements(new SyntaxList<StatementSyntax>(statements.Skip(withUserId ? 1 : 2)));
+            methodNode = methodNode.WithBody(methodBody);
+
+            // Replace ReturnType and ReturnLine
+            var returnType = "Task<CrudResult>";
+            //var returnExpression = $"context.ExecuteSingleAsync<CrudResult>(\"{storedProcedure.SqlObjectName}\", parameters, cancellationToken, transaction)";
+            var returnExpression = (statements.Last() as ReturnStatementSyntax).Expression.GetText().ToString().Replace("schema.CrudAction", storedProcedure.SqlObjectName);
+            var returnModel = "CrudResult";
+
+            // TODO: i.Output?.Count() -> Implement a Property "IsScalar" and "IsJson"
+            var isScalar = storedProcedure.Output?.Count() == 1;
+            if (isScalar)
+            {
+                var output = storedProcedure.Output.FirstOrDefault();
+                returnModel = ParseTypeFromSqlDbTypeName(output.SqlTypeName, output.IsNullable).ToString();
+
+                returnType = $"Task<{returnModel}>";
+                returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", $"ReadJsonAsync");
+            }
+            else
+            {
+                switch (storedProcedure.OperationKind)
+                {
+                    case Definition.OperationKindEnum.FindBy:
+                    case Definition.OperationKindEnum.List:
+                        returnModel = storedProcedure.Name;
+                        break;
+                }
+
+                switch (storedProcedure.ResultKind)
+                {
+                    case Definition.ResultKindEnum.Single:
+                        returnType = $"Task<{returnModel}>";
+                        returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", $"ExecuteSingleAsync<{returnModel}>");
+                        break;
+                    case Definition.ResultKindEnum.List:
+                        returnType = $"Task<List<{returnModel}>>";
+                        returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", $"ExecuteListAsync<{returnModel}>");
+                        break;
+                }
+            }
+
+            methodNode = methodNode.WithReturnType(SyntaxFactory.ParseTypeName(returnType).WithTrailingTrivia(SyntaxFactory.Space));
+
+            var returnStatementSyntax = statements.Single(i => i is ReturnStatementSyntax);
+            var returnStatementSyntaxIndex = statements.IndexOf(returnStatementSyntax);
+
+            statements[returnStatementSyntaxIndex] = SyntaxFactory.ReturnStatement(SyntaxFactory.ParseExpression(returnExpression).WithLeadingTrivia(SyntaxFactory.Space))
+                .WithLeadingTrivia(SyntaxFactory.Tab, SyntaxFactory.Tab, SyntaxFactory.Tab)
+                .WithTrailingTrivia(SyntaxFactory.CarriageReturn);
+
+            methodBody = methodBody.WithStatements(new SyntaxList<StatementSyntax>(statements));
+            methodNode = methodNode.WithBody(methodBody);
+
+            return methodNode;
         }
 
         public void GenerateDataContextStoredProcedures(bool isDryRun)

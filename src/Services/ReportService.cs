@@ -35,6 +35,7 @@ namespace SpocR.Services
         void PrintConfiguration(ConfigurationModel config);
 
         void PrintFileActionMessage(string fileName, FileAction fileAction);
+        void PrintCorruptConfigMessage(string message);
     }
 
     public class ReportService : IReportService
@@ -147,6 +148,11 @@ namespace SpocR.Services
                     this.Gray($"{fileName} (up to date)");
                     break;
             }
+        }
+
+        public void PrintCorruptConfigMessage(string message)
+        {
+            this.Warn($"Looks like your spocr.json config file is corrupt: {message}");
         }
     }
 }
