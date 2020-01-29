@@ -6,23 +6,20 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
+using SpocR.Services;
 
 namespace SpocR.DataContext
 {
     public class DbContext : IDisposable
     {
+        private readonly IReportService _reportService;
         private SqlConnection _connection;
 
         private List<AppSqlTransaction> _transactions;
 
-        public DbContext(string connectionString = null)
+        public DbContext(IReportService reportService)
         {
-            SetConnectionString(connectionString);
-        }
-
-        public DbContext(SqlConnection connection)
-        {
-            _connection = connection;
+            _reportService = reportService;
         }
 
         public void SetConnectionString(string connectionString)
@@ -35,7 +32,7 @@ namespace SpocR.DataContext
         {
             if (_connection?.State == ConnectionState.Open)
             {
-                if (_transactions.Any()) 
+                if (_transactions.Any())
                     // We need a copy - Rollback will modify this List
                     _transactions.ToList().ForEach(RollbackTransaction);
                 _connection.Close();
@@ -49,25 +46,34 @@ namespace SpocR.DataContext
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            // NOTE: https://stackoverflow.com/questions/4439409/open-close-sqlconnection-or-keep-open/4439434#4439434
-            if (_connection.State != ConnectionState.Open) await _connection.OpenAsync(cancellationToken);
-
-            var command = new SqlCommand(procedureName, _connection)
-            {
-                CommandType = CommandType.StoredProcedure,
-                Transaction = transaction?.Transaction
-            };
-
-            if (parameters?.Any() ?? false) command.Parameters.AddRange(parameters.ToArray());
-
             var result = new List<T>();
 
-            using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+            try
             {
-                while (reader.Read()) result.Add(reader.ConvertToObject<T>());
-            }
+                // NOTE: https://stackoverflow.com/questions/4439409/open-close-sqlconnection-or-keep-open/4439434#4439434
+                if (_connection.State != ConnectionState.Open) await _connection.OpenAsync(cancellationToken);
 
-            if (!_transactions.Any()) _connection.Close();
+                var command = new SqlCommand(procedureName, _connection)
+                {
+                    CommandType = CommandType.StoredProcedure,
+                    Transaction = transaction?.Transaction
+                };
+
+                if (parameters?.Any() ?? false) command.Parameters.AddRange(parameters.ToArray());
+
+
+                using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+                {
+                    while (reader.Read()) result.Add(reader.ConvertToObject<T>());
+                }
+
+                if (!_transactions.Any()) _connection.Close();
+
+            }
+            catch (Exception e)
+            {
+                _reportService.Error(e.Message);
+            }
 
             return result;
         }
@@ -84,25 +90,34 @@ namespace SpocR.DataContext
             CancellationToken cancellationToken = default, AppSqlTransaction transaction = null) where T : class, new()
         {
             cancellationToken.ThrowIfCancellationRequested();
-
-            if (_connection.State != ConnectionState.Open) await _connection.OpenAsync(cancellationToken);
-
-            var command = new SqlCommand(queryString, _connection)
-            {
-                CommandType = CommandType.Text,
-                Transaction = transaction?.Transaction
-            };
-
-            if (parameters?.Any() ?? false) command.Parameters.AddRange(parameters.ToArray());
-
             var result = new List<T>();
 
-            using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+            try
             {
-                while (reader.Read()) result.Add(reader.ConvertToObject<T>());
-            }
+                if (_connection.State != ConnectionState.Open) await _connection.OpenAsync(cancellationToken);
 
-            if (!_transactions.Any()) _connection.Close();
+                var command = new SqlCommand(queryString, _connection)
+                {
+                    CommandType = CommandType.Text,
+                    Transaction = transaction?.Transaction
+                };
+
+                if (parameters?.Any() ?? false) command.Parameters.AddRange(parameters.ToArray());
+
+
+                using (var reader = await command.ExecuteReaderAsync(cancellationToken))
+                {
+                    while (reader.Read()) result.Add(reader.ConvertToObject<T>());
+                }
+
+                if (!_transactions.Any()) _connection.Close();
+
+            }
+            catch (Exception e)
+            {
+                _reportService.Error(e.Message);
+                return null;
+            }
 
             return result;
         }
@@ -186,10 +201,14 @@ namespace SpocR.DataContext
 
     public static class DbContextServiceCollectionExtensions
     {
-        public static IServiceCollection AddDbContext(this IServiceCollection services, string connectionString = null)
+        public static IServiceCollection AddDbContext(this IServiceCollection services)
         {
-            services.AddSingleton(new DbContext(connectionString));
-            return services;
+            using (var provider = services.BuildServiceProvider())
+            {
+                var reportService = provider.GetService<IReportService>();
+                services.AddSingleton(new DbContext(reportService));
+                return services;
+            }
         }
     }
 

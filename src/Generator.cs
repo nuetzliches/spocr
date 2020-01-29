@@ -4,7 +4,6 @@ using System.Data;
 using System.IO;
 using System.Linq;
 using System.Text;
-using McMaster.Extensions.CommandLineUtils;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -25,15 +24,13 @@ namespace SpocR
         private readonly FileManager<ConfigurationModel> _configFile;
         private readonly SpocrService _spocr;
         private readonly OutputService _output;
-        private readonly IReporter _reporter;
         private readonly IReportService _reportService;
 
-        public Generator(FileManager<ConfigurationModel> configFile, SpocrService spocr, OutputService output, IReporter reporter, IReportService reportService)
+        public Generator(FileManager<ConfigurationModel> configFile, SpocrService spocr, OutputService output, IReportService reportService)
         {
             _configFile = configFile;
             _spocr = spocr;
             _output = output;
-            _reporter = reporter;
             _reportService = reportService;
         }
 
@@ -374,9 +371,8 @@ namespace SpocR
                 // ? This is just to prevent follow-up issues, as long as the architecture handles SPs like this
                 withUserId = false;
 
-                _reporter.Warn(
+                _reportService.Warn(
                     new StringBuilder()
-                    .Append("[WARNING]: ")
                     .Append($"The StoredProcedure {storedProcedure.SqlObjectName} violates the requirement: ")
                     .Append("First Parameter with Name '@UserId'")
                     .Append(" (this can lead to unpredictable issues)")

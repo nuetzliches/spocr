@@ -19,7 +19,6 @@ namespace SpocR.Managers
         private readonly SpocrService _spocr;
         private readonly OutputService _output;
         private readonly Generator _engine;
-        private readonly IReporter _reporter;
         private readonly IReportService _reportService;
         private readonly SchemaManager _schemaManager;
         private readonly FileManager<GlobalConfigurationModel> _globalConfigFile;
@@ -31,7 +30,6 @@ namespace SpocR.Managers
             SpocrService spocr,
             OutputService output,
             Generator engine,
-            IReporter reporter,
             IReportService reportService,
             SchemaManager schemaManager,
             FileManager<GlobalConfigurationModel> globalConfigFile,
@@ -207,6 +205,11 @@ namespace SpocR.Managers
 
             }).Wait();
 
+            if (configSchemas == null)
+            {
+                return ExecuteResultEnum.Error;
+            }
+
             var pullSchemas = configSchemas.Where(x => x.Status == SchemaStatusEnum.Build);
             var ignoreSchemas = configSchemas.Where(x => x.Status == SchemaStatusEnum.Ignore);
 
@@ -249,7 +252,7 @@ namespace SpocR.Managers
         public ExecuteResultEnum Build(bool isDryRun)
         {
             _reportService.PrintTitle("Build DataContext from spocr.json");
-            
+
             if (!_configFile.Exists())
             {
                 _reportService.Error($"Config file not found: {Configuration.ConfigurationFile}");   // why do we use Configuration here?
@@ -308,7 +311,7 @@ namespace SpocR.Managers
             _reportService.PrintSummary(elapsed.Select(_ => $"{_.Key} generated in {_.Value} ms."));
             _reportService.PrintTotal($"Total elapsed time: {elapsed.Sum(_ => _.Value)} ms.");
 
-            if (isDryRun) 
+            if (isDryRun)
             {
                 _reportService.PrintDryRunMessage();
             }
