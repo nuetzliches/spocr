@@ -27,7 +27,7 @@ namespace Source.DataContext.Models
         }
         
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
-        public bool Succeeded => _succeeded ?? (_succeeded = ResultId == 1) ?? false;
+        public bool Succeeded => _succeeded ?? (_succeeded = ResultId > 0) ?? false;
 
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
         public bool Modified => _modified ?? (_modified = ResultId == -10) ?? false;
