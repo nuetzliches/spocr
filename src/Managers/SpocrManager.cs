@@ -81,61 +81,15 @@ namespace SpocR.Managers
             var roleKind = default(ERoleKind);
             Enum.TryParse(roleKindString, true, out roleKind);
 
-            var role = new RoleModel
-            {
-                Kind = roleKind,
-                LibNamespace = roleKind == ERoleKind.Extension
+            var libNamespace = roleKind == ERoleKind.Extension
                     ? Prompt.GetString("SpocR Lib Namespace:", "Nuts.DbContext")
-                    : null
-            };
+                    : null;
 
             var identityKindString = Prompt.GetString("SpocR Identity [WithUserId, None]:", "WithUserId");
             var identityKind = default(EIdentityKind);
             Enum.TryParse(identityKindString, true, out identityKind);
 
-            var identity = new IdentityModel
-            {
-                Kind = identityKind
-            };
-
-            var config = new ConfigurationModel
-            {
-                Version = _spocr.Version,
-                Modified = DateTime.Now,
-                Project = new ProjectModel
-                {
-                    Role = role,
-                    Identity = identity,
-                    DataBase = new DataBaseModel
-                    {
-                        // the default appsettings.json ConnectString Identifier
-                        // you can customize this one later on in the spocr.json
-                        RuntimeConnectionStringIdentifier = "DefaultConnection",
-                        ConnectionString = connectionString ?? ""
-                    },
-                    Output = new OutputModel
-                    {
-                        Namespace = appNamespace,
-                        DataContext = new DataContextModel
-                        {
-                            Path = "./DataContext",
-                            Models = new DataContextModelsModel
-                            {
-                                Path = "./Models",
-                            },
-                            Params = new DataContextParamsModel
-                            {
-                                Path = "./Params",
-                            },
-                            StoredProcedures = new DataContextStoredProceduresModel
-                            {
-                                Path = "./StoredProcedures",
-                            }
-                        }
-                    }
-                },
-                Schema = new List<SchemaModel>()
-            };
+            var config = _spocr.GetDefaultConfiguration(appNamespace, connectionString, roleKind, libNamespace, identityKind);
 
             if (isDryRun)
             {
@@ -294,6 +248,11 @@ namespace SpocR.Managers
             }
 
             stopwatch.Restart();
+            _reportService.PrintSubTitle("Generating Inputs");
+            _engine.GenerateDataContextInputs(isDryRun);
+            elapsed.Add("Inputs", stopwatch.ElapsedMilliseconds);
+
+            stopwatch.Restart();
             _reportService.PrintSubTitle("Generating Models");
             _engine.GenerateDataContextModels(isDryRun);
             elapsed.Add("Models", stopwatch.ElapsedMilliseconds);
@@ -349,5 +308,5 @@ namespace SpocR.Managers
 
             return ExecuteResultEnum.Succeeded;
         }
-    }
+    } 
 }

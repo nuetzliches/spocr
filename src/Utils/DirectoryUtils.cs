@@ -19,9 +19,10 @@ namespace SpocR.Utils
         {
 #if DEBUG
             return Directory.GetCurrentDirectory();
-#endif
+#else
             var codeBase = Path.GetDirectoryName(Assembly.GetExecutingAssembly().CodeBase);
             return Regex.Replace(codeBase, @"^(file\:\\)", string.Empty);
+#endif   
         }
 
         internal static string GetWorkingDirectory(params string[] paths)

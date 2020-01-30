@@ -24,7 +24,7 @@ namespace Source.DataContext.StoredProcedures.Schema
             return context.ExecuteSingleAsync<CrudResult>("schema.CrudAction", parameters, cancellationToken, transaction);
         }
 
-        public static Task<CrudResult> CrudActionAsync(this IAppDbContext context, int userId, IEnumerable<object> tableType, IExecuteOptions options, CancellationToken cancellationToken)
+        public static Task<CrudResult> CrudActionAsync(this IAppDbContext context, int userId, IEnumerable<object> tableType, CancellationToken cancellationToken, IExecuteOptions options)
         {
             if (context == null)
             {
@@ -36,7 +36,7 @@ namespace Source.DataContext.StoredProcedures.Schema
                 AppDbContext.GetParameter("UserId", userId),
                 AppDbContext.GetCollectionParameter("TableType", tableType)
             };
-            return context.ExecuteSingleAsync<CrudResult>("schema.CrudAction", parameters, options, cancellationToken);
+            return context.ExecuteSingleAsync<CrudResult>("schema.CrudAction", parameters, cancellationToken, options);
         }
     }
 }

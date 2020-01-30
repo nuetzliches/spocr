@@ -8,7 +8,6 @@ using SpocR.DataContext;
 using SpocR.Enums;
 using SpocR.Models;
 using SpocR.Services;
-using SpocR.Utils;
 
 namespace SpocR.Managers
 {
@@ -21,7 +20,6 @@ namespace SpocR.Managers
         private readonly IReportService _reportService;
         private readonly SchemaManager _schemaManager;
         private readonly FileManager<GlobalConfigurationModel> _globalConfigFile;
-        private readonly FileManager<ConfigurationModel> _configFile;
         private readonly DbContext _dbContext;
 
         public SpocrConfigManager(

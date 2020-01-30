@@ -1,4 +1,3 @@
-using System;
 using SpocR.DataContext.Models;
 
 namespace SpocR.Models
@@ -16,25 +15,23 @@ namespace SpocR.Models
             get => _item.Name;
             set => _item.Name = value;
         }
-        public bool IsNullable
+
+        public bool? IsNullable
         {
-            get => _item.IsNullable;
-            set => _item.IsNullable = value;
+            get => _item.IsNullable ? (bool?)true : null;
+            set => _item.IsNullable = value == true ? true : false;
         }
+
         public string SqlTypeName
         {
             get => _item.SqlTypeName;
             set => _item.SqlTypeName = value;
         }
+
         public int MaxLength
         {
             get => _item.MaxLength;
             set => _item.MaxLength = value;
         }
-        // public bool IsIdentityColumn
-        // {
-        //     get => _item.IsIdentityColumn;
-        //     set => _item.IsIdentityColumn = value;
-        // }
     }
 }

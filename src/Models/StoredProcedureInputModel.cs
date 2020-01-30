@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using SpocR.DataContext.Models;
@@ -56,11 +55,13 @@ namespace SpocR.Models
             get => _item.Name;
             set => _item.Name = value;
         }
+
         public bool? IsNullable
         {
             get => _item.IsNullable ? (bool?)true : null;
             set => _item.IsNullable = value == true ? true : false;
         }
+        
         public string SqlTypeName
         {
             get => _item.SqlTypeName;

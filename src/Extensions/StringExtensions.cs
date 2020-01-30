@@ -8,5 +8,10 @@ namespace SpocR.Extensions
         {
             return $"{input[0].ToString().ToLowerInvariant()}{input.Remove(0, 1)}";
         }
+
+        internal static string FirstCharToUpper(this string input)
+        {
+            return $"{input[0].ToString().ToUpperInvariant()}{input.Remove(0, 1)}";
+        }
     }
 }
