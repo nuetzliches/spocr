@@ -63,19 +63,27 @@ namespace SpocR.Models
     public class DataContextModel : IDirectoryModel
     {
         public string Path { get; set; }
+        public DataContextInputsModel Inputs { get; set; }
         public DataContextModelsModel Models { get; set; }
         public DataContextParamsModel Params { get; set; }
         public DataContextStoredProceduresModel StoredProcedures { get; set; }
+    }
+
+    public class DataContextInputsModel : IDirectoryModel
+    {
+        public string Path { get; set; }
     }
 
     public class DataContextModelsModel : IDirectoryModel
     {
         public string Path { get; set; }
     }
+
     public class DataContextParamsModel : IDirectoryModel
     {
         public string Path { get; set; }
     }
+
     public class DataContextStoredProceduresModel : IDirectoryModel
     {
         public string Path { get; set; }
@@ -85,18 +93,4 @@ namespace SpocR.Models
     {
         string Path { get; set; }
     }
-
-
-    // "DataContext": {
-    //     "Path": "./DataContext",
-    //     "Models": {
-    //       "Path": "./Models"
-    //     },
-    //     "Params": {
-    //       "Path": "./Params"
-    //     },
-    //     "StoredProcedures": {
-    //       "Path": "./StoredProcedures"
-    //     }
-    //   }
 }

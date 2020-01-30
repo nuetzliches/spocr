@@ -17,10 +17,9 @@ namespace SpocR.Managers
         private readonly SpocrService _spocr;
         private readonly OutputService _output;
         private readonly Generator _engine;
-        private readonly IReporter _reporter;
+        private readonly IReportService _reportService;
         private readonly SchemaManager _schemaManager;
         private readonly FileManager<GlobalConfigurationModel> _globalConfigFile;
-        private readonly FileManager<ConfigurationModel> _configFile;
         private readonly DbContext _dbContext;
 
         public SpocrConfigManager(
@@ -28,7 +27,7 @@ namespace SpocR.Managers
             SpocrService spocr, 
             OutputService output, 
             Generator engine, 
-            IReporter reporter,
+            IReportService reportService,
             SchemaManager schemaManager, 
             FileManager<GlobalConfigurationModel> globalConfigFile, 
             FileManager<ConfigurationModel> configFile, 
@@ -38,7 +37,7 @@ namespace SpocR.Managers
             _spocr = spocr;
             _output = output;
             _engine = engine;
-            _reporter = reporter;
+            _reportService = reportService;
             _schemaManager = schemaManager;
             _globalConfigFile = globalConfigFile;
             _dbContext = dbContext;
@@ -48,7 +47,7 @@ namespace SpocR.Managers
         {
             if (!_globalConfigFile.Exists())
             {
-                _reporter.Error($"Global config is missing!");
+                _reportService.Error($"Global config is missing!");
             } 
 
             var config = _globalConfigFile.Read();
@@ -57,7 +56,7 @@ namespace SpocR.Managers
                                     .GetProperties(BindingFlags.Public | BindingFlags.Instance)
                                     .Where(prop => !(prop.GetCustomAttribute<WriteProtectedBySystem>()?.IsProtected ?? false));
 
-            _reporter.Warn("Please enter your Configuration:");
+            _reportService.Warn("Please enter your Configuration:");
             
             foreach(var prop in propertyInfos) 
             {
