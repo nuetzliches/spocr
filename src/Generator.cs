@@ -80,7 +80,7 @@ namespace SpocR
                     ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.Params.{schema.Name}"))
                     : SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.DataContext.Params.{schema.Name}"));
                 root = root.AddUsings(paramUsingDirective);
-            }         
+            }
 
             // Replace Namespace
             if (_configFile.Config.Project.Role.Kind == ERoleKind.Lib)
@@ -410,8 +410,8 @@ namespace SpocR
                         : SyntaxFactory.ParseName($"{usingDirective.Name.ToString().Replace("Source", _configFile.Config.Project.Output.Namespace)}");
                     root = root.ReplaceNode(usingDirective, usingDirective.WithName(newUsingName));
                 }
-            } 
-            else 
+            }
+            else
             {
                 // Remove Template Using
                 var usings = root.Usings.Where(_ => !_.Name.ToString().StartsWith("Source.") && !_.Name.ToString().StartsWith("Source.DataContext."));
@@ -508,7 +508,7 @@ namespace SpocR
 
             var withUserId = _configFile.Config.Project.Identity.Kind == EIdentityKind.WithUserId;
             var userIdExists = storedProcedure.Input.Any() && storedProcedure.Input.First().Name == "@UserId";
-            
+
             if (withUserId && !userIdExists)
             {
                 // ? This is just to prevent follow-up issues, as long as the architecture handles SPs like this
@@ -527,9 +527,7 @@ namespace SpocR
             // Generate Method params
             var parameters = useInputModel
                                     ? new[] { SyntaxFactory.Parameter(SyntaxFactory.Identifier("model"))
-                                                .WithType(SyntaxFactory.ParseTypeName($"{storedProcedure.Name}Input"))
-                                                .NormalizeWhitespace()
-                                                .WithLeadingTrivia(SyntaxFactory.Space) }
+                                                .WithType(SyntaxFactory.ParseTypeName($"{storedProcedure.Name}Input"))  }
                                     : storedProcedure.Input.Skip(withUserId && userIdExists ? 1 : 0).Select(input =>
                                         {
                                             return SyntaxFactory.Parameter(SyntaxFactory.Identifier(GetIdentifierFromSqlInputParam(input.Name)))
@@ -537,9 +535,7 @@ namespace SpocR
                                                     input.IsTableType ?? false
                                                     ? GetInputTypeForTableType(storedProcedure, input)
                                                     : ParseTypeFromSqlDbTypeName(input.SqlTypeName, input.IsNullable ?? false)
-                                                )
-                                                .NormalizeWhitespace()
-                                                .WithLeadingTrivia(SyntaxFactory.Space);
+                                                );
                                         });
 
             var parameterList = methodNode.ParameterList;
@@ -559,8 +555,11 @@ namespace SpocR
             var sqlParamSyntaxIndex = statements.IndexOf(sqlParamSyntax);
 
             var arguments = new List<SyntaxNodeOrToken>();
-            storedProcedure.Input.ToList().ForEach(i =>
+            var inputs = storedProcedure.Input.ToList();
+            var lastInput = inputs.Last();
+            inputs.ForEach(i =>
             {
+                var isLastItem = i == lastInput;
                 arguments.Add(SyntaxFactory.InvocationExpression(
                     SyntaxFactory.MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
                         SyntaxFactory.IdentifierName("AppDbContext"),
@@ -578,7 +577,10 @@ namespace SpocR
                                         : GetIdentifierFromSqlInputParam(i.Name)
                                         ))
                             }))));
-                arguments.Add(SyntaxFactory.Token(SyntaxKind.CommaToken));
+                if (!isLastItem)
+                {
+                    arguments.Add(SyntaxFactory.Token(SyntaxKind.CommaToken));
+                }
             });
 
             statements[sqlParamSyntaxIndex] = SyntaxFactory.LocalDeclarationStatement(SyntaxFactory.VariableDeclaration(SyntaxFactory.IdentifierName("var"))
@@ -589,10 +591,7 @@ namespace SpocR
                                 SyntaxFactory.Identifier("List"))
                                     .WithTypeArgumentList(SyntaxFactory.TypeArgumentList(SyntaxFactory.SingletonSeparatedList<TypeSyntax>(SyntaxFactory.IdentifierName("SqlParameter")))))
                                     .WithInitializer(SyntaxFactory.InitializerExpression(SyntaxKind.CollectionInitializerExpression,
-                                        SyntaxFactory.SeparatedList<ExpressionSyntax>(arguments))))))))
-                .NormalizeWhitespace()
-                .WithLeadingTrivia(SyntaxFactory.Tab, SyntaxFactory.Tab, SyntaxFactory.Tab)
-                .WithTrailingTrivia(SyntaxFactory.CarriageReturn);
+                                        SyntaxFactory.SeparatedList<ExpressionSyntax>(arguments))))))));
 
             methodBody = methodBody.WithStatements(new SyntaxList<StatementSyntax>(statements.Skip(withUserId && !useInputModel ? 1 : 2)));
             methodNode = methodNode.WithBody(methodBody);
@@ -648,7 +647,7 @@ namespace SpocR
             methodBody = methodBody.WithStatements(new SyntaxList<StatementSyntax>(statements));
             methodNode = methodNode.WithBody(methodBody);
 
-            return methodNode;
+            return methodNode.NormalizeWhitespace();
         }
 
         public void GenerateDataContextStoredProcedures(bool isDryRun)
