@@ -399,14 +399,23 @@ namespace SpocR
             var tree = CSharpSyntaxTree.ParseText(fileContent);
             var root = tree.GetCompilationUnitRoot();
 
-            // Replace Usings
-            for (var i = 0; i < root.Usings.Count; i++)
+            // Replace Using for common Models (e.g. CrudResult)
+            if (storedProcedures.Any(i => i.ReadWriteKind == Definition.ReadWriteKindEnum.Write))
             {
-                var usingDirective = root.Usings[i];
-                var newUsingName = _configFile.Config.Project.Role.Kind == ERoleKind.Lib
-                    ? SyntaxFactory.ParseName($"{usingDirective.Name.ToString().Replace("Source.DataContext", _configFile.Config.Project.Output.Namespace)}")
-                    : SyntaxFactory.ParseName($"{usingDirective.Name.ToString().Replace("Source", _configFile.Config.Project.Output.Namespace)}");
-                root = root.ReplaceNode(usingDirective, usingDirective.WithName(newUsingName));
+                for (var i = 0; i < root.Usings.Count; i++)
+                {
+                    var usingDirective = root.Usings[i];
+                    var newUsingName = _configFile.Config.Project.Role.Kind == ERoleKind.Lib
+                        ? SyntaxFactory.ParseName($"{usingDirective.Name.ToString().Replace("Source.DataContext", _configFile.Config.Project.Output.Namespace)}")
+                        : SyntaxFactory.ParseName($"{usingDirective.Name.ToString().Replace("Source", _configFile.Config.Project.Output.Namespace)}");
+                    root = root.ReplaceNode(usingDirective, usingDirective.WithName(newUsingName));
+                }
+            } 
+            else 
+            {
+                // Remove Template Using
+                var usings = root.Usings.Where(_ => !_.Name.ToString().StartsWith("Source.") && !_.Name.ToString().StartsWith("Source.DataContext."));
+                root = root.WithUsings(new SyntaxList<UsingDirectiveSyntax>(usings));
             }
 
             // If its an extension, add usings for the lib
