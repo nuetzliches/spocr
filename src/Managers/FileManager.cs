@@ -11,21 +11,31 @@ namespace SpocR.Managers
     public class FileManager<TConfig> where TConfig : class
     {
         private readonly string _fileName;
+        private TConfig _defaultConfig;
+        public TConfig DefaultConfig
+        {
+            get => _defaultConfig;
+            set => _defaultConfig = value;
+        }
+
         private TConfig _config;
         private TConfig _overwritenWithConfig;
         public TConfig Config
         {
             get
             {
-                if(_config == null || _overwritenWithConfig != OverwriteWithConfig) 
+                if (_config == null || _overwritenWithConfig != OverwriteWithConfig)
                 {
-                    _config = Read();
-                    if(OverwriteWithConfig != null) 
+                    _config = DefaultConfig == null
+                        ? Read()
+                        : DefaultConfig.OverwriteWith<TConfig>(Read());
+
+                    if (OverwriteWithConfig != null)
                     {
                         _config = _config.OverwriteWith<TConfig>(OverwriteWithConfig);
                     }
                     _overwritenWithConfig = OverwriteWithConfig;
-                } 
+                }
                 return _config;
             }
             set => _config = value;
@@ -38,9 +48,10 @@ namespace SpocR.Managers
             set => _overwriteWithConfig = value;
         }
 
-        public FileManager(string fileName)
+        public FileManager(string fileName, TConfig defaultConfig = default)
         {
             _fileName = fileName;
+            _defaultConfig = defaultConfig;
         }
 
         public bool Exists()

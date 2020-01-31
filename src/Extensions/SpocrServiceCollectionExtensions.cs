@@ -17,13 +17,16 @@ namespace SpocR.Extensions
 #else
             var globalConfigurationFileName = Path.Combine(DirectoryUtils.GetApplicationRoot(), Configuration.GlobalConfigurationFile);
 #endif
-            services.AddSingleton<SpocrService>();
+
+            var spocrService = new SpocrService();
+
+            services.AddSingleton<SpocrService>(spocrService);
             services.AddSingleton<OutputService>();
             services.AddSingleton<SchemaManager>();
             services.AddSingleton<SpocrManager>();
             services.AddSingleton<SpocrConfigManager>();
             services.AddSingleton<FileManager<GlobalConfigurationModel>>(new FileManager<GlobalConfigurationModel>(globalConfigurationFileName));
-            services.AddSingleton<FileManager<ConfigurationModel>>(new FileManager<ConfigurationModel>(Configuration.ConfigurationFile));
+            services.AddSingleton<FileManager<ConfigurationModel>>(new FileManager<ConfigurationModel>(Configuration.ConfigurationFile, spocrService.GetDefaultConfiguration()));
             services.AddSingleton<Generator>();
             services.AddSingleton<IReportService>(new ReportService(new ColoredConsoleReporter(PhysicalConsole.Singleton, true, false)));
 
