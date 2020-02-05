@@ -24,7 +24,7 @@ namespace Source.DataContext.StoredProcedures.Schema
             return context.ExecuteSingleAsync<CrudResult>("schema.CrudAction", parameters, cancellationToken, transaction);
         }
 
-        public static Task<CrudResult> CrudActionAsync(this IAppDbContext context, int userId, IEnumerable<object> tableType, CancellationToken cancellationToken, IExecuteOptions options)
+        public static Task<CrudResult> CrudActionAsync(this IAppDbContext context, int userId, IEnumerable<object> tableType, CancellationToken cancellationToken, IExecuteOptions options = null)
         {
             if (context == null)
             {
