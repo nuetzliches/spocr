@@ -11,6 +11,7 @@ using SpocR.Enums;
 using SpocR.Extensions;
 using SpocR.Models;
 using SpocR.Services;
+using SpocR.Utils;
 
 namespace SpocR.Managers
 {
@@ -295,7 +296,10 @@ namespace SpocR.Managers
             _engine.GenerateDataContextStoredProcedures(isDryRun);
             elapsed.Add("StoredProcedures", stopwatch.ElapsedMilliseconds);
 
-            _reportService.PrintSummary(elapsed.Select(_ => $"{_.Key} generated in {_.Value} ms."));
+            var summary = elapsed.Select(_ => $"{_.Key} generated in {_.Value} ms.");
+            summary = summary.Prepend($"++++ SPOCR VERSION {_spocr.Version.ToVersionString()} ++++");
+
+            _reportService.PrintSummary(summary);
             _reportService.PrintTotal($"Total elapsed time: {elapsed.Sum(_ => _.Value)} ms.");
 
             if (isDryRun)
@@ -345,8 +349,8 @@ namespace SpocR.Managers
                 if (check.SpocRVersion.IsGreaterThan(check.ConfigVersion))
                 {
                     _reportService.Warn($"Your local SpocR Version {check.SpocRVersion.ToVersionString()} is greater than the spocr.json Version {check.ConfigVersion.ToVersionString()}");
-                    var answer = Prompt.GetString($"Do you want to continue? [Continue, Cancel]:", "Continue");
-                    if (answer != "Continue")
+                    var answer = SpocrPrompt.GetSelectionMultiline($"Do you want to continue?", new List<string> { "Continue", "Cancel" });
+                    if (answer.Value != "Continue")
                     {
                         return ExecuteResultEnum.Aborted;
                     }
@@ -354,8 +358,8 @@ namespace SpocR.Managers
                 else if (check.SpocRVersion.IsLessThan(check.ConfigVersion))
                 {
                     _reportService.Warn($"Your local SpocR Version {check.SpocRVersion.ToVersionString()} is lower than the spocr.json Version {check.ConfigVersion.ToVersionString()}");
-                    var answer = Prompt.GetString($"Do you want to continue? [Continue, Cancel, Update]:", "Continue");
-                    switch (answer)
+                    var answer = SpocrPrompt.GetSelectionMultiline($"Do you want to continue?", new List<string> { "Continue", "Cancel", $"Update SpocR to {_autoUpdaterService.GetLatestVersionAsync()}" });
+                    switch (answer.Value)
                     {
                         case "Update":
                             _autoUpdaterService.InstallUpdate();

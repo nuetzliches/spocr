@@ -165,6 +165,9 @@ namespace SpocR.Utils
                 keyInfo = Console.ReadKey(true);
             }
 
+            Console.WriteLine("");
+            Console.WriteLine("");
+
             return confirmed;
         }
 

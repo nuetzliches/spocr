@@ -1,11 +1,11 @@
 using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
-using McMaster.Extensions.CommandLineUtils;
 using SpocR.Extensions;
 using SpocR.Managers;
 using SpocR.Models;
 using SpocR.Services;
+using SpocR.Utils;
 
 namespace SpocR.AutoUpdater
 {
@@ -27,6 +27,10 @@ namespace SpocR.AutoUpdater
             _packageManager = packageManager;
             _globalConfigFile = globalConfigFile;
             _reportService = reportService;
+        }
+
+        public Task<Version> GetLatestVersionAsync() {
+            return this._packageManager.GetLatestVersionAsync();
         }
 
         // Parameter:
@@ -57,7 +61,8 @@ namespace SpocR.AutoUpdater
                 var exit = false;
 
                 _reportService.PrintImportantTitle($"A new SpocR version {latestVersion} is Available");
-                if (Prompt.GetYesNo("Do you want to update SpocR?", false))
+                var answer = SpocrPrompt.GetYesNo($"Do you want to update SpocR?", false);
+                if (answer)
                 {
                     InstallUpdate(false);
                     exit = true;
