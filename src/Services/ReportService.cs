@@ -28,6 +28,7 @@ namespace SpocR.Services
 
         // Custom 
         void PrintTitle(string title);
+        void PrintImportantTitle(string title);
         void PrintSubTitle(string title);
         void PrintSummary(IEnumerable<string> summary);
         void PrintTotal(string total);
@@ -75,6 +76,14 @@ namespace SpocR.Services
             Output(LineStar);
             Output(title);
             Output(LineStar);
+        }
+
+        public void PrintImportantTitle(string title) 
+        {            
+            Red("");
+            Red(LineStar);
+            Red(title);
+            Red(LineStar);
         }
 
         public void PrintSubTitle(string title) 
