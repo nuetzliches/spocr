@@ -5,18 +5,26 @@ using Newtonsoft.Json.Converters;
 using SpocR.Attributes;
 using SpocR.Converters;
 using SpocR.Enums;
+using SpocR.Interfaces;
 
 namespace SpocR.Models
 {
-    public class GlobalConfigurationModel
+    public class GlobalConfigurationModel : IVersioned
     {
         [JsonConverter(typeof(StringVersionConverter)), WriteProtectedBySystem]
         public Version Version { get; set; }
-    
         public string UserId { get; set; }
+        public GlobalAutoUpdateConfigurationModel AutoUpdate { get; set; } = new GlobalAutoUpdateConfigurationModel { Enabled = true, PauseInMinutes = 1440 };
     }
 
-    public class ConfigurationModel
+    public class GlobalAutoUpdateConfigurationModel
+    {
+        public bool Enabled { get; set; }
+        public int PauseInMinutes { get; set; }
+        public long NextCheckTicks { get; set; }
+    }
+
+    public class ConfigurationModel : IVersioned
     {
         [JsonConverter(typeof(StringVersionConverter))]
         public Version Version { get; set; }

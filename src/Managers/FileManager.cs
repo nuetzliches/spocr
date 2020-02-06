@@ -1,15 +1,17 @@
 using System;
-using System.Diagnostics;
 using System.IO;
 using Newtonsoft.Json;
 using SpocR.Extensions;
+using SpocR.Interfaces;
 using SpocR.Serialization;
+using SpocR.Services;
 using SpocR.Utils;
 
 namespace SpocR.Managers
 {
-    public class FileManager<TConfig> where TConfig : class
+    public class FileManager<TConfig> where TConfig : class, IVersioned
     {
+        private readonly SpocrService _spocr;
         private readonly string _fileName;
         private TConfig _defaultConfig;
         public TConfig DefaultConfig
@@ -48,10 +50,16 @@ namespace SpocR.Managers
             set => _overwriteWithConfig = value;
         }
 
-        public FileManager(string fileName, TConfig defaultConfig = default)
+        public FileManager(SpocrService spocr, string fileName, TConfig defaultConfig = default)
         {
+            _spocr = spocr;
             _fileName = fileName;
             _defaultConfig = defaultConfig;
+        }
+
+        public VersionCheckResult CheckVersion()
+        {
+            return new VersionCheckResult(_spocr.Version, Config.Version);
         }
 
         public bool Exists()
@@ -68,7 +76,11 @@ namespace SpocR.Managers
             }
             var fileName = DirectoryUtils.GetWorkingDirectory(_fileName);
             var content = File.ReadAllText(fileName);
-            return JsonConvert.DeserializeObject<TConfig>(content);
+            var config = JsonConvert.DeserializeObject<TConfig>(content);
+
+
+
+            return config;
         }
 
         public void Save(TConfig config)
@@ -78,6 +90,10 @@ namespace SpocR.Managers
                 NullValueHandling = NullValueHandling.Ignore,
                 ContractResolver = new SerializeContractResolver()
             };
+
+            // Overwrite with current SpocR-Version
+            config.Version = _spocr.Version;
+
             var json = JsonConvert.SerializeObject(config, Formatting.Indented, jsonSettings);
             var fileName = DirectoryUtils.GetWorkingDirectory(_fileName);
             Directory.CreateDirectory(Path.GetDirectoryName(fileName));
@@ -91,6 +107,20 @@ namespace SpocR.Managers
                 if (!dryRun)
                     File.Delete(_fileName);
             }
+        }
+    }
+
+    public class VersionCheckResult
+    {
+
+        public readonly Version SpocRVersion;
+        public readonly Version ConfigVersion;
+        public bool DoesMatch => SpocRVersion == ConfigVersion;
+
+        public VersionCheckResult(Version spocrVersion, Version configVersion)
+        {
+            SpocRVersion = spocrVersion;
+            ConfigVersion = configVersion;
         }
     }
 }

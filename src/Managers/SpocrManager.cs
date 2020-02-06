@@ -5,11 +5,13 @@ using System.IO;
 using System.Linq;
 using McMaster.Extensions.CommandLineUtils;
 using Microsoft.Extensions.Configuration;
+using SpocR.AutoUpdater;
 using SpocR.DataContext;
 using SpocR.Enums;
 using SpocR.Extensions;
 using SpocR.Models;
 using SpocR.Services;
+using SpocR.Utils;
 
 namespace SpocR.Managers
 {
@@ -25,6 +27,8 @@ namespace SpocR.Managers
         private readonly FileManager<ConfigurationModel> _configFile;
         private readonly DbContext _dbContext;
 
+        private AutoUpdaterService _autoUpdaterService;
+
         public SpocrManager(
             IConfiguration configuration,
             SpocrService spocr,
@@ -34,7 +38,8 @@ namespace SpocR.Managers
             SchemaManager schemaManager,
             FileManager<GlobalConfigurationModel> globalConfigFile,
             FileManager<ConfigurationModel> configFile,
-            DbContext dbContext
+            DbContext dbContext,
+            AutoUpdaterService autoUpdaterService
         )
         {
             _configuration = configuration;
@@ -46,6 +51,9 @@ namespace SpocR.Managers
             _globalConfigFile = globalConfigFile;
             _configFile = configFile;
             _dbContext = dbContext;
+            _autoUpdaterService = autoUpdaterService;
+
+            _autoUpdaterService.RunAsync().Wait();
         }
 
         public ExecuteResultEnum Create(bool isDryRun)
@@ -107,8 +115,6 @@ namespace SpocR.Managers
 
         public ExecuteResultEnum Pull(bool isDryRun)
         {
-            _reportService.PrintTitle("Pulling DB-Schema from Database");
-
             if (!_configFile.Exists())
             {
                 _reportService.Error($"File not found: {Configuration.ConfigurationFile}");
@@ -117,12 +123,23 @@ namespace SpocR.Managers
             }
 
             var userConfigFileName = Configuration.UserConfigurationFile.Replace("{userId}", _globalConfigFile.Config?.UserId);
-            var userConfigFile = new FileManager<ConfigurationModel>(userConfigFileName);
+            var userConfigFile = new FileManager<ConfigurationModel>(_spocr, userConfigFileName);
 
             if (userConfigFile.Exists())
             {
+                // TODO
+                // userConfigFile.OnVersionMismatch = (spocrVersion, configVersion) => {
+                //     _reportService.Warn($"Your installed SpocR Version {spocrVersion} does not match with spocr.json Version {configVersion}");
+                // };
+
                 var userConfig = userConfigFile.Read();
                 _configFile.OverwriteWithConfig = userConfig;
+            }
+
+            var checkResult = RunVersionCheck();
+            if (checkResult != ExecuteResultEnum.Succeeded)
+            {
+                return checkResult;
             }
 
             if (!string.IsNullOrWhiteSpace(_configFile.Config?.Project?.DataBase?.ConnectionString))
@@ -136,6 +153,8 @@ namespace SpocR.Managers
                 _reportService.Output($"\tPlease run {Configuration.Name} set --cs <ConnectionString>");
                 return ExecuteResultEnum.Error;
             }
+
+            _reportService.PrintTitle("Pulling DB-Schema from Database");
 
             var config = _configFile.Config;
             var configSchemas = config?.Schema?.ToList() ?? new List<SchemaModel>();
@@ -203,16 +222,26 @@ namespace SpocR.Managers
             return ExecuteResultEnum.Succeeded;
         }
 
-        public ExecuteResultEnum Build(bool isDryRun)
+        public ExecuteResultEnum Build(bool isDryRun, bool supressVersionCheck = false)
         {
-            _reportService.PrintTitle("Build DataContext from spocr.json");
-
             if (!_configFile.Exists())
             {
                 _reportService.Error($"Config file not found: {Configuration.ConfigurationFile}");   // why do we use Configuration here?
                 _reportService.Output($"\tPlease make sure you are in the right working directory");
                 return ExecuteResultEnum.Error;
             }
+
+            if (!supressVersionCheck)
+            {
+                var checkResult = RunVersionCheck();
+                if (checkResult != ExecuteResultEnum.Succeeded)
+                {
+                    return checkResult;
+                }
+            }
+
+
+            _reportService.PrintTitle("Build DataContext from spocr.json");
 
             var config = _configFile.Config;
             var project = config?.Project;
@@ -267,7 +296,10 @@ namespace SpocR.Managers
             _engine.GenerateDataContextStoredProcedures(isDryRun);
             elapsed.Add("StoredProcedures", stopwatch.ElapsedMilliseconds);
 
-            _reportService.PrintSummary(elapsed.Select(_ => $"{_.Key} generated in {_.Value} ms."));
+            var summary = elapsed.Select(_ => $"{_.Key} generated in {_.Value} ms.");
+            summary = summary.Prepend($"++++ SPOCR VERSION {_spocr.Version.ToVersionString()} ++++");
+
+            _reportService.PrintSummary(summary);
             _reportService.PrintTotal($"Total elapsed time: {elapsed.Sum(_ => _.Value)} ms.");
 
             if (isDryRun)
@@ -308,5 +340,40 @@ namespace SpocR.Managers
 
             return ExecuteResultEnum.Succeeded;
         }
-    } 
+
+        private ExecuteResultEnum RunVersionCheck()
+        {
+            var check = _configFile.CheckVersion();
+            if (!check.DoesMatch)
+            {
+                if (check.SpocRVersion.IsGreaterThan(check.ConfigVersion))
+                {
+                    _reportService.Warn($"Your local SpocR Version {check.SpocRVersion.ToVersionString()} is greater than the spocr.json Version {check.ConfigVersion.ToVersionString()}");
+                    var answer = SpocrPrompt.GetSelectionMultiline($"Do you want to continue?", new List<string> { "Continue", "Cancel" });
+                    if (answer.Value != "Continue")
+                    {
+                        return ExecuteResultEnum.Aborted;
+                    }
+                }
+                else if (check.SpocRVersion.IsLessThan(check.ConfigVersion))
+                {
+                    _reportService.Warn($"Your local SpocR Version {check.SpocRVersion.ToVersionString()} is lower than the spocr.json Version {check.ConfigVersion.ToVersionString()}");
+                    var answer = SpocrPrompt.GetSelectionMultiline($"Do you want to continue?", new List<string> { "Continue", "Cancel", $"Update SpocR to {_autoUpdaterService.GetLatestVersionAsync()}" });
+                    switch (answer.Value)
+                    {
+                        case "Update":
+                            _autoUpdaterService.InstallUpdate();
+                            break;
+                        case "Continue":
+                            // Do nothing
+                            break;
+                        default:
+                            return ExecuteResultEnum.Aborted;
+                    }
+                }
+            }
+
+            return ExecuteResultEnum.Succeeded;
+        }
+    }
 }

@@ -18,9 +18,9 @@ namespace SpocR.Commands
         public override int OnExecute()
         {
             base.OnExecute();
-            
+
             if (_spocrManager.Pull(DryRun) == ExecuteResultEnum.Succeeded
-                && _spocrManager.Build(DryRun) == ExecuteResultEnum.Succeeded)
+                && _spocrManager.Build(DryRun, true) == ExecuteResultEnum.Succeeded)
                 return (int)ExecuteResultEnum.Succeeded;
             else
                 return (int)ExecuteResultEnum.Error;
