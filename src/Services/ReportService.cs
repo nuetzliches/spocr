@@ -30,7 +30,7 @@ namespace SpocR.Services
         void PrintTitle(string title);
         void PrintImportantTitle(string title);
         void PrintSubTitle(string title);
-        void PrintSummary(IEnumerable<string> summary);
+        void PrintSummary(IEnumerable<string> summary, string headline);
         void PrintTotal(string total);
         void PrintDryRunMessage();
         void PrintConfiguration(ConfigurationModel config);
@@ -70,41 +70,49 @@ namespace SpocR.Services
         public void Note(string message)
             => _reporter.Warn($"NOTE: {message}");
 
-        public void PrintTitle(string title) 
-        {            
+        public void PrintTitle(string title)
+        {
             Output("");
             Output(LineStar);
             Output(title);
             Output(LineStar);
         }
 
-        public void PrintImportantTitle(string title) 
-        {            
+        public void PrintImportantTitle(string title)
+        {
             Red("");
             Red(LineStar);
             Red(title);
             Red(LineStar);
         }
 
-        public void PrintSubTitle(string title) 
-        {            
+        public void PrintSubTitle(string title)
+        {
             Output("");
             Output(title);
             Output(LineUnderscore);
         }
 
-        public void PrintSummary(IEnumerable<string> summary) 
-        {            
+        public void PrintSummary(IEnumerable<string> summary, string headline = null)
+        {
             Green("");
             Green(LineStar);
-            foreach(var message in summary) 
+            if (headline != null)
+            {
+                var linePartLength = (LineStar.Length - (headline.Length + 2)) / 2;
+                var linePartPlus = new string('+', linePartLength);
+                Green($"{linePartPlus} {headline} {linePartPlus}");
+                Green(LineStar);
+            }
+
+            foreach (var message in summary)
             {
                 Green(message);
             }
         }
 
-        public void PrintTotal(string total) 
-        {            
+        public void PrintTotal(string total)
+        {
             Green(LineMinus);
             Green(total);
             Green("");

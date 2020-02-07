@@ -4,6 +4,7 @@ using SpocR.Managers;
 using Microsoft.Extensions.DependencyInjection;
 using SpocR.Models;
 using System.Reflection;
+using Newtonsoft.Json;
 
 namespace SpocR.Extensions 
 {
@@ -16,11 +17,7 @@ namespace SpocR.Extensions
 
             if(!globalConfigFile.Exists()) 
             {
-                var config = new GlobalConfigurationModel {
-                    Version = version
-                };
-
-                globalConfigFile.Save(config);
+                globalConfigFile.Save(globalConfigFile.DefaultConfig);
             } 
             // else 
             // {
