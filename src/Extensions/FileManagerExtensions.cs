@@ -1,4 +1,3 @@
-using System.Linq;
 using System.Reflection;
 
 namespace SpocR.Extensions
@@ -7,6 +6,7 @@ namespace SpocR.Extensions
     {
         public static T OverwriteWith<T>(this T target, T source) where T : class
         {
+            if (source == null) return target;
             var t = typeof(T);
             var properties = t.GetProperties(BindingFlags.Public | BindingFlags.Instance);
             foreach (var prop in properties)

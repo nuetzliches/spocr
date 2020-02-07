@@ -297,9 +297,8 @@ namespace SpocR.Managers
             elapsed.Add("StoredProcedures", stopwatch.ElapsedMilliseconds);
 
             var summary = elapsed.Select(_ => $"{_.Key} generated in {_.Value} ms.");
-            summary = summary.Prepend($"++++ SPOCR VERSION {_spocr.Version.ToVersionString()} ++++");
 
-            _reportService.PrintSummary(summary);
+            _reportService.PrintSummary(summary, $"SpocR v{_spocr.Version.ToVersionString()}");
             _reportService.PrintTotal($"Total elapsed time: {elapsed.Sum(_ => _.Value)} ms.");
 
             if (isDryRun)

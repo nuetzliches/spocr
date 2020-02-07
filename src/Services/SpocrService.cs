@@ -14,6 +14,20 @@ namespace SpocR.Services
             Version = GetType().Assembly.GetName().Version;
         }
 
+        public GlobalConfigurationModel GetGlobalDefaultConfiguration()
+        {
+            return new GlobalConfigurationModel
+            {
+                Version = Version,
+                AutoUpdate = new GlobalAutoUpdateConfigurationModel
+                {
+                    Enabled = true,
+                    PauseInMinutes = 1440,
+                    NextCheckTicks = 0
+                }
+            };
+        }
+
         public ConfigurationModel GetDefaultConfiguration(string appNamespace = "", string connectionString = "", ERoleKind roleKind = default, string libNamespace = null, EIdentityKind identityKind = default)
         {
             var role = new RoleModel
