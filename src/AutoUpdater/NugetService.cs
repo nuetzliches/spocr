@@ -13,8 +13,6 @@ namespace SpocR.AutoUpdater
     public class NugetService : IPackageManager
     {
         private readonly string _url = "https://api-v2v3search-0.nuget.org/query?q=spocr&take=1";
-        private readonly int checkUpdateDelayMinutes = 60 * 24;
-
         public async Task<Version> GetLatestVersionAsync()
         {
             var latest = default(Version);

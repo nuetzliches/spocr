@@ -29,7 +29,8 @@ namespace SpocR.AutoUpdater
             _reportService = reportService;
         }
 
-        public Task<Version> GetLatestVersionAsync() {
+        public Task<Version> GetLatestVersionAsync()
+        {
             return this._packageManager.GetLatestVersionAsync();
         }
 
@@ -58,35 +59,34 @@ namespace SpocR.AutoUpdater
             var latestVersion = await this._packageManager.GetLatestVersionAsync();
             if (latestVersion.IsGreaterThan(_spocrService.Version))
             {
-                var exit = false;
-
-                _reportService.PrintImportantTitle($"A new SpocR version {latestVersion} is Available");
+                _reportService.PrintImportantTitle($"A new SpocR version {latestVersion} is available");
                 var answer = SpocrPrompt.GetYesNo($"Do you want to update SpocR?", false);
                 if (answer)
                 {
-                    InstallUpdate(false);
-                    exit = true;
+                    InstallUpdate();
                 }
-
+                
                 WriteNextCheckTicksToGlobalConfig();
-
-                if (exit)
-                {
-                    Environment.Exit(-1);
-                }
             }
         }
 
-        public void InstallUpdate(bool consoleExit = true)
+        public void InstallUpdate()
         {
             _reportService.Green("Updating SpocR. Please wait ...");
-            var installProcess = Process.Start("dotnet", "tool update spocr -g");
-            installProcess.WaitForExit();
 
-            if (consoleExit)
+            var process = new Process()
             {
-                Environment.Exit(-1);
-            }
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "dotnet",
+                    Arguments = $"tool update spocr -g",
+                    RedirectStandardOutput = true,
+                    CreateNoWindow = true,
+                    UseShellExecute = false
+                }
+            };
+            process.Start();
+            Environment.Exit(-1);
         }
 
         private void WriteNextCheckTicksToGlobalConfig()
