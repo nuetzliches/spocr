@@ -51,7 +51,7 @@ namespace SpocR
 
         public TypeSyntax GetTypeSyntaxForTableType(string storedProcedureName, string propertyName)
         {
-            return SyntaxFactory.ParseTypeName($"{storedProcedureName}{propertyName}");
+            return SyntaxFactory.ParseTypeName($"IEnumerable<{storedProcedureName}{propertyName}>");
         }
 
         public string GetInputTypeNameForTableType(Definition.StoredProcedure storedProcedure, StoredProcedureInputModel input)
