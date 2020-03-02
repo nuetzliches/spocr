@@ -1,7 +1,9 @@
 using Microsoft.SqlServer.Server;
 using System.Collections;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Data;
+using System.Linq;
 using System.Reflection;
 
 namespace Source.DataContext
@@ -24,9 +26,18 @@ namespace Source.DataContext
                     var propVal = property.GetValue(row);
                     var propName = property.Name;
                     var sqlType = AppDbContext.GetSqlDbType(property.PropertyType);
-                    if(sqlType == SqlDbType.NVarChar)
+                    
+                    if (sqlType == SqlDbType.NVarChar)
                     {
-                        metas.Add(new SqlMetaData(propName, sqlType, propVal?.ToString().Length ?? 0));
+                        var maxLengthAttribute = (MaxLengthAttribute)property.GetCustomAttributes(typeof(MaxLengthAttribute), false).FirstOrDefault();
+                        if (maxLengthAttribute != null)
+                        {
+                            metas.Add(new SqlMetaData(propName, sqlType, maxLengthAttribute?.Length ?? 0));
+                        }
+                        else
+                        {
+                            metas.Add(new SqlMetaData(propName, sqlType, SqlMetaData.Max));
+                        }
                     }
                     else if (sqlType == SqlDbType.Decimal)
                     {
