@@ -99,9 +99,10 @@ namespace SpocR
             // https://stackoverflow.com/questions/45160694/adding-new-field-declaration-to-class-with-roslyn
             var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
             var classNode = (ClassDeclarationSyntax)nsNode.Members[0];
-            var propertyNode = (PropertyDeclarationSyntax)classNode.Members[0];
             foreach (var item in storedProcedure.Input)
             {
+                var propertyNode = (PropertyDeclarationSyntax)classNode.Members[0];
+                
                 nsNode = (NamespaceDeclarationSyntax)root.Members[0];
                 classNode = (ClassDeclarationSyntax)nsNode.Members[0];
 
@@ -116,6 +117,18 @@ namespace SpocR
                 {
                     propertyNode = propertyNode
                         .WithType(ParseTypeFromSqlDbTypeName(item.SqlTypeName, item.IsNullable ?? false));
+
+                    // Add Attribute for NVARCHAR with MaxLength
+                    if (item.SqlTypeName.Equals(SqlDbType.NVarChar.ToString(), StringComparison.InvariantCultureIgnoreCase)
+                        && item.MaxLength.HasValue)
+                    {
+                        var attributes = propertyNode.AttributeLists.Add(
+                            SyntaxFactory.AttributeList(SyntaxFactory.SingletonSeparatedList<AttributeSyntax>(
+                                SyntaxFactory.Attribute(SyntaxFactory.IdentifierName("MaxLength"), SyntaxFactory.ParseAttributeArgumentList($"({item.MaxLength})"))
+                            )).NormalizeWhitespace());
+
+                        propertyNode = propertyNode.WithAttributeLists(attributes);
+                    }
                 }
 
                 propertyNode = propertyNode
@@ -237,6 +250,18 @@ namespace SpocR
 
                         propertyNode = propertyNode
                             .WithIdentifier(propertyIdentifier);
+
+                        // Add Attribute for NVARCHAR with MaxLength
+                        if (column.SqlTypeName.Equals(SqlDbType.NVarChar.ToString(), StringComparison.InvariantCultureIgnoreCase)
+                            && column.MaxLength.HasValue)
+                        {
+                            var attributes = propertyNode.AttributeLists.Add(
+                                SyntaxFactory.AttributeList(SyntaxFactory.SingletonSeparatedList<AttributeSyntax>(
+                                    SyntaxFactory.Attribute(SyntaxFactory.IdentifierName("MaxLength"), SyntaxFactory.ParseAttributeArgumentList($"({column.MaxLength})"))
+                                )).NormalizeWhitespace());
+
+                            propertyNode = propertyNode.WithAttributeLists(attributes);
+                        }
 
                         root = root.AddProperty(classNode, propertyNode);
                     }
