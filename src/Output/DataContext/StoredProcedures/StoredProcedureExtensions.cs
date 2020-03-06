@@ -9,11 +9,11 @@ namespace Source.DataContext.StoredProcedures.Schema
 {
     public static class StoredProcedureExtensions
     {
-        public static Task<CrudResult> CrudActionAsync(this IAppDbContext context, int userId, IEnumerable<object> tableType, CancellationToken cancellationToken, AppSqlTransaction transaction = null)
+        public static Task<CrudResult> CrudActionAsync(this IAppDbContext dbContext, int userId, IEnumerable<object> tableType, CancellationToken cancellationToken, AppSqlTransaction transaction = null)
         {
-            if (context == null)
+            if (dbContext == null)
             {
-                throw new ArgumentNullException(nameof(context));
+                throw new ArgumentNullException(nameof(dbContext));
             }
 
             var parameters = new List<SqlParameter>
@@ -21,14 +21,14 @@ namespace Source.DataContext.StoredProcedures.Schema
                 AppDbContext.GetParameter("UserId", userId),
                 AppDbContext.GetCollectionParameter("TableType", tableType)
             };
-            return context.ExecuteSingleAsync<CrudResult>("schema.CrudAction", parameters, cancellationToken, transaction);
+            return dbContext.ExecuteSingleAsync<CrudResult>("schema.CrudAction", parameters, cancellationToken, transaction);
         }
 
-        public static Task<CrudResult> CrudActionAsync(this IAppDbContext context, int userId, IEnumerable<object> tableType, CancellationToken cancellationToken, IExecuteOptions options = null)
+        public static Task<CrudResult> CrudActionAsync(this IAppDbContext dbContext, int userId, IEnumerable<object> tableType, CancellationToken cancellationToken, IExecuteOptions options = null)
         {
-            if (context == null)
+            if (dbContext == null)
             {
-                throw new ArgumentNullException(nameof(context));
+                throw new ArgumentNullException(nameof(dbContext));
             }
 
             var parameters = new List<SqlParameter>
@@ -36,7 +36,7 @@ namespace Source.DataContext.StoredProcedures.Schema
                 AppDbContext.GetParameter("UserId", userId),
                 AppDbContext.GetCollectionParameter("TableType", tableType)
             };
-            return context.ExecuteSingleAsync<CrudResult>("schema.CrudAction", parameters, cancellationToken, options);
+            return dbContext.ExecuteSingleAsync<CrudResult>("schema.CrudAction", parameters, cancellationToken, options);
         }
     }
 }
