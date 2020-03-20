@@ -176,7 +176,7 @@ namespace SpocR
                 nsNode = (NamespaceDeclarationSyntax)root.Members[0];
                 classNode = (ClassDeclarationSyntax)nsNode.Members[0];
 
-                var propertyIdentifier = SyntaxFactory.ParseToken($" {item.Name} ");
+                var propertyIdentifier = SyntaxFactory.ParseToken($" {item.Name.FirstCharToUpper()} ");
                 propertyNode = propertyNode
                     .WithType(ParseTypeFromSqlDbTypeName(item.SqlTypeName, item.IsNullable ?? false));
 
