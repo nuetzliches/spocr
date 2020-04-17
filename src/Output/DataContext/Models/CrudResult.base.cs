@@ -7,6 +7,7 @@ namespace Source.DataContext.Models
         private bool? _succeeded;
         private bool? _modified;
         private bool? _hasDependencies;
+        private bool? _alreadyExists;
 
         public CrudResult()
         {
@@ -33,7 +34,10 @@ namespace Source.DataContext.Models
         public bool Modified => _modified ?? (_modified = ResultId == -10) ?? false;
 
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
-        public bool HasDependencies => _hasDependencies ?? (_hasDependencies = ResultId == -2) ?? false;
+        public bool HasDependencies => _hasDependencies ?? (_hasDependencies = ResultId == -11) ?? false;
+
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.Ignore)]
+        public bool AlreadyExists => _alreadyExists ?? (_alreadyExists = ResultId == -12) ?? false;
 
         [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
         public int? ResultId { get; set; }
