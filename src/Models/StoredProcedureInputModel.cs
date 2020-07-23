@@ -11,6 +11,9 @@ namespace SpocR.Models
             : base(item)
         {
             _item = item ?? new StoredProcedureInput();
+            _columns = _item.TableTypeColumns?
+                .Select(i => new ColumnModel(i))
+                .ToList();
         }
 
         public bool? IsTableType
@@ -19,9 +22,12 @@ namespace SpocR.Models
             set => _item.IsTableType = value == true ? true : false;
         }
 
-        public List<ColumnModel> Columns => _item.TableTypeColumns?
-            .Select(i => new ColumnModel(i))
-            .ToList();
+        public List<ColumnModel> _columns;
+        public List<ColumnModel> Columns
+        {
+            get { return _columns; }
+            set { _columns = value; }
+        }
     }
 
     public class ColumnModel
@@ -61,7 +67,7 @@ namespace SpocR.Models
             get => _item.IsNullable ? (bool?)true : null;
             set => _item.IsNullable = value == true ? true : false;
         }
-        
+
         public string SqlTypeName
         {
             get => _item.SqlTypeName;
