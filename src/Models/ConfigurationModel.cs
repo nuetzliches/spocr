@@ -15,7 +15,16 @@ namespace SpocR.Models
         public Version Version { get; set; }
         public string UserId { get; set; }
         public GlobalAutoUpdateConfigurationModel AutoUpdate { get; set; } = new GlobalAutoUpdateConfigurationModel { Enabled = true, PauseInMinutes = 1440 };
+        // public List<GlobalProjectConfigurationModel> Projects { get; set; }
     }
+
+    // TODO
+    // public class GlobalProjectConfigurationModel 
+    // {
+    //     public string DisplayName { get; set; }
+    //     public string ConfigFile { get; set; }
+
+    // }
 
     public class GlobalAutoUpdateConfigurationModel
     {
