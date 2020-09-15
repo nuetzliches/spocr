@@ -20,7 +20,8 @@ namespace SpocR.DataContext.Queries
         public static async Task<List<StoredProcedureOutput>> StoredProcedureOutputListAsync(this DbContext context, string schemaName, string name, CancellationToken cancellationToken)
         {
             var storedProcedure = await context.ObjectAsync(schemaName, name, cancellationToken);
-            if(storedProcedure == null) {
+            if (storedProcedure == null)
+            {
                 return null;
             }
 
@@ -37,14 +38,15 @@ namespace SpocR.DataContext.Queries
         public static async Task<List<StoredProcedureInput>> StoredProcedureInputListAsync(this DbContext context, string schemaName, string name, CancellationToken cancellationToken)
         {
             var storedProcedure = await context.ObjectAsync(schemaName, name, cancellationToken);
-            if(storedProcedure == null) {
+            if (storedProcedure == null)
+            {
                 return null;
             }
 
             var parameters = new List<SqlParameter>
             {
                 new SqlParameter("@objectId", storedProcedure.Id)
-            };        
+            };
             // is_nullable kann beim Input nur über userdefined types definiert werden
             // var queryString = "SELECT p.name, p.is_nullable, t.name AS system_type_name, p.max_length, p.is_output FROM sys.parameters AS p INNER JOIN sys.types t on t.system_type_id = p.system_type_id AND t.user_type_id = p.system_type_id WHERE p.object_id = @objectId ORDER BY p.parameter_id;";
             // var queryString = "SELECT p.name, t1.is_nullable, t.name AS system_type_name, p.max_length, p.is_output FROM sys.parameters AS p INNER JOIN sys.types t on t.system_type_id = p.system_type_id AND t.user_type_id = p.system_type_id INNER JOIN sys.types AS t1 on t1.system_type_id = p.system_type_id AND t1.user_type_id = p.user_type_id WHERE p.object_id = @objectId ORDER BY p.parameter_id;";

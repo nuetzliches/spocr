@@ -12,10 +12,17 @@ namespace SpocR.DataContext.Models
 
         [SqlFieldName("system_type_name")]
         public string SqlTypeName { get; set; }
-        
+
+        private int _maxLength { get; set; }
+
         [SqlFieldName("max_length")]
-        public int MaxLength { get; set; }
-        
+        public int MaxLength
+        {
+            // see: https://www.sqlservercentral.com/forums/topic/sql-server-max_lenght-returns-double-the-actual-size#unicode
+            get => SqlTypeName.StartsWith("nvarchar") ? _maxLength / 2 : _maxLength;
+            set => this._maxLength = value;
+        }
+
         [SqlFieldName("is_identity_column")]
         public bool IsIdentityColumn { get; set; }
     }
