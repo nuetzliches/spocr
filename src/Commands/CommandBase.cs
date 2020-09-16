@@ -4,19 +4,54 @@ using SpocR.Utils;
 
 namespace SpocR.Commands
 {
-    public abstract class CommandBase : IAppCommand
+    public abstract class CommandBase : IAppCommand, ICommandOptions
     {
         [Option("-p|--path", "Path where the generated spocr.json will be generated, eg. the path to your project itself", CommandOptionType.SingleValue)]
         public virtual string Path { get; set; }
 
-
         [Option("-d|--dry-run", "Run build without any changes", CommandOptionType.NoValue)]
         public virtual bool DryRun { get; set; }
+
+        [Option("-f|--force", "Execute command even if we got warnings", CommandOptionType.NoValue)]
+        public virtual bool Force { get; set; }
+
+        [Option("-s|--silent", "Run without user interactions and dont check for updates", CommandOptionType.NoValue)]
+        public virtual bool Silent { get; set; }
+
+        [Option("-nvc|--no-version-check", "Ignore version missmatch between installation and config file", CommandOptionType.NoValue)]
+        public virtual bool NoVersionCheck { get; set; }
 
         public virtual int OnExecute()
         {
             DirectoryUtils.SetBasePath(Path);
             return (int)ExecuteResultEnum.Succeeded; ;
         }
+
+        public ICommandOptions CommandOptions => new CommandOptions(this);
+    }
+
+    public interface ICommandOptions
+    {
+        string Path { get; }
+        bool DryRun { get; }
+        bool Force { get; }
+        bool Silent { get; }
+        bool NoVersionCheck { get; set; }
+    }
+
+    public class CommandOptions : ICommandOptions
+    {
+        private readonly ICommandOptions _options;
+        public CommandOptions(ICommandOptions options)
+        {
+            _options = options;
+            NoVersionCheck = options.NoVersionCheck;
+        }
+
+        public string Path => _options.Path;
+        public bool DryRun => _options.DryRun;
+        public bool Force => _options.Force;
+        public bool Silent => _options.Silent;
+        public bool NoVersionCheck { get; set; }
     }
 }

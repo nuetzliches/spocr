@@ -17,7 +17,7 @@ namespace SpocR.Commands
         public override int OnExecute()
         {
             base.OnExecute();
-            return (int)_spocrManager.Remove(DryRun);
+            return (int)_spocrManager.Remove(CommandOptions);
         }
     }
 }

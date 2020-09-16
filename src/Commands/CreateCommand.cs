@@ -1,6 +1,5 @@
 ﻿using McMaster.Extensions.CommandLineUtils;
 using SpocR.Managers;
-using SpocR.Utils;
 
 namespace SpocR.Commands
 {
@@ -18,8 +17,8 @@ namespace SpocR.Commands
 
         public override int OnExecute()
         {
-            base.OnExecute();         
-            return (int)_spocrManager.Create(DryRun);
+            base.OnExecute();
+            return (int)_spocrManager.Create(CommandOptions);
         }
     }
 }
