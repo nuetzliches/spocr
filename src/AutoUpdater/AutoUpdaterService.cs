@@ -48,8 +48,7 @@ namespace SpocR.AutoUpdater
 
                 var now = DateTime.Now.Ticks;
                 var nextCheckTicks = _globalConfigFile.Config.AutoUpdate.NextCheckTicks;
-                var pauseTicks = TimeSpan.FromMinutes(_globalConfigFile.Config.AutoUpdate.PauseInMinutes).Ticks;
-                var isExceeded = now + pauseTicks > nextCheckTicks;
+                var isExceeded = now > nextCheckTicks;
                 if (!isExceeded)
                 {
                     return;
@@ -65,9 +64,10 @@ namespace SpocR.AutoUpdater
                 {
                     InstallUpdate();
                 }
-                
-                WriteNextCheckTicksToGlobalConfig();
+
             }
+
+            WriteNextCheckTicksToGlobalConfig();
         }
 
         public void InstallUpdate()

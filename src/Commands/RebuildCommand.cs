@@ -19,8 +19,8 @@ namespace SpocR.Commands
         {
             base.OnExecute();
 
-            if (_spocrManager.Pull(DryRun) == ExecuteResultEnum.Succeeded
-                && _spocrManager.Build(DryRun, true) == ExecuteResultEnum.Succeeded)
+            if (_spocrManager.Pull(CommandOptions) == ExecuteResultEnum.Succeeded
+                && _spocrManager.Build(CommandOptions) == ExecuteResultEnum.Succeeded)
                 return (int)ExecuteResultEnum.Succeeded;
             else
                 return (int)ExecuteResultEnum.Error;

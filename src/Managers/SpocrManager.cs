@@ -6,6 +6,7 @@ using System.Linq;
 using McMaster.Extensions.CommandLineUtils;
 using Microsoft.Extensions.Configuration;
 using SpocR.AutoUpdater;
+using SpocR.Commands;
 using SpocR.DataContext;
 using SpocR.Enums;
 using SpocR.Extensions;
@@ -52,12 +53,12 @@ namespace SpocR.Managers
             _configFile = configFile;
             _dbContext = dbContext;
             _autoUpdaterService = autoUpdaterService;
-
-            _autoUpdaterService.RunAsync().Wait();
         }
 
-        public ExecuteResultEnum Create(bool isDryRun)
+        public ExecuteResultEnum Create(ICommandOptions options)
         {
+            RunAutoUpdate(options);
+
             if (_configFile.Exists())
             {
                 _reportService.Error($"File already exists: {Configuration.ConfigurationFile}");
@@ -99,7 +100,7 @@ namespace SpocR.Managers
 
             var config = _spocr.GetDefaultConfiguration(appNamespace, connectionString, roleKind, libNamespace, identityKind);
 
-            if (isDryRun)
+            if (options.DryRun)
             {
                 _reportService.PrintConfiguration(config);
                 _reportService.PrintDryRunMessage();
@@ -113,8 +114,10 @@ namespace SpocR.Managers
             return ExecuteResultEnum.Succeeded;
         }
 
-        public ExecuteResultEnum Pull(bool isDryRun)
+        public ExecuteResultEnum Pull(ICommandOptions options)
         {
+            RunAutoUpdate(options);
+
             if (!_configFile.Exists())
             {
                 _reportService.Error($"File not found: {Configuration.ConfigurationFile}");
@@ -136,11 +139,7 @@ namespace SpocR.Managers
                 _configFile.OverwriteWithConfig = userConfig;
             }
 
-            var checkResult = RunVersionCheck();
-            if (checkResult != ExecuteResultEnum.Succeeded)
-            {
-                return checkResult;
-            }
+            RunVersionCheck(options);
 
             if (!string.IsNullOrWhiteSpace(_configFile.Config?.Project?.DataBase?.ConnectionString))
             {
@@ -209,7 +208,7 @@ namespace SpocR.Managers
             _reportService.Yellow($"Pulled {pulledStoredProcedures.Count()} StoredProcedures from {pullSchemas.Count()} Schemas [{string.Join(", ", pullSchemas.Select(x => x.Name))}] in {stopwatch.ElapsedMilliseconds} ms.");
             _reportService.Output("");
 
-            if (isDryRun)
+            if (options.DryRun)
             {
                 _reportService.PrintDryRunMessage();
             }
@@ -222,7 +221,7 @@ namespace SpocR.Managers
             return ExecuteResultEnum.Succeeded;
         }
 
-        public ExecuteResultEnum Build(bool isDryRun, bool supressVersionCheck = false)
+        public ExecuteResultEnum Build(ICommandOptions options)
         {
             if (!_configFile.Exists())
             {
@@ -231,15 +230,9 @@ namespace SpocR.Managers
                 return ExecuteResultEnum.Error;
             }
 
-            if (!supressVersionCheck)
-            {
-                var checkResult = RunVersionCheck();
-                if (checkResult != ExecuteResultEnum.Succeeded)
-                {
-                    return checkResult;
-                }
-            }
+            RunAutoUpdate(options);
 
+            RunVersionCheck(options);
 
             _reportService.PrintTitle("Build DataContext from spocr.json");
 
@@ -272,28 +265,28 @@ namespace SpocR.Managers
             {
                 stopwatch.Start();
                 _reportService.PrintSubTitle("Generating CodeBase");
-                _output.GenerateCodeBase(project.Output, isDryRun);
+                _output.GenerateCodeBase(project.Output, options.DryRun);
                 elapsed.Add("CodeBase", stopwatch.ElapsedMilliseconds);
             }
 
             stopwatch.Restart();
             _reportService.PrintSubTitle("Generating Inputs");
-            _engine.GenerateDataContextInputs(isDryRun);
+            _engine.GenerateDataContextInputs(options.DryRun);
             elapsed.Add("Inputs", stopwatch.ElapsedMilliseconds);
 
             stopwatch.Restart();
             _reportService.PrintSubTitle("Generating Models");
-            _engine.GenerateDataContextModels(isDryRun);
+            _engine.GenerateDataContextModels(options.DryRun);
             elapsed.Add("Models", stopwatch.ElapsedMilliseconds);
 
             stopwatch.Restart();
             _reportService.PrintSubTitle("Generating Params");
-            _engine.GenerateDataContextParams(isDryRun);
+            _engine.GenerateDataContextParams(options.DryRun);
             elapsed.Add("Params", stopwatch.ElapsedMilliseconds);
 
             stopwatch.Restart();
             _reportService.PrintSubTitle("Generating StoredProcedures");
-            _engine.GenerateDataContextStoredProcedures(isDryRun);
+            _engine.GenerateDataContextStoredProcedures(options.DryRun);
             elapsed.Add("StoredProcedures", stopwatch.ElapsedMilliseconds);
 
             var summary = elapsed.Select(_ => $"{_.Key} generated in {_.Value} ms.");
@@ -301,7 +294,7 @@ namespace SpocR.Managers
             _reportService.PrintSummary(summary, $"SpocR v{_spocr.Version.ToVersionString()}");
             _reportService.PrintTotal($"Total elapsed time: {elapsed.Sum(_ => _.Value)} ms.");
 
-            if (isDryRun)
+            if (options.DryRun)
             {
                 _reportService.PrintDryRunMessage();
             }
@@ -309,9 +302,9 @@ namespace SpocR.Managers
             return ExecuteResultEnum.Succeeded;
         }
 
-        public ExecuteResultEnum Remove(bool dryRun)
+        public ExecuteResultEnum Remove(ICommandOptions options)
         {
-            if (dryRun)
+            if (options.DryRun)
             {
                 _reportService.Output($"Remove as dry run.");
             }
@@ -319,21 +312,21 @@ namespace SpocR.Managers
             var proceed1 = Prompt.GetYesNo("Remove all generated files?", true);
             if (!proceed1) return ExecuteResultEnum.Aborted;
 
-            _output.RemoveGeneratedFiles(_configFile.Config.Project.Output.DataContext.Path, dryRun);
+            _output.RemoveGeneratedFiles(_configFile.Config.Project.Output.DataContext.Path, options.DryRun);
 
             _reportService.Output($"Generated folder and files removed.");
 
             var proceed2 = Prompt.GetYesNo($"Remove {Configuration.ConfigurationFile}?", true);
             if (!proceed2) return ExecuteResultEnum.Aborted;
 
-            _configFile.Remove(dryRun);
+            _configFile.Remove(options.DryRun);
 
             _reportService.Output($"{Configuration.ConfigurationFile} removed.");
 
             return ExecuteResultEnum.Succeeded;
         }
 
-        public ExecuteResultEnum GetVersion()
+        public ExecuteResultEnum GetVersion(ICommandOptions options)
         {
             var current = _spocr.Version.ToVersionString();
             var latest = default(string);
@@ -344,8 +337,11 @@ namespace SpocR.Managers
             return ExecuteResultEnum.Succeeded;
         }
 
-        private ExecuteResultEnum RunVersionCheck()
+        private ExecuteResultEnum RunVersionCheck(ICommandOptions options)
         {
+            if (options.NoVersionCheck) return ExecuteResultEnum.Aborted;
+            options.NoVersionCheck = true;
+
             var check = _configFile.CheckVersion();
             if (!check.DoesMatch)
             {
@@ -377,6 +373,14 @@ namespace SpocR.Managers
             }
 
             return ExecuteResultEnum.Succeeded;
+        }
+
+        private void RunAutoUpdate(ICommandOptions options)
+        {
+            if (!options.Silent)
+            {
+                _autoUpdaterService.RunAsync().Wait();
+            }
         }
     }
 }
