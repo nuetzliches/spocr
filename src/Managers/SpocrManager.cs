@@ -66,16 +66,16 @@ namespace SpocR.Managers
                 return ExecuteResultEnum.Error;
             }
 
-            var proceed = Prompt.GetYesNo("Create a new SpocR Project?", true);
+            var proceed = Prompt.GetYesNo("Create a new SpocR Config?", true);
             if (!proceed) return ExecuteResultEnum.Aborted;
 
-            var appNamespace = Prompt.GetString("Your Project Namespace:", new DirectoryInfo(Directory.GetCurrentDirectory()).Name);
+            var appNamespace = Prompt.GetString("Your Namespace:", new DirectoryInfo(Directory.GetCurrentDirectory()).Name);
 
             // var configurationFileExists = _configuration.FileExists();
             // if(!configurationFileExists) 
             // {
             //     var fileName = Extensions.ConfigurationExtensions.FileName;
-            //     var proceedAppsettings = Prompt.GetYesNo("Create a new SpocR Project?", true);
+            //     var proceedAppsettings = Prompt.GetYesNo("Create a new SpocR Config?", true);
             //     if (!proceedAppsettings) return ExecuteResultEnum.Aborted;
             // }
 

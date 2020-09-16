@@ -6,13 +6,13 @@ namespace SpocR.Commands
 {
     public abstract class CommandBase : IAppCommand, ICommandOptions
     {
-        [Option("-p|--path", "Path where the generated spocr.json will be generated, eg. the path to your project itself", CommandOptionType.SingleValue)]
+        [Option("-p|--path", "Path to spocr.json, eg. the path to your project itself", CommandOptionType.SingleValue)]
         public virtual string Path { get; set; }
 
-        [Option("-d|--dry-run", "Run build without any changes", CommandOptionType.NoValue)]
+        [Option("-d|--dry-run", "Run command without making any changes", CommandOptionType.NoValue)]
         public virtual bool DryRun { get; set; }
 
-        [Option("-f|--force", "Execute command even if we got warnings", CommandOptionType.NoValue)]
+        [Option("-f|--force", "Run command even if we got warnings", CommandOptionType.NoValue)]
         public virtual bool Force { get; set; }
 
         [Option("-s|--silent", "Run without user interactions and dont check for updates", CommandOptionType.NoValue)]
@@ -48,7 +48,7 @@ namespace SpocR.Commands
             NoVersionCheck = options.NoVersionCheck;
         }
 
-        public string Path => _options.Path;
+        public string Path => _options.Path?.Trim();
         public bool DryRun => _options.DryRun;
         public bool Force => _options.Force;
         public bool Silent => _options.Silent;

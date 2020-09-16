@@ -4,7 +4,7 @@ using SpocR.Managers;
 namespace SpocR.Commands
 {
     [HelpOption("-?|-h|--help")]
-    [Command("create", Description = "Creates a new SpocR Project")]
+    [Command("create", Description = "Creates a new SpocR Config")]
     public class CreateCommand : CommandBase
     {
         private readonly SpocrManager _spocrManager;
