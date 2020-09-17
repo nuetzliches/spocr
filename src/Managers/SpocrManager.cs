@@ -329,10 +329,10 @@ namespace SpocR.Managers
         public ExecuteResultEnum GetVersion(ICommandOptions options)
         {
             var current = _spocr.Version.ToVersionString();
-            var latest = default(string);
-            _autoUpdaterService.GetLatestVersionAsync().ContinueWith(t => latest = t.Result.ToVersionString()).Wait();
+            var latest = current;
+            _autoUpdaterService.GetLatestVersionAsync().ContinueWith(t => latest = t.Result?.ToVersionString()).Wait();
             _reportService.Output($"Version: {current}");
-            _reportService.Output($"Latest: {latest}");
+            _reportService.Output($"Latest: {latest ?? "0"}");
 
             return ExecuteResultEnum.Succeeded;
         }
