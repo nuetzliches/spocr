@@ -9,9 +9,10 @@
       "program": "${workspaceFolder}/src/bin/Debug/netcoreapp2.1/SpocR.dll",
       // awailable commands: "create", "pull", "build", "rebuild", "remove", options: "-d|--dry-run"
       "args": [
-        "project",
-        //"update",
-        "--help"
+        "schema",
+        "ls",
+        "--path",
+        "C:/Projekte/GitHub/Nuts/Demo/Nuts.Demo.WebApi/spocr.json"
         //"-f",
         //"-s"
         //"-d"

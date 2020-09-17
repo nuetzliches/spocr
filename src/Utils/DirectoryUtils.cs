@@ -12,7 +12,7 @@ namespace SpocR.Utils
 
         internal static void SetBasePath(string path)
         {
-            BasePath = path;
+            BasePath = Path.GetDirectoryName(path);
         }
 
         internal static string GetApplicationRoot()
@@ -33,16 +33,22 @@ namespace SpocR.Utils
         internal static string GetWorkingDirectory(params string[] paths)
         {
             var pathList = new List<string>();
-#if DEBUG
-            pathList.Add(Path.Combine(Directory.GetCurrentDirectory(), "..", "debug"));
-#else
-            pathList.Add(Directory.GetCurrentDirectory());
-#endif
+
             if (!string.IsNullOrEmpty(BasePath))
             {
                 pathList.Add(BasePath);
             }
+            else
+            {
+#if DEBUG
+                pathList.Add(Path.Combine(Directory.GetCurrentDirectory(), "..", "debug"));
+#else
+                pathList.Add(Directory.GetCurrentDirectory());
+#endif
+            }
+
             pathList.AddRange(paths);
+
             return Path.Combine(pathList.ToArray()).ToString();
         }
     }

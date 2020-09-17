@@ -23,10 +23,6 @@ namespace SpocR.Managers
             _reportService = reportService;
         }
 
-        public SpocrProjectManager()
-        {
-        }
-
         public ExecuteResultEnum Create(IProjectCommandOptions options)
         {
             var path = options.Path;
@@ -161,7 +157,7 @@ namespace SpocR.Managers
         {
             var projects = _globalConfigFile.Config?.Projects;
 
-            if (!(projects?.Any() ?? false))
+            if (!options.Silent && !(projects?.Any() ?? false))
             {
                 _reportService.Warn($"No Projects found");
                 return ExecuteResultEnum.Aborted;
