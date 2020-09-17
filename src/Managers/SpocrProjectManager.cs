@@ -52,6 +52,18 @@ namespace SpocR.Managers
 
             path = CreateConfigFilePath(path);
 
+            if (string.IsNullOrEmpty(displayName))
+            {
+                displayName = CreateDisplayNameFromPath(path);
+            }
+
+            if (string.IsNullOrEmpty(displayName))
+            {
+                _reportService.Error($"DisplayName for project is required");
+                _reportService.Output($"\tPlease use '--name'");
+                return ExecuteResultEnum.Error;
+            }
+
             if (IsDisplayNameAlreadyUsed(displayName, options))
             {
                 return ExecuteResultEnum.Error;
@@ -123,15 +135,18 @@ namespace SpocR.Managers
                 return ExecuteResultEnum.Error;
             }
 
-            if (!options.Silent)
+            if (!options.Force)
             {
-                var delete = Prompt.GetYesNo($"Delete project '{displayName}'", false, System.ConsoleColor.Red);
-                if (!delete) return ExecuteResultEnum.Aborted;
-            }
-            else if (!options.Force)
-            {
-                _reportService.Warn($"Please add --force to delete project '{displayName}'");
-                return ExecuteResultEnum.Error;
+                if (options.Silent)
+                {
+                    _reportService.Warn($"Please add --force to delete project '{displayName}'");
+                    return ExecuteResultEnum.Error;
+                }
+                else
+                {
+                    var delete = Prompt.GetYesNo($"Delete project '{displayName}'", false, System.ConsoleColor.Red);
+                    if (!delete) return ExecuteResultEnum.Aborted;
+                }
             }
 
             _globalConfigFile.Config.Projects.RemoveAt(projectIndex);
@@ -152,10 +167,19 @@ namespace SpocR.Managers
                 return ExecuteResultEnum.Aborted;
             }
 
+            _reportService.Output($"[{(projects.Count > 0 ? "{" : "")}");
             projects.ForEach(project =>
             {
-                _reportService.Output($"{project.DisplayName} [{project.ConfigFile}]");
+                var fileExists = File.Exists(project.ConfigFile).ToString().ToLower();
+                _reportService.Output($"\t\"displayName\": \"{project.DisplayName}\",");
+                _reportService.Output($"\t\"path\": \"{project.ConfigFile}\",");
+                _reportService.Output($"\t\"fileExists\": {fileExists}");
+                if (projects.FindIndex(_ => _ == project) < projects.Count - 1)
+                {
+                    _reportService.Output("}, {");
+                }
             });
+            _reportService.Output($"{(projects.Count > 0 ? "}" : "")}]");
 
             return ExecuteResultEnum.Succeeded;
         }
@@ -165,16 +189,29 @@ namespace SpocR.Managers
             var fileInfo = new FileInfo(path);
             if (fileInfo.Name != Configuration.ConfigurationFile)
             {
-                path = string.IsNullOrEmpty(fileInfo.Extension) ? path : Path.GetDirectoryName(path);
+                path = path.EndsWith("/") ? path : $"{path}/";
+                path = Path.GetDirectoryName(path);
                 path = $"{Path.Combine(path, Configuration.ConfigurationFile)}";
             }
             return path?.Replace("\\", "/");
         }
 
+        private string CreateDisplayNameFromPath(string path)
+        {
+            var fileInfo = new FileInfo(path);
+
+            // Remove any File
+            path = Path.GetDirectoryName(path);
+
+            // Get the last DirectoryName
+            var displayName = Path.GetFileName(path);
+            return displayName;
+        }
+
         private GlobalProjectConfigurationModel FindByName(string displayName)
         {
             var projects = _globalConfigFile.Config?.Projects;
-            return projects.Find(project => project.DisplayName.Equals(displayName));
+            return projects?.Find(project => project.DisplayName.Equals(displayName));
         }
 
         private int FindIndexByName(string displayName)

@@ -14,9 +14,10 @@ namespace SpocR.Extensions
         public static IServiceCollection AddSpocR(this IServiceCollection services)
         {
 #if DEBUG
+            //var globalConfigurationFileName = Path.Combine(DirectoryUtils.GetAppDataDirectory(), Configuration.GlobalConfigurationFile);
             var globalConfigurationFileName = Path.Combine(DirectoryUtils.GetWorkingDirectory(), Configuration.GlobalConfigurationFile);
 #else
-            var globalConfigurationFileName = Path.Combine(DirectoryUtils.GetApplicationRoot(), Configuration.GlobalConfigurationFile);
+            var globalConfigurationFileName = Path.Combine(DirectoryUtils.GetAppDataDirectory(), Configuration.GlobalConfigurationFile);
 #endif
 
             var spocrService = new SpocrService();

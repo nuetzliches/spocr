@@ -10,11 +10,8 @@
       // awailable commands: "create", "pull", "build", "rebuild", "remove", options: "-d|--dry-run"
       "args": [
         "project",
-        "ls"
-        //"--help"
-        //"--name: Tek.Admin.TestJo",
-        // "--new-name: Tek.Admin.TestJo",
-        // "--path: C:/Test/Jo"
+        //"update",
+        "--help"
         //"-f",
         //"-s"
         //"-d"

@@ -21,10 +21,13 @@ namespace SpocR.Commands
         [Option("-nvc|--no-version-check", "Ignore version missmatch between installation and config file", CommandOptionType.NoValue)]
         public virtual bool NoVersionCheck { get; set; }
 
+        [Option("--debug", "Use debug environment.", CommandOptionType.NoValue)]
+        public virtual bool Debug { get; set; }
+
         public virtual int OnExecute()
         {
             DirectoryUtils.SetBasePath(Path);
-            return (int)ExecuteResultEnum.Succeeded; ;
+            return (int)ExecuteResultEnum.Succeeded;
         }
 
         public ICommandOptions CommandOptions => new CommandOptions(this);
@@ -37,6 +40,7 @@ namespace SpocR.Commands
         bool Force { get; }
         bool Silent { get; }
         bool NoVersionCheck { get; set; }
+        bool Debug { get; }
     }
 
     public class CommandOptions : ICommandOptions
@@ -53,5 +57,6 @@ namespace SpocR.Commands
         public bool Force => _options.Force;
         public bool Silent => _options.Silent;
         public bool NoVersionCheck { get; set; }
+        public bool Debug => _options.Debug;
     }
 }

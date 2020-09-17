@@ -25,6 +25,11 @@ namespace SpocR.Utils
 #endif   
         }
 
+        internal static string GetAppDataDirectory()
+        {
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "spocr");
+        }
+
         internal static string GetWorkingDirectory(params string[] paths)
         {
             var pathList = new List<string>();
