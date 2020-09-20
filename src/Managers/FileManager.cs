@@ -78,8 +78,6 @@ namespace SpocR.Managers
             var content = File.ReadAllText(fileName);
             var config = JsonConvert.DeserializeObject<TConfig>(content);
 
-
-
             return config;
         }
 

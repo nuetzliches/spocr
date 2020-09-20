@@ -10,8 +10,7 @@
       // awailable commands: "create", "pull", "build", "rebuild", "remove", options: "-d|--dry-run"
       "args": [
         "project",
-        //"update",
-        "--help"
+        "ls"
         //"-f",
         //"-s"
         //"-d"

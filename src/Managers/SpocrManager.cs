@@ -22,6 +22,7 @@ namespace SpocR.Managers
         private readonly SpocrService _spocr;
         private readonly OutputService _output;
         private readonly Generator _engine;
+        private readonly SpocrProjectManager _projectManager;
         private readonly IReportService _reportService;
         private readonly SchemaManager _schemaManager;
         private readonly FileManager<GlobalConfigurationModel> _globalConfigFile;
@@ -35,6 +36,7 @@ namespace SpocR.Managers
             SpocrService spocr,
             OutputService output,
             Generator engine,
+            SpocrProjectManager projectManager,
             IReportService reportService,
             SchemaManager schemaManager,
             FileManager<GlobalConfigurationModel> globalConfigFile,
@@ -47,6 +49,7 @@ namespace SpocR.Managers
             _spocr = spocr;
             _output = output;
             _engine = engine;
+            _projectManager = projectManager;
             _reportService = reportService;
             _schemaManager = schemaManager;
             _globalConfigFile = globalConfigFile;
@@ -55,7 +58,7 @@ namespace SpocR.Managers
             _autoUpdaterService = autoUpdaterService;
         }
 
-        public ExecuteResultEnum Create(ICommandOptions options)
+        public ExecuteResultEnum Create(ICreateCommandOptions options)
         {
             RunAutoUpdate(options);
 
@@ -66,10 +69,17 @@ namespace SpocR.Managers
                 return ExecuteResultEnum.Error;
             }
 
-            var proceed = Prompt.GetYesNo("Create a new SpocR Config?", true);
-            if (!proceed) return ExecuteResultEnum.Aborted;
+            if (!options.Silent && !options.Force)
+            {
+                var proceed = Prompt.GetYesNo("Create a new SpocR Config?", true);
+                if (!proceed) return ExecuteResultEnum.Aborted;
+            }
 
-            var appNamespace = Prompt.GetString("Your Namespace:", new DirectoryInfo(Directory.GetCurrentDirectory()).Name);
+            var appNamespace = options.Namespace;
+            if (!options.Silent)
+            {
+                appNamespace = Prompt.GetString("Your Namespace:", appNamespace);
+            }
 
             // var configurationFileExists = _configuration.FileExists();
             // if(!configurationFileExists) 
@@ -85,16 +95,27 @@ namespace SpocR.Managers
             //     _reportService.Output($"{optionKey}");            
             // }
             var connectionString = "";
-
-            var roleKindString = Prompt.GetString("SpocR Role [Default, Lib, Extension]:", "Default");
+            var roleKindString = options.Role;
+            if (!options.Silent)
+            {
+                roleKindString = Prompt.GetString("SpocR Role [Default, Lib, Extension]:", "Default");
+            }
             var roleKind = default(ERoleKind);
             Enum.TryParse(roleKindString, true, out roleKind);
 
-            var libNamespace = roleKind == ERoleKind.Extension
-                    ? Prompt.GetString("SpocR Lib Namespace:", "Nuts.DbContext")
-                    : null;
+            var libNamespace = options.LibNamespace;
+            if (!options.Silent)
+            {
+                libNamespace = roleKind == ERoleKind.Extension
+                        ? Prompt.GetString("SpocR Lib Namespace:", "Nuts.DbContext")
+                        : null;
+            }
 
-            var identityKindString = Prompt.GetString("SpocR Identity [WithUserId, None]:", "WithUserId");
+            var identityKindString = options.Identity;
+            if (!options.Silent)
+            {
+                identityKindString = Prompt.GetString("SpocR Identity [WithUserId, None]:", "WithUserId");
+            }
             var identityKind = default(EIdentityKind);
             Enum.TryParse(identityKindString, true, out identityKind);
 
@@ -108,7 +129,12 @@ namespace SpocR.Managers
             else
             {
                 _configFile.Save(config);
-                _reportService.Output($"{Configuration.Name} successfully created.");
+                _projectManager.Create(options);
+
+                if (!options.Silent)
+                {
+                    _reportService.Output($"{Configuration.Name} successfully created.");
+                }
             }
 
             return ExecuteResultEnum.Succeeded;
@@ -329,10 +355,10 @@ namespace SpocR.Managers
         public ExecuteResultEnum GetVersion(ICommandOptions options)
         {
             var current = _spocr.Version.ToVersionString();
-            var latest = default(string);
-            _autoUpdaterService.GetLatestVersionAsync().ContinueWith(t => latest = t.Result.ToVersionString()).Wait();
+            var latest = current;
+            _autoUpdaterService.GetLatestVersionAsync().ContinueWith(t => latest = t.Result?.ToVersionString()).Wait();
             _reportService.Output($"Version: {current}");
-            _reportService.Output($"Latest: {latest}");
+            _reportService.Output($"Latest: {latest ?? "0"}");
 
             return ExecuteResultEnum.Succeeded;
         }

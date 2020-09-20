@@ -18,11 +18,18 @@ namespace SpocR.AutoUpdater
             var latest = default(Version);
             using (var httpClient = new HttpClient())
             {
-                var response = await httpClient.GetAsync(_url);
-                var searchResponse = await response.Content.ReadAsAsync<SearchResponse>();
-                if (response.IsSuccessStatusCode)
+                try
                 {
-                    latest = Version.Parse(searchResponse.Data.ToList().First().Version);
+                    var response = await httpClient.GetAsync(_url);
+                    var searchResponse = await response.Content.ReadAsAsync<SearchResponse>();
+                    if (response.IsSuccessStatusCode)
+                    {
+                        latest = Version.Parse(searchResponse.Data.ToList().First().Version);
+                    }
+                }
+                catch (HttpRequestException)
+                {
+                    // TODO: handle network exception
                 }
             }
             return latest;

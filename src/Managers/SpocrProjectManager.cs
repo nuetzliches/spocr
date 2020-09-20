@@ -23,10 +23,6 @@ namespace SpocR.Managers
             _reportService = reportService;
         }
 
-        public SpocrProjectManager()
-        {
-        }
-
         public ExecuteResultEnum Create(IProjectCommandOptions options)
         {
             var path = options.Path;
@@ -77,7 +73,14 @@ namespace SpocR.Managers
 
             _globalConfigFile.Save(_globalConfigFile.Config);
 
-            _reportService.Output($"Project '{displayName}' created.");
+            if (options.Silent)
+            {
+                _reportService.Output($"{{ \"displayName\": \"{displayName}\" }}");
+            }
+            else
+            {
+                _reportService.Output($"Project '{displayName}' created.");
+            }
             return ExecuteResultEnum.Succeeded;
         }
 
@@ -161,7 +164,7 @@ namespace SpocR.Managers
         {
             var projects = _globalConfigFile.Config?.Projects;
 
-            if (!(projects?.Any() ?? false))
+            if (!options.Silent && !(projects?.Any() ?? false))
             {
                 _reportService.Warn($"No Projects found");
                 return ExecuteResultEnum.Aborted;
