@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SpocR.Commands;
 using SpocR.Commands.Project;
 using SpocR.Commands.Schema;
+using SpocR.Commands.StoredProcdure;
 using SpocR.DataContext;
 using SpocR.Extensions;
 using SpocR.Utils;
@@ -22,6 +23,7 @@ namespace SpocR
     [Subcommand("config", typeof(ConfigCommand))]
     [Subcommand("project", typeof(ProjectCommand))]
     [Subcommand("schema", typeof(SchemaCommand))]
+    [Subcommand("sp", typeof(StoredProcdureCommand))]
     [HelpOption("-?|-h|--help")]
     public class Program
     {

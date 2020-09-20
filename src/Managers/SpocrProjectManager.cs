@@ -73,7 +73,14 @@ namespace SpocR.Managers
 
             _globalConfigFile.Save(_globalConfigFile.Config);
 
-            _reportService.Output($"Project '{displayName}' created.");
+            if (options.Silent)
+            {
+                _reportService.Output($"{{ \"displayName\": \"{displayName}\" }}");
+            }
+            else
+            {
+                _reportService.Output($"Project '{displayName}' created.");
+            }
             return ExecuteResultEnum.Succeeded;
         }
 
