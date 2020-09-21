@@ -20,7 +20,7 @@ namespace SpocR.DataContext.Models
         public int MaxLength
         {
             // see: https://www.sqlservercentral.com/forums/topic/sql-server-max_lenght-returns-double-the-actual-size#unicode
-            get => SqlTypeName.StartsWith("nvarchar") ? _maxLength / 2 : _maxLength;
+            get => SqlTypeName?.StartsWith("nvarchar") ?? false ? _maxLength / 2 : _maxLength;
             set => this._maxLength = value;
         }
     }
