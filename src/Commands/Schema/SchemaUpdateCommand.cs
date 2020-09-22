@@ -7,6 +7,8 @@ namespace SpocR.Commands.Schema
     [Command("update", Description = "Update an existing SpocR Schema")]
     public class SchemaUpdateCommand : SchemaCommandBase, ISchemaUpdateCommandOptions
     {
+        [Option("--name", "Schema name", CommandOptionType.SingleValue)]
+        public string SchemaName { get; set; }
 
         [Option("--status", "Set schema status to Build or Ignored", CommandOptionType.SingleValue)]
         public string Status { get; set; }
@@ -26,6 +28,7 @@ namespace SpocR.Commands.Schema
 
     public interface ISchemaUpdateCommandOptions : ICommandOptions
     {
+        string SchemaName { get; }
         string Status { get; }
     }
 
@@ -38,6 +41,7 @@ namespace SpocR.Commands.Schema
             _options = options;
         }
 
+        public string SchemaName => _options.SchemaName?.Trim();
         public string Status => _options.Status?.Trim();
     }
 }
