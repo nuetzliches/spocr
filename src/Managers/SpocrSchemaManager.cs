@@ -23,6 +23,8 @@ namespace SpocR.Managers
 
         public ExecuteResultEnum Update(ISchemaUpdateCommandOptions options)
         {
+             
+
             // var displayName = options;
             // var schemaIndex = FindIndexByName(displayName);
 
