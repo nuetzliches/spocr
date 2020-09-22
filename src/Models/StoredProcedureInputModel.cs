@@ -73,6 +73,7 @@ namespace SpocR.Models
             get => _item.SqlTypeName;
             set => _item.SqlTypeName = value;
         }
+
         public int? MaxLength
         {
             get => _item.MaxLength > 0 ? (int?)_item.MaxLength : null;

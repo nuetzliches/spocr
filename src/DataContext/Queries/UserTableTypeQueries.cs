@@ -16,7 +16,11 @@ namespace SpocR.DataContext.Queries
             };
 
             // ! the ORDER BY is important
-            var queryString = @"SELECT c.name, t1.is_nullable, t.name AS system_type_name, c.max_length
+            // max_length see: https://www.sqlservercentral.com/forums/topic/sql-server-max_lenght-returns-double-the-actual-size#unicode
+            var queryString = @"SELECT c.name, 
+                                    t1.is_nullable, 
+                                    t.name AS system_type_name, 
+                                    IIF(t.name LIKE 'nvarchar*', c.max_length / 2, c.max_length) AS max_length
                                 FROM sys.table_types AS tt
                                 INNER JOIN sys.columns c ON c.object_id = tt.type_table_object_id
                                 INNER JOIN sys.types t ON t.system_type_id = c.system_type_id AND t.user_type_id = c.system_type_id
