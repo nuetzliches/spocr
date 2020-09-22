@@ -38,7 +38,7 @@ namespace SpocR.Models
         public Version Version { get; set; }
         public DateTime Modified { get; set; }
         public ProjectModel Project { get; set; }
-        public IEnumerable<SchemaModel> Schema { get; set; }
+        public List<SchemaModel> Schema { get; set; }
     }
 
     public class ProjectModel

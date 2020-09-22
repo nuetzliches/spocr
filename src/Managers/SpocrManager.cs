@@ -182,7 +182,7 @@ namespace SpocR.Managers
             _reportService.PrintTitle("Pulling DB-Schema from Database");
 
             var config = _configFile.Config;
-            var configSchemas = config?.Schema?.ToList() ?? new List<SchemaModel>();
+            var configSchemas = config?.Schema ?? new List<SchemaModel>();
 
             var stopwatch = new Stopwatch();
             stopwatch.Start();

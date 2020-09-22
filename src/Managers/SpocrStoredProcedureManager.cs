@@ -22,26 +22,29 @@ namespace SpocR.Managers
 
         public ExecuteResultEnum List(IStoredProcedureCommandOptions options)
         {
-            var storedprocduress = _configFile.Config?.Schema.FirstOrDefault(_ => _.Name.Equals(options.SchemaName))?.StoredProcedures?.ToList();
+            var storedProcedures = _configFile.Config?.Schema.FirstOrDefault(_ => _.Name.Equals(options.SchemaName))?.StoredProcedures?.ToList();
 
-            if (!options.Silent && !(storedprocduress?.Any() ?? false))
+            if (!(storedProcedures?.Any() ?? false))
             {
-                _reportService.Warn($"No StoredProcduress found");
+                if (!options.Silent)
+                {
+                    _reportService.Warn($"No StoredProcduress found");
+                }
                 return ExecuteResultEnum.Aborted;
             }
 
-            _reportService.Output($"[{(storedprocduress.Count > 0 ? "{" : "")}");
-            storedprocduress.ForEach(storedprocdures =>
+            _reportService.Output($"[{(storedProcedures.Count > 0 ? "{" : "")}");
+            storedProcedures.ForEach(storedprocdures =>
             {
                 _reportService.Output($"\t\"name\": \"{storedprocdures.Name}\"");
                 // _reportService.Output($"\t\"name\": \"{storedprocdures.Name}\",");
                 // _reportService.Output($"\t\"status\": \"{storedprocdures.Status}\"");
-                if (storedprocduress.FindIndex(_ => _ == storedprocdures) < storedprocduress.Count - 1)
+                if (storedProcedures.FindIndex(_ => _ == storedprocdures) < storedProcedures.Count - 1)
                 {
                     _reportService.Output("}, {");
                 }
             });
-            _reportService.Output($"{(storedprocduress.Count > 0 ? "}" : "")}]");
+            _reportService.Output($"{(storedProcedures.Count > 0 ? "}" : "")}]");
 
             return ExecuteResultEnum.Succeeded;
         }

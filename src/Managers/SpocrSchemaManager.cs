@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using SpocR.Commands;
 using SpocR.Commands.Schema;
@@ -23,45 +24,24 @@ namespace SpocR.Managers
 
         public ExecuteResultEnum Update(ISchemaUpdateCommandOptions options)
         {
-             
+            var schemaName = options.SchemaName;
+            var schemaIndex = FindIndexByName(schemaName);
 
-            // var displayName = options;
-            // var schemaIndex = FindIndexByName(displayName);
+            if (schemaIndex < 0)
+            {
+                _reportService.Error($"Cant find schema '{schemaName}'");
+                return ExecuteResultEnum.Error;
+            }
 
-            // if (schemaIndex < 0)
-            // {
-            //     _reportService.Error($"Cant find schema '{displayName}'");
-            //     return ExecuteResultEnum.Error;
-            // }
+            var status = options.Status;
+            if (!string.IsNullOrEmpty(status))
+            {
+                _configFile.Config.Schema[schemaIndex].Status = Enum.Parse<SchemaStatusEnum>(status);
+            }
 
-            // var path = options.Path;
-            // if (!string.IsNullOrEmpty(path))
-            // {
-            //     path = CreateConfigFilePath(path);
-            // }
+            _configFile.Save(_configFile.Config);
 
-            // var newDisplayName = options.NewDisplayName;
-            // if (!string.IsNullOrEmpty(newDisplayName))
-            // {
-            //     if (IsDisplayNameAlreadyUsed(newDisplayName, options))
-            //     {
-            //         return ExecuteResultEnum.Error;
-            //     }
-            // }
-
-            // if (!string.IsNullOrEmpty(newDisplayName))
-            // {
-            //     _globalConfigFile.Config.Schemas[schemaIndex].DisplayName = newDisplayName;
-            // }
-
-            // if (!string.IsNullOrEmpty(path))
-            // {
-            //     _globalConfigFile.Config.Schemas[schemaIndex].ConfigFile = path;
-            // }
-
-            // _globalConfigFile.Save(_globalConfigFile.Config);
-
-            // _reportService.Output($"Schema '{displayName}' updated.");
+            _reportService.Output($"Schema '{schemaName}' updated.");
             return ExecuteResultEnum.Succeeded;
 
         }
@@ -69,7 +49,7 @@ namespace SpocR.Managers
         public ExecuteResultEnum List(ICommandOptions options)
         {
             // _configFile.Read();
-            var schemas = _configFile.Config?.Schema?.ToList();
+            var schemas = _configFile.Config?.Schema;
 
             if (!options.Silent && !(schemas?.Any() ?? false))
             {
@@ -90,6 +70,12 @@ namespace SpocR.Managers
             _reportService.Output($"{(schemas.Count > 0 ? "}" : "")}]");
 
             return ExecuteResultEnum.Succeeded;
+        }
+
+        private int FindIndexByName(string schemaName)
+        {
+            var schemaList = _configFile.Config.Schema;
+            return schemaList.FindIndex(schema => schema.Name.Equals(schemaName));
         }
     }
 }
