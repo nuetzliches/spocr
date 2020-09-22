@@ -63,11 +63,16 @@ namespace SpocR.AutoUpdater
                 if (answer)
                 {
                     InstallUpdate();
+                } 
+                else 
+                {
+                    WriteLongPause();
+                    return;
                 }
 
             }
 
-            WriteNextCheckTicksToGlobalConfig();
+            WriteShortPause();
         }
 
         public void InstallUpdate()
@@ -89,13 +94,14 @@ namespace SpocR.AutoUpdater
             Environment.Exit(-1);
         }
 
-        private void WriteNextCheckTicksToGlobalConfig()
+        private void WriteShortPause() { this.WriteNextCheckTicksToGlobalConfig(_globalConfigFile.Config.AutoUpdate.ShortPauseInMinutes); }
+        private void WriteLongPause() { this.WriteNextCheckTicksToGlobalConfig(_globalConfigFile.Config.AutoUpdate.LongPauseInMinutes); }
+        private void WriteNextCheckTicksToGlobalConfig(int pause)
         {
             var now = DateTime.Now.Ticks;
-            var pauseTicks = TimeSpan.FromMinutes(_globalConfigFile.Config.AutoUpdate.PauseInMinutes).Ticks;
+            var pauseTicks = TimeSpan.FromMinutes(pause).Ticks;
 
-            _globalConfigFile.Config.AutoUpdate.NextCheckTicks = now + pauseTicks;
-            _globalConfigFile.Save(_globalConfigFile.Config);
+            _globalConfigFile.Config.AutoUpdate.NextCheckTicks = now + pauseTicks;            
         }
     }
 

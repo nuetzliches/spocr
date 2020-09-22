@@ -14,7 +14,7 @@ namespace SpocR.Models
         [JsonConverter(typeof(StringVersionConverter)), WriteProtectedBySystem]
         public Version Version { get; set; }
         public string UserId { get; set; }
-        public GlobalAutoUpdateConfigurationModel AutoUpdate { get; set; } = new GlobalAutoUpdateConfigurationModel { Enabled = true, PauseInMinutes = 1440 };
+        public GlobalAutoUpdateConfigurationModel AutoUpdate { get; set; } = new GlobalAutoUpdateConfigurationModel { Enabled = true, LongPauseInMinutes = 1440, ShortPauseInMinutes = 15 };
         public List<GlobalProjectConfigurationModel> Projects { get; set; } = new List<GlobalProjectConfigurationModel>();
     }
 
@@ -28,7 +28,8 @@ namespace SpocR.Models
     public class GlobalAutoUpdateConfigurationModel
     {
         public bool Enabled { get; set; }
-        public int PauseInMinutes { get; set; }
+        public int ShortPauseInMinutes { get; set; }
+        public int LongPauseInMinutes { get; set; }
         public long NextCheckTicks { get; set; }
     }
 

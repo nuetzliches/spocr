@@ -354,11 +354,16 @@ namespace SpocR.Managers
 
         public ExecuteResultEnum GetVersion(ICommandOptions options)
         {
-            var current = _spocr.Version.ToVersionString();
-            var latest = current;
-            _autoUpdaterService.GetLatestVersionAsync().ContinueWith(t => latest = t.Result?.ToVersionString()).Wait();
-            _reportService.Output($"Version: {current}");
-            _reportService.Output($"Latest: {latest ?? "0"}");
+            var current = _spocr.Version;
+            var latest = default(Version);
+            _autoUpdaterService.GetLatestVersionAsync().ContinueWith(t => latest = t.Result).Wait();
+
+            _reportService.Output($"Version: {current.ToVersionString()}");
+            
+            if (current.IsGreaterThan(latest))
+                _reportService.Output($"Latest: {latest?.ToVersionString()} (What kind of magic is this???)");
+            else
+                _reportService.Output($"Latest: {latest?.ToVersionString() ?? current.ToVersionString()}");
 
             return ExecuteResultEnum.Succeeded;
         }

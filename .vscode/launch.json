@@ -9,8 +9,8 @@
       "program": "${workspaceFolder}/src/bin/Debug/netcoreapp2.1/SpocR.dll",
       // awailable commands: "create", "pull", "build", "rebuild", "remove", options: "-d|--dry-run"
       "args": [
-        "project",
-        "ls"
+        "version",
+        //"ls"
         //"-f",
         //"-s"
         //"-d"
