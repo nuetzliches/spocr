@@ -28,6 +28,7 @@ namespace SpocR.Models
     public class GlobalAutoUpdateConfigurationModel
     {
         public bool Enabled { get; set; }
+        public string SkipVersion { get; set; }
         public int ShortPauseInMinutes { get; set; }
         public int LongPauseInMinutes { get; set; }
         public long NextCheckTicks { get; set; }

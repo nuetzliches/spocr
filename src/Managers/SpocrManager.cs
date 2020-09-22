@@ -361,9 +361,9 @@ namespace SpocR.Managers
             _reportService.Output($"Version: {current.ToVersionString()}");
             
             if (current.IsGreaterThan(latest))
-                _reportService.Output($"Latest: {latest?.ToVersionString()} (What kind of magic is this???)");
+                _reportService.Output($"Latest:  {latest?.ToVersionString()} (What kind of magic is this???)");
             else
-                _reportService.Output($"Latest: {latest?.ToVersionString() ?? current.ToVersionString()}");
+                _reportService.Output($"Latest:  {latest?.ToVersionString() ?? current.ToVersionString()}");
 
             return ExecuteResultEnum.Succeeded;
         }

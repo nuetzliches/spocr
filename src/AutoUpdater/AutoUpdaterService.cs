@@ -56,7 +56,8 @@ namespace SpocR.AutoUpdater
             }
 
             var latestVersion = await this._packageManager.GetLatestVersionAsync();
-            if (latestVersion.IsGreaterThan(_spocrService.Version))
+            var skipThisUpdate = latestVersion.ToVersionString() ==  _globalConfigFile.Config.AutoUpdate.SkipVersion;
+            if (!skipThisUpdate && latestVersion.IsGreaterThan(_spocrService.Version))
             {
                 _reportService.PrintImportantTitle($"A new SpocR version {latestVersion} is available");
                 var answer = SpocrPrompt.GetYesNo($"Do you want to update SpocR?", false);
@@ -64,6 +65,11 @@ namespace SpocR.AutoUpdater
                 {
                     InstallUpdate();
                 } 
+                // else if (answer.skip)
+                // {
+                //     WriteSkipThiSVersion(latestVersion);
+                //     return;
+                // }
                 else 
                 {
                     WriteLongPause();
@@ -94,14 +100,26 @@ namespace SpocR.AutoUpdater
             Environment.Exit(-1);
         }
 
-        private void WriteShortPause() { this.WriteNextCheckTicksToGlobalConfig(_globalConfigFile.Config.AutoUpdate.ShortPauseInMinutes); }
-        private void WriteLongPause() { this.WriteNextCheckTicksToGlobalConfig(_globalConfigFile.Config.AutoUpdate.LongPauseInMinutes); }
-        private void WriteNextCheckTicksToGlobalConfig(int pause)
+        private void WriteShortPause(bool save = true) { this.WriteNextCheckTicksToGlobalConfig(_globalConfigFile.Config.AutoUpdate.ShortPauseInMinutes, save); }
+        private void WriteLongPause(bool save = true) { this.WriteNextCheckTicksToGlobalConfig(_globalConfigFile.Config.AutoUpdate.LongPauseInMinutes, save); }
+        private void WriteNextCheckTicksToGlobalConfig(int pause, bool save = true)
         {
             var now = DateTime.Now.Ticks;
             var pauseTicks = TimeSpan.FromMinutes(pause).Ticks;
 
             _globalConfigFile.Config.AutoUpdate.NextCheckTicks = now + pauseTicks;            
+            if(save) SaveGlobalConfig();
+        }
+        
+        private void WriteSkipThiSVersion(Version latestVersion, bool save = true)
+        {
+            _globalConfigFile.Config.AutoUpdate.SkipVersion = latestVersion.ToVersionString();          
+            if(save) SaveGlobalConfig();
+        }
+
+        private void SaveGlobalConfig()
+        {        
+            _globalConfigFile.Save(_globalConfigFile.Config);
         }
     }
 

@@ -22,7 +22,8 @@ namespace SpocR.Services
                 AutoUpdate = new GlobalAutoUpdateConfigurationModel
                 {
                     Enabled = true,
-                    PauseInMinutes = 1440,
+                    LongPauseInMinutes = 1440,
+                    ShortPauseInMinutes = 15,
                     NextCheckTicks = 0
                 }
             };
