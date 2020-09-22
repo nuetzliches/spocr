@@ -33,7 +33,7 @@ namespace SpocR.DataContext.Queries
             var queryString = @"SELECT name, 
                                     is_nullable, 
                                     system_type_name, 
-                                    IIF(system_type_name LIKE 'nvarchar*', max_length / 2, max_length) AS max_length, 
+                                    IIF(system_type_name LIKE 'nvarchar%', max_length / 2, max_length) AS max_length, 
                                     is_identity_column 
                                 FROM sys.dm_exec_describe_first_result_set_for_object (@objectId, 0) 
                                 ORDER BY column_ordinal;";
@@ -57,7 +57,7 @@ namespace SpocR.DataContext.Queries
             var queryString = @"SELECT p.name, 
                                     t1.is_nullable, 
                                     t.name AS system_type_name, 
-                                    IIF(t.name LIKE 'nvarchar*', p.max_length / 2, p.max_length) AS max_length,  
+                                    IIF(t.name LIKE 'nvarchar%', p.max_length / 2, p.max_length) AS max_length,  
                                     p.is_output, 
                                     t1.is_table_type, 
                                     t1.name AS user_type_name, 
