@@ -83,13 +83,14 @@ public Task<List<UserList>> ListAsync(CancellationToken cancellationToken = defa
 `> dotnet tool install --global SpocR`<br>
 
 ### b. From GitHub
-Clone and Download Repository
-
-`> git clone https://github.com/nuetzliches/spocr.git`<br>
-`> cd src`<br>
-`> dotnet pack --output ./ --configuration Release`<br>
-`> dotnet tool install -g spocr --add-source ./`<br>
-`> (dotnet tool uninstall -g spocr)`<br>
+- Clone and Download Repository: `git clone https://github.com/nuetzliches/spocr.git`
+- if installed: `dotnet tool uninstall -g spocr`
+- install local build: 
+```
+cd src
+dotnet pack --output ./ --configuration Release
+dotnet tool install -g spocr --add-source ./
+```
 
 # Use spocr
 
