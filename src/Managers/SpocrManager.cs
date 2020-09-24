@@ -165,7 +165,8 @@ namespace SpocR.Managers
                 _configFile.OverwriteWithConfig = userConfig;
             }
 
-            RunVersionCheck(options);
+            if (RunConfigVersionCheck(options) == ExecuteResultEnum.Aborted)
+                return ExecuteResultEnum.Aborted;
 
             if (!string.IsNullOrWhiteSpace(_configFile.Config?.Project?.DataBase?.ConnectionString))
             {
@@ -258,7 +259,8 @@ namespace SpocR.Managers
 
             RunAutoUpdate(options);
 
-            RunVersionCheck(options);
+            if (RunConfigVersionCheck(options) == ExecuteResultEnum.Aborted)
+                return ExecuteResultEnum.Aborted;
 
             _reportService.PrintTitle("Build DataContext from spocr.json");
 
@@ -368,9 +370,9 @@ namespace SpocR.Managers
             return ExecuteResultEnum.Succeeded;
         }
 
-        private ExecuteResultEnum RunVersionCheck(ICommandOptions options)
+        private ExecuteResultEnum RunConfigVersionCheck(ICommandOptions options)
         {
-            if (options.NoVersionCheck) return ExecuteResultEnum.Aborted;
+            if (options.NoVersionCheck) return ExecuteResultEnum.Skipped;
             options.NoVersionCheck = true;
 
             var check = _configFile.CheckVersion();
