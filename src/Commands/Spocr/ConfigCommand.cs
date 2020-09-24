@@ -1,11 +1,11 @@
 ﻿using McMaster.Extensions.CommandLineUtils;
 using SpocR.Managers;
 
-namespace SpocR.Commands
+namespace SpocR.Commands.Spocr
 {
     [HelpOption("-?|-h|--help")]
     [Command("config", Description = "Configure SpocR")]
-    public class ConfigCommand : CommandBase
+    public class ConfigCommand : SpocrCommand
     {
         private readonly SpocrConfigManager _spocrConfigManager;
 

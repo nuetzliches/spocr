@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SpocR.Commands;
 using SpocR.Commands.Project;
 using SpocR.Commands.Schema;
+using SpocR.Commands.Spocr;
 using SpocR.Commands.StoredProcdure;
 using SpocR.DataContext;
 using SpocR.Extensions;

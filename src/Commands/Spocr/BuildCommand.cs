@@ -1,11 +1,11 @@
 ﻿using McMaster.Extensions.CommandLineUtils;
 using SpocR.Managers;
 
-namespace SpocR.Commands
+namespace SpocR.Commands.Spocr
 {
     [HelpOption("-?|-h|--help")]
     [Command("build", Description = "Build DataContex depending on spocr.json")]
-    public class BuildCommand : CommandBase
+    public class BuildCommand : SpocrCommand
     {
         private readonly SpocrManager _spocrManager;
 

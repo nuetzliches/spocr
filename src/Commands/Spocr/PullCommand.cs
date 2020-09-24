@@ -1,11 +1,11 @@
 ﻿using McMaster.Extensions.CommandLineUtils;
 using SpocR.Managers;
 
-namespace SpocR.Commands
+namespace SpocR.Commands.Spocr
 {
     [HelpOption("-?|-h|--help")]
     [Command("pull", Description = "Pull all schema informations from DB into spocr.json")]
-    public class PullCommand : CommandBase
+    public class PullCommand : SpocrCommand
     {
         private readonly SpocrManager _spocrManager;
 

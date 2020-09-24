@@ -3,11 +3,11 @@ using McMaster.Extensions.CommandLineUtils;
 using SpocR.Commands.Project;
 using SpocR.Managers;
 
-namespace SpocR.Commands
+namespace SpocR.Commands.Spocr
 {
     [HelpOption("-?|-h|--help")]
     [Command("create", Description = "Creates a new SpocR Config")]
-    public class CreateCommand : CommandBase, ICreateCommandOptions
+    public class CreateCommand : SpocrCommand, ICreateCommandOptions
     {
         private readonly SpocrManager _spocrManager;
 

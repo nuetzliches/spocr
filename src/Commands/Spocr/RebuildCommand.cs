@@ -2,11 +2,11 @@
 using SpocR.Enums;
 using SpocR.Managers;
 
-namespace SpocR.Commands
+namespace SpocR.Commands.Spocr
 {
     [HelpOption("-?|-h|--help")]
     [Command("rebuild", Description = "Pull DB Schema and Build DataContext")]
-    public class RebuildCommand : CommandBase
+    public class RebuildCommand : SpocrCommand
     {
         private readonly SpocrManager _spocrManager;
 

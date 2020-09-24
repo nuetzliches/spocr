@@ -7,6 +7,7 @@ using McMaster.Extensions.CommandLineUtils;
 using Microsoft.Extensions.Configuration;
 using SpocR.AutoUpdater;
 using SpocR.Commands;
+using SpocR.Commands.Spocr;
 using SpocR.DataContext;
 using SpocR.Enums;
 using SpocR.Extensions;

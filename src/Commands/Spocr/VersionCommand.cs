@@ -1,15 +1,14 @@
 ﻿using McMaster.Extensions.CommandLineUtils;
 using SpocR.Managers;
 
-namespace SpocR.Commands
+namespace SpocR.Commands.Spocr
 {
-    [HelpOption("-?|-h|--help")]
-    [Command("remove", Description = "Removes the SpocR Project")]
-    public class RemoveCommand : CommandBase
+    [Command("version", Description = "Show version information")]
+    public class VersionCommand : SpocrCommand
     {
         private readonly SpocrManager _spocrManager;
 
-        public RemoveCommand(SpocrManager spocrManager)
+        public VersionCommand(SpocrManager spocrManager)
         {
             _spocrManager = spocrManager;
         }
@@ -17,7 +16,7 @@ namespace SpocR.Commands
         public override int OnExecute()
         {
             base.OnExecute();
-            return (int)_spocrManager.Remove(CommandOptions);
+            return (int)_spocrManager.GetVersion(CommandOptions);
         }
     }
 }
