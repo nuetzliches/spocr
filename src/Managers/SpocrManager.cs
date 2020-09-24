@@ -193,7 +193,7 @@ namespace SpocR.Managers
                 var overwriteWithCurrentConfig = configSchemas.Any();
                 if (overwriteWithCurrentConfig)
                 {
-                    foreach (var schema in result)
+                    foreach (var schema in result ?? Enumerable.Empty<SchemaModel>())
                     {
                         var currentSchema = configSchemas.SingleOrDefault(i => i.Name == schema.Name);
                         schema.Status = currentSchema != null ? currentSchema.Status : SchemaStatusEnum.Build;
