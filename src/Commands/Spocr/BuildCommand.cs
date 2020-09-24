@@ -5,11 +5,12 @@ namespace SpocR.Commands.Spocr
 {
     [HelpOption("-?|-h|--help")]
     [Command("build", Description = "Build DataContex depending on spocr.json")]
-    public class BuildCommand : SpocrCommand
+    public class BuildCommand : SpocrCommandBase
     {
         private readonly SpocrManager _spocrManager;
 
-        public BuildCommand(SpocrManager spocrManager)
+        public BuildCommand(SpocrManager spocrManager, SpocrProjectManager spocrProjectManager) 
+        : base(spocrProjectManager)
         {
             _spocrManager = spocrManager;
         }

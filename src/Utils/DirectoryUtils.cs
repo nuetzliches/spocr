@@ -51,5 +51,11 @@ namespace SpocR.Utils
 
             return Path.Combine(pathList.ToArray()).ToString();
         }
+
+        internal static bool IsPath(string input) 
+        {
+            if (input == null) return false;
+            return (input.Contains('/') || input.Contains('\\'));
+        }
     }
 }

@@ -5,11 +5,12 @@ namespace SpocR.Commands.Spocr
 {
     [HelpOption("-?|-h|--help")]
     [Command("pull", Description = "Pull all schema informations from DB into spocr.json")]
-    public class PullCommand : SpocrCommand
+    public class PullCommand : SpocrCommandBase
     {
         private readonly SpocrManager _spocrManager;
 
-        public PullCommand(SpocrManager spocrManager)
+        public PullCommand(SpocrManager spocrManager, SpocrProjectManager spocrProjectManager) 
+        : base(spocrProjectManager)
         {
             _spocrManager = spocrManager;
         }

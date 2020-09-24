@@ -7,8 +7,8 @@ namespace SpocR.Commands.Schema
     [Command("ls", Description = "List all SpocR Schemas")]
     public class SchemaListCommand : SchemaCommandBase
     {
-        public SchemaListCommand(SpocrSchemaManager spocrSchemaManager)
-        : base(spocrSchemaManager)
+        public SchemaListCommand(SpocrSchemaManager spocrSchemaManager, SpocrProjectManager spocrProjectManager)
+        : base(spocrSchemaManager, spocrProjectManager)
         { }
 
         public override int OnExecute()

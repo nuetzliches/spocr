@@ -1,9 +1,10 @@
 ﻿using McMaster.Extensions.CommandLineUtils;
+using SpocR.Commands.Spocr;
 using SpocR.Managers;
 
 namespace SpocR.Commands.StoredProcdure
 {
-    public class StoredProcdureCommandBase : CommandBase, IStoredProcedureCommandOptions
+    public class StoredProcdureCommandBase : SpocrCommandBase, IStoredProcedureCommandOptions
     {
         protected readonly SpocrStoredProcdureManager SpocrStoredProcdureManager;
 
@@ -12,7 +13,8 @@ namespace SpocR.Commands.StoredProcdure
 
         public IStoredProcedureCommandOptions StoredProcedureCommandOptions => new StoredProcedureCommandOptions(this);
 
-        public StoredProcdureCommandBase(SpocrStoredProcdureManager spocrStoredProcdureManager)
+        public StoredProcdureCommandBase(SpocrStoredProcdureManager spocrStoredProcdureManager, SpocrProjectManager spocrProjectManager) 
+        : base(spocrProjectManager)
         {
             SpocrStoredProcdureManager = spocrStoredProcdureManager;
         }

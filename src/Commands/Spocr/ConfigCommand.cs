@@ -5,11 +5,12 @@ namespace SpocR.Commands.Spocr
 {
     [HelpOption("-?|-h|--help")]
     [Command("config", Description = "Configure SpocR")]
-    public class ConfigCommand : SpocrCommand
+    public class ConfigCommand : SpocrCommandBase
     {
         private readonly SpocrConfigManager _spocrConfigManager;
 
-        public ConfigCommand(SpocrConfigManager spocrConfigManager)
+        public ConfigCommand(SpocrConfigManager spocrConfigManager, SpocrProjectManager spocrProjectManager) 
+        : base(spocrProjectManager)
         {
             _spocrConfigManager = spocrConfigManager;
         }

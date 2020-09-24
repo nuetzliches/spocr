@@ -15,8 +15,8 @@ namespace SpocR.Commands.Schema
 
         public SchemaUpdateCommandOptions SchemaUpdateCommandOptions => new SchemaUpdateCommandOptions(this);
 
-        public SchemaUpdateCommand(SpocrSchemaManager spocrSchemaManager)
-        : base(spocrSchemaManager)
+        public SchemaUpdateCommand(SpocrSchemaManager spocrSchemaManager, SpocrProjectManager spocrProjectManager)
+        : base(spocrSchemaManager, spocrProjectManager)
         { }
 
         public override int OnExecute()

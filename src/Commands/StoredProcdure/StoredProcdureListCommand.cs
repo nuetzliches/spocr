@@ -7,8 +7,8 @@ namespace SpocR.Commands.StoredProcdure
     [Command("ls", Description = "List all SpocR StoredProcdures")]
     public class StoredProcdureListCommand : StoredProcdureCommandBase
     {
-        public StoredProcdureListCommand(SpocrStoredProcdureManager spocrStoredProcdureManager)
-        : base(spocrStoredProcdureManager)
+        public StoredProcdureListCommand(SpocrStoredProcdureManager spocrStoredProcdureManager, SpocrProjectManager spocrProjectManager) 
+        : base(spocrStoredProcdureManager, spocrProjectManager)
         { }
 
         public override int OnExecute()

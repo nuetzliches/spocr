@@ -5,11 +5,12 @@ namespace SpocR.Commands.Spocr
 {
     [HelpOption("-?|-h|--help")]
     [Command("remove", Description = "Removes the SpocR Project")]
-    public class RemoveCommand : SpocrCommand
+    public class RemoveCommand : SpocrCommandBase
     {
         private readonly SpocrManager _spocrManager;
 
-        public RemoveCommand(SpocrManager spocrManager)
+        public RemoveCommand(SpocrManager spocrManager, SpocrProjectManager spocrProjectManager) 
+        : base(spocrProjectManager)
         {
             _spocrManager = spocrManager;
         }

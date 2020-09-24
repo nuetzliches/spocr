@@ -211,7 +211,7 @@ namespace SpocR.Managers
             return displayName;
         }
 
-        private GlobalProjectConfigurationModel FindByName(string displayName)
+        internal GlobalProjectConfigurationModel FindByName(string displayName)
         {
             var projects = _globalConfigFile.Config?.Projects;
             return projects?.Find(project => project.DisplayName.Equals(displayName));

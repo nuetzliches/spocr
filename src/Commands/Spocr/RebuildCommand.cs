@@ -6,11 +6,12 @@ namespace SpocR.Commands.Spocr
 {
     [HelpOption("-?|-h|--help")]
     [Command("rebuild", Description = "Pull DB Schema and Build DataContext")]
-    public class RebuildCommand : SpocrCommand
+    public class RebuildCommand : SpocrCommandBase
     {
         private readonly SpocrManager _spocrManager;
 
-        public RebuildCommand(SpocrManager spocrManager)
+        public RebuildCommand(SpocrManager spocrManager, SpocrProjectManager spocrProjectManager) 
+        : base(spocrProjectManager)
         {
             _spocrManager = spocrManager;
         }

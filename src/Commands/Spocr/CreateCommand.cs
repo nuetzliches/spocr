@@ -7,7 +7,7 @@ namespace SpocR.Commands.Spocr
 {
     [HelpOption("-?|-h|--help")]
     [Command("create", Description = "Creates a new SpocR Config")]
-    public class CreateCommand : SpocrCommand, ICreateCommandOptions
+    public class CreateCommand : SpocrCommandBase, ICreateCommandOptions
     {
         private readonly SpocrManager _spocrManager;
 
@@ -28,7 +28,8 @@ namespace SpocR.Commands.Spocr
 
         public ICreateCommandOptions CreateCommandOptions => new CreateCommandOptions(this);
 
-        public CreateCommand(SpocrManager spocrManager)
+        public CreateCommand(SpocrManager spocrManager, SpocrProjectManager spocrProjectManager) 
+        : base(spocrProjectManager)
         {
             _spocrManager = spocrManager;
         }
