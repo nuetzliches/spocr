@@ -47,7 +47,6 @@ namespace SpocR.Services
             return new ConfigurationModel
             {
                 Version = Version,
-                Modified = DateTime.Now,
                 Project = new ProjectModel
                 {
                     Role = role,
