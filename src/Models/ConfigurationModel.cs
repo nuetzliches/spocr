@@ -21,8 +21,7 @@ namespace SpocR.Models
     public class GlobalProjectConfigurationModel
     {
         public string DisplayName { get; set; }
-        public string ConfigFile { get; set; }
-
+        public string ConfigFile { get; set; }       
     }
 
     public class GlobalAutoUpdateConfigurationModel
@@ -48,6 +47,9 @@ namespace SpocR.Models
         public IdentityModel Identity { get; set; } = new IdentityModel();
         public DataBaseModel DataBase { get; set; } = new DataBaseModel();
         public OutputModel Output { get; set; } = new OutputModel();
+        
+        [JsonConverter(typeof(StringEnumConverter))]        
+        public SchemaStatusEnum DefaultSchemaStatus { get; set; } = SchemaStatusEnum.Build;
     }
 
     public class RoleModel
