@@ -3,7 +3,6 @@ using System;
 using McMaster.Extensions.CommandLineUtils;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using SpocR.Commands;
 using SpocR.Commands.Project;
 using SpocR.Commands.Schema;
 using SpocR.Commands.Spocr;
