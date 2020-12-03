@@ -83,7 +83,7 @@ namespace SpocR.AutoUpdater
 
         public void InstallUpdate()
         {
-            _reportService.Green("Updating SpocR. Please wait ...");
+            _reportService.Note("Updating SpocR. Please wait ...");
 
             var process = new Process()
             {

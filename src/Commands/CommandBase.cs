@@ -18,6 +18,9 @@ namespace SpocR.Commands
         [Option("-s|--silent", "Run without user interactions and dont check for updates", CommandOptionType.NoValue)]
         public virtual bool Silent { get; set; }
 
+        [Option("-v|--verbose", "Show non necessary information", CommandOptionType.NoValue)]
+        public virtual bool Verbose { get; set; }
+
         [Option("-nvc|--no-version-check", "Ignore version missmatch between installation and config file", CommandOptionType.NoValue)]
         public virtual bool NoVersionCheck { get; set; }
 
@@ -39,6 +42,7 @@ namespace SpocR.Commands
         bool DryRun { get; }
         bool Force { get; }
         bool Silent { get; }
+        bool Verbose { get; }
         bool NoVersionCheck { get; set; }
         bool Debug { get; }
     }
@@ -49,13 +53,14 @@ namespace SpocR.Commands
         public CommandOptions(ICommandOptions options)
         {
             _options = options;
-            NoVersionCheck = options.NoVersionCheck;
+            NoVersionCheck = options?.NoVersionCheck ?? false;
         }
 
         public string Path => _options.Path?.Trim();
         public bool DryRun => _options.DryRun;
         public bool Force => _options.Force;
         public bool Silent => _options.Silent;
+        public bool Verbose => _options.Verbose;
         public bool NoVersionCheck { get; set; }
         public bool Debug => _options.Debug;
     }

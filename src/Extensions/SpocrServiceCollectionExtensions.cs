@@ -2,6 +2,7 @@ using System.IO;
 using McMaster.Extensions.CommandLineUtils;
 using Microsoft.Extensions.DependencyInjection;
 using SpocR.AutoUpdater;
+using SpocR.Commands;
 using SpocR.Managers;
 using SpocR.Models;
 using SpocR.Services;
@@ -21,6 +22,7 @@ namespace SpocR.Extensions
 #endif
 
             var spocrService = new SpocrService();
+            var commandOptions = new CommandOptions(null);
 
             services.AddSingleton<SpocrService>(spocrService);
             services.AddSingleton<IPackageManager, NugetService>();
@@ -35,7 +37,7 @@ namespace SpocR.Extensions
             services.AddSingleton<FileManager<GlobalConfigurationModel>>(new FileManager<GlobalConfigurationModel>(spocrService, globalConfigurationFileName, spocrService.GetGlobalDefaultConfiguration()));
             services.AddSingleton<FileManager<ConfigurationModel>>(new FileManager<ConfigurationModel>(spocrService, Configuration.ConfigurationFile, spocrService.GetDefaultConfiguration()));
             services.AddSingleton<Generator>();
-            services.AddSingleton<IReportService>(new ReportService(new ColoredConsoleReporter(PhysicalConsole.Singleton, true, false)));
+            services.AddSingleton<IReportService>(new ReportService(new ColoredConsoleReporter(PhysicalConsole.Singleton, true, false), commandOptions));
 
             return services;
         }

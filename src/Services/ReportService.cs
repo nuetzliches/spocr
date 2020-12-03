@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Newtonsoft.Json;
+using SpocR.Commands;
 using SpocR.Models;
 using SpocR.Serialization;
 using SpocR.Utils;
@@ -19,7 +20,9 @@ namespace SpocR.Services
         void Output(string message);
         void Error(string message);
         void Warn(string message);
+        void Note(string message);
         void Verbose(string message);
+        void Success(string message);
 
         void Green(string message);
         void Yellow(string message);
@@ -46,29 +49,34 @@ namespace SpocR.Services
         private readonly string LineUnderscore = new string('_', 50);
 
         private readonly IConsoleReporter _reporter;
+        private readonly ICommandOptions _commandOptions;
 
-        public ReportService(IConsoleReporter reporter)
+        public ReportService(IConsoleReporter reporter, CommandOptions commandOptions)
         {
             _reporter = reporter;
+            _commandOptions = commandOptions;
         }
 
         public void Output(string message)
             => _reporter.Output(message);
 
         public void Error(string message)
-            => _reporter.Error($"ERROR: {message}");
+            => _reporter.Error($"{message}");
 
         public void Warn(string message)
-            => _reporter.Warn($"WARNING: {message}");
+            => _reporter.Warn($"{message}");
 
         public void Success(string message)
-            => _reporter.Success($"SUCCESS: {message}");
+            => _reporter.Success($"{message}");
 
         public void Verbose(string message)
-            => _reporter.Verbose($"VRB: {message}");
+        {
+            if (_commandOptions.Verbose)
+                _reporter.Verbose($"{message}");
+        }
 
         public void Note(string message)
-            => _reporter.Warn($"NOTE: {message}");
+            => _reporter.Warn($"{message}");
 
         public void PrintTitle(string title)
         {
@@ -121,7 +129,7 @@ namespace SpocR.Services
         public void PrintDryRunMessage()
         {
             Output("");
-            Note("Run with \"dry run\" means no changes were made");
+            Warn("Run with \"dry run\" means no changes were made");
         }
 
         public void PrintConfiguration(ConfigurationModel config)

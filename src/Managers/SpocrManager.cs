@@ -233,7 +233,7 @@ namespace SpocR.Managers
                 _reportService.Output("");
             }
 
-            _reportService.Yellow($"Pulled {pulledStoredProcedures.Count()} StoredProcedures from {pullSchemas.Count()} Schemas [{string.Join(", ", pullSchemas.Select(x => x.Name))}] in {stopwatch.ElapsedMilliseconds} ms.");
+            _reportService.Note($"Pulled {pulledStoredProcedures.Count()} StoredProcedures from {pullSchemas.Count()} Schemas [{string.Join(", ", pullSchemas.Select(x => x.Name))}] in {stopwatch.ElapsedMilliseconds} ms.");
             _reportService.Output("");
 
             if (options.DryRun)
