@@ -54,13 +54,14 @@ namespace SpocR.Commands
         {
             _options = options;
             NoVersionCheck = options?.NoVersionCheck ?? false;
+            Verbose = options?.Verbose ?? false;
         }
 
         public string Path => _options.Path?.Trim();
         public bool DryRun => _options.DryRun;
         public bool Force => _options.Force;
         public bool Silent => _options.Silent;
-        public bool Verbose => _options.Verbose;
+        public bool Verbose { get; set; }
         public bool NoVersionCheck { get; set; }
         public bool Debug => _options.Debug;
     }
