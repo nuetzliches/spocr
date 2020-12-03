@@ -113,7 +113,6 @@ namespace SpocR.Managers
             // var config = new ConfigurationModel
             // {
             //     Version = _spocr.Version,
-            //     Modified = DateTime.Now,
             //     Project = new ProjectModel
             //     {
             //         Role = role,

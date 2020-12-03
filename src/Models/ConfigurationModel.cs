@@ -38,7 +38,6 @@ namespace SpocR.Models
     {
         [JsonConverter(typeof(StringVersionConverter))]
         public Version Version { get; set; }
-        public DateTime Modified { get; set; }
         public ProjectModel Project { get; set; }
         public List<SchemaModel> Schema { get; set; }
     }
