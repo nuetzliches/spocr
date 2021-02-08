@@ -129,3 +129,5 @@ dotnet tool install -g spocr --add-source ./
 - http://roslynquoter.azurewebsites.net/
 - https://natemcmaster.com/blog/2018/05/12/dotnet-global-tools/
 
+# Known Issues: 
+- SQL Server cannot determine the nullable prop on computed columns for sure. So if you want to a proper model, you need to ISNULL({....} ,0) your computed column
