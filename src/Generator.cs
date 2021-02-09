@@ -102,7 +102,7 @@ namespace SpocR
             foreach (var item in storedProcedure.Input)
             {
                 var propertyNode = (PropertyDeclarationSyntax)classNode.Members[0];
-                
+
                 nsNode = (NamespaceDeclarationSyntax)root.Members[0];
                 classNode = (ClassDeclarationSyntax)nsNode.Members[0];
 
@@ -643,7 +643,7 @@ namespace SpocR
             {
                 switch (storedProcedure.OperationKind)
                 {
-                    case Definition.OperationKindEnum.FindBy:
+                    case Definition.OperationKindEnum.Find:
                     case Definition.OperationKindEnum.List:
                         returnModel = storedProcedure.Name;
                         break;

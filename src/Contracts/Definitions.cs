@@ -15,7 +15,7 @@ namespace SpocR.Contracts
             Delete,
             Merge,
             Upsert,
-            FindBy,
+            Find,
             List
         }
 
@@ -95,8 +95,8 @@ namespace SpocR.Contracts
             // Returns:
             //     The part of the Name before the [Operation] starts. 
             //     e.g.: "User" from Name "UserCreate"
-            public string EntityName => _entityName 
-                ?? (_entityName = OperationKind != OperationKindEnum.Undefined 
+            public string EntityName => _entityName
+                ?? (_entityName = OperationKind != OperationKindEnum.Undefined
                     ? Name.Substring(0, Name.IndexOf(OperationKind.ToString()))
                     : Name
             );
@@ -107,13 +107,13 @@ namespace SpocR.Contracts
                     .FirstOrDefault(i => Name.Contains(i.ToString())));
             public ReadWriteKindEnum ReadWriteKind => _readWriteKind != ReadWriteKindEnum.Undefined
                 ? _readWriteKind
-                : _readWriteKind = (new[] { OperationKindEnum.FindBy, OperationKindEnum.List }.Contains(OperationKind)
+                : _readWriteKind = (new[] { OperationKindEnum.Find, OperationKindEnum.List }.Contains(OperationKind)
                             ? ReadWriteKindEnum.Read
                             : ReadWriteKindEnum.Write);
             public ResultKindEnum ResultKind => _resultKind != ResultKindEnum.Undefined
                 ? _resultKind
-                : (_resultKind = (OperationKind == OperationKindEnum.List || Name.Contains("WithChildren") 
-                    ? ResultKindEnum.List 
+                : (_resultKind = (OperationKind == OperationKindEnum.List || Name.Contains("WithChildren")
+                    ? ResultKindEnum.List
                     : ResultKindEnum.Single));
 
             public IEnumerable<StoredProcedureInputModel> Input => _storedProcedure.Input;
