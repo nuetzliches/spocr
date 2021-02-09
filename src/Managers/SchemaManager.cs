@@ -38,12 +38,14 @@ namespace SpocR.Managers
                     // ! Do not compare with Id. The Id is different for each SQL-Server Instance
                     var currentSchema = config.Schema.SingleOrDefault(i => i.Name == schema.Name);
                     // TODO define a global and local Property "onNewSchemaFound" (IGNORE, BUILD, WARN, PROMPT) to set the default Status
-                    schema.Status = (currentSchema != null) 
-                        ? currentSchema.Status 
+                    schema.Status = (currentSchema != null)
+                        ? currentSchema.Status
                         : config.Project.DefaultSchemaStatus;
-                           
                 }
             }
+
+            // reorder schemas, ignored at top
+            schemas = schemas.OrderByDescending(schema => schema.Status).ToList();
 
             if (withStoredProcedures)
             {
