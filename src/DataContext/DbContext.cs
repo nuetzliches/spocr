@@ -56,7 +56,7 @@ namespace SpocR.DataContext
                 var command = new SqlCommand(procedureName, _connection)
                 {
                     CommandType = CommandType.StoredProcedure,
-                    Transaction = transaction?.Transaction
+                    Transaction = transaction?.Transaction ?? GetCurrentTransaction()?.Transaction
                 };
 
                 if (parameters?.Any() ?? false) command.Parameters.AddRange(parameters.ToArray());
@@ -99,7 +99,7 @@ namespace SpocR.DataContext
                 var command = new SqlCommand(queryString, _connection)
                 {
                     CommandType = CommandType.Text,
-                    Transaction = transaction?.Transaction
+                    Transaction = transaction?.Transaction ?? GetCurrentTransaction()?.Transaction
                 };
 
                 if (parameters?.Any() ?? false) command.Parameters.AddRange(parameters.ToArray());
@@ -152,6 +152,11 @@ namespace SpocR.DataContext
             if (trans == null) return;
             trans.Transaction.Rollback();
             _transactions.Remove(trans);
+        }
+
+        public AppSqlTransaction GetCurrentTransaction()
+        {
+            return _transactions.LastOrDefault();
         }
 
         public static SqlParameter GetParameter(string parameter, object value)

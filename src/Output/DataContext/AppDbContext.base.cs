@@ -25,6 +25,7 @@ namespace Source.DataContext
         Task<AppSqlTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, string transactionName, CancellationToken cancellationToken);
         void CommitTransaction(AppSqlTransaction transaction);
         void RollbackTransaction(AppSqlTransaction transaction);
+        AppSqlTransaction GetCurrentTransaction();
         void Dispose();
     }
 
@@ -67,7 +68,7 @@ namespace Source.DataContext
             var command = new SqlCommand(procedureName, _connection)
             {
                 CommandType = CommandType.StoredProcedure,
-                Transaction = options?.Transaction?.Transaction,                
+                Transaction = options?.Transaction?.Transaction ?? GetCurrentTransaction()?.Transaction           
             };
 
             if (options?.CommandTimeout.HasValue ?? false)
@@ -96,7 +97,7 @@ namespace Source.DataContext
             var command = new SqlCommand(procedureName, _connection)
             {
                 CommandType = CommandType.StoredProcedure,
-                Transaction = options?.Transaction?.Transaction
+                Transaction = options?.Transaction?.Transaction ?? GetCurrentTransaction()?.Transaction
             };
 
             if (options?.CommandTimeout.HasValue ?? false)
@@ -138,7 +139,7 @@ namespace Source.DataContext
             var command = new SqlCommand(procedureName, _connection)
             {
                 CommandType = CommandType.StoredProcedure,
-                Transaction = options?.Transaction?.Transaction
+                Transaction = options?.Transaction?.Transaction ?? GetCurrentTransaction()?.Transaction
             };
 
             if (options?.CommandTimeout.HasValue ?? false)
@@ -205,6 +206,11 @@ namespace Source.DataContext
             trans.Transaction.Rollback();
             _transactions.Remove(trans);
         }        
+
+        public AppSqlTransaction GetCurrentTransaction()
+        {
+            return _transactions.LastOrDefault();
+        }
 
         public static SqlParameter GetParameter<T>(string parameter, T value)
         {
