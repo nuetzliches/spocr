@@ -9,6 +9,7 @@ namespace Source.DataContext.StoredProcedures.Schema
 {
     public static class StoredProcedureExtensions
     {
+        [Obsolete("This Method will be removed in next version. Please use next overwrite with model from /Input.")]
         public static Task<CrudResult> CrudActionAsync(this IAppDbContext dbContext, int userId, IEnumerable<object> tableType, CancellationToken cancellationToken, AppSqlTransaction transaction = null)
         {
             if (dbContext == null)
@@ -21,7 +22,11 @@ namespace Source.DataContext.StoredProcedures.Schema
                 AppDbContext.GetParameter("UserId", userId),
                 AppDbContext.GetCollectionParameter("TableType", tableType)
             };
-            return dbContext.ExecuteSingleAsync<CrudResult>("schema.CrudAction", parameters, cancellationToken, transaction);
+            return dbContext.ExecuteSingleAsync<CrudResult>("schema.CrudAction", parameters, new ExecuteOptions
+            {
+                CancellationToken = cancellationToken,
+                Transaction = transaction
+            });
         }
 
         public static Task<CrudResult> CrudActionAsync(this IAppDbContext dbContext, int userId, IEnumerable<object> tableType, CancellationToken cancellationToken, IExecuteOptions options = null)
@@ -36,7 +41,11 @@ namespace Source.DataContext.StoredProcedures.Schema
                 AppDbContext.GetParameter("UserId", userId),
                 AppDbContext.GetCollectionParameter("TableType", tableType)
             };
-            return dbContext.ExecuteSingleAsync<CrudResult>("schema.CrudAction", parameters, cancellationToken, options);
+            return dbContext.ExecuteSingleAsync<CrudResult>("schema.CrudAction", parameters, new ExecuteOptions
+            {
+                CancellationToken = cancellationToken,
+                Transaction = options?.Transaction
+            });
         }
     }
 }
