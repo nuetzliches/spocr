@@ -1,4 +1,4 @@
-# SpocR [![Build Status](https://travis-ci.org/nuetzliches/spocr.svg?branch=master)](https://travis-ci.org/nuetzliches/spocr) [![NuGet Badge](https://buildstats.info/nuget/spocr)](https://www.nuget.org/packages/SpocR/)
+# SpocR [![Publish NuGet](https://github.com/nuetzliches/spocr/actions/workflows/dotnet.yml/badge.svg)](https://github.com/nuetzliches/spocr/actions/workflows/dotnet.yml) [![NuGet Badge](https://buildstats.info/nuget/spocr)](https://www.nuget.org/packages/SpocR/)
 
 - Scaffolds your StoredProcedures and Models to C# Files
 - Easy managed by CLI
