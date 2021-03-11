@@ -20,7 +20,7 @@ namespace SpocR.Utils
 #if DEBUG
             return Directory.GetCurrentDirectory();
 #else
-            var codeBase = Path.GetDirectoryName(Assembly.GetExecutingAssembly().CodeBase);
+            var codeBase = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
             return Regex.Replace(codeBase, @"^(file\:\\)", string.Empty);
 #endif   
         }
@@ -52,7 +52,7 @@ namespace SpocR.Utils
             return Path.Combine(pathList.ToArray()).ToString();
         }
 
-        internal static bool IsPath(string input) 
+        internal static bool IsPath(string input)
         {
             if (input == null) return false;
             return (input.Contains('/') || input.Contains('\\'));

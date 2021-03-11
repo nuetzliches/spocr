@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json.Serialization;
 using SpocR.DataContext.Models;
 
@@ -38,8 +39,22 @@ namespace SpocR.Models
             set => _item.SchemaName = value;
         }
 
-        public IEnumerable<StoredProcedureInputModel> Input { get; set; }
-        public IEnumerable<StoredProcedureOutputModel> Output { get; set; }
+        private IEnumerable<StoredProcedureInputModel> _input;
+        public IEnumerable<StoredProcedureInputModel> Input
+        {
+            get => _input?.Any() ?? false ? _input : null;
+            set => _input = value;
+        }
+
+        private IEnumerable<StoredProcedureOutputModel> _output;
+        public IEnumerable<StoredProcedureOutputModel> Output
+        {
+            get => _output?.Any() ?? false ? _output : null;
+            set => _output = value;
+        }
+
+        // public IEnumerable<StoredProcedureInputModel> Input { get; set; }
+        // public IEnumerable<StoredProcedureOutputModel> Output { get; set; }
 
         public bool Equals(StoredProcedureModel other)
         {
