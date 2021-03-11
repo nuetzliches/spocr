@@ -76,6 +76,12 @@ namespace SpocR.Managers
                 if (!proceed) return ExecuteResultEnum.Aborted;
             }
 
+            var targetFramework = options.TargetFramework;
+            if (!options.Silent)
+            {
+                targetFramework = Prompt.GetString("TargetFramework:", targetFramework);
+            }
+
             var appNamespace = options.Namespace;
             if (!options.Silent)
             {
@@ -112,15 +118,16 @@ namespace SpocR.Managers
                         : null;
             }
 
-            var identityKindString = options.Identity;
-            if (!options.Silent)
-            {
-                identityKindString = Prompt.GetString("SpocR Identity [WithUserId, None]:", "WithUserId");
-            }
-            var identityKind = default(EIdentityKind);
-            Enum.TryParse(identityKindString, true, out identityKind);
+            // var identityKindString = options.Identity;
+            // if (!options.Silent)
+            // {
+            //     identityKindString = Prompt.GetString("SpocR Identity [WithUserId, None]:", "WithUserId");
+            // }
 
-            var config = _spocr.GetDefaultConfiguration(appNamespace, connectionString, roleKind, libNamespace, identityKind);
+            // var identityKind = default(EIdentityKind);
+            // Enum.TryParse(identityKindString, true, out identityKind);
+
+            var config = _spocr.GetDefaultConfiguration(targetFramework, appNamespace, connectionString, roleKind, libNamespace/*, identityKind*/);
 
             if (options.DryRun)
             {
@@ -218,12 +225,12 @@ namespace SpocR.Managers
                 .Select(x => new
                 {
                     Schema = x,
-                    StoredProcedures = x.StoredProcedures.ToList() ?? new List<StoredProcedureModel>()
+                    StoredProcedures = x.StoredProcedures?.ToList()
                 }).ToList();
 
             pulledSchemasWithStoredProcedures.ForEach(schema =>
             {
-                schema.StoredProcedures.ForEach((sp => _reportService.Verbose($"PULL: [{schema.Schema.Name}].[{sp.Name}]")));
+                schema.StoredProcedures?.ForEach((sp => _reportService.Verbose($"PULL: [{schema.Schema.Name}].[{sp.Name}]")));
             });
             _reportService.Output("");
 
@@ -270,7 +277,6 @@ namespace SpocR.Managers
             var schemas = config?.Schema;
             var connectionString = project?.DataBase?.ConnectionString;
 
-            var hasProject = project != null;
             var hasSchemas = schemas?.Any() ?? false;
             var hasConnectionString = string.IsNullOrWhiteSpace(connectionString);
 
@@ -289,14 +295,19 @@ namespace SpocR.Managers
             var stopwatch = new Stopwatch();
             var elapsed = new Dictionary<string, long>();
 
-            var existsCodeBase = project.Role.Kind == ERoleKind.Extension;
-            if (!existsCodeBase)
+            var codeBaseAlreadyExists = project.Role.Kind == ERoleKind.Extension;
+            if (!codeBaseAlreadyExists)
             {
                 stopwatch.Start();
                 _reportService.PrintSubTitle("Generating CodeBase");
                 _output.GenerateCodeBase(project.Output, options.DryRun);
                 elapsed.Add("CodeBase", stopwatch.ElapsedMilliseconds);
             }
+
+            stopwatch.Restart();
+            _reportService.PrintSubTitle("Generating TableTypes");
+            _engine.GenerateDataContextTableTypes(options.DryRun);
+            elapsed.Add("TableTypes", stopwatch.ElapsedMilliseconds);
 
             stopwatch.Restart();
             _reportService.PrintSubTitle("Generating Inputs");
@@ -307,11 +318,6 @@ namespace SpocR.Managers
             _reportService.PrintSubTitle("Generating Models");
             _engine.GenerateDataContextModels(options.DryRun);
             elapsed.Add("Models", stopwatch.ElapsedMilliseconds);
-
-            stopwatch.Restart();
-            _reportService.PrintSubTitle("Generating Params");
-            _engine.GenerateDataContextParams(options.DryRun);
-            elapsed.Add("Params", stopwatch.ElapsedMilliseconds);
 
             stopwatch.Restart();
             _reportService.PrintSubTitle("Generating StoredProcedures");
@@ -362,7 +368,7 @@ namespace SpocR.Managers
             _autoUpdaterService.GetLatestVersionAsync().ContinueWith(t => latest = t.Result).Wait();
 
             _reportService.Output($"Version: {current.ToVersionString()}");
-            
+
             if (current.IsGreaterThan(latest))
                 _reportService.Output($"Latest:  {latest?.ToVersionString()} (What kind of magic is this???)");
             else

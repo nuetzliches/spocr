@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Converters;
+using System.Text.Json.Serialization;
 using SpocR.Attributes;
 using SpocR.Converters;
 using SpocR.Enums;
@@ -13,6 +12,7 @@ namespace SpocR.Models
     {
         [JsonConverter(typeof(StringVersionConverter)), WriteProtectedBySystem]
         public Version Version { get; set; }
+        public string TargetFramework { get; set; } = "net5.0"; // Allowed values: null, net5.0
         public string UserId { get; set; }
         public GlobalAutoUpdateConfigurationModel AutoUpdate { get; set; } = new GlobalAutoUpdateConfigurationModel { Enabled = true, LongPauseInMinutes = 1440, ShortPauseInMinutes = 15 };
         public List<GlobalProjectConfigurationModel> Projects { get; set; } = new List<GlobalProjectConfigurationModel>();
@@ -21,7 +21,7 @@ namespace SpocR.Models
     public class GlobalProjectConfigurationModel
     {
         public string DisplayName { get; set; }
-        public string ConfigFile { get; set; }       
+        public string ConfigFile { get; set; }
     }
 
     public class GlobalAutoUpdateConfigurationModel
@@ -37,6 +37,7 @@ namespace SpocR.Models
     {
         [JsonConverter(typeof(StringVersionConverter))]
         public Version Version { get; set; }
+        public string TargetFramework { get; set; } = "net5.0"; // Allowed values: null, net5.0
         public ProjectModel Project { get; set; }
         public List<SchemaModel> Schema { get; set; }
     }
@@ -44,28 +45,27 @@ namespace SpocR.Models
     public class ProjectModel
     {
         public RoleModel Role { get; set; } = new RoleModel();
-        public IdentityModel Identity { get; set; } = new IdentityModel();
+        // public IdentityModel Identity { get; set; } = new IdentityModel();
         public DataBaseModel DataBase { get; set; } = new DataBaseModel();
         public OutputModel Output { get; set; } = new OutputModel();
-        
-        [JsonConverter(typeof(StringEnumConverter))]        
         public SchemaStatusEnum DefaultSchemaStatus { get; set; } = SchemaStatusEnum.Build;
     }
 
     public class RoleModel
     {
-        [JsonConverter(typeof(StringEnumConverter))]
         public ERoleKind Kind { get; set; } = ERoleKind.Default;
 
-        [JsonProperty(NullValueHandling = NullValueHandling.Ignore)]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public string LibNamespace { get; set; }
     }
 
-    public class IdentityModel
-    {
-        [JsonConverter(typeof(StringEnumConverter))]
-        public EIdentityKind Kind { get; set; } = EIdentityKind.WithUserId;
-    }
+    // public class IdentityModel
+    // {
+    //     public EIdentityKind Kind { get; set; } = EIdentityKind.WithUserId;
+
+    //     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    //     public string Model { get; set; } = "core/Context";
+    // }
 
     public class DataBaseModel
     {
@@ -84,8 +84,8 @@ namespace SpocR.Models
         public string Path { get; set; }
         public DataContextInputsModel Inputs { get; set; }
         public DataContextModelsModel Models { get; set; }
-        public DataContextParamsModel Params { get; set; }
         public DataContextStoredProceduresModel StoredProcedures { get; set; }
+        public DataContextTableTypesModel TableTypes { get; set; }
     }
 
     public class DataContextInputsModel : IDirectoryModel
@@ -98,7 +98,7 @@ namespace SpocR.Models
         public string Path { get; set; }
     }
 
-    public class DataContextParamsModel : IDirectoryModel
+    public class DataContextTableTypesModel : IDirectoryModel
     {
         public string Path { get; set; }
     }

@@ -6,7 +6,8 @@
       "type": "coreclr",
       "request": "launch",
       "preLaunchTask": "build",
-      "program": "${workspaceFolder}/src/bin/Debug/netcoreapp2.1/SpocR.dll",
+      "program": "${workspaceFolder}/src/bin/Debug/net5.0/SpocR.dll",
+      // "program": "${workspaceFolder}/src/bin/Debug/netcoreapp2.1/SpocR.dll",
       // awailable commands: "create", "pull", "build", "rebuild", "remove", options: "-d|--dry-run"
       "args": [
         "rebuild"

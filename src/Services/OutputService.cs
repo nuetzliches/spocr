@@ -23,7 +23,13 @@ namespace SpocR.Services
 
         public DirectoryInfo GetOutputRootDir()
         {
-            return new DirectoryInfo(Path.Combine(DirectoryUtils.GetApplicationRoot(), "Output"));
+            switch (_configFile.Config.TargetFramework)
+            {
+                case "net5.0":
+                    return new DirectoryInfo(Path.Combine(DirectoryUtils.GetApplicationRoot(), "Output-v5-0"));
+                default:
+                    return new DirectoryInfo(Path.Combine(DirectoryUtils.GetApplicationRoot(), "Output"));
+            }
         }
 
         public void GenerateCodeBase(OutputModel output, bool dryrun)
@@ -39,8 +45,8 @@ namespace SpocR.Services
             var modelTargetDir = DirectoryUtils.GetWorkingDirectory(targetDir, output.DataContext.Models.Path);
             CopyAllFiles(Path.Combine(dir.FullName, "DataContext/Models"), modelTargetDir, output.Namespace, dryrun);
 
-            var paramsTargetDir = DirectoryUtils.GetWorkingDirectory(targetDir, output.DataContext.Params.Path);
-            CopyAllFiles(Path.Combine(dir.FullName, "DataContext/Params"), paramsTargetDir, output.Namespace, dryrun);
+            var paramsTargetDir = DirectoryUtils.GetWorkingDirectory(targetDir, output.DataContext.TableTypes.Path);
+            CopyAllFiles(Path.Combine(dir.FullName, "DataContext/TableTypes"), paramsTargetDir, output.Namespace, dryrun);
 
             var spTargetDir = DirectoryUtils.GetWorkingDirectory(targetDir, output.DataContext.StoredProcedures.Path);
             CopyAllFiles(Path.Combine(dir.FullName, "DataContext/StoredProcedures"), spTargetDir, output.Namespace, dryrun);

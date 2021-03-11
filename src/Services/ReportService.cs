@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using Newtonsoft.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using SpocR.Commands;
 using SpocR.Models;
-using SpocR.Serialization;
 using SpocR.Utils;
 
 namespace SpocR.Services
@@ -134,12 +134,16 @@ namespace SpocR.Services
 
         public void PrintConfiguration(ConfigurationModel config)
         {
-            var jsonSettings = new JsonSerializerSettings
+            var jsonSettings = new JsonSerializerOptions()
             {
-                NullValueHandling = NullValueHandling.Ignore,
-                ContractResolver = new SerializeContractResolver()
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+                WriteIndented = true,
+                Converters = {
+                    new JsonStringEnumConverter()
+                }
             };
-            var json = JsonConvert.SerializeObject(config, Formatting.Indented, jsonSettings);
+
+            var json = JsonSerializer.Serialize(config, jsonSettings);
 
             _reporter.Warn(json);
             Output("");

@@ -1,6 +1,5 @@
 using System.Collections.Generic;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Converters;
+using System.Linq;
 using SpocR.DataContext.Models;
 
 namespace SpocR.Models
@@ -9,9 +8,14 @@ namespace SpocR.Models
     {
         private readonly Schema _item;
 
-        public SchemaModel(Schema item = null)
+        public SchemaModel() // required for json serialization
         {
-            _item = item ?? new Schema();
+            _item = new Schema();
+        }
+
+        public SchemaModel(Schema item)
+        {
+            _item = item;
         }
 
         public string Name
@@ -20,10 +24,21 @@ namespace SpocR.Models
             set => _item.Name = value;
         }
 
-        [JsonConverter(typeof(StringEnumConverter))]
         public SchemaStatusEnum Status { get; set; } = SchemaStatusEnum.Build;
 
-        public IEnumerable<StoredProcedureModel> StoredProcedures { get; set; }
+        private IEnumerable<StoredProcedureModel> _storedProcedures;
+        public IEnumerable<StoredProcedureModel> StoredProcedures
+        {
+            get => _storedProcedures?.Any() ?? false ? _storedProcedures : null;
+            set => _storedProcedures = value;
+        }
+
+        private IEnumerable<TableTypeModel> _tableTypes;
+        public IEnumerable<TableTypeModel> TableTypes
+        {
+            get => _tableTypes?.Any() ?? false ? _tableTypes : null;
+            set => _tableTypes = value;
+        }
     }
 
     public enum SchemaStatusEnum

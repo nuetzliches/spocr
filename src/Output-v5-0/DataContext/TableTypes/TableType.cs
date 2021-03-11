@@ -1,9 +1,9 @@
 ﻿using System;
 using System.ComponentModel.DataAnnotations;
 
-namespace Source.DataContext.Params.Schema
+namespace Source.DataContext.TableTypes.Schema
 {
-    public class Params : IParams
+    public class TableType : ITableType
     {
         public object Property { get; set; }
     }

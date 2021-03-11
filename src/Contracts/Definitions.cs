@@ -43,6 +43,11 @@ namespace SpocR.Contracts
             return new StoredProcedure(storedProcedure, schema);
         }
 
+        public static TableType ForTableType(TableTypeModel tableType, Schema schema)
+        {
+            return new TableType(tableType, schema);
+        }
+
         public class Schema
         {
             private readonly SchemaModel _schema;
@@ -60,7 +65,11 @@ namespace SpocR.Contracts
 
             private IEnumerable<StoredProcedure> _storedProcedures;
             public IEnumerable<StoredProcedure> StoredProcedures
-                => _storedProcedures ?? (_storedProcedures = _schema.StoredProcedures.Select(i => ForStoredProcedure(i, this)));
+                => _storedProcedures ?? (_storedProcedures = _schema.StoredProcedures?.Select(i => ForStoredProcedure(i, this)));
+
+            private IEnumerable<TableType> _tableTypes;
+            public IEnumerable<TableType> TableTypes
+                => _tableTypes ?? (_tableTypes = _schema.TableTypes?.Select(i => ForTableType(i, this)));
         }
 
         public class StoredProcedure
@@ -116,8 +125,34 @@ namespace SpocR.Contracts
                     ? ResultKindEnum.List
                     : ResultKindEnum.Single));
 
-            public IEnumerable<StoredProcedureInputModel> Input => _storedProcedure.Input;
-            public IEnumerable<StoredProcedureOutputModel> Output => _storedProcedure.Output;
+            public IEnumerable<StoredProcedureInputModel> Input => _storedProcedure.Input ?? new List<StoredProcedureInputModel>();
+            public IEnumerable<StoredProcedureOutputModel> Output => _storedProcedure.Output ?? new List<StoredProcedureOutputModel>();
+        }
+
+        public class TableType
+        {
+            private readonly TableTypeModel _tableType;
+            private readonly Schema _schema;
+            private string _sqlObjectName;
+            private string _name;
+
+            public TableType(TableTypeModel tableType, Schema schema)
+            {
+                _tableType = tableType;
+                _schema = schema;
+            }
+
+            //
+            // Returns:
+            //     The sql object name of the TableType
+            public string SqlObjectName => _sqlObjectName ?? (_sqlObjectName = $"[{_schema.Name.ToLower()}].[{Name}]");
+
+            //
+            // Returns:
+            //     The FullName of the TableType
+            public string Name => _name ?? (_name = _tableType.Name);
+
+            public IEnumerable<ColumnModel> Columns => _tableType.Columns ?? new List<ColumnModel>();
         }
     }
 }

@@ -61,11 +61,13 @@ namespace SpocR.DataContext.Queries
                                     p.is_output, 
                                     t1.is_table_type, 
                                     t1.name AS user_type_name, 
-                                    t1.user_type_id
+                                    t1.user_type_id,
+                                    t1s.name AS user_type_schema_name
                                 FROM sys.parameters AS p 
                                 LEFT OUTER JOIN sys.types t ON t.system_type_id = p.system_type_id AND t.user_type_id = p.system_type_id 
                                 LEFT OUTER JOIN sys.types AS t1 ON t1.system_type_id = p.system_type_id AND t1.user_type_id = p.user_type_id
                                 LEFT OUTER JOIN sys.table_types AS tt ON tt.user_type_id = p.user_type_id
+                                LEFT OUTER JOIN sys.schemas AS t1s ON t1s.schema_id = t1.schema_id
                                 WHERE p.object_id = @objectId ORDER BY p.parameter_id;";
 
             return await context.ListAsync<StoredProcedureInput>(queryString, parameters, cancellationToken);

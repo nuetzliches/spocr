@@ -1,9 +1,9 @@
 using System;
 using System.IO;
-using Newtonsoft.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using SpocR.Extensions;
 using SpocR.Interfaces;
-using SpocR.Serialization;
 using SpocR.Services;
 using SpocR.Utils;
 
@@ -76,23 +76,35 @@ namespace SpocR.Managers
             }
             var fileName = DirectoryUtils.GetWorkingDirectory(_fileName);
             var content = File.ReadAllText(fileName);
-            var config = JsonConvert.DeserializeObject<TConfig>(content);
+
+            var options = new JsonSerializerOptions
+            {
+                Converters =
+                {
+                    new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)
+                }
+            };
+
+            var config = JsonSerializer.Deserialize<TConfig>(content, options);
 
             return config;
         }
 
         public void Save(TConfig config)
         {
-            var jsonSettings = new JsonSerializerSettings
+            var jsonSettings = new JsonSerializerOptions()
             {
-                NullValueHandling = NullValueHandling.Ignore,
-                ContractResolver = new SerializeContractResolver()
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+                WriteIndented = true,
+                Converters = {
+                    new JsonStringEnumConverter()
+                }
             };
 
             // Overwrite with current SpocR-Version
             config.Version = _spocr.Version;
 
-            var json = JsonConvert.SerializeObject(config, Formatting.Indented, jsonSettings);
+            var json = JsonSerializer.Serialize(config, jsonSettings);
             var fileName = DirectoryUtils.GetWorkingDirectory(_fileName);
             Directory.CreateDirectory(Path.GetDirectoryName(fileName));
             File.WriteAllText(fileName, json);

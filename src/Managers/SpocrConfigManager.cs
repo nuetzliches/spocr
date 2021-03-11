@@ -23,14 +23,14 @@ namespace SpocR.Managers
         private readonly DbContext _dbContext;
 
         public SpocrConfigManager(
-            IConfiguration configuration, 
-            SpocrService spocr, 
-            OutputService output, 
-            Generator engine, 
+            IConfiguration configuration,
+            SpocrService spocr,
+            OutputService output,
+            Generator engine,
             IReportService reportService,
-            SchemaManager schemaManager, 
-            FileManager<GlobalConfigurationModel> globalConfigFile, 
-            FileManager<ConfigurationModel> configFile, 
+            SchemaManager schemaManager,
+            FileManager<GlobalConfigurationModel> globalConfigFile,
+            FileManager<ConfigurationModel> configFile,
             DbContext dbContext)
         {
             _configuration = configuration;
@@ -48,7 +48,7 @@ namespace SpocR.Managers
             if (!_globalConfigFile.Exists())
             {
                 _reportService.Error($"Global config is missing!");
-            } 
+            }
 
             var config = _globalConfigFile.Read();
 
@@ -57,8 +57,8 @@ namespace SpocR.Managers
                                     .Where(prop => !(prop.GetCustomAttribute<WriteProtectedBySystem>()?.IsProtected ?? false));
 
             _reportService.Warn("Please enter your Configuration:");
-            
-            foreach(var prop in propertyInfos) 
+
+            foreach (var prop in propertyInfos)
             {
                 var input = Prompt.GetString(prop.Name, prop.GetValue(config)?.ToString());
                 prop.SetValue(config, input);
@@ -131,8 +131,8 @@ namespace SpocR.Managers
             //                 Models = new DataContextModelsModel {
             //                     Path = "./Models",
             //                 },
-            //                 Params = new DataContextParamsModel {
-            //                     Path = "./Params",
+            //                 TableTypes = new DataContextTableTypesModel {
+            //                     Path = "./TableTypes",
             //                 },
             //                 StoredProcedures = new DataContextStoredProceduresModel {
             //                     Path = "./StoredProcedures",

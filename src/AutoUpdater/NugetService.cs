@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
+using System.Text.Json.Serialization;
 using System.Threading.Tasks;
-using Newtonsoft.Json;
 
 // TODO Implement it as OOP based
 // Maybe move to Nuts.Packages.Providers
@@ -44,10 +44,10 @@ namespace SpocR.AutoUpdater
 
     public class Package
     {
-        [JsonProperty("@id")]
+        [JsonPropertyName("@id")]
         public string ApiId { get; set; }
 
-        [JsonProperty("@package")]
+        [JsonPropertyName("@package")]
         public string Type { get; set; }
 
         public string Registration { get; set; }
@@ -68,7 +68,7 @@ namespace SpocR.AutoUpdater
 
     public class PackageVersion
     {
-        [JsonProperty("@id")]
+        [JsonPropertyName("@id")]
         public string Id { get; set; }
         public string Version { get; set; }
         public int Downloads { get; set; }

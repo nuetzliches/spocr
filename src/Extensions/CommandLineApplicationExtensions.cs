@@ -4,7 +4,6 @@ using SpocR.Managers;
 using Microsoft.Extensions.DependencyInjection;
 using SpocR.Models;
 using System.Reflection;
-using Newtonsoft.Json;
 
 namespace SpocR.Extensions 
 {

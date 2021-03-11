@@ -19,6 +19,7 @@ namespace SpocR.Services
             return new GlobalConfigurationModel
             {
                 Version = Version,
+                TargetFramework = "net5.0",
                 AutoUpdate = new GlobalAutoUpdateConfigurationModel
                 {
                     Enabled = true,
@@ -29,7 +30,7 @@ namespace SpocR.Services
             };
         }
 
-        public ConfigurationModel GetDefaultConfiguration(string appNamespace = "", string connectionString = "", ERoleKind roleKind = default, string libNamespace = null, EIdentityKind identityKind = default)
+        public ConfigurationModel GetDefaultConfiguration(string targetFramework = "net5.0", string appNamespace = "", string connectionString = "", ERoleKind roleKind = default, string libNamespace = null /*, EIdentityKind identityKind = default */)
         {
             var role = new RoleModel
             {
@@ -39,18 +40,19 @@ namespace SpocR.Services
                     : null
             };
 
-            var identity = new IdentityModel
-            {
-                Kind = identityKind
-            };
+            // var identity = new IdentityModel
+            // {
+            //     Kind = identityKind
+            // };
 
             return new ConfigurationModel
             {
                 Version = Version,
+                TargetFramework = targetFramework,
                 Project = new ProjectModel
                 {
                     Role = role,
-                    Identity = identity,
+                    // Identity = identity,
                     DataBase = new DataBaseModel
                     {
                         // the default appsettings.json ConnectString Identifier
@@ -72,9 +74,9 @@ namespace SpocR.Services
                             {
                                 Path = "./Models",
                             },
-                            Params = new DataContextParamsModel
+                            TableTypes = new DataContextTableTypesModel
                             {
-                                Path = "./Params",
+                                Path = "./TableTypes",
                             },
                             StoredProcedures = new DataContextStoredProceduresModel
                             {

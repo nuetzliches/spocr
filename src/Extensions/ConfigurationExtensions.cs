@@ -1,7 +1,7 @@
 using System.IO;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using Microsoft.Extensions.Configuration;
-using Newtonsoft.Json;
-using SpocR.Serialization;
 
 namespace SpocR.Extensions
 {
@@ -16,12 +16,16 @@ namespace SpocR.Extensions
 
         internal static void Save(this IConfiguration configuration)
         {
-            var jsonSettings = new JsonSerializerSettings
+            var jsonSettings = new JsonSerializerOptions()
             {
-                NullValueHandling = NullValueHandling.Ignore,
-                ContractResolver = new SerializeContractResolver()
+                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+                WriteIndented = true,
+                Converters = {
+                    new JsonStringEnumConverter()
+                }
             };
-            var json = JsonConvert.SerializeObject(configuration, Formatting.Indented, jsonSettings);
+
+            var json = JsonSerializer.Serialize(configuration, jsonSettings);
             File.WriteAllText(FileName, json);
         }
     }

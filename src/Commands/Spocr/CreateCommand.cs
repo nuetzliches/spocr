@@ -14,6 +14,9 @@ namespace SpocR.Commands.Spocr
         [Option("-n|--name", "Name of your Project", CommandOptionType.SingleValue)]
         public string DisplayName { get; set; }
 
+        [Option("-tf|--targetframework", "TargetFramework", CommandOptionType.SingleValue)]
+        public string TargetFramework { get; set; }
+
         [Option("-ns|--namespace", "Namespace of your .NET Core Project", CommandOptionType.SingleValue)]
         public string Namespace { get; set; } = new DirectoryInfo(Directory.GetCurrentDirectory()).Name;
 
@@ -28,7 +31,7 @@ namespace SpocR.Commands.Spocr
 
         public ICreateCommandOptions CreateCommandOptions => new CreateCommandOptions(this);
 
-        public CreateCommand(SpocrManager spocrManager, SpocrProjectManager spocrProjectManager) 
+        public CreateCommand(SpocrManager spocrManager, SpocrProjectManager spocrProjectManager)
         : base(spocrProjectManager)
         {
             _spocrManager = spocrManager;
@@ -43,6 +46,7 @@ namespace SpocR.Commands.Spocr
 
     public interface ICreateCommandOptions : ICommandOptions, IProjectCommandOptions
     {
+        string TargetFramework { get; }
         string Namespace { get; }
         string Role { get; }
         string LibNamespace { get; }
@@ -59,6 +63,7 @@ namespace SpocR.Commands.Spocr
         }
 
         public string DisplayName => _options.DisplayName?.Trim();
+        public string TargetFramework => _options.TargetFramework?.Trim();
         public string Namespace => _options.Namespace?.Trim();
         public string Role => _options.Role?.Trim();
         public string LibNamespace => _options.LibNamespace?.Trim();

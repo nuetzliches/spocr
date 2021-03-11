@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Newtonsoft.Json;
+using System.Text.Json.Serialization;
 using SpocR.DataContext.Models;
 
 namespace SpocR.Models
@@ -8,9 +8,15 @@ namespace SpocR.Models
     public class StoredProcedureModel : IEquatable<StoredProcedureModel>
     {
         private readonly StoredProcedure _item;
-        public StoredProcedureModel(StoredProcedure item = null)
+
+        public StoredProcedureModel() // required for json serialization
         {
-            _item = item ?? new StoredProcedure();
+            _item = new StoredProcedure();
+        }
+
+        public StoredProcedureModel(StoredProcedure item)
+        {
+            _item = item;
         }
 
         // public int Id
@@ -18,7 +24,7 @@ namespace SpocR.Models
         //     get => _item.Id;
         //     set => _item.Id = value;
         // }
-        
+
         public string Name
         {
             get => _item.Name;
@@ -40,7 +46,8 @@ namespace SpocR.Models
             return SchemaName == other.SchemaName && Name == other.Name;
         }
 
-        public override string ToString() {
+        public override string ToString()
+        {
             return $"[SchemaName].[Name]";
         }
     }

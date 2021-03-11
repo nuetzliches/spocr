@@ -49,20 +49,14 @@ namespace SpocR
             return SyntaxFactory.ParseTypeName(clrType.ToGenericTypeString());
         }
 
-        public TypeSyntax GetTypeSyntaxForTableType(string storedProcedureName, string propertyName)
+        public string GetTypeNameForTableType(Definition.TableType tableType)
         {
-            return SyntaxFactory.ParseTypeName($"IEnumerable<{storedProcedureName}{propertyName}>");
+            return $"{tableType.Name}";
         }
 
-        public string GetInputTypeNameForTableType(Definition.StoredProcedure storedProcedure, StoredProcedureInputModel input)
+        public TypeSyntax GetTypeSyntaxForTableType(string propertyName)
         {
-            return $"{storedProcedure.Name}{input.Name.Replace("@", "")}";
-        }
-
-        public TypeSyntax GetInputTypeForTableType(Definition.StoredProcedure storedProcedure, StoredProcedureInputModel input)
-        {
-            var typeName = $"IEnumerable<{GetInputTypeNameForTableType(storedProcedure, input)}>";
-            return SyntaxFactory.ParseTypeName(typeName);
+            return SyntaxFactory.ParseTypeName($"IEnumerable<{propertyName}>");
         }
 
         public SourceText GetInputTextForStoredProcedure(Definition.Schema schema, Definition.StoredProcedure storedProcedure)
@@ -73,12 +67,20 @@ namespace SpocR
             var tree = CSharpSyntaxTree.ParseText(fileContent);
             var root = tree.GetCompilationUnitRoot();
 
-            // If Inputs contains a tableType, add using for Params
-            if (storedProcedure.Input.Any(_ => _.IsTableType ?? false))
+            // If Inputs contains a TableType, add using for TableTypes
+            var tableTypes = storedProcedure.Input.Where(i => i.IsTableType ?? false)
+                                 .GroupBy(t => (t.TableTypeSchemaName, t.TableTypeName), (key, group) => new
+                                 {
+                                     TableTypeSchemaName = key.TableTypeSchemaName,
+                                     TableTypeName = key.TableTypeName,
+                                     Result = group.First()
+                                 }).Select(g => g.Result).ToList();
+
+            foreach (var tableType in tableTypes)
             {
                 var paramUsingDirective = _configFile.Config.Project.Role.Kind == ERoleKind.Lib
-                    ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.Params.{schema.Name}"))
-                    : SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.DataContext.Params.{schema.Name}"));
+                                    ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.TableTypes.{tableType.TableTypeSchemaName.FirstCharToUpper()}"))
+                                    : SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.DataContext.TableTypes.{tableType.TableTypeSchemaName.FirstCharToUpper()}"));
                 root = root.AddUsings(paramUsingDirective);
             }
 
@@ -111,7 +113,7 @@ namespace SpocR
                 if (item.IsTableType ?? false)
                 {
                     propertyNode = propertyNode
-                        .WithType(GetTypeSyntaxForTableType(storedProcedure.Name, item.Name.Replace("@", "")));
+                        .WithType(GetTypeSyntaxForTableType(item.TableTypeName));
                 }
                 else
                 {
@@ -119,7 +121,7 @@ namespace SpocR
                         .WithType(ParseTypeFromSqlDbTypeName(item.SqlTypeName, item.IsNullable ?? false));
 
                     // Add Attribute for NVARCHAR with MaxLength
-                    if (item.SqlTypeName.Equals(SqlDbType.NVarChar.ToString(), StringComparison.InvariantCultureIgnoreCase)
+                    if ((item.SqlTypeName?.Equals(SqlDbType.NVarChar.ToString(), StringComparison.InvariantCultureIgnoreCase) ?? false)
                         && item.MaxLength.HasValue)
                     {
                         var attributes = propertyNode.AttributeLists.Add(
@@ -171,7 +173,8 @@ namespace SpocR
             var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
             var classNode = (ClassDeclarationSyntax)nsNode.Members[0];
             var propertyNode = (PropertyDeclarationSyntax)classNode.Members[0];
-            foreach (var item in storedProcedure.Output)
+            var output = storedProcedure.Output?.ToList() ?? new List<StoredProcedureOutputModel>();
+            foreach (var item in output)
             {
                 nsNode = (NamespaceDeclarationSyntax)root.Members[0];
                 classNode = (ClassDeclarationSyntax)nsNode.Members[0];
@@ -194,10 +197,10 @@ namespace SpocR
             return root.NormalizeWhitespace().GetText();
         }
 
-        public SourceText GetParamsTextForStoredProcedure(Definition.Schema schema, Definition.StoredProcedure storedProcedure)
+        public SourceText GetTableTypeText(Definition.Schema schema, Definition.TableType tableType)
         {
             var rootDir = _output.GetOutputRootDir();
-            var fileContent = File.ReadAllText(Path.Combine(rootDir.FullName, "DataContext", "Params", "Params.cs"));
+            var fileContent = File.ReadAllText(Path.Combine(rootDir.FullName, "DataContext", "TableTypes", "TableType.cs"));
 
             var tree = CSharpSyntaxTree.ParseText(fileContent);
             var root = tree.GetCompilationUnitRoot();
@@ -215,64 +218,56 @@ namespace SpocR
             // If its an extension, add usings for the lib
             if (_configFile.Config.Project.Role.Kind == ERoleKind.Extension)
             {
-                var libModelUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Role.LibNamespace}.Params"));
+                var libModelUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Role.LibNamespace}.TableTypes"));
                 root = root.AddUsings(libModelUsingDirective).NormalizeWhitespace();
             }
 
             var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-            var inputs = storedProcedure.Input.Where(i => i.IsTableType ?? false);
-            var classNodeIx = 0;
-            foreach (var input in inputs)
+
+            // Replace ClassName
+            var classNode = (ClassDeclarationSyntax)nsNode.Members[0];
+            var classIdentifier = SyntaxFactory.ParseToken($"{classNode.Identifier.ValueText.Replace("TableType", $"{GetTypeNameForTableType(tableType)}")} ");
+            classNode = classNode.WithIdentifier(classIdentifier);
+
+            root = root.ReplaceNode(nsNode, nsNode.AddMembers(classNode));
+
+            // Create Properties
+            if (tableType.Columns != null)
             {
-                nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-
-                // Replace ClassName
-                var classNode = (ClassDeclarationSyntax)nsNode.Members[0];
-                var classIdentifier = SyntaxFactory.ParseToken($"{classNode.Identifier.ValueText.Replace("Params", $"{GetInputTypeNameForTableType(storedProcedure, input)}")} ");
-                classNode = classNode.WithIdentifier(classIdentifier);
-
-                root = root.ReplaceNode(nsNode, nsNode.AddMembers(classNode));
-                classNodeIx++;
-
-                // Create Properties
-                if (input.Columns != null)
+                foreach (var column in tableType.Columns)
                 {
-                    foreach (var column in input.Columns)
+                    nsNode = (NamespaceDeclarationSyntax)root.Members[0];
+                    classNode = (ClassDeclarationSyntax)nsNode.Members[1];
+                    var propertyNode = (PropertyDeclarationSyntax)classNode.Members[0];
+
+                    var propertyIdentifier = SyntaxFactory.ParseToken($" {column.Name} ");
+
+                    propertyNode = propertyNode
+                        .WithType(ParseTypeFromSqlDbTypeName(column.SqlTypeName, column.IsNullable ?? false));
+
+                    propertyNode = propertyNode
+                        .WithIdentifier(propertyIdentifier);
+
+                    // Add Attribute for NVARCHAR with MaxLength
+                    if (column.SqlTypeName.Equals(SqlDbType.NVarChar.ToString(), StringComparison.InvariantCultureIgnoreCase)
+                        && column.MaxLength.HasValue)
                     {
-                        nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-                        classNode = (ClassDeclarationSyntax)nsNode.Members[classNodeIx];
-                        var propertyNode = (PropertyDeclarationSyntax)classNode.Members[0];
+                        var attributes = propertyNode.AttributeLists.Add(
+                            SyntaxFactory.AttributeList(SyntaxFactory.SingletonSeparatedList<AttributeSyntax>(
+                                SyntaxFactory.Attribute(SyntaxFactory.IdentifierName("MaxLength"), SyntaxFactory.ParseAttributeArgumentList($"({column.MaxLength})"))
+                            )).NormalizeWhitespace());
 
-                        var propertyIdentifier = SyntaxFactory.ParseToken($" {column.Name} ");
-
-                        propertyNode = propertyNode
-                            .WithType(ParseTypeFromSqlDbTypeName(column.SqlTypeName, column.IsNullable ?? false));
-
-                        propertyNode = propertyNode
-                            .WithIdentifier(propertyIdentifier);
-
-                        // Add Attribute for NVARCHAR with MaxLength
-                        if (column.SqlTypeName.Equals(SqlDbType.NVarChar.ToString(), StringComparison.InvariantCultureIgnoreCase)
-                            && column.MaxLength.HasValue)
-                        {
-                            var attributes = propertyNode.AttributeLists.Add(
-                                SyntaxFactory.AttributeList(SyntaxFactory.SingletonSeparatedList<AttributeSyntax>(
-                                    SyntaxFactory.Attribute(SyntaxFactory.IdentifierName("MaxLength"), SyntaxFactory.ParseAttributeArgumentList($"({column.MaxLength})"))
-                                )).NormalizeWhitespace());
-
-                            propertyNode = propertyNode.WithAttributeLists(attributes);
-                        }
-
-                        root = root.AddProperty(classNode, propertyNode);
+                        propertyNode = propertyNode.WithAttributeLists(attributes);
                     }
+
+                    root = root.AddProperty(classNode, propertyNode);
                 }
-
-                // Remove template Property
-                nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-                classNode = (ClassDeclarationSyntax)nsNode.Members[classNodeIx];
-                root = root.ReplaceNode(classNode, classNode.WithMembers(new SyntaxList<MemberDeclarationSyntax>(classNode.Members.Cast<PropertyDeclarationSyntax>().Skip(1))));
-
             }
+
+            // Remove template Property
+            nsNode = (NamespaceDeclarationSyntax)root.Members[0];
+            classNode = (ClassDeclarationSyntax)nsNode.Members[1];
+            root = root.ReplaceNode(classNode, classNode.WithMembers(new SyntaxList<MemberDeclarationSyntax>(classNode.Members.Cast<PropertyDeclarationSyntax>().Skip(1))));
 
             // Remove template Class
             nsNode = (NamespaceDeclarationSyntax)root.Members[0];
@@ -281,34 +276,28 @@ namespace SpocR
             return root.NormalizeWhitespace().GetText();
         }
 
-        public void GenerateDataContextParams(bool isDryRun)
+        public void GenerateDataContextTableTypes(bool isDryRun)
         {
             var schemas = _configFile.Config.Schema
-                .Where(i => i.Status == SchemaStatusEnum.Build && (i.StoredProcedures?.Any() ?? false))
+                .Where(i => i.TableTypes?.Any() ?? false)
                 .Select(i => Definition.ForSchema(i));
 
             foreach (var schema in schemas)
             {
-                var storedProcedures = schema.StoredProcedures
-                    .Where(sp => sp.Input.Any(i => (i.IsTableType ?? false)));
+                var tableTypes = schema.TableTypes;
 
-                if (!(storedProcedures.Any()))
-                {
-                    continue;
-                }
-
-                var dataContextParamsPath = DirectoryUtils.GetWorkingDirectory(_configFile.Config.Project.Output.DataContext.Path, _configFile.Config.Project.Output.DataContext.Params.Path);
-                var path = Path.Combine(dataContextParamsPath, schema.Path);
+                var dataContextTableTypesPath = DirectoryUtils.GetWorkingDirectory(_configFile.Config.Project.Output.DataContext.Path, _configFile.Config.Project.Output.DataContext.TableTypes.Path);
+                var path = Path.Combine(dataContextTableTypesPath, schema.Path);
                 if (!Directory.Exists(path) && !isDryRun)
                 {
                     Directory.CreateDirectory(path);
                 }
 
-                foreach (var storedProcedure in storedProcedures)
+                foreach (var tableType in tableTypes)
                 {
-                    var fileName = $"{storedProcedure.Name}Params.cs";
+                    var fileName = $"{tableType.Name}TableType.cs";
                     var fileNameWithPath = Path.Combine(path, fileName);
-                    var sourceText = GetParamsTextForStoredProcedure(schema, storedProcedure);
+                    var sourceText = GetTableTypeText(schema, tableType);
 
                     _output.Write(fileNameWithPath, sourceText, isDryRun);
                 }
@@ -368,7 +357,7 @@ namespace SpocR
             foreach (var schema in schemas)
             {
                 var storedProcedures = schema.StoredProcedures
-                    .Where(i => i.ReadWriteKind == Definition.ReadWriteKindEnum.Read);
+                    .Where(i => i.ReadWriteKind == Definition.ReadWriteKindEnum.Read).ToList();
 
                 if (!(storedProcedures.Any()))
                 {
@@ -384,7 +373,7 @@ namespace SpocR
 
                 foreach (var storedProcedure in storedProcedures)
                 {
-                    var isScalar = storedProcedure.Output.Count() == 1;
+                    var isScalar = storedProcedure.Output?.Count() == 1;
                     if (isScalar)
                     {
                         continue;
@@ -398,7 +387,7 @@ namespace SpocR
             }
         }
 
-        public string GetIdentifierFromSqlInputParam(string name)
+        public string GetIdentifierFromSqlInputTableType(string name)
         {
             name = $"{name.Remove(0, 1).FirstCharToLower()}";
             var reservedKeyWords = new[] { "params" };
@@ -409,7 +398,7 @@ namespace SpocR
             return name;
         }
 
-        public string GetPropertyFromSqlInputParam(string name)
+        public string GetPropertyFromSqlInputTableType(string name)
         {
             name = $"{name.Remove(0, 1).FirstCharToUpper()}";
             return name;
@@ -470,12 +459,21 @@ namespace SpocR
                 root = root.AddUsings(inputUsingDirective.NormalizeWhitespace().WithLeadingTrivia(SyntaxFactory.CarriageReturnLineFeed)).WithTrailingTrivia(SyntaxFactory.CarriageReturnLineFeed);
             }
 
-            // Add Usings for Params
-            if (storedProcedures.Any(s => s.Input?.Any(i => i.IsTableType ?? false) ?? false))
+            // Add Usings for TableTypes
+            // If Inputs contains a TableType, add using for TableTypes
+            var tableTypes = storedProcedures.SelectMany(sp => sp.Input.Where(i => i.IsTableType ?? false))
+                                 .GroupBy(t => (t.TableTypeSchemaName, t.TableTypeName), (key, group) => new
+                                 {
+                                     TableTypeSchemaName = key.TableTypeSchemaName,
+                                     TableTypeName = key.TableTypeName,
+                                     Result = group.First()
+                                 }).Select(g => g.Result).ToList();
+
+            foreach (var tableType in tableTypes)
             {
                 var paramUsingDirective = _configFile.Config.Project.Role.Kind == ERoleKind.Lib
-                    ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.Params.{schema.Name}"))
-                    : SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.DataContext.Params.{schema.Name}"));
+                    ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.TableTypes.{tableType.TableTypeSchemaName.FirstCharToUpper()}"))
+                    : SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.DataContext.TableTypes.{tableType.TableTypeSchemaName.FirstCharToUpper()}"));
                 root = root.AddUsings(paramUsingDirective.NormalizeWhitespace().WithLeadingTrivia(SyntaxFactory.CarriageReturnLineFeed)).WithTrailingTrivia(SyntaxFactory.CarriageReturnLineFeed);
             }
 
@@ -533,43 +531,46 @@ namespace SpocR
             var methodIdentifier = SyntaxFactory.ParseToken($"{storedProcedure.Name}Async");
             methodNode = methodNode.WithIdentifier(methodIdentifier);
 
-            var withUserId = _configFile.Config.Project.Identity.Kind == EIdentityKind.WithUserId;
-            var userIdExists = storedProcedure.Input.Any() && storedProcedure.Input.First().Name == "@UserId";
+            // var withUserId = _configFile.Config.Project.Identity.Kind == EIdentityKind.WithUserId;
+            // var userIdExists = storedProcedure.Input.Any() && storedProcedure.Input.First().Name == "@UserId";
 
-            if (withUserId && !userIdExists)
-            {
-                // ? This is just to prevent follow-up issues, as long as the architecture handles SPs like this
-                withUserId = false;
+            // if (withUserId && !userIdExists)
+            // {
+            //     // ? This is just to prevent follow-up issues, as long as the architecture handles SPs like this
+            //     withUserId = false;
 
-                _reportService.Warn(
-                    new StringBuilder()
-                    .Append($"The StoredProcedure {storedProcedure.SqlObjectName} violates the requirement: ")
-                    .Append("First Parameter with Name '@UserId'")
-                    .Append(" (this can lead to unpredictable issues)")
-                    .ToString()
-                );
-                // throw new InvalidOperationException($"The StoredProcedure `{storedProcedure.Name}` requires a first Parameter with Name `@UserId`");
-            }
+            //     _reportService.Warn(
+            //         new StringBuilder()
+            //         .Append($"The StoredProcedure {storedProcedure.SqlObjectName} violates the requirement: ")
+            //         .Append("First Parameter with Name '@UserId'")
+            //         .Append(" (this can lead to unpredictable issues)")
+            //         .ToString()
+            //     );
+            //     // throw new InvalidOperationException($"The StoredProcedure `{storedProcedure.Name}` requires a first Parameter with Name `@UserId`");
+            // }
 
             // Generate Method params
             var parameters = useInputModel
                                     ? new[] { SyntaxFactory.Parameter(SyntaxFactory.Identifier("model"))
                                                 .WithType(SyntaxFactory.ParseTypeName($"{storedProcedure.Name}Input"))  }
-                                    : storedProcedure.Input.Skip(withUserId && userIdExists ? 1 : 0).Select(input =>
+                                    : storedProcedure.Input
+                                    // .Skip(withUserId && userIdExists ? 1 : 0)
+                                    .Select(input =>
                                         {
-                                            return SyntaxFactory.Parameter(SyntaxFactory.Identifier(GetIdentifierFromSqlInputParam(input.Name)))
+                                            return SyntaxFactory.Parameter(SyntaxFactory.Identifier(GetIdentifierFromSqlInputTableType(input.Name)))
                                                 .WithType(
                                                     input.IsTableType ?? false
-                                                    ? GetInputTypeForTableType(storedProcedure, input)
+                                                    ? GetTypeSyntaxForTableType(input.TableTypeName)
                                                     : ParseTypeFromSqlDbTypeName(input.SqlTypeName, input.IsNullable ?? false)
                                                 );
                                         });
 
             var parameterList = methodNode.ParameterList;
             parameterList = parameterList.WithParameters(
-                withUserId && !useInputModel
-                ? parameterList.Parameters.InsertRange(3, parameters).RemoveAt(2) // remove tableType
-                : parameterList.Parameters.InsertRange(3, parameters).RemoveAt(1).RemoveAt(1) // remove userId and tableType
+                parameterList.Parameters.InsertRange(3, parameters).RemoveAt(1).RemoveAt(1) // remove parameter and tableType
+                                                                                            // withUserId && !useInputModel
+                                                                                            // ? parameterList.Parameters.InsertRange(3, parameters).RemoveAt(2) // remove tableType
+                                                                                            // : parameterList.Parameters.InsertRange(3, parameters).RemoveAt(1).RemoveAt(1) // remove userId and tableType
             );
             methodNode = methodNode.WithParameterList(parameterList);
 
@@ -600,8 +601,8 @@ namespace SpocR
                                     SyntaxFactory.Argument(
                                         SyntaxFactory.IdentifierName(
                                         useInputModel
-                                        ? $"model.{GetPropertyFromSqlInputParam(i.Name)}"
-                                        : GetIdentifierFromSqlInputParam(i.Name)
+                                        ? $"model.{GetPropertyFromSqlInputTableType(i.Name)}"
+                                        : GetIdentifierFromSqlInputTableType(i.Name)
                                         ))
                             }))));
                 if (!isLastItem)
@@ -620,7 +621,8 @@ namespace SpocR
                                     .WithInitializer(SyntaxFactory.InitializerExpression(SyntaxKind.CollectionInitializerExpression,
                                         SyntaxFactory.SeparatedList<ExpressionSyntax>(arguments))))))));
 
-            methodBody = methodBody.WithStatements(new SyntaxList<StatementSyntax>(statements.Skip(withUserId && !useInputModel ? 1 : 2)));
+            // methodBody = methodBody.WithStatements(new SyntaxList<StatementSyntax>(statements.Skip(withUserId && !useInputModel ? 1 : 2)));
+            methodBody = methodBody.WithStatements(new SyntaxList<StatementSyntax>(statements.Skip(2)));
             methodNode = methodNode.WithBody(methodBody);
 
             // Replace ReturnType and ReturnLine

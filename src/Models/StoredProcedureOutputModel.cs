@@ -5,9 +5,15 @@ namespace SpocR.Models
     public class StoredProcedureOutputModel
     {
         private readonly StoredProcedureOutput _item;
+
+        public StoredProcedureOutputModel()  // required for json serialization
+        {
+            _item = new StoredProcedureOutput();
+        }
+
         public StoredProcedureOutputModel(StoredProcedureOutput item)
         {
-            _item = item ?? new StoredProcedureOutput();
+            _item = item;
         }
 
         public string Name

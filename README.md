@@ -20,9 +20,9 @@ SpocR also is supporting pure JSON-String Result from StoredProcedure without bu
 ## Generated Folder Structure
 
 ./DataContext<br>
-./DataContext/Models/[StoredProcedureName].cs<br>
-./DataContext/Params/[StoredProcedureName].cs<br>
-./DataContext/StoredProcedures/[EntityName]Extensions.cs<br>
+./DataContext/Models/[schema]/[StoredProcedureName].cs<br>
+./DataContext/StoredProcedures/[schema]/[EntityName]Extensions.cs<br>
+./DataContext/TableTypes/[schema]/[TableTypeName].cs<br>
 ./DataContext/AppDbContext.cs<br>
 ./DataContext/AppDbContextExtensions.cs<br>
 ./DataContext/SqlDataReaderExtensions.cs<br>
@@ -77,7 +77,6 @@ public Task<List<UserList>> ListAsync(CancellationToken cancellationToken = defa
 
 # Required .NET Core Packages for Web-API
 
-- Newtonsoft.Json
 - System.Data.SqlClient
 - Microsoft.Extensions.Configuration
 
@@ -132,11 +131,6 @@ dotnet tool install -g spocr --add-source ./
 - Default (Default): SpocR will create a standalone project with all dependencies
 - Lib: SpocR will create a spocr-library to include it into other projects, with AppDbContext and dependencies
 - Extension: SpocR will create a extendable project, without AppDbContext and dependencies, to inlude an existing spocr-lib. You have to configure the namespace (Project.Role.LibNamespace) to resolve the spocr-lib
-
-### Project.Identity.Kind
-
-- WithUserId (Default): First param @UserId is required in every StoredProcedure
-- None: E.g. if you are working with Integrated-Security
 
 # TODO: Demo-Project with StoredProcedures and API-Implementation
 

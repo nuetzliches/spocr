@@ -13,17 +13,17 @@ using SpocR.Utils;
 
 namespace SpocR
 {
-    [Command(ThrowOnUnexpectedArgument = false)]
-    [Subcommand("create", typeof(CreateCommand))]
-    [Subcommand("pull", typeof(PullCommand))]
-    [Subcommand("build", typeof(BuildCommand))]
-    [Subcommand("rebuild", typeof(RebuildCommand))]
-    [Subcommand("remove", typeof(RemoveCommand))]
-    [Subcommand("version", typeof(VersionCommand))]
-    [Subcommand("config", typeof(ConfigCommand))]
-    [Subcommand("project", typeof(ProjectCommand))]
-    [Subcommand("schema", typeof(SchemaCommand))]
-    [Subcommand("sp", typeof(StoredProcdureCommand))]
+    [Command(UnrecognizedArgumentHandling = UnrecognizedArgumentHandling.Throw)]
+    [Subcommand(typeof(CreateCommand))]
+    [Subcommand(typeof(PullCommand))]
+    [Subcommand(typeof(BuildCommand))]
+    [Subcommand(typeof(RebuildCommand))]
+    [Subcommand(typeof(RemoveCommand))]
+    [Subcommand(typeof(VersionCommand))]
+    [Subcommand(typeof(ConfigCommand))]
+    [Subcommand(typeof(ProjectCommand))]
+    [Subcommand(typeof(SchemaCommand))]
+    [Subcommand(typeof(StoredProcdureCommand))]
     [HelpOption("-?|-h|--help")]
     public class Program
     {

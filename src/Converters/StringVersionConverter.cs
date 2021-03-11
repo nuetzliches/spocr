@@ -1,18 +1,15 @@
 using System;
-using Newtonsoft.Json;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 
-namespace SpocR.Converters {
+namespace SpocR.Converters
+{
 
-    public class StringVersionConverter : JsonConverter
+    public class StringVersionConverter : JsonConverter<Version>
     {
-        public override bool CanConvert(Type objectType)
+        public override Version Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
         {
-            return true;
-        }
-
-        public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
-        {
-            var versionText = reader.Value?.ToString();
+            var versionText = reader.GetString();
             if (string.IsNullOrWhiteSpace(versionText))
             {
                 return null;
@@ -20,16 +17,16 @@ namespace SpocR.Converters {
             return new Version(versionText);
         }
 
-        public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+        public override void Write(Utf8JsonWriter writer, Version value, JsonSerializerOptions options)
         {
             if (value == null)
             {
-                writer.WriteNull();
+                writer.WriteNull("Version");
                 return;
             }
 
             var version = (Version)value;
-            writer.WriteValue($"{version.Major}.{version.Minor}.{version.Build}");
+            writer.WriteStringValue($"{version.Major}.{version.Minor}.{version.Build}");
         }
     }
 
