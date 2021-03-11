@@ -1,8 +1,16 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <Version>2.0.0</Version>
+  <PropertyGroup Label="Build">
+    <Version>2.0.1</Version>    
+    <TargetFramework>net5.0</TargetFramework>
   </PropertyGroup>
+
+  <ItemGroup Label="Package References">
+    <PackageReference 
+      Include="Microsoft.NETFramework.ReferenceAssemblies" 
+      PrivateAssets="All" 
+      Version="1.0.0" />
+  </ItemGroup>
 
   <PropertyGroup>
     <LangVersion>7.2</LangVersion>
