@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Data;
 using System.IO;
 using System.Linq;
-using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -56,7 +55,9 @@ namespace SpocR
 
         public TypeSyntax GetTypeSyntaxForTableType(string propertyName)
         {
-            return SyntaxFactory.ParseTypeName($"IEnumerable<{propertyName}>");
+            return propertyName.EndsWith("List")
+                ? SyntaxFactory.ParseTypeName($"IEnumerable<{propertyName}>")
+                : SyntaxFactory.ParseTypeName($"{propertyName}");
         }
 
         public SourceText GetInputTextForStoredProcedure(Definition.Schema schema, Definition.StoredProcedure storedProcedure)
@@ -68,19 +69,29 @@ namespace SpocR
             var root = tree.GetCompilationUnitRoot();
 
             // If Inputs contains a TableType, add using for TableTypes
-            var tableTypes = storedProcedure.Input.Where(i => i.IsTableType ?? false)
+            var schemesForTableTypes = storedProcedure.Input.Where(i => i.IsTableType ?? false)
                                  .GroupBy(t => (t.TableTypeSchemaName, t.TableTypeName), (key, group) => new
                                  {
                                      TableTypeSchemaName = key.TableTypeSchemaName,
-                                     TableTypeName = key.TableTypeName,
                                      Result = group.First()
                                  }).Select(g => g.Result).ToList();
 
-            foreach (var tableType in tableTypes)
+            var tableTypeSchemas = storedProcedure.Input.Where(i => i.IsTableType ?? false)
+                                        .GroupBy(t => t.TableTypeSchemaName, (key, group) => key).ToList();
+
+            foreach (var tableTypeSchema in tableTypeSchemas)
             {
-                var paramUsingDirective = _configFile.Config.Project.Role.Kind == ERoleKind.Lib
-                                    ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.TableTypes.{tableType.TableTypeSchemaName.FirstCharToUpper()}"))
-                                    : SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.DataContext.TableTypes.{tableType.TableTypeSchemaName.FirstCharToUpper()}"));
+
+                var tableTypeSchemaConfig = _configFile.Config.Schema.Find(s => s.Name.Equals(tableTypeSchema));
+                // is schema of table type ignored and its an extension?
+                var useFromLib = tableTypeSchemaConfig?.Status != SchemaStatusEnum.Build
+                    && _configFile.Config.Project.Role.Kind == ERoleKind.Extension;
+
+                var paramUsingDirective = useFromLib
+                                    ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Role.LibNamespace}.TableTypes.{tableTypeSchema.FirstCharToUpper()}"))
+                                    : _configFile.Config.Project.Role.Kind == ERoleKind.Lib
+                                        ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.TableTypes.{tableTypeSchema.FirstCharToUpper()}"))
+                                        : SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.DataContext.TableTypes.{tableTypeSchema.FirstCharToUpper()}"));
                 root = root.AddUsings(paramUsingDirective);
             }
 
@@ -461,19 +472,20 @@ namespace SpocR
 
             // Add Usings for TableTypes
             // If Inputs contains a TableType, add using for TableTypes
-            var tableTypes = storedProcedures.SelectMany(sp => sp.Input.Where(i => i.IsTableType ?? false))
-                                 .GroupBy(t => (t.TableTypeSchemaName, t.TableTypeName), (key, group) => new
-                                 {
-                                     TableTypeSchemaName = key.TableTypeSchemaName,
-                                     TableTypeName = key.TableTypeName,
-                                     Result = group.First()
-                                 }).Select(g => g.Result).ToList();
+            var tableTypeSchemas = storedProcedures.SelectMany(sp => sp.Input.Where(i => i.IsTableType ?? false))
+                                 .GroupBy(t => t.TableTypeSchemaName, (key, group) => key).ToList();
 
-            foreach (var tableType in tableTypes)
+            foreach (var tableTypeSchema in tableTypeSchemas)
             {
-                var paramUsingDirective = _configFile.Config.Project.Role.Kind == ERoleKind.Lib
-                    ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.TableTypes.{tableType.TableTypeSchemaName.FirstCharToUpper()}"))
-                    : SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.DataContext.TableTypes.{tableType.TableTypeSchemaName.FirstCharToUpper()}"));
+                var tableTypeSchemaConfig = _configFile.Config.Schema.Find(s => s.Name.Equals(tableTypeSchema));
+                var useFromLib = tableTypeSchemaConfig?.Status != SchemaStatusEnum.Build
+                    && _configFile.Config.Project.Role.Kind == ERoleKind.Extension;
+
+                var paramUsingDirective = useFromLib
+                                    ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Role.LibNamespace}.TableTypes.{tableTypeSchema.FirstCharToUpper()}"))
+                                    : _configFile.Config.Project.Role.Kind == ERoleKind.Lib
+                                        ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.TableTypes.{tableTypeSchema.FirstCharToUpper()}"))
+                                        : SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.DataContext.TableTypes.{tableTypeSchema.FirstCharToUpper()}"));
                 root = root.AddUsings(paramUsingDirective.NormalizeWhitespace().WithLeadingTrivia(SyntaxFactory.CarriageReturnLineFeed)).WithTrailingTrivia(SyntaxFactory.CarriageReturnLineFeed);
             }
 

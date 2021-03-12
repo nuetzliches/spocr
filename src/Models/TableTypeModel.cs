@@ -15,13 +15,9 @@ namespace SpocR.Models
             _item = new TableType();
         }
 
-        public TableTypeModel(StoredProcedureInputModel item, List<ColumnDefinition> columns)
+        public TableTypeModel(TableType item, List<Column> columns)
         {
-            _item = new TableType
-            {
-                Name = item.TableTypeName,
-                SchemaName = item.TableTypeSchemaName
-            };
+            _item = item;
             Columns = columns.Select(c => new ColumnModel(c)).ToList();
         }
 

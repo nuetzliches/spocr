@@ -196,7 +196,7 @@ namespace SpocR.Managers
             var stopwatch = new Stopwatch();
             stopwatch.Start();
 
-            _schemaManager.ListAsync(true, config).ContinueWith(t =>
+            _schemaManager.ListAsync(config).ContinueWith(t =>
             {
                 var result = t.Result;
                 var overwriteWithCurrentConfig = configSchemas.Any();

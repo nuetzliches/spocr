@@ -1,9 +1,8 @@
-using System;
 using SpocR.DataContext.Attributes;
 
 namespace SpocR.DataContext.Models
 {
-    public class ColumnDefinition
+    public class Column
     {
         [SqlFieldName("name")]
         public string Name { get; set; }

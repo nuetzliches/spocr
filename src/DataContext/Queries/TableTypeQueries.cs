@@ -6,9 +6,24 @@ using SpocR.DataContext.Models;
 
 namespace SpocR.DataContext.Queries
 {
-    public static class UserTableTypeQueries
+    public static class TableTypeQueries
     {
-        public static Task<List<ColumnDefinition>> UserTableTypeColumnListAsync(this DbContext context, int userTypeId, CancellationToken cancellationToken)
+        public static Task<List<TableType>> TableTypeListAsync(this DbContext context, string schemaList, CancellationToken cancellationToken)
+        {
+            var parameters = new List<SqlParameter>
+            {
+            };
+
+            var queryString = @"SELECT tt.user_type_id, tt.name, s.name AS schema_name
+                                FROM sys.table_types AS tt
+                                    INNER JOIN sys.schemas AS s ON s.schema_id = tt.schema_id 
+                                WHERE s.name IN(@schemaList)
+                                ORDER BY tt.name ASC;".Replace("@schemaList", schemaList);
+
+            return context.ListAsync<TableType>(queryString, parameters, cancellationToken);
+        }
+
+        public static Task<List<Column>> TableTypeColumnListAsync(this DbContext context, int userTypeId, CancellationToken cancellationToken)
         {
             var parameters = new List<SqlParameter>
             {
@@ -28,7 +43,7 @@ namespace SpocR.DataContext.Queries
                                 WHERE tt.user_type_id = @userTypeId
                                 ORDER BY c.column_id;";
 
-            return context.ListAsync<ColumnDefinition>(queryString, parameters, cancellationToken);
+            return context.ListAsync<Column>(queryString, parameters, cancellationToken);
         }
     }
 }

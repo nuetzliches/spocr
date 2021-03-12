@@ -20,7 +20,7 @@ namespace SpocR.Managers
             _reportService = serviceProvider.GetService<IReportService>();
         }
 
-        public async Task<List<SchemaModel>> ListAsync(bool withStoredProcedures, ConfigurationModel config, CancellationToken cancellationToken = default)
+        public async Task<List<SchemaModel>> ListAsync(ConfigurationModel config, CancellationToken cancellationToken = default)
         {
             var dbSchemas = await DbContext.SchemaListAsync(cancellationToken);
             if (dbSchemas == null)
@@ -47,58 +47,41 @@ namespace SpocR.Managers
             // reorder schemas, ignored at top
             schemas = schemas.OrderByDescending(schema => schema.Status).ToList();
 
-            if (withStoredProcedures)
+            var schemaListString = string.Join(',', schemas.Where(i => i.Status != SchemaStatusEnum.Ignore).Select(i => $"'{i.Name}'"));
+            if (string.IsNullOrEmpty(schemaListString))
             {
-                var schemaListString = string.Join(',', schemas.Where(i => i.Status != SchemaStatusEnum.Ignore).Select(i => $"'{i.Name}'"));
-                if (string.IsNullOrEmpty(schemaListString))
+                _reportService.Warn("No schemas found or all schemas ignored!");
+                return schemas;
+            }
+
+            var storedProcedures = await DbContext.StoredProcedureListAsync(schemaListString, cancellationToken);
+            var tableTypes = await DbContext.TableTypeListAsync(schemaListString, cancellationToken);
+
+            foreach (var schema in schemas)
+            {
+                schema.StoredProcedures = storedProcedures.Where(i => i.SchemaName.Equals(schema.Name))?.Select(i => new StoredProcedureModel(i))?.ToList();
+
+                if (schema.StoredProcedures == null)
+                    continue;
+
+                foreach (var storedProcedure in schema.StoredProcedures)
                 {
-                    _reportService.Warn("No schemas found or all schemas ignored!");
-                    return schemas;
+                    var inputs = await DbContext.StoredProcedureInputListAsync(storedProcedure.SchemaName, storedProcedure.Name, cancellationToken);
+                    storedProcedure.Input = inputs.Select(i => new StoredProcedureInputModel(i)).ToList();
+
+                    var output = await DbContext.StoredProcedureOutputListAsync(storedProcedure.SchemaName, storedProcedure.Name, cancellationToken);
+                    storedProcedure.Output = output.Select(i => new StoredProcedureOutputModel(i)).ToList();
                 }
 
-                var storedProcedures = await DbContext.StoredProcedureListAsync(schemaListString, cancellationToken);
-
-                foreach (var schema in schemas)
+                var tableTypeModels = new List<TableTypeModel>();
+                foreach (var tableType in tableTypes.Where(i => i.SchemaName.Equals(schema.Name)))
                 {
-                    schema.StoredProcedures = storedProcedures.Where(i => i.SchemaName.Equals(schema.Name))?.Select(i => new StoredProcedureModel(i))?.ToList();
-
-                    if (schema.StoredProcedures == null)
-                        continue;
-
-                    foreach (var storedProcedure in schema.StoredProcedures)
-                    {
-                        var inputs = await DbContext.StoredProcedureInputListAsync(storedProcedure.SchemaName, storedProcedure.Name, cancellationToken);
-                        storedProcedure.Input = inputs.Select(i => new StoredProcedureInputModel(i)).ToList();
-
-                        var output = await DbContext.StoredProcedureOutputListAsync(storedProcedure.SchemaName, storedProcedure.Name, cancellationToken);
-                        storedProcedure.Output = output.Select(i => new StoredProcedureOutputModel(i)).ToList();
-                    }
+                    var columns = await DbContext.TableTypeColumnListAsync(tableType.UserTypeId ?? -1, cancellationToken);
+                    var tableTypeModel = new TableTypeModel(tableType, columns);
+                    tableTypeModels.Add(tableTypeModel);
                 }
 
-                // Collect all TableTypes from StoredProcedures and move it to the correct Schema
-                var allStoredProcedures = schemas.Where(s => s.StoredProcedures != null).SelectMany(s => s.StoredProcedures).ToList();
-                var allTableTypes = allStoredProcedures.SelectMany(sp => sp.Input.Where(i => i.IsTableType == true))
-                                        .GroupBy(t => (t.TableTypeSchemaName, t.TableTypeName), (key, group) => new
-                                        {
-                                            TableTypeSchemaName = key.TableTypeSchemaName,
-                                            TableTypeName = key.TableTypeName,
-                                            Result = group.First()
-                                        }).Select(g => g.Result).ToList();
-
-                foreach (var schema in schemas)
-                {
-                    var inputs = allTableTypes.Where(i => i.TableTypeSchemaName.Equals(schema.Name)).ToList();
-
-                    var tableTypes = new List<TableTypeModel>();
-                    foreach (var input in inputs)
-                    {
-                        var columns = await DbContext.UserTableTypeColumnListAsync(input.UserTypeId ?? -1, cancellationToken);
-                        var tableType = new TableTypeModel(input, columns);
-                        tableTypes.Add(tableType);
-                    }
-
-                    schema.TableTypes = tableTypes;
-                }
+                schema.TableTypes = tableTypeModels;
             }
 
             return schemas;

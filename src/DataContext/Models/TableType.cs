@@ -1,12 +1,19 @@
 using System.Collections.Generic;
+using SpocR.DataContext.Attributes;
 
 namespace SpocR.DataContext.Models
 {
-    // currently not implemented as DB Query Model
     public class TableType
     {
+        [SqlFieldName("user_type_id")]
+        public int? UserTypeId { get; set; }
+
+        [SqlFieldName("name")]
         public string Name { get; set; }
+
+        [SqlFieldName("schema_name")]
         public string SchemaName { get; set; }
-        public List<ColumnDefinition> Columns { get; set; }
+
+        public List<Column> Columns { get; set; }
     }
 }

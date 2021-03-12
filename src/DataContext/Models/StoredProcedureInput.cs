@@ -1,10 +1,9 @@
-using System;
 using System.Collections.Generic;
 using SpocR.DataContext.Attributes;
 
 namespace SpocR.DataContext.Models
 {
-    public class StoredProcedureInput : ColumnDefinition
+    public class StoredProcedureInput : Column
     {
         [SqlFieldName("is_output")]
         public bool IsOutput { get; set; }
@@ -20,6 +19,6 @@ namespace SpocR.DataContext.Models
 
         [SqlFieldName("user_type_schema_name")]
         public string UserTypeSchemaName { get; set; }
-        public List<ColumnDefinition> TableTypeColumns { get; set; }
+        public List<Column> TableTypeColumns { get; set; }
     }
 }

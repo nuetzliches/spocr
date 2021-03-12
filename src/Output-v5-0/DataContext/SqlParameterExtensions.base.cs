@@ -10,10 +10,18 @@ namespace Source.DataContext
 {
     public static class SqlParameterExtensions
     {
-        public static IEnumerable<SqlDataRecord> ToSqlParamCollection(this object value)
+        public static IEnumerable<SqlDataRecord> ToSqlParamCollection<T>(this T value)
         {
             var collection = new List<SqlDataRecord>();
-            var list = (IEnumerable)value;
+
+            var list = value as IEnumerable;
+            // scalar value is allowed
+            if(list == null && value != null)
+            {
+                // create single row of type<T>
+                list = new List<T> { value };
+            }
+
             foreach (var row in list)
             {
                 var rowType = row.GetType();
