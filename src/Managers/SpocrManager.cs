@@ -19,7 +19,6 @@ namespace SpocR.Managers
 {
     public class SpocrManager
     {
-        private readonly IConfiguration _configuration;
         private readonly SpocrService _spocr;
         private readonly OutputService _output;
         private readonly Generator _engine;
@@ -46,7 +45,6 @@ namespace SpocR.Managers
             AutoUpdaterService autoUpdaterService
         )
         {
-            _configuration = configuration;
             _spocr = spocr;
             _output = output;
             _engine = engine;
@@ -205,7 +203,7 @@ namespace SpocR.Managers
                     foreach (var schema in result ?? Enumerable.Empty<SchemaModel>())
                     {
                         var currentSchema = configSchemas.SingleOrDefault(i => i.Name == schema.Name);
-                        schema.Status = currentSchema != null ? currentSchema.Status : SchemaStatusEnum.Build;
+                        schema.Status = currentSchema != null ? currentSchema.Status : _configFile.Config.Project.DefaultSchemaStatus;
                     }
                 }
                 configSchemas = result;
