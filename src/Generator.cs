@@ -53,11 +53,11 @@ namespace SpocR
             return $"{tableType.Name}";
         }
 
-        public TypeSyntax GetTypeSyntaxForTableType(string propertyName)
+        public TypeSyntax GetTypeSyntaxForTableType(StoredProcedureInputModel input)
         {
-            return propertyName.EndsWith("List")
-                ? SyntaxFactory.ParseTypeName($"IEnumerable<{propertyName}>")
-                : SyntaxFactory.ParseTypeName($"{propertyName}");
+            return input.Name.EndsWith("List")
+                ? SyntaxFactory.ParseTypeName($"IEnumerable<{input.TableTypeName}>")
+                : SyntaxFactory.ParseTypeName($"{input.TableTypeName}");
         }
 
         public SourceText GetInputTextForStoredProcedure(Definition.Schema schema, Definition.StoredProcedure storedProcedure)
@@ -119,12 +119,13 @@ namespace SpocR
                 nsNode = (NamespaceDeclarationSyntax)root.Members[0];
                 classNode = (ClassDeclarationSyntax)nsNode.Members[0];
 
-                var propertyIdentifier = SyntaxFactory.ParseToken($" {item.Name.Replace("@", "")} ");
+                var propertyName = item.Name.Replace("@", "");
+                var propertyIdentifier = SyntaxFactory.ParseToken($" {propertyName} ");
 
                 if (item.IsTableType ?? false)
                 {
                     propertyNode = propertyNode
-                        .WithType(GetTypeSyntaxForTableType(item.TableTypeName));
+                        .WithType(GetTypeSyntaxForTableType(item));
                 }
                 else
                 {
@@ -572,7 +573,7 @@ namespace SpocR
                                             return SyntaxFactory.Parameter(SyntaxFactory.Identifier(GetIdentifierFromSqlInputTableType(input.Name)))
                                                 .WithType(
                                                     input.IsTableType ?? false
-                                                    ? GetTypeSyntaxForTableType(input.TableTypeName)
+                                                    ? GetTypeSyntaxForTableType(input)
                                                     : ParseTypeFromSqlDbTypeName(input.SqlTypeName, input.IsNullable ?? false)
                                                 );
                                         });
