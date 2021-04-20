@@ -13,15 +13,15 @@ namespace Source.DataContext
         public static IEnumerable<SqlDataRecord> ToSqlParamCollection<T>(this T value)
         {
             var collection = new List<SqlDataRecord>();
-           
+
             var list = value as IEnumerable;
             // scalar value is allowed
-            if(list == null && value != null)
+            if (list == null && value != null)
             {
                 // create single row of type<T>
                 list = new List<T> { value };
             }
-            
+
             foreach (var row in list)
             {
                 var rowType = row.GetType();
@@ -34,7 +34,7 @@ namespace Source.DataContext
                     var propVal = property.GetValue(row);
                     var propName = property.Name;
                     var sqlType = AppDbContext.GetSqlDbType(property.PropertyType);
-                    
+
                     if (sqlType == SqlDbType.NVarChar)
                     {
                         var maxLengthAttribute = (MaxLengthAttribute)property.GetCustomAttributes(typeof(MaxLengthAttribute), false).FirstOrDefault();

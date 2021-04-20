@@ -4,223 +4,106 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace Source.DataContext
 {
+    public interface IAppDbContextPipe
+    {
+        IAppDbContext Context { get; }
+        SqlTransaction Transaction { get; set; }
+        int? CommandTimeout { get; set; }
+    }
+
     public interface IAppDbContext
     {
-        Task ExecuteAsync(string procedureName, List<SqlParameter> parameters, IExecuteOptions options = null);
-        Task<List<T>> ExecuteListAsync<T>(string procedureName, List<SqlParameter> parameters, CancellationToken cancellationToken = default) where T : class, new();
-        Task<List<T>> ExecuteListAsync<T>(string procedureName, List<SqlParameter> parameters, IExecuteOptions options = null) where T : class, new();
-        Task<T> ExecuteSingleAsync<T>(string procedureName, List<SqlParameter> parameters, CancellationToken cancellationToken) where T : class, new();
-        Task<T> ExecuteSingleAsync<T>(string procedureName, List<SqlParameter> parameters, IExecuteOptions options = null) where T : class, new();
-        Task<string> ReadJsonAsync(string procedureName, List<SqlParameter> parameters, CancellationToken cancellationToken = default);
-        Task<string> ReadJsonAsync(string procedureName, List<SqlParameter> parameters, IExecuteOptions options = null);
-        Task<AppSqlTransaction> BeginTransactionAsync(CancellationToken cancellationToken);
-        Task<AppSqlTransaction> BeginTransactionAsync(string transactionName, CancellationToken cancellationToken);
-        Task<AppSqlTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken);
-        Task<AppSqlTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, string transactionName, CancellationToken cancellationToken);
-        void CommitTransaction(AppSqlTransaction transaction);
-        void RollbackTransaction(AppSqlTransaction transaction);
-        AppSqlTransaction GetCurrentTransaction();
+        SqlConnection Connection { get; }
+        List<SqlTransaction> Transactions { get; }
+        Task<SqlTransaction> BeginTransactionAsync(CancellationToken cancellationToken);
+        Task<SqlTransaction> BeginTransactionAsync(string transactionName, CancellationToken cancellationToken);
+        Task<SqlTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken);
+        Task<SqlTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, string transactionName, CancellationToken cancellationToken);
+        void CommitTransaction(SqlTransaction transaction);
+        void RollbackTransaction(SqlTransaction transaction);
         void Dispose();
     }
 
-    public interface IExecuteOptions
+    public class AppDbContextPipe : IAppDbContextPipe
     {
-        CancellationToken CancellationToken { get; set; }
-        AppSqlTransaction Transaction { get; set; }
-        int? CommandTimeout { get; set; }
+        public AppDbContextPipe(IAppDbContext context)
+        {
+            Context = context;
+        }
+
+        public IAppDbContext Context { get; }
+        public SqlTransaction Transaction { get; set; }
+        public int? CommandTimeout { get; set; }
     }
 
     public class AppDbContext : IAppDbContext, IDisposable
     {
-        private readonly SqlConnection _connection;
-        private readonly List<AppSqlTransaction> _transactions;
+        public SqlConnection Connection { get; }
+        public List<SqlTransaction> Transactions { get; }
 
         public AppDbContext(IConfiguration configuration)
         {
-            _connection = new SqlConnection(configuration.GetConnectionString("DefaultConnection"));
-            _transactions = new List<AppSqlTransaction>();
+            Connection = new SqlConnection(configuration.GetConnectionString("DefaultConnection"));
+            Transactions = new List<SqlTransaction>();
         }
 
         public void Dispose()
         {
-            if (_connection?.State == ConnectionState.Open)
+            if (Connection?.State == ConnectionState.Open)
             {
-                if (_transactions.Any())
+                if (Transactions.Any())
                     // We need a copy - Rollback will modify this List
-                    _transactions.ToList().ForEach(RollbackTransaction);
-                _connection.Close();
+                    Transactions.ToList().ForEach(RollbackTransaction);
+                Connection.Close();
             }
 
-            _connection?.Dispose();
+            Connection?.Dispose();
         }
 
-        public async Task ExecuteAsync(string procedureName, List<SqlParameter> parameters, IExecuteOptions options = null)
-        {
-            var cancellationToken = options?.CancellationToken ?? default;
-            cancellationToken.ThrowIfCancellationRequested();
-
-            if (_connection.State != ConnectionState.Open) await _connection.OpenAsync(cancellationToken);
-
-            var command = new SqlCommand(procedureName, _connection)
-            {
-                CommandType = CommandType.StoredProcedure,
-                Transaction = options?.Transaction?.Transaction ?? GetCurrentTransaction()?.Transaction
-            };
-
-            if (options?.CommandTimeout.HasValue ?? false)
-            {
-                command.CommandTimeout = (int)options.CommandTimeout;
-            }
-
-            if (parameters?.Any() ?? false) command.Parameters.AddRange(parameters.ToArray());
-
-            await command.ExecuteNonQueryAsync(cancellationToken);
-        }
-
-        public async Task<List<T>> ExecuteListAsync<T>(string procedureName, List<SqlParameter> parameters, CancellationToken cancellationToken = default) where T : class, new()
-        {
-            return await ExecuteListAsync<T>(procedureName, parameters, new ExecuteOptions
-            {
-                CancellationToken = cancellationToken
-            });
-        }
-
-        public async Task<List<T>> ExecuteListAsync<T>(string procedureName, List<SqlParameter> parameters, IExecuteOptions options = null) where T : class, new()
-        {
-            var cancellationToken = options?.CancellationToken ?? default;
-            cancellationToken.ThrowIfCancellationRequested();
-
-            if (_connection.State != ConnectionState.Open) await _connection.OpenAsync(cancellationToken);
-
-            var command = new SqlCommand(procedureName, _connection)
-            {
-                CommandType = CommandType.StoredProcedure,
-                Transaction = options?.Transaction?.Transaction ?? GetCurrentTransaction()?.Transaction
-            };
-
-            if (options?.CommandTimeout.HasValue ?? false)
-            {
-                command.CommandTimeout = (int)options.CommandTimeout;
-            }
-
-            if (parameters?.Any() ?? false) command.Parameters.AddRange(parameters.ToArray());
-
-            var result = new List<T>();
-
-            var reader = await command.ExecuteReaderAsync(cancellationToken);
-            while (await reader.ReadAsync(cancellationToken)) result.Add(reader.ConvertToObject<T>());
-            reader.Close();
-
-            return result;
-        }
-
-        public async Task<T> ExecuteSingleAsync<T>(string procedureName, List<SqlParameter> parameters, CancellationToken cancellationToken = default) where T : class, new()
-        {
-            return await ExecuteSingleAsync<T>(procedureName, parameters, new ExecuteOptions
-            {
-                CancellationToken = cancellationToken
-            });
-        }
-
-        public async Task<T> ExecuteSingleAsync<T>(string procedureName, List<SqlParameter> parameters, IExecuteOptions options = null) where T : class, new()
-        {
-            var cancellationToken = options?.CancellationToken ?? default;
-            cancellationToken.ThrowIfCancellationRequested();
-
-            return (await ExecuteListAsync<T>(procedureName, parameters, options)).SingleOrDefault();
-        }
-
-        public async Task<string> ReadJsonAsync(string procedureName, List<SqlParameter> parameters,
-            CancellationToken cancellationToken = default)
-        {
-            return await ReadJsonAsync(procedureName, parameters, new ExecuteOptions
-            {
-                CancellationToken = cancellationToken
-            });
-        }
-
-        public async Task<string> ReadJsonAsync(string procedureName, List<SqlParameter> parameters, IExecuteOptions options = null)
-        {
-            var cancellationToken = options?.CancellationToken ?? default;
-            cancellationToken.ThrowIfCancellationRequested();
-
-            if (_connection.State != ConnectionState.Open) await _connection.OpenAsync(cancellationToken);
-
-            var command = new SqlCommand(procedureName, _connection)
-            {
-                CommandType = CommandType.StoredProcedure,
-                Transaction = options?.Transaction?.Transaction ?? GetCurrentTransaction()?.Transaction
-            };
-
-            if (options?.CommandTimeout.HasValue ?? false)
-            {
-                command.CommandTimeout = (int)options.CommandTimeout;
-            }
-
-            if (parameters?.Any() ?? false) command.Parameters.AddRange(parameters.ToArray());
-
-            var result = new StringBuilder();
-
-            var reader = await command.ExecuteReaderAsync(cancellationToken);
-            while (reader.Read()) result.Append(reader.GetValue(0).ToString());
-            reader.Close();
-
-            return result.ToString();
-        }
-
-        public Task<AppSqlTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
+        public Task<SqlTransaction> BeginTransactionAsync(CancellationToken cancellationToken = default)
         {
             return BeginTransactionAsync(null, cancellationToken);
         }
 
-        public Task<AppSqlTransaction> BeginTransactionAsync(string transactionName, CancellationToken cancellationToken = default)
+        public Task<SqlTransaction> BeginTransactionAsync(string transactionName, CancellationToken cancellationToken = default)
         {
             return BeginTransactionAsync(IsolationLevel.Unspecified, transactionName, cancellationToken);
         }
 
-        public Task<AppSqlTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken = default)
+        public Task<SqlTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, CancellationToken cancellationToken = default)
         {
             return BeginTransactionAsync(isolationLevel, null, cancellationToken);
         }
 
-        public async Task<AppSqlTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, string transactionName, CancellationToken cancellationToken = default)
+        public async Task<SqlTransaction> BeginTransactionAsync(IsolationLevel isolationLevel, string transactionName, CancellationToken cancellationToken = default)
         {
-            if (_connection.State != ConnectionState.Open) await _connection.OpenAsync(cancellationToken);
-            var transaction = new AppSqlTransaction
-            {
-                Transaction = !string.IsNullOrEmpty(transactionName)
-                        ? _connection.BeginTransaction(isolationLevel, transactionName)
-                        : _connection.BeginTransaction(isolationLevel)
-            };
-            _transactions.Add(transaction);
+            if (Connection.State != ConnectionState.Open) await Connection.OpenAsync(cancellationToken);
+            var transaction = !string.IsNullOrEmpty(transactionName)
+                        ? Connection.BeginTransaction(isolationLevel, transactionName)
+                        : Connection.BeginTransaction(isolationLevel);
+            Transactions.Add(transaction);
             return transaction;
         }
 
-        public void CommitTransaction(AppSqlTransaction transaction)
+        public void CommitTransaction(SqlTransaction transaction)
         {
-            var trans = _transactions.SingleOrDefault(t => t.Equals(transaction));
+            var trans = Transactions.SingleOrDefault(t => t.Equals(transaction));
             if (trans == null) return;
-            trans.Transaction.Commit();
-            _transactions.Remove(trans);
+            trans.Commit();
+            Transactions.Remove(trans);
         }
 
-        public void RollbackTransaction(AppSqlTransaction transaction)
+        public void RollbackTransaction(SqlTransaction transaction)
         {
-            var trans = _transactions.SingleOrDefault(t => t.Equals(transaction));
+            var trans = Transactions.SingleOrDefault(t => t.Equals(transaction));
             if (trans == null) return;
-            trans.Transaction.Rollback();
-            _transactions.Remove(trans);
-        }
-
-        public AppSqlTransaction GetCurrentTransaction()
-        {
-            return _transactions.LastOrDefault();
+            trans.Rollback();
+            Transactions.Remove(trans);
         }
 
         public static SqlParameter GetParameter<T>(string parameter, T value)
@@ -268,17 +151,5 @@ namespace Source.DataContext
                     throw new NotImplementedException($"{nameof(AppDbContext)}.{nameof(GetSqlDbType)} - System.Type {type} not defined!");
             }
         }
-    }
-
-    public class AppSqlTransaction
-    {
-        public SqlTransaction Transaction { get; set; }
-    }
-
-    public class ExecuteOptions : IExecuteOptions
-    {
-        public CancellationToken CancellationToken { get; set; }
-        public AppSqlTransaction Transaction { get; set; }
-        public int? CommandTimeout { get; set; }
     }
 }

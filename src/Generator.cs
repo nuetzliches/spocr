@@ -11,6 +11,7 @@ using SpocR.Contracts;
 using SpocR.DataContext;
 using SpocR.Enums;
 using SpocR.Extensions;
+using SpocR.Roslyn.Helpers;
 using SpocR.Managers;
 using SpocR.Models;
 using SpocR.Services;
@@ -107,31 +108,61 @@ namespace SpocR
 
             // Replace ClassName
             root = root.ReplaceClassName(ci => ci.Replace("Input", $"{storedProcedure.Name}Input"));
+            var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
+            var classNode = (ClassDeclarationSyntax)nsNode.Members[0];
+
+
+            // Create obsolete constructor
+            var obsoleteContructor = classNode.CreateConstructor($"{storedProcedure.Name}Input");
+            root = root.AddObsoleteAttribute(ref obsoleteContructor, "This empty contructor will be removed in vNext. Please use constructor with parameters.");
+            root = root.AddConstructor(ref classNode, obsoleteContructor);
+            nsNode = (NamespaceDeclarationSyntax)root.Members[0];
+            classNode = (ClassDeclarationSyntax)nsNode.Members[0];
+
+            var inputs = storedProcedure.Input.Where(i => !i.IsOutput).ToList();
+            // Constructor with params
+            var constructor = classNode.CreateConstructor($"{storedProcedure.Name}Input");
+            var parameters = inputs.Select(input =>
+            {
+                return SyntaxFactory.Parameter(SyntaxFactory.Identifier(GetIdentifierFromSqlInputTableType(input.Name)))
+                    .WithType(
+                        input.IsTableType ?? false
+                        ? GetTypeSyntaxForTableType(input)
+                        : ParseTypeFromSqlDbTypeName(input.SqlTypeName, input.IsNullable ?? false)
+                    );
+            }).ToArray();
+
+            var constructorParams = constructor.ParameterList.AddParameters(parameters);
+            constructor = constructor.WithParameterList(constructorParams);
+
+            foreach (var input in inputs)
+            {
+                var constructorStatement = ExpressionHelper.AssignmentStatement(TokenHelper.Parse(input.Name).ToString(), GetIdentifierFromSqlInputTableType(input.Name));
+                var newStatements = constructor.Body.Statements.Add(constructorStatement);
+                constructor = constructor.WithBody(constructor.Body.WithStatements(newStatements));
+            }
+
+            root = root.AddConstructor(ref classNode, constructor);
+            nsNode = (NamespaceDeclarationSyntax)root.Members[0];
+            classNode = (ClassDeclarationSyntax)nsNode.Members[0];
 
             // Generate Properies
             // https://stackoverflow.com/questions/45160694/adding-new-field-declaration-to-class-with-roslyn
-            var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-            var classNode = (ClassDeclarationSyntax)nsNode.Members[0];
+
             foreach (var item in storedProcedure.Input)
             {
-                var propertyNode = (PropertyDeclarationSyntax)classNode.Members[0];
-
                 nsNode = (NamespaceDeclarationSyntax)root.Members[0];
                 classNode = (ClassDeclarationSyntax)nsNode.Members[0];
 
-                var propertyName = item.Name.Replace("@", "");
-                var propertyIdentifier = SyntaxFactory.ParseToken($" {propertyName} ");
+                var isTableType = item.IsTableType ?? false;
+                var propertyType = isTableType
+                    ? GetTypeSyntaxForTableType(item)
+                    : ParseTypeFromSqlDbTypeName(item.SqlTypeName, item.IsNullable ?? false);
 
-                if (item.IsTableType ?? false)
-                {
-                    propertyNode = propertyNode
-                        .WithType(GetTypeSyntaxForTableType(item));
-                }
-                else
-                {
-                    propertyNode = propertyNode
-                        .WithType(ParseTypeFromSqlDbTypeName(item.SqlTypeName, item.IsNullable ?? false));
+                var propertyNode = classNode.CreateProperty(propertyType, item.Name);
 
+                if (!isTableType)
+                {
                     // Add Attribute for NVARCHAR with MaxLength
                     if ((item.SqlTypeName?.Equals(SqlDbType.NVarChar.ToString(), StringComparison.InvariantCultureIgnoreCase) ?? false)
                         && item.MaxLength.HasValue)
@@ -145,16 +176,13 @@ namespace SpocR
                     }
                 }
 
-                propertyNode = propertyNode
-                    .WithIdentifier(propertyIdentifier).NormalizeWhitespace();
-
-                root = root.AddProperty(classNode, propertyNode);
+                root = root.AddProperty(ref classNode, propertyNode);
             }
 
-            // Remove template Property
-            nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-            classNode = (ClassDeclarationSyntax)nsNode.Members[0];
-            root = root.ReplaceNode(classNode, classNode.WithMembers(new SyntaxList<MemberDeclarationSyntax>(classNode.Members.Cast<PropertyDeclarationSyntax>().Skip(1))));
+            // // Remove template Property
+            // nsNode = (NamespaceDeclarationSyntax)root.Members[0];
+            // classNode = (ClassDeclarationSyntax)nsNode.Members[0];
+            // root = root.ReplaceNode(classNode, classNode.WithMembers(classNode.Members));
 
             return root.NormalizeWhitespace().GetText();
         }
@@ -198,7 +226,7 @@ namespace SpocR
                 propertyNode = propertyNode
                     .WithIdentifier(propertyIdentifier);
 
-                root = root.AddProperty(classNode, propertyNode);
+                root = root.AddProperty(ref classNode, propertyNode);
             }
 
             // Remove template Property
@@ -272,7 +300,7 @@ namespace SpocR
                         propertyNode = propertyNode.WithAttributeLists(attributes);
                     }
 
-                    root = root.AddProperty(classNode, propertyNode);
+                    root = root.AddProperty(ref classNode, propertyNode);
                 }
             }
 
@@ -516,18 +544,18 @@ namespace SpocR
                 nsNode = (NamespaceDeclarationSyntax)root.Members[0];
                 classNode = (ClassDeclarationSyntax)nsNode.Members[0];
 
-                // Origin
+                // Extension for IAppDbContextPipe
                 var originMethodNode = (MethodDeclarationSyntax)classNode.Members[0];
                 originMethodNode = GenerateStoredProcedureMethodText(originMethodNode, storedProcedure);
-                root = root.AddMethod(classNode, originMethodNode);
+                root = root.AddMethod(ref classNode, originMethodNode);
 
                 nsNode = (NamespaceDeclarationSyntax)root.Members[0];
                 classNode = (ClassDeclarationSyntax)nsNode.Members[0];
 
-                // Overloaded with IExecuteOptions
+                // Overloaded extension with IAppDbContext
                 var overloadOptionsMethodNode = (MethodDeclarationSyntax)classNode.Members[1];
                 overloadOptionsMethodNode = GenerateStoredProcedureMethodText(overloadOptionsMethodNode, storedProcedure, true);
-                root = root.AddMethod(classNode, overloadOptionsMethodNode);
+                root = root.AddMethod(ref classNode, overloadOptionsMethodNode);
             }
 
             // Remove template Method
@@ -538,10 +566,11 @@ namespace SpocR
             return root.NormalizeWhitespace().GetText();
         }
 
-        private MethodDeclarationSyntax GenerateStoredProcedureMethodText(MethodDeclarationSyntax methodNode, Definition.StoredProcedure storedProcedure, bool useInputModel = false)
+        private MethodDeclarationSyntax GenerateStoredProcedureMethodText(MethodDeclarationSyntax methodNode, Definition.StoredProcedure storedProcedure, bool isOverload = false)
         {
             // Replace MethodName
-            var methodIdentifier = SyntaxFactory.ParseToken($"{storedProcedure.Name}Async");
+            var methodName = $"{storedProcedure.Name}Async";
+            var methodIdentifier = SyntaxFactory.ParseToken(methodName);
             methodNode = methodNode.WithIdentifier(methodIdentifier);
 
             // var withUserId = _configFile.Config.Project.Identity.Kind == EIdentityKind.WithUserId;
@@ -563,85 +592,89 @@ namespace SpocR
             // }
 
             // Generate Method params
-            var parameters = useInputModel
-                                    ? new[] { SyntaxFactory.Parameter(SyntaxFactory.Identifier("model"))
-                                                .WithType(SyntaxFactory.ParseTypeName($"{storedProcedure.Name}Input"))  }
-                                    : storedProcedure.Input
-                                    // .Skip(withUserId && userIdExists ? 1 : 0)
-                                    .Select(input =>
-                                        {
-                                            return SyntaxFactory.Parameter(SyntaxFactory.Identifier(GetIdentifierFromSqlInputTableType(input.Name)))
-                                                .WithType(
-                                                    input.IsTableType ?? false
-                                                    ? GetTypeSyntaxForTableType(input)
-                                                    : ParseTypeFromSqlDbTypeName(input.SqlTypeName, input.IsNullable ?? false)
-                                                );
-                                        });
+            // var parameters = useInputModel
+            //                         ? new[] { SyntaxFactory.Parameter(SyntaxFactory.Identifier("model"))
+            //                                     .WithType(SyntaxFactory.ParseTypeName($"{storedProcedure.Name}Input"))  }
+            //                         : storedProcedure.Input
+            //                         // .Skip(withUserId && userIdExists ? 1 : 0)
+            //                         .Select(input =>
+            //                             {
+            //                                 return SyntaxFactory.Parameter(SyntaxFactory.Identifier(GetIdentifierFromSqlInputTableType(input.Name)))
+            //                                     .WithType(
+            //                                         input.IsTableType ?? false
+            //                                         ? GetTypeSyntaxForTableType(input)
+            //                                         : ParseTypeFromSqlDbTypeName(input.SqlTypeName, input.IsNullable ?? false)
+            //                                     );
+            //                             });
+
+            var parameters = new[] { SyntaxFactory.Parameter(SyntaxFactory.Identifier("input"))
+                                                .WithType(SyntaxFactory.ParseTypeName($"{storedProcedure.Name}Input")) };
 
             var parameterList = methodNode.ParameterList;
             parameterList = parameterList.WithParameters(
-                parameterList.Parameters.InsertRange(3, parameters).RemoveAt(1).RemoveAt(1) // remove parameter and tableType
-                                                                                            // withUserId && !useInputModel
-                                                                                            // ? parameterList.Parameters.InsertRange(3, parameters).RemoveAt(2) // remove tableType
-                                                                                            // : parameterList.Parameters.InsertRange(3, parameters).RemoveAt(1).RemoveAt(1) // remove userId and tableType
+                parameterList.Parameters.InsertRange(2, parameters).RemoveAt(1)
             );
             methodNode = methodNode.WithParameterList(parameterList);
 
             // Get Method Body as Statements
             var methodBody = methodNode.Body;
             var statements = methodBody.Statements.ToList();
+            var returnExpression = (statements.Last() as ReturnStatementSyntax).Expression.GetText().ToString();
 
-            // Generate Sql-Parameters
-            var sqlParamSyntax = (LocalDeclarationStatementSyntax)statements.Single(i => i is LocalDeclarationStatementSyntax);
-            var sqlParamSyntaxIndex = statements.IndexOf(sqlParamSyntax);
-
-            var arguments = new List<SyntaxNodeOrToken>();
-            var inputs = storedProcedure.Input.ToList();
-            var lastInput = inputs.Last();
-            inputs.ForEach(i =>
+            if (isOverload)
             {
-                var isLastItem = i == lastInput;
-                arguments.Add(SyntaxFactory.InvocationExpression(
-                    SyntaxFactory.MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
-                        SyntaxFactory.IdentifierName("AppDbContext"),
-                            SyntaxFactory.IdentifierName((i.IsTableType ?? false) ? "GetCollectionParameter" : "GetParameter")))
-                        .WithArgumentList(SyntaxFactory.ArgumentList(SyntaxFactory.SeparatedList<ArgumentSyntax>(
-                            new SyntaxNodeOrToken[]
-                            {
+                returnExpression = returnExpression.Replace("CrudActionAsync", methodName);
+            }
+            else
+            {
+                // Generate Sql-Parameters
+                var sqlParamSyntax = (LocalDeclarationStatementSyntax)statements.Single(i => i is LocalDeclarationStatementSyntax);
+                var sqlParamSyntaxIndex = statements.IndexOf(sqlParamSyntax);
+
+                var arguments = new List<SyntaxNodeOrToken>();
+                var inputs = storedProcedure.Input.ToList();
+                var lastInput = inputs.Last();
+                inputs.ForEach(i =>
+                {
+                    var isLastItem = i == lastInput;
+                    arguments.Add(SyntaxFactory.InvocationExpression(
+                        SyntaxFactory.MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
+                            SyntaxFactory.IdentifierName("AppDbContext"),
+                                SyntaxFactory.IdentifierName((i.IsTableType ?? false) ? "GetCollectionParameter" : "GetParameter")))
+                            .WithArgumentList(SyntaxFactory.ArgumentList(SyntaxFactory.SeparatedList<ArgumentSyntax>(
+                                new SyntaxNodeOrToken[]
+                                {
                                 SyntaxFactory.Argument(SyntaxFactory.LiteralExpression(
                                     SyntaxKind.StringLiteralExpression, SyntaxFactory.Literal(i.Name.Remove(0, 1)))),
                                     SyntaxFactory.Token(SyntaxKind.CommaToken),
                                     SyntaxFactory.Argument(
-                                        SyntaxFactory.IdentifierName(
-                                        useInputModel
-                                        ? $"model.{GetPropertyFromSqlInputTableType(i.Name)}"
-                                        : GetIdentifierFromSqlInputTableType(i.Name)
-                                        ))
-                            }))));
-                if (!isLastItem)
-                {
-                    arguments.Add(SyntaxFactory.Token(SyntaxKind.CommaToken));
-                }
-            });
+                                        SyntaxFactory.IdentifierName($"input.{GetPropertyFromSqlInputTableType(i.Name)}"                                        ))
+                                }))));
+                    if (!isLastItem)
+                    {
+                        arguments.Add(SyntaxFactory.Token(SyntaxKind.CommaToken));
+                    }
+                });
 
-            statements[sqlParamSyntaxIndex] = SyntaxFactory.LocalDeclarationStatement(SyntaxFactory.VariableDeclaration(SyntaxFactory.IdentifierName("var"))
-                .WithVariables(SyntaxFactory.SingletonSeparatedList(SyntaxFactory.VariableDeclarator(SyntaxFactory.Identifier("parameters"))
-                    .WithInitializer(SyntaxFactory.EqualsValueClause(
-                        SyntaxFactory.ObjectCreationExpression(
-                            SyntaxFactory.GenericName(
-                                SyntaxFactory.Identifier("List"))
-                                    .WithTypeArgumentList(SyntaxFactory.TypeArgumentList(SyntaxFactory.SingletonSeparatedList<TypeSyntax>(SyntaxFactory.IdentifierName("SqlParameter")))))
-                                    .WithInitializer(SyntaxFactory.InitializerExpression(SyntaxKind.CollectionInitializerExpression,
-                                        SyntaxFactory.SeparatedList<ExpressionSyntax>(arguments))))))));
+                statements[sqlParamSyntaxIndex] = SyntaxFactory.LocalDeclarationStatement(SyntaxFactory.VariableDeclaration(SyntaxFactory.IdentifierName("var"))
+                    .WithVariables(SyntaxFactory.SingletonSeparatedList(SyntaxFactory.VariableDeclarator(SyntaxFactory.Identifier("parameters"))
+                        .WithInitializer(SyntaxFactory.EqualsValueClause(
+                            SyntaxFactory.ObjectCreationExpression(
+                                SyntaxFactory.GenericName(
+                                    SyntaxFactory.Identifier("List"))
+                                        .WithTypeArgumentList(SyntaxFactory.TypeArgumentList(SyntaxFactory.SingletonSeparatedList<TypeSyntax>(SyntaxFactory.IdentifierName("SqlParameter")))))
+                                        .WithInitializer(SyntaxFactory.InitializerExpression(SyntaxKind.CollectionInitializerExpression,
+                                            SyntaxFactory.SeparatedList<ExpressionSyntax>(arguments))))))));
 
-            // methodBody = methodBody.WithStatements(new SyntaxList<StatementSyntax>(statements.Skip(withUserId && !useInputModel ? 1 : 2)));
-            methodBody = methodBody.WithStatements(new SyntaxList<StatementSyntax>(statements.Skip(2)));
+                methodBody = methodBody.WithStatements(new SyntaxList<StatementSyntax>(statements.Skip(2)));
+
+                returnExpression = returnExpression.Replace("schema.CrudAction", storedProcedure.SqlObjectName);
+            }
+
             methodNode = methodNode.WithBody(methodBody);
 
             // Replace ReturnType and ReturnLine
             var returnType = "Task<CrudResult>";
-            //var returnExpression = $"context.ExecuteSingleAsync<CrudResult>(\"{storedProcedure.SqlObjectName}\", parameters, cancellationToken, transaction)";
-            var returnExpression = (statements.Last() as ReturnStatementSyntax).Expression.GetText().ToString().Replace("schema.CrudAction", storedProcedure.SqlObjectName);
             var returnModel = "CrudResult";
 
             // TODO: i.Output?.Count() -> Implement a Property "IsScalar" and "IsJson"
