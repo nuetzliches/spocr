@@ -70,6 +70,10 @@ namespace SpocR.Services
                             {
                                 Path = "./Inputs",
                             },
+                            Outputs = new DataContextOutputsModel
+                            {
+                                Path = "./Outputs",
+                            },
                             Models = new DataContextModelsModel
                             {
                                 Path = "./Models",

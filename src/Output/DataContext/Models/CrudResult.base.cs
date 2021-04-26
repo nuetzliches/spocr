@@ -1,7 +1,9 @@
-﻿using Newtonsoft.Json;
+﻿using System;
+using Newtonsoft.Json;
 
 namespace Source.DataContext.Models
 {
+    [Obsolete("This CrudResult will be removed in vNext. Please migrate StoredProcedures to OUTPUT-Pattern (e.g. @ResultId [core].[_id] OUTPUT)")]
     public class CrudResult : ICrudResult
     {
         private bool? _succeeded;
@@ -26,7 +28,7 @@ namespace Source.DataContext.Models
             _succeeded = succeeded;
             _modified = modified;
         }
-        
+
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.Include)]
         public bool Succeeded => _succeeded ?? (_succeeded = ResultId > 0) ?? false;
 

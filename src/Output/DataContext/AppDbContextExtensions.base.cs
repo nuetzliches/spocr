@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Source.DataContext.Outputs;
 
 namespace Source.DataContext
 {
@@ -13,6 +14,11 @@ namespace Source.DataContext
         public static IAppDbContextPipe WithCommandTimeout(this IAppDbContext context, int commandTimeout)
         {
             return context.CreatePipe().WithCommandTimeout(commandTimeout);
+        }
+
+        public static IAppDbContextPipe WithTransaction(this IAppDbContext context, SqlTransaction transaction)
+        {
+            return context.CreatePipe().WithTransaction(transaction);
         }
 
         public static IAppDbContextPipe CreatePipe(this IAppDbContext context)
@@ -29,14 +35,22 @@ namespace Source.DataContext
             return pipe;
         }
 
-        public static async Task ExecuteAsync(this IAppDbContextPipe pipe, string procedureName, List<SqlParameter> parameters, CancellationToken cancellationToken = default)
+        public static IAppDbContextPipe WithTransaction(this IAppDbContextPipe pipe, SqlTransaction transaction)
+        {
+            pipe.Transaction = transaction;
+            return pipe;
+        }
+
+        public static async Task<TOutput> ExecuteAsync<TOutput>(this IAppDbContextPipe pipe, string procedureName, IEnumerable<SqlParameter> parameters, CancellationToken cancellationToken = default) where TOutput : class, IOutput, new()
         {
             var command = await pipe.CreateSqlCommandAsync(procedureName, parameters, cancellationToken);
 
             await command.ExecuteNonQueryAsync(cancellationToken);
+
+            return parameters.ToOutput<TOutput>();
         }
 
-        public static async Task<List<T>> ExecuteListAsync<T>(this IAppDbContextPipe pipe, string procedureName, List<SqlParameter> parameters, CancellationToken cancellationToken = default) where T : class, new()
+        public static async Task<List<T>> ExecuteListAsync<T>(this IAppDbContextPipe pipe, string procedureName, IEnumerable<SqlParameter> parameters, CancellationToken cancellationToken = default) where T : class, new()
         {
             var command = await pipe.CreateSqlCommandAsync(procedureName, parameters, cancellationToken);
 
@@ -49,12 +63,12 @@ namespace Source.DataContext
             return result;
         }
 
-        public static async Task<T> ExecuteSingleAsync<T>(this IAppDbContextPipe pipe, string procedureName, List<SqlParameter> parameters, CancellationToken cancellationToken = default) where T : class, new()
+        public static async Task<T> ExecuteSingleAsync<T>(this IAppDbContextPipe pipe, string procedureName, IEnumerable<SqlParameter> parameters, CancellationToken cancellationToken = default) where T : class, new()
         {
             return (await pipe.ExecuteListAsync<T>(procedureName, parameters, cancellationToken)).SingleOrDefault();
         }
 
-        public static async Task<string> ReadJsonAsync(this IAppDbContextPipe pipe, string procedureName, List<SqlParameter> parameters, CancellationToken cancellationToken = default)
+        public static async Task<string> ReadJsonAsync(this IAppDbContextPipe pipe, string procedureName, IEnumerable<SqlParameter> parameters, CancellationToken cancellationToken = default)
         {
             var command = await pipe.CreateSqlCommandAsync(procedureName, parameters, cancellationToken);
 
@@ -66,7 +80,7 @@ namespace Source.DataContext
             return result.ToString();
         }
 
-        internal static async Task<SqlCommand> CreateSqlCommandAsync(this IAppDbContextPipe pipe, string procedureName, List<SqlParameter> parameters, CancellationToken cancellationToken = default)
+        internal static async Task<SqlCommand> CreateSqlCommandAsync(this IAppDbContextPipe pipe, string procedureName, IEnumerable<SqlParameter> parameters, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -83,7 +97,10 @@ namespace Source.DataContext
                 command.CommandTimeout = pipe.CommandTimeout.Value;
             }
 
-            if (parameters?.Any() ?? false) command.Parameters.AddRange(parameters.ToArray());
+            if (parameters?.Any() ?? false)
+            {
+                command.Parameters.AddRange(parameters.ToArray());
+            }
 
             return command;
         }

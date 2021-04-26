@@ -1,10 +1,13 @@
 using Microsoft.SqlServer.Server;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Data;
+using System.Data.SqlClient;
 using System.Linq;
 using System.Reflection;
+using Source.DataContext.Outputs;
 
 namespace Source.DataContext
 {
@@ -66,6 +69,45 @@ namespace Source.DataContext
             return collection.Count > 0
                 ? collection
                 : null;
+        }
+
+        public static TOutput ToOutput<TOutput>(this IEnumerable<SqlParameter> parameters) where TOutput : class, IOutput, new()
+        {
+            var result = new TOutput();
+
+            var outputs = parameters.ToList().Where(p => p.Direction == ParameterDirection.Output || p.Direction == ParameterDirection.InputOutput);
+
+            var resultType = result.GetType();
+            var properties = resultType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+
+            var metas = new List<SqlMetaData>();
+            var values = new List<object>();
+            foreach (var output in outputs)
+            {
+                var parameterName = output.ParameterName.Replace("@", "");
+                var property = properties.FirstOrDefault(p => p.Name.Equals(parameterName));
+                if (property == null || output.Value == DBNull.Value)
+                {
+                    continue;
+                }
+
+                property.SetValue(result, output.Value);
+            }
+
+            // add recordId from context
+            //var contextParameter = parameters.FirstOrDefault(p => p.ParameterName.Equals("@Context"));
+            //if (contextParameter != null && result.RecordId == null)
+            //{
+            //    var contextRecord = (contextParameter.Value as List<SqlDataRecord>)?.FirstOrDefault();
+            //    var recordId = contextRecord?.GetValue(contextRecord.GetOrdinal("@RecordId"));
+            //    if (recordId != DBNull.Value)
+            //    {
+            //        var recordIdProperty = properties.FirstOrDefault(p => p.Name.Equals("@RecordId"));
+            //        recordIdProperty.SetValue(result, recordId);
+            //    }
+            //}
+
+            return result;
         }
     }
 }

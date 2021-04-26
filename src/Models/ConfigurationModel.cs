@@ -83,12 +83,18 @@ namespace SpocR.Models
     {
         public string Path { get; set; }
         public DataContextInputsModel Inputs { get; set; }
+        public DataContextOutputsModel Outputs { get; set; }
         public DataContextModelsModel Models { get; set; }
         public DataContextStoredProceduresModel StoredProcedures { get; set; }
         public DataContextTableTypesModel TableTypes { get; set; }
     }
 
     public class DataContextInputsModel : IDirectoryModel
+    {
+        public string Path { get; set; }
+    }
+
+    public class DataContextOutputsModel : IDirectoryModel
     {
         public string Path { get; set; }
     }

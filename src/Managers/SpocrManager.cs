@@ -313,6 +313,11 @@ namespace SpocR.Managers
             elapsed.Add("Inputs", stopwatch.ElapsedMilliseconds);
 
             stopwatch.Restart();
+            _reportService.PrintSubTitle("Generating Outputs");
+            _engine.GenerateDataContextOutputs(options.DryRun);
+            elapsed.Add("Outputs", stopwatch.ElapsedMilliseconds);
+
+            stopwatch.Restart();
             _reportService.PrintSubTitle("Generating Models");
             _engine.GenerateDataContextModels(options.DryRun);
             elapsed.Add("Models", stopwatch.ElapsedMilliseconds);

@@ -179,11 +179,6 @@ namespace SpocR
                 root = root.AddProperty(ref classNode, propertyNode);
             }
 
-            // // Remove template Property
-            // nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-            // classNode = (ClassDeclarationSyntax)nsNode.Members[0];
-            // root = root.ReplaceNode(classNode, classNode.WithMembers(classNode.Members));
-
             return root.NormalizeWhitespace().GetText();
         }
 
@@ -222,6 +217,56 @@ namespace SpocR
                 var propertyIdentifier = SyntaxFactory.ParseToken($" {item.Name.FirstCharToUpper()} ");
                 propertyNode = propertyNode
                     .WithType(ParseTypeFromSqlDbTypeName(item.SqlTypeName, item.IsNullable ?? false));
+
+                propertyNode = propertyNode
+                    .WithIdentifier(propertyIdentifier);
+
+                root = root.AddProperty(ref classNode, propertyNode);
+            }
+
+            // Remove template Property
+            nsNode = (NamespaceDeclarationSyntax)root.Members[0];
+            classNode = (ClassDeclarationSyntax)nsNode.Members[0];
+            root = root.ReplaceNode(classNode, classNode.WithMembers(new SyntaxList<MemberDeclarationSyntax>(classNode.Members.Cast<PropertyDeclarationSyntax>().Skip(1))));
+
+            return root.NormalizeWhitespace().GetText();
+        }
+
+        public SourceText GetOutputTextForStoredProcedure(Definition.Schema schema, Definition.StoredProcedure storedProcedure)
+        {
+            var rootDir = _output.GetOutputRootDir();
+            var fileContent = File.ReadAllText(Path.Combine(rootDir.FullName, "DataContext", "Outputs", "Output.cs"));
+
+            var tree = CSharpSyntaxTree.ParseText(fileContent);
+            var root = tree.GetCompilationUnitRoot();
+
+            // Replace Namespace
+            if (_configFile.Config.Project.Role.Kind == ERoleKind.Lib)
+            {
+                root = root.ReplaceNamespace(ns => ns.Replace("Source.DataContext", _configFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name));
+            }
+            else
+            {
+                root = root.ReplaceNamespace(ns => ns.Replace("Source", _configFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name));
+            }
+
+            // Replace ClassName
+            root = root.ReplaceClassName(ci => ci.Replace("Output", storedProcedure.GetOutputTypeName()));
+
+            // Generate Properies
+            // https://stackoverflow.com/questions/45160694/adding-new-field-declaration-to-class-with-roslyn
+            var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
+            var classNode = (ClassDeclarationSyntax)nsNode.Members[0];
+            var propertyNode = (PropertyDeclarationSyntax)classNode.Members[0];
+            var outputs = storedProcedure.Input?.Where(i => i.IsOutput).ToList() ?? new List<StoredProcedureInputModel>();
+            foreach (var output in outputs)
+            {
+                nsNode = (NamespaceDeclarationSyntax)root.Members[0];
+                classNode = (ClassDeclarationSyntax)nsNode.Members[0];
+
+                var propertyIdentifier = TokenHelper.Parse(output.Name);
+                propertyNode = propertyNode
+                    .WithType(ParseTypeFromSqlDbTypeName(output.SqlTypeName, output.IsNullable ?? false));
 
                 propertyNode = propertyNode
                     .WithIdentifier(propertyIdentifier);
@@ -375,13 +420,50 @@ namespace SpocR
 
                 foreach (var storedProcedure in storedProcedures)
                 {
-                    if (!(storedProcedure.Input?.Any() ?? false))
+                    if (!storedProcedure.HasInputs())
                     {
                         continue;
                     }
                     var fileName = $"{storedProcedure.Name}.cs";
                     var fileNameWithPath = Path.Combine(path, fileName);
                     var sourceText = GetInputTextForStoredProcedure(schema, storedProcedure);
+
+                    _output.Write(fileNameWithPath, sourceText, isDryRun);
+                }
+            }
+        }
+
+        public void GenerateDataContextOutputs(bool isDryRun)
+        {
+            var schemas = _configFile.Config.Schema
+                .Where(i => i.Status == SchemaStatusEnum.Build && (i.StoredProcedures?.Any() ?? false))
+                .Select(i => Definition.ForSchema(i));
+
+            foreach (var schema in schemas)
+            {
+                var storedProcedures = schema.StoredProcedures;
+
+                if (!(storedProcedures.Any()))
+                {
+                    continue;
+                }
+
+                var dataContextOutputsPath = DirectoryUtils.GetWorkingDirectory(_configFile.Config.Project.Output.DataContext.Path, _configFile.Config.Project.Output.DataContext.Outputs.Path);
+                var path = Path.Combine(dataContextOutputsPath, schema.Path);
+                if (!Directory.Exists(path) && !isDryRun)
+                {
+                    Directory.CreateDirectory(path);
+                }
+
+                foreach (var storedProcedure in storedProcedures)
+                {
+                    if (!storedProcedure.HasOutputs() || storedProcedure.IsDefaultOutput())
+                    {
+                        continue;
+                    }
+                    var fileName = $"{storedProcedure.Name}.cs";
+                    var fileNameWithPath = Path.Combine(path, fileName);
+                    var sourceText = GetOutputTextForStoredProcedure(schema, storedProcedure);
 
                     _output.Write(fileNameWithPath, sourceText, isDryRun);
                 }
@@ -462,6 +544,9 @@ namespace SpocR
 
                 var libModelUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Role.LibNamespace}.Models"));
                 root = root.AddUsings(libModelUsingDirective).NormalizeWhitespace();
+
+                var libOutputsUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Role.LibNamespace}.Outputs"));
+                root = root.AddUsings(libOutputsUsingDirective).NormalizeWhitespace();
             }
             else
             {
@@ -491,11 +576,20 @@ namespace SpocR
             }
 
             // Add Usings for Inputs
-            if (storedProcedures.Any(s => s.Input?.Any() ?? false))
+            if (storedProcedures.Any(s => s.HasInputs()))
             {
                 var inputUsingDirective = _configFile.Config.Project.Role.Kind == ERoleKind.Lib
                     ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.Inputs.{schema.Name}"))
                     : SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.DataContext.Inputs.{schema.Name}"));
+                root = root.AddUsings(inputUsingDirective.NormalizeWhitespace().WithLeadingTrivia(SyntaxFactory.CarriageReturnLineFeed)).WithTrailingTrivia(SyntaxFactory.CarriageReturnLineFeed);
+            }
+
+            // Add Usings for Outputs
+            if (storedProcedures.Any(s => s.HasOutputs() && !s.IsDefaultOutput()))
+            {
+                var inputUsingDirective = _configFile.Config.Project.Role.Kind == ERoleKind.Lib
+                    ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.Outputs.{schema.Name}"))
+                    : SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.DataContext.Outputs.{schema.Name}"));
                 root = root.AddUsings(inputUsingDirective.NormalizeWhitespace().WithLeadingTrivia(SyntaxFactory.CarriageReturnLineFeed)).WithTrailingTrivia(SyntaxFactory.CarriageReturnLineFeed);
             }
 
@@ -573,40 +667,6 @@ namespace SpocR
             var methodIdentifier = SyntaxFactory.ParseToken(methodName);
             methodNode = methodNode.WithIdentifier(methodIdentifier);
 
-            // var withUserId = _configFile.Config.Project.Identity.Kind == EIdentityKind.WithUserId;
-            // var userIdExists = storedProcedure.Input.Any() && storedProcedure.Input.First().Name == "@UserId";
-
-            // if (withUserId && !userIdExists)
-            // {
-            //     // ? This is just to prevent follow-up issues, as long as the architecture handles SPs like this
-            //     withUserId = false;
-
-            //     _reportService.Warn(
-            //         new StringBuilder()
-            //         .Append($"The StoredProcedure {storedProcedure.SqlObjectName} violates the requirement: ")
-            //         .Append("First Parameter with Name '@UserId'")
-            //         .Append(" (this can lead to unpredictable issues)")
-            //         .ToString()
-            //     );
-            //     // throw new InvalidOperationException($"The StoredProcedure `{storedProcedure.Name}` requires a first Parameter with Name `@UserId`");
-            // }
-
-            // Generate Method params
-            // var parameters = useInputModel
-            //                         ? new[] { SyntaxFactory.Parameter(SyntaxFactory.Identifier("model"))
-            //                                     .WithType(SyntaxFactory.ParseTypeName($"{storedProcedure.Name}Input"))  }
-            //                         : storedProcedure.Input
-            //                         // .Skip(withUserId && userIdExists ? 1 : 0)
-            //                         .Select(input =>
-            //                             {
-            //                                 return SyntaxFactory.Parameter(SyntaxFactory.Identifier(GetIdentifierFromSqlInputTableType(input.Name)))
-            //                                     .WithType(
-            //                                         input.IsTableType ?? false
-            //                                         ? GetTypeSyntaxForTableType(input)
-            //                                         : ParseTypeFromSqlDbTypeName(input.SqlTypeName, input.IsNullable ?? false)
-            //                                     );
-            //                             });
-
             var parameters = new[] { SyntaxFactory.Parameter(SyntaxFactory.Identifier("input"))
                                                 .WithType(SyntaxFactory.ParseTypeName($"{storedProcedure.Name}Input")) };
 
@@ -637,19 +697,24 @@ namespace SpocR
                 inputs.ForEach(i =>
                 {
                     var isLastItem = i == lastInput;
+
+                    var args = new List<SyntaxNodeOrToken>();
+                    args.Add(SyntaxFactory.Argument(SyntaxFactory.LiteralExpression(SyntaxKind.StringLiteralExpression, SyntaxFactory.Literal(i.Name.Remove(0, 1)))));
+                    args.Add(SyntaxFactory.Token(SyntaxKind.CommaToken));
+                    args.Add(SyntaxFactory.Argument(SyntaxFactory.IdentifierName($"input.{GetPropertyFromSqlInputTableType(i.Name)}")));
+
+                    if (i.IsOutput)
+                    {
+                        args.Add(SyntaxFactory.Token(SyntaxKind.CommaToken));
+                        args.Add(SyntaxFactory.Argument(SyntaxFactory.LiteralExpression(SyntaxKind.TrueLiteralExpression)));
+                    }
+
                     arguments.Add(SyntaxFactory.InvocationExpression(
                         SyntaxFactory.MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
                             SyntaxFactory.IdentifierName("AppDbContext"),
                                 SyntaxFactory.IdentifierName((i.IsTableType ?? false) ? "GetCollectionParameter" : "GetParameter")))
-                            .WithArgumentList(SyntaxFactory.ArgumentList(SyntaxFactory.SeparatedList<ArgumentSyntax>(
-                                new SyntaxNodeOrToken[]
-                                {
-                                SyntaxFactory.Argument(SyntaxFactory.LiteralExpression(
-                                    SyntaxKind.StringLiteralExpression, SyntaxFactory.Literal(i.Name.Remove(0, 1)))),
-                                    SyntaxFactory.Token(SyntaxKind.CommaToken),
-                                    SyntaxFactory.Argument(
-                                        SyntaxFactory.IdentifierName($"input.{GetPropertyFromSqlInputTableType(i.Name)}"                                        ))
-                                }))));
+                            .WithArgumentList(SyntaxFactory.ArgumentList(SyntaxFactory.SeparatedList<ArgumentSyntax>(args))));
+
                     if (!isLastItem)
                     {
                         arguments.Add(SyntaxFactory.Token(SyntaxKind.CommaToken));
@@ -677,9 +742,14 @@ namespace SpocR
             var returnType = "Task<CrudResult>";
             var returnModel = "CrudResult";
 
-            // TODO: i.Output?.Count() -> Implement a Property "IsScalar" and "IsJson"
-            var isScalar = storedProcedure.Output?.Count() == 1;
-            if (isScalar)
+            if (!storedProcedure.HasResult() && storedProcedure.HasOutputs())
+            {
+                var outputType = storedProcedure.GetOutputTypeName();
+
+                returnType = $"Task<{outputType}>";
+                returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", $"ExecuteAsync<{outputType}>");
+            }
+            else if (storedProcedure.IsScalarResult())
             {
                 var output = storedProcedure.Output.FirstOrDefault();
                 returnModel = ParseTypeFromSqlDbTypeName(output.SqlTypeName, output.IsNullable ?? false).ToString();

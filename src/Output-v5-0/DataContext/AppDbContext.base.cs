@@ -106,11 +106,11 @@ namespace Source.DataContext
             Transactions.Remove(trans);
         }
 
-        public static SqlParameter GetParameter<T>(string parameter, T value)
+        public static SqlParameter GetParameter<T>(string parameter, T value, bool output = false)
         {
             return new SqlParameter(parameter, (value as object) ?? DBNull.Value)
             {
-                Direction = ParameterDirection.Input,
+                Direction = output ? ParameterDirection.Output : ParameterDirection.Input,
                 SqlDbType = GetSqlDbType(typeof(T))
             };
         }

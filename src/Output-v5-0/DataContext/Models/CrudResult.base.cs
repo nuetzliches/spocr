@@ -1,7 +1,9 @@
-﻿using System.Text.Json.Serialization;
+﻿using System;
+using System.Text.Json.Serialization;
 
 namespace Source.DataContext.Models
 {
+    [Obsolete("This CrudResult will be removed in vNext. Please migrate StoredProcedures to OUTPUT-Pattern (e.g. @ResultId [core].[_id] OUTPUT)")]
     public class CrudResult : ICrudResult
     {
         private bool? _succeeded;
@@ -26,7 +28,7 @@ namespace Source.DataContext.Models
             _succeeded = succeeded;
             _modified = modified;
         }
-        
+
         [JsonIgnore(Condition = JsonIgnoreCondition.Never)]
         public bool Succeeded => _succeeded ?? (_succeeded = ResultId > 0) ?? false;
 
