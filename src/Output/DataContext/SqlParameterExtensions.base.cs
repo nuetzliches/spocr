@@ -94,18 +94,23 @@ namespace Source.DataContext
                 property.SetValue(result, output.Value);
             }
 
-            // add recordId from context
-            //var contextParameter = parameters.FirstOrDefault(p => p.ParameterName.Equals("@Context"));
-            //if (contextParameter != null && result.RecordId == null)
-            //{
-            //    var contextRecord = (contextParameter.Value as List<SqlDataRecord>)?.FirstOrDefault();
-            //    var recordId = contextRecord?.GetValue(contextRecord.GetOrdinal("@RecordId"));
-            //    if (recordId != DBNull.Value)
-            //    {
-            //        var recordIdProperty = properties.FirstOrDefault(p => p.Name.Equals("@RecordId"));
-            //        recordIdProperty.SetValue(result, recordId);
-            //    }
-            //}
+            // try to add recordId from context
+            try
+            {
+                var contextParameter = parameters.FirstOrDefault(p => p.ParameterName.Replace("@", "").Equals("Context"));
+                if (contextParameter != null && result.RecordId == null)
+                {
+                    var contextRecord = (contextParameter.Value as List<SqlDataRecord>)?.FirstOrDefault();
+                    var recordIdColumn = contextRecord.GetOrdinal("RecordId");
+                    var recordId = contextRecord?.GetValue(recordIdColumn);
+                    if (recordId != DBNull.Value)
+                    {
+                        var recordIdProperty = properties.FirstOrDefault(p => p.Name.Equals("RecordId"));
+                        recordIdProperty.SetValue(result, recordId);
+                    }
+                }
+            }
+            catch { }
 
             return result;
         }
