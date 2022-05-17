@@ -111,7 +111,6 @@ namespace SpocR
             var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
             var classNode = (ClassDeclarationSyntax)nsNode.Members[0];
 
-
             // Create obsolete constructor
             var obsoleteContructor = classNode.CreateConstructor($"{storedProcedure.Name}Input");
             root = root.AddObsoleteAttribute(ref obsoleteContructor, "This empty contructor will be removed in vNext. Please use constructor with parameters.");
@@ -239,6 +238,13 @@ namespace SpocR
 
             var tree = CSharpSyntaxTree.ParseText(fileContent);
             var root = tree.GetCompilationUnitRoot();
+
+            // Add Usings
+            if (_configFile.Config.Project.Role.Kind == ERoleKind.Lib)
+            {
+                var outputUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.Outputs"));
+                root = root.AddUsings(outputUsingDirective.NormalizeWhitespace().WithLeadingTrivia(SyntaxFactory.CarriageReturnLineFeed)).WithTrailingTrivia(SyntaxFactory.CarriageReturnLineFeed);
+            }
 
             // Replace Namespace
             if (_configFile.Config.Project.Role.Kind == ERoleKind.Lib)
