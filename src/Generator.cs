@@ -240,9 +240,9 @@ namespace SpocR
             var root = tree.GetCompilationUnitRoot();
 
             // Add Usings
-            if (_configFile.Config.Project.Role.Kind == ERoleKind.Lib)
+            if (_configFile.Config.Project.Role.Kind == ERoleKind.Extension)
             {
-                var outputUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Output.Namespace}.Outputs"));
+                var outputUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{_configFile.Config.Project.Role.LibNamespace}.Outputs"));
                 root = root.AddUsings(outputUsingDirective.NormalizeWhitespace().WithLeadingTrivia(SyntaxFactory.CarriageReturnLineFeed)).WithTrailingTrivia(SyntaxFactory.CarriageReturnLineFeed);
             }
 
