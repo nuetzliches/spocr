@@ -259,7 +259,7 @@ namespace SpocR
             // Replace ClassName
             root = root.ReplaceClassName(ci => ci.Replace("Output", storedProcedure.GetOutputTypeName()));
 
-            // Generate Properies
+            // Generate Properties
             // https://stackoverflow.com/questions/45160694/adding-new-field-declaration-to-class-with-roslyn
             var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
             var classNode = (ClassDeclarationSyntax)nsNode.Members[0];
@@ -267,6 +267,11 @@ namespace SpocR
             var outputs = storedProcedure.Input?.Where(i => i.IsOutput).ToList() ?? new List<StoredProcedureInputModel>();
             foreach (var output in outputs)
             {
+                // do not add properties who exists in base class (IOutput)
+                // TODO: parse from IOutput
+                var ignoredFields = new [] { "ResultId", "RecordId", "RowVersion" };
+                if(Array.IndexOf(ignoredFields, output.Name.Replace("@", "")) > -1) { continue; }
+
                 nsNode = (NamespaceDeclarationSyntax)root.Members[0];
                 classNode = (ClassDeclarationSyntax)nsNode.Members[0];
 
@@ -713,6 +718,17 @@ namespace SpocR
                     {
                         args.Add(SyntaxFactory.Token(SyntaxKind.CommaToken));
                         args.Add(SyntaxFactory.Argument(SyntaxFactory.LiteralExpression(SyntaxKind.TrueLiteralExpression)));
+                    } 
+                    else if (i.MaxLength.HasValue) 
+                    {
+                        args.Add(SyntaxFactory.Token(SyntaxKind.CommaToken));
+                        args.Add(SyntaxFactory.Argument(SyntaxFactory.LiteralExpression(SyntaxKind.FalseLiteralExpression)));
+                    }
+
+                    if (i.MaxLength.HasValue)
+                    {
+                        args.Add(SyntaxFactory.Token(SyntaxKind.CommaToken));
+                        args.Add(SyntaxFactory.Argument(SyntaxFactory.IdentifierName($"{i.MaxLength}")));
                     }
 
                     arguments.Add(SyntaxFactory.InvocationExpression(
