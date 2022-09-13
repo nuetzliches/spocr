@@ -518,10 +518,10 @@ namespace SpocR
         public string GetIdentifierFromSqlInputTableType(string name)
         {
             name = $"{name.Remove(0, 1).FirstCharToLower()}";
-            var reservedKeyWords = new[] { "params" };
+            var reservedKeyWords = new[] { "params", "namespace" };
             if (reservedKeyWords.Contains(name))
             {
-                name = $"{name}_";
+                name = $"@{name}";
             }
             return name;
         }
