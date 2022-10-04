@@ -108,6 +108,23 @@ namespace Source.DataContext
 
         public static SqlParameter GetParameter<T>(string parameter, T value, bool output = false, int? size = null)
         {
+            var input = (value as object) ?? DBNull.Value;
+
+            // handle DateTimes
+            var type = typeof(T);
+            if (value != null && type == typeof(DateTime) || type == typeof(DateTime?))
+            {
+                var useUtc = parameter.EndsWith("Utc", StringComparison.InvariantCultureIgnoreCase);
+                if (useUtc)
+                {
+                    input = (value as DateTime?)?.ToUniversalTime();
+                }
+                else
+                {
+                    input = (value as DateTime?)?.ToLocalTime();
+                }
+            }
+
             return new SqlParameter(parameter, (value as object) ?? DBNull.Value)
             {
                 Direction = output ? ParameterDirection.Output : ParameterDirection.Input,
