@@ -125,7 +125,7 @@ namespace Source.DataContext
                 }
             }
 
-            return new SqlParameter(parameter, (value as object) ?? DBNull.Value)
+            return new SqlParameter(parameter, input)
             {
                 Direction = output ? ParameterDirection.Output : ParameterDirection.Input,
                 SqlDbType = GetSqlDbType(typeof(T)),
