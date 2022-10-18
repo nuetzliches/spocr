@@ -108,11 +108,11 @@ namespace Source.DataContext
 
         public static SqlParameter GetParameter<T>(string parameter, T value, bool output = false, int? size = null)
         {
-            var input = (value as object) ?? DBNull.Value;
+            var input = value as object;
 
             // handle DateTimes
             var type = typeof(T);
-            if (value != null && type == typeof(DateTime) || type == typeof(DateTime?))
+            if (value != null && (type == typeof(DateTime) || type == typeof(DateTime?)))
             {
                 var useUtc = parameter.EndsWith("Utc", StringComparison.InvariantCultureIgnoreCase);
                 if (useUtc)
