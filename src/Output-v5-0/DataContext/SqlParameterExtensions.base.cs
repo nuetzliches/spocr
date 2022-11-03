@@ -38,7 +38,7 @@ namespace Source.DataContext
                     var propName = property.Name;
                     var sqlType = AppDbContext.GetSqlDbType(property.PropertyType);
 
-                    if (sqlType == SqlDbType.NVarChar)
+                    if (sqlType == SqlDbType.NVarChar || sqlType == SqlDbType.VarBinary)
                     {
                         var maxLengthAttribute = (MaxLengthAttribute)property.GetCustomAttributes(typeof(MaxLengthAttribute), false).FirstOrDefault();
                         if (maxLengthAttribute != null)
