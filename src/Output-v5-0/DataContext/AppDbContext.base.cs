@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -18,6 +19,7 @@ namespace Source.DataContext
 
     public interface IAppDbContext
     {
+        AppDbContextOptions Options { get; }
         SqlConnection Connection { get; }
         List<SqlTransaction> Transactions { get; }
         Task<SqlTransaction> BeginTransactionAsync(CancellationToken cancellationToken);
@@ -27,6 +29,14 @@ namespace Source.DataContext
         void CommitTransaction(SqlTransaction transaction);
         void RollbackTransaction(SqlTransaction transaction);
         void Dispose();
+    }
+
+    public class AppDbContextOptions
+    {
+        /// <summary>
+        /// The CommandTimeout in Seconds
+        /// </summary>
+        public int CommandTimeout { get; set; } = 30;
     }
 
     public class AppDbContextPipe : IAppDbContextPipe
@@ -43,11 +53,13 @@ namespace Source.DataContext
 
     public class AppDbContext : IAppDbContext, IDisposable
     {
+        public AppDbContextOptions Options { get; }
         public SqlConnection Connection { get; }
         public List<SqlTransaction> Transactions { get; }
 
-        public AppDbContext(IConfiguration configuration)
+        public AppDbContext(IConfiguration configuration, IOptions<AppDbContextOptions> options)
         {
+            Options = options.Value;
             Connection = new SqlConnection(configuration.GetConnectionString("DefaultConnection"));
             Transactions = new List<SqlTransaction>();
         }
