@@ -23,7 +23,7 @@ namespace Source.DataContext
 
         public static IAppDbContextPipe CreatePipe(this IAppDbContext context)
         {
-            return new AppDbContextPipe(context);
+            return new AppDbContextPipe(context).WithCommandTimeout(context.Options.CommandTimeout);
         }
     }
 

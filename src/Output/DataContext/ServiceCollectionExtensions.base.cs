@@ -7,13 +7,13 @@ namespace Source.DataContext
     {
         public static IServiceCollection AddAppDbContext(this IServiceCollection services, Action<AppDbContextOptions> options = null)
         {
+            if (options != null)
+            {
+                services.Configure(options);
+            }
+
             services.AddScoped<IAppDbContext, AppDbContext>();
             return services;
         }
-    }
-
-    public class AppDbContextOptions
-    {
-
     }
 }

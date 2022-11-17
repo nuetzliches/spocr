@@ -269,8 +269,8 @@ namespace SpocR
             {
                 // do not add properties who exists in base class (IOutput)
                 // TODO: parse from IOutput
-                var ignoredFields = new [] { "ResultId", "RecordId", "RowVersion" };
-                if(Array.IndexOf(ignoredFields, output.Name.Replace("@", "")) > -1) { continue; }
+                var ignoredFields = new[] { "ResultId", "RecordId", "RowVersion" };
+                if (Array.IndexOf(ignoredFields, output.Name.Replace("@", "")) > -1) { continue; }
 
                 nsNode = (NamespaceDeclarationSyntax)root.Members[0];
                 classNode = (ClassDeclarationSyntax)nsNode.Members[0];
@@ -704,7 +704,7 @@ namespace SpocR
 
                 var arguments = new List<SyntaxNodeOrToken>();
                 var inputs = storedProcedure.Input.ToList();
-                var lastInput = inputs.Last();
+                var lastInput = inputs.LastOrDefault();
                 inputs.ForEach(i =>
                 {
                     var isLastItem = i == lastInput;
@@ -718,8 +718,8 @@ namespace SpocR
                     {
                         args.Add(SyntaxFactory.Token(SyntaxKind.CommaToken));
                         args.Add(SyntaxFactory.Argument(SyntaxFactory.LiteralExpression(SyntaxKind.TrueLiteralExpression)));
-                    } 
-                    else if (i.MaxLength.HasValue) 
+                    }
+                    else if (i.MaxLength.HasValue)
                     {
                         args.Add(SyntaxFactory.Token(SyntaxKind.CommaToken));
                         args.Add(SyntaxFactory.Argument(SyntaxFactory.LiteralExpression(SyntaxKind.FalseLiteralExpression)));
