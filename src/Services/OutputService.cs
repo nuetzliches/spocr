@@ -1,5 +1,6 @@
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
 using SpocR.Enums;
@@ -67,6 +68,11 @@ namespace SpocR.Services
         private void CopyFile(FileInfo file, string targetFileName, string nameSpace, bool isDryRun)
         {
             var fileContent = File.ReadAllText(file.FullName);
+
+            // replace custom DefaultConnection identifier
+            var runtimeConnectionStringIdentifier = _configFile.Config.Project.DataBase.RuntimeConnectionStringIdentifier ?? "DefaultConnection";
+            fileContent = fileContent.Replace(@"<spocr>DefaultConnection</spocr>", runtimeConnectionStringIdentifier);
+
             var tree = CSharpSyntaxTree.ParseText(fileContent);
             var root = tree.GetCompilationUnitRoot();
 
