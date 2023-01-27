@@ -60,7 +60,7 @@ namespace Source.DataContext
         public AppDbContext(IConfiguration configuration, IOptions<AppDbContextOptions> options)
         {
             Options = options.Value;
-            Connection = new SqlConnection(configuration.GetConnectionString("DefaultConnection"));
+            Connection = new SqlConnection(configuration.GetConnectionString("<spocr>DefaultConnection</spocr>"));
             Transactions = new List<SqlTransaction>();
         }
 

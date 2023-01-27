@@ -24,13 +24,14 @@ namespace SpocR.Services
 
         public DirectoryInfo GetOutputRootDir()
         {
-            switch (_configFile.Config.TargetFramework)
-            {
-                case "net5.0":
-                    return new DirectoryInfo(Path.Combine(DirectoryUtils.GetApplicationRoot(), "Output-v5-0"));
-                default:
-                    return new DirectoryInfo(Path.Combine(DirectoryUtils.GetApplicationRoot(), "Output"));
-            }
+            int.TryParse(_configFile.Config.TargetFramework?.Replace("net", "")[0].ToString(), out var versionNumber);
+
+            var isVersionMinNet5 = versionNumber >= 5;
+
+            if (versionNumber >= 5)
+                return new DirectoryInfo(Path.Combine(DirectoryUtils.GetApplicationRoot(), "Output-v5-0"));
+            else
+                return new DirectoryInfo(Path.Combine(DirectoryUtils.GetApplicationRoot(), "Output"));
         }
 
         public void GenerateCodeBase(OutputModel output, bool dryrun)
