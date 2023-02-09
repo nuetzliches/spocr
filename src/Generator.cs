@@ -685,6 +685,14 @@ namespace SpocR
             parameterList = parameterList.WithParameters(
                 parameterList.Parameters.InsertRange(2, parameters).RemoveAt(1)
             );
+            var hasInputs = storedProcedure.HasInputs();
+            if (!hasInputs)
+            {
+                parameterList = parameterList.WithParameters(
+                    parameterList.Parameters.RemoveAt(1)
+                );
+            }
+
             methodNode = methodNode.WithParameterList(parameterList);
 
             // Get Method Body as Statements
@@ -695,6 +703,10 @@ namespace SpocR
             if (isOverload)
             {
                 returnExpression = returnExpression.Replace("CrudActionAsync", methodName);
+                if (!hasInputs)
+                {
+                    returnExpression = returnExpression.Replace("(input, ", "(");
+                }
             }
             else
             {
