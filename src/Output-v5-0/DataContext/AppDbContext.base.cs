@@ -137,6 +137,9 @@ namespace Source.DataContext
                 }
             }
 
+            // NVARCHAR(MAX) Parameter werden nicht korrket behandelt. Workaround: 
+            if (size == null && type == typeof(string)) size = 1070000000;
+
             return new SqlParameter(parameter, input ?? DBNull.Value)
             {
                 Direction = output ? ParameterDirection.Output : ParameterDirection.Input,
