@@ -12,7 +12,7 @@ namespace SpocR.Models
     {
         [JsonConverter(typeof(StringVersionConverter)), WriteProtectedBySystem]
         public Version Version { get; set; }
-        public string TargetFramework { get; set; } = "net5.0"; // Allowed values: null, net5.0
+        public string TargetFramework { get; set; } = "net6.0"; // Allowed values: null, net6.0
         public string UserId { get; set; }
         public GlobalAutoUpdateConfigurationModel AutoUpdate { get; set; } = new GlobalAutoUpdateConfigurationModel { Enabled = true, LongPauseInMinutes = 1440, ShortPauseInMinutes = 15 };
         public List<GlobalProjectConfigurationModel> Projects { get; set; } = new List<GlobalProjectConfigurationModel>();
@@ -37,7 +37,7 @@ namespace SpocR.Models
     {
         [JsonConverter(typeof(StringVersionConverter))]
         public Version Version { get; set; }
-        public string TargetFramework { get; set; } = "net5.0"; // Allowed values: null, net5.0
+        public string TargetFramework { get; set; } = "net6.0"; // Allowed values: null, net6.0
         public ProjectModel Project { get; set; }
         public List<SchemaModel> Schema { get; set; }
     }

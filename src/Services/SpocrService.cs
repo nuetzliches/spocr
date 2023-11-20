@@ -19,7 +19,7 @@ namespace SpocR.Services
             return new GlobalConfigurationModel
             {
                 Version = Version,
-                TargetFramework = "net5.0",
+                TargetFramework = "net6.0",
                 AutoUpdate = new GlobalAutoUpdateConfigurationModel
                 {
                     Enabled = true,
@@ -30,7 +30,7 @@ namespace SpocR.Services
             };
         }
 
-        public ConfigurationModel GetDefaultConfiguration(string targetFramework = "net5.0", string appNamespace = "", string connectionString = "", ERoleKind roleKind = default, string libNamespace = null /*, EIdentityKind identityKind = default */)
+        public ConfigurationModel GetDefaultConfiguration(string targetFramework = "net6.0", string appNamespace = "", string connectionString = "", ERoleKind roleKind = default, string libNamespace = null /*, EIdentityKind identityKind = default */)
         {
             var role = new RoleModel
             {

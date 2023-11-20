@@ -77,7 +77,7 @@ public Task<List<UserList>> ListAsync(CancellationToken cancellationToken = defa
 
 # Required .NET Core Packages for Web-API
 
-- System.Data.SqlClient
+- Microsoft.Data.SqlClient
 - Microsoft.Extensions.Configuration
 
 # Installation
