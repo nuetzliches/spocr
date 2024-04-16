@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 
 namespace Source.DataContext.Models
 {
-    [Obsolete("This CrudResult will be removed in vNext. Please migrate StoredProcedures to OUTPUT-Pattern (e.g. @ResultId [core].[_id] OUTPUT)")]
+    //[Obsolete("This CrudResult will be removed in vNext. Please migrate StoredProcedures to OUTPUT-Pattern (e.g. @ResultId [core].[_id] OUTPUT)")]
     public class CrudResult : ICrudResult
     {
         private bool? _succeeded;
