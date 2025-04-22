@@ -1,53 +1,68 @@
-# SpocR [![Publish NuGet](https://github.com/nuetzliches/spocr/actions/workflows/dotnet.yml/badge.svg)](https://github.com/nuetzliches/spocr/actions/workflows/dotnet.yml) [![NuGet Badge](https://buildstats.info/nuget/spocr)](https://www.nuget.org/packages/SpocR/)
+# SpocR [![Publish NuGet](https://github.com/nuetzliches/spocr/actions/workflows/dotnet.yml/badge.svg)](https://github.com/nuetzliches/spocr/actions/workflows/dotnet.yml) [![NuGet Badge](https://img.shields.io/nuget/v/SpocR.svg)](https://www.nuget.org/packages/SpocR/)
 
-- Scaffolds your StoredProcedures and Models to C# Files
-- Easy managed by CLI
-- Skallable and expandable
-- no rigid dependencies
+- Scaffolds your Stored Procedures and Models to C# Files
+- Easily managed through a CLI interface
+- Scalable and extensible architecture
+- No rigid dependencies for maximum flexibility
 
 # How SpocR works
 
-SpocR pulls the DB scheme over a given ConnectionString into spocr.json
-The spocr.json is configurable (e.g. You can choose which scheme to build or ignore)
-SpocR generates the DataContext-Folder with all required C# Code for your .net core Application (App, API or Services)<br>
+SpocR extracts your database schema via a provided ConnectionString and stores it in a `spocr.json` configuration file.
+This configuration file is highly customizable, allowing you to select which schemas to include or exclude.
 
-SpocR is highly scalable. You can build it as Library, Extension or Default (both together as single Project)
+SpocR generates a complete DataContext folder structure with all required C# code for your .NET application (App, API, or Services).
 
-You can use UserDefinedTableFunctions or single Values as Parameters.
-The result of your StoredProcedures will be mapped as Model or List<Model>
-SpocR also is supporting pure JSON-String Result from StoredProcedure without building any Models.
+The tool is designed for flexibility. You can:
+
+- Build it as a standalone project (Default mode)
+- Use it as a library to integrate into other projects (Library mode)
+- Create extensions to enhance existing SpocR libraries (Extension mode)
+
+SpocR supports User-Defined Table Functions and various parameter types. The results of your Stored Procedures will be automatically mapped to strongly-typed models or as List<Model>. It also supports pure JSON-string results from Stored Procedures without building additional model classes.
 
 ## Generated Folder Structure
 
-./DataContext<br>
-./DataContext/Models/[schema]/[StoredProcedureName].cs<br>
-./DataContext/StoredProcedures/[schema]/[EntityName]Extensions.cs<br>
-./DataContext/TableTypes/[schema]/[TableTypeName].cs<br>
-./DataContext/AppDbContext.cs<br>
-./DataContext/AppDbContextExtensions.cs<br>
-./DataContext/SqlDataReaderExtensions.cs<br>
-./DataContext/SqlParameterExtensions.cs<br>
+```
+./DataContext/
+  ├── Models/[schema]/[StoredProcedureName].cs
+  ├── StoredProcedures/[schema]/[EntityName]Extensions.cs
+  ├── TableTypes/[schema]/[TableTypeName].cs
+  ├── AppDbContext.cs
+  ├── AppDbContextExtensions.cs
+  ├── SqlDataReaderExtensions.cs
+  └── SqlParameterExtensions.cs
+```
 
-## Use the generated SpocR code
+## Using the generated SpocR code
 
-- Register `IAppDbContext` in Startup.cs
+### Step 1: Register the context
+
+Register `IAppDbContext` in your application's dependency injection container:
 
 ```csharp
+// .NET 6+ in Program.cs
+builder.Services.AddAppDbContext();
+
+// Or in Startup.cs for older versions
 services.AddAppDbContext();
 ```
 
-- Inject IAppDbContext into your business logic, e.g. your managers or services.
+### Step 2: Inject the context
+
+Inject `IAppDbContext` into your business logic components:
 
 ```csharp
-private readonly IAppDbContext _context;
+private readonly IAppDbContext _dbContext;
 
-constructor MyManager(IAppDbContext context)
+public MyManager(IAppDbContext dbContext)
 {
-    _context = context;
+    _dbContext = dbContext;
 }
 ```
 
-- Call a stored procedure method
+### Step 3: Call stored procedures
+
+Use the generated extension methods to call your stored procedures:
 
 ```csharp
 public Task<List<UserList>> ListAsync(CancellationToken cancellationToken = default)
@@ -56,91 +71,114 @@ public Task<List<UserList>> ListAsync(CancellationToken cancellationToken = defa
 }
 ```
 
-# Restrictions (TODO: define restrictions and the effects)
+# Naming Conventions
 
-## StoredProcedure-Naming
+## StoredProcedure Naming Pattern
 
 #### `[EntityName][Action][Suffix]`
 
-- EntityName (required): Name of base SQL-Table
-- Action (required): Create | Update | Delete | (Merge, Upsert) | Find | List
-- Suffix: WithChildren | (custom suffix)
+- **EntityName** (required): Name of the base SQL table
+- **Action** (required): Create | Update | Delete | (Merge, Upsert) | Find | List
+- **Suffix** (optional): WithChildren | [custom suffix]
 
-## Required result for CRUD-Actions (Create, Update, Delete, Merge, Upsert)
+## Required Result Format for CRUD Operations
 
-- [ResultId] INT, [RecordId] INT
+For Create, Update, Delete, Merge, and Upsert operations, stored procedures should return:
 
-# Requirements
+- `[ResultId] INT`: Operation result status
+- `[RecordId] INT`: ID of the affected record
 
-- Database: SQL-Server Version 2012
-- Web-API: [ASP.NET Core 2](https://docs.microsoft.com/en-us/aspnet/core/tutorials/first-web-api?view=aspnetcore-2.1)
+# Technical Requirements
 
-# Required .NET Core Packages for Web-API
+- **Database**: SQL Server version 2012 or higher
+- **Framework**: .NET Core / .NET 6+ (supports down to .NET Core 2.1)
+- **Current Version**: 4.0.0 (as of April 2025)
+
+## Required .NET Packages
 
 - Microsoft.Data.SqlClient
 - Microsoft.Extensions.Configuration
 
-# Installation
+# Installation Guide
 
-- Install [.NET Core 2.1](https://www.microsoft.com/net/download)
+First, ensure you have the [.NET SDK](https://dotnet.microsoft.com/download) installed (latest version recommended)
 
-### a. From NPM
-
-`> dotnet tool install --global SpocR`<br>
-
-### b. From GitHub
-
-- Clone and Download Repository: `git clone https://github.com/nuetzliches/spocr.git`
-- if installed: `dotnet tool uninstall -g spocr`
-- install local build:
+## Option A: Install from NuGet (Recommended)
 
 ```
+dotnet tool install --global SpocR
+```
+
+## Option B: Install from GitHub Source
+
+```
+# Clone the repository
+git clone https://github.com/nuetzliches/spocr.git
+
+# Uninstall previous versions if needed
+dotnet tool uninstall -g spocr
+
+# Build and install from source
 cd src
 dotnet pack --output ./ --configuration Release
 dotnet tool install -g spocr --add-source ./
 ```
 
-# Use spocr
+# Using SpocR
 
-### 1. Create spocr.json and configure it
+## Quick Start
 
-> spocr create
+To quickly set up your project:
 
-### 2. Pull schemes & Build DataContext-Folder
+```
+# Create and configure spocr.json
+spocr create
 
-> spocr rebuild
+# Pull schemas and build DataContext
+spocr rebuild
+```
 
-## Or in single steps
+## Step-by-Step Approach
 
-### 2.1 Pull Database Schemes and update spocr.json
+If you prefer more control:
 
-> spocr pull
+```
+# Step 1: Pull database schemas and update spocr.json
+spocr pull
 
-### 2.2 Build DataContext-Folder
+# Step 2: Build DataContext folder
+spocr build
+```
 
-> spocr build
+## Removing SpocR
 
-### Remove SpocR (config and or DataContext)
+To remove SpocR configuration and/or generated code:
 
-> spocr remove
+```
+spocr remove
+```
 
-# spocr.json Configuration
+# Advanced Configuration
+
+## Project Role Types in spocr.json
 
 ### Project.Role.Kind
 
-- Default (Default): SpocR will create a standalone project with all dependencies
-- Lib: SpocR will create a spocr-library to include it into other projects, with AppDbContext and dependencies
-- Extension: SpocR will create a extendable project, without AppDbContext and dependencies, to inlude an existing spocr-lib. You have to configure the namespace (Project.Role.LibNamespace) to resolve the spocr-lib
+- **Default**: Creates a standalone project with all dependencies
+- **Lib**: Creates a SpocR library for integration into other projects, including AppDbContext and dependencies
+- **Extension**: Creates an extensible project without AppDbContext and dependencies to extend an existing SpocR library. Requires configuring the namespace (Project.Role.LibNamespace) to resolve the SpocR library
 
-# TODO: Demo-Project with StoredProcedures and API-Implementation
+# Sample Implementation
 
-- Under construction ... https://github.com/nuetzliches/nuts
+For a complete example project with stored procedures and API implementation, visit:
+https://github.com/nuetzliches/nuts
 
-# Resources
+# Additional Resources
 
-- http://roslynquoter.azurewebsites.net/
-- https://natemcmaster.com/blog/2018/05/12/dotnet-global-tools/
+- [Roslyn Quoter](http://roslynquoter.azurewebsites.net/) - Useful for understanding code generation
+- [.NET Global Tools](https://natemcmaster.com/blog/2018/05/12/dotnet-global-tools/) - Information about .NET global tools
 
-# Known Issues:
+# Known Issues and Limitations
 
-- SQL Server cannot determine the nullable prop on computed columns for sure. So if you want to a proper model, you need to ISNULL({....} ,0) your computed column
+- SQL Server cannot reliably determine the nullable property for computed columns. For cleaner models, wrap computed columns in `ISNULL({computed_expression}, 0)` expressions.
+- When using complex types as parameters, ensure they follow the required table type structure.
