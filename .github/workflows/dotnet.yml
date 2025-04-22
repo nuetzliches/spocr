@@ -25,7 +25,7 @@ jobs:
         run: dotnet build src/SpocR.csproj --configuration Release --no-restore
 
       - name: Test
-        run: dotnet test --no-restore --verbosity normal
+        run: dotnet test src/SpocR.csproj --no-restore --verbosity normal
 
       # Publish
       - name: publish on version change
