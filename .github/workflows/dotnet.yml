@@ -13,10 +13,19 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup .NET
+      # Installiere .NET 9.0 Preview
+      - name: Setup .NET 9.0
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: |
+            8.0.x
+            9.0.0-preview.4.24266.4
+
+      # Aktiviere die Vorschauversionen für dotnet CLI
+      - name: Enable .NET Previews
+        run: |
+          echo "DOTNET_ROLL_FORWARD=Major" >> $GITHUB_ENV
+          echo "DOTNET_ROLL_FORWARD_TO_PREVIEW=1" >> $GITHUB_ENV
 
       - name: Restore dependencies
         run: dotnet restore src/SpocR.csproj
