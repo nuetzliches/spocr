@@ -1,72 +1,78 @@
 ﻿using System.IO;
+using System.Threading.Tasks;
 using McMaster.Extensions.CommandLineUtils;
 using SpocR.Commands.Project;
 using SpocR.Managers;
+using SpocR.Utils;
 
-namespace SpocR.Commands.Spocr
+namespace SpocR.Commands.Spocr;
+
+[HelpOption("-?|-h|--help")]
+[Command("create", Description = "Creates a new SpocR Config")]
+public class CreateCommand(
+    SpocrManager spocrManager,
+    SpocrProjectManager spocrProjectManager
+) : SpocrCommandBase(spocrProjectManager), ICreateCommandOptions
 {
-    [HelpOption("-?|-h|--help")]
-    [Command("create", Description = "Creates a new SpocR Config")]
-    public class CreateCommand : SpocrCommandBase, ICreateCommandOptions
+
+    [Option("-n|--name", "Name of your Project", CommandOptionType.SingleValue)]
+    public string DisplayName { get; set; }
+
+    [Option("-tf|--targetframework", "TargetFramework", CommandOptionType.SingleValue)]
+    public string TargetFramework { get; set; }
+
+    [Option("-ns|--namespace", "Namespace of your .NET Core Project", CommandOptionType.SingleValue)]
+    public string Namespace { get; set; } = new DirectoryInfo(Directory.GetCurrentDirectory()).Name;
+
+    [Option("-r|--role", "Role", CommandOptionType.SingleValue)]
+    public string Role { get; set; }
+
+    [Option("-lns|--libNamespace", "Namespace of your .NET Core Library", CommandOptionType.SingleValue)]
+    public string LibNamespace { get; set; }
+
+    [Option("-i|--identity", "Identity", CommandOptionType.SingleValue)]
+    public string Identity { get; set; }
+
+    public ICreateCommandOptions CreateCommandOptions => new CreateCommandOptions(this);
+
+    public override async Task<int> OnExecuteAsync()
     {
-        private readonly SpocrManager _spocrManager;
+        await base.OnExecuteAsync();
 
-        [Option("-n|--name", "Name of your Project", CommandOptionType.SingleValue)]
-        public string DisplayName { get; set; }
-
-        [Option("-tf|--targetframework", "TargetFramework", CommandOptionType.SingleValue)]
-        public string TargetFramework { get; set; }
-
-        [Option("-ns|--namespace", "Namespace of your .NET Core Project", CommandOptionType.SingleValue)]
-        public string Namespace { get; set; } = new DirectoryInfo(Directory.GetCurrentDirectory()).Name;
-
-        [Option("-r|--role", "Role", CommandOptionType.SingleValue)]
-        public string Role { get; set; }
-
-        [Option("-lns|--libNamespace", "Namespace of your .NET Core Library", CommandOptionType.SingleValue)]
-        public string LibNamespace { get; set; }
-
-        [Option("-i|--identity", "Identity", CommandOptionType.SingleValue)]
-        public string Identity { get; set; }
-
-        public ICreateCommandOptions CreateCommandOptions => new CreateCommandOptions(this);
-
-        public CreateCommand(SpocrManager spocrManager, SpocrProjectManager spocrProjectManager)
-        : base(spocrProjectManager)
+        // Read Path to spocr.json from Project configuration
+        if (!string.IsNullOrEmpty(Project))
         {
-            _spocrManager = spocrManager;
+            var project = spocrProjectManager.FindByName(Project);
+            if (project != null)
+                Path = project.ConfigFile;
+        }
+        else if (!string.IsNullOrEmpty(Path) && !DirectoryUtils.IsPath(Path))
+        {
+            var project = spocrProjectManager.FindByName(Path);
+            Path = project.ConfigFile;
         }
 
-        public override int OnExecute()
-        {
-            base.OnExecute();
-            return (int)_spocrManager.Create(CreateCommandOptions);
-        }
+        return (int)await spocrManager.CreateAsync(CreateCommandOptions);
     }
+}
 
-    public interface ICreateCommandOptions : ICommandOptions, IProjectCommandOptions
-    {
-        string TargetFramework { get; }
-        string Namespace { get; }
-        string Role { get; }
-        string LibNamespace { get; }
-        string Identity { get; }
-    }
+public interface ICreateCommandOptions : ICommandOptions, IProjectCommandOptions
+{
+    string TargetFramework { get; }
+    string Namespace { get; }
+    string Role { get; }
+    string LibNamespace { get; }
+    string Identity { get; }
+}
 
-    public class CreateCommandOptions : CommandOptions, ICreateCommandOptions
-    {
-        private readonly ICreateCommandOptions _options;
-        public CreateCommandOptions(ICreateCommandOptions options)
-            : base(options)
-        {
-            _options = options;
-        }
-
-        public string DisplayName => _options.DisplayName?.Trim();
-        public string TargetFramework => _options.TargetFramework?.Trim();
-        public string Namespace => _options.Namespace?.Trim();
-        public string Role => _options.Role?.Trim();
-        public string LibNamespace => _options.LibNamespace?.Trim();
-        public string Identity => _options.Identity?.Trim();
-    }
+public class CreateCommandOptions(
+    ICreateCommandOptions options
+) : CommandOptions(options), ICreateCommandOptions
+{
+    public string DisplayName => options.DisplayName?.Trim();
+    public string TargetFramework => options.TargetFramework?.Trim();
+    public string Namespace => options.Namespace?.Trim();
+    public string Role => options.Role?.Trim();
+    public string LibNamespace => options.LibNamespace?.Trim();
+    public string Identity => options.Identity?.Trim();
 }

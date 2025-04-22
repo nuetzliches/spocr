@@ -1,20 +1,19 @@
 ﻿using McMaster.Extensions.CommandLineUtils;
 using SpocR.Managers;
+using System.Threading.Tasks;
 
-namespace SpocR.Commands.StoredProcdure
+namespace SpocR.Commands.StoredProcdure;
+
+[HelpOption("-?|-h|--help")]
+[Command("ls", Description = "List all SpocR StoredProcdures")]
+public class StoredProcdureListCommand(
+    SpocrStoredProcdureManager spocrStoredProcdureManager,
+    SpocrProjectManager spocrProjectManager
+) : StoredProcdureCommandBase(spocrProjectManager)
 {
-    [HelpOption("-?|-h|--help")]
-    [Command("ls", Description = "List all SpocR StoredProcdures")]
-    public class StoredProcdureListCommand : StoredProcdureCommandBase
+    public override async Task<int> OnExecuteAsync()
     {
-        public StoredProcdureListCommand(SpocrStoredProcdureManager spocrStoredProcdureManager, SpocrProjectManager spocrProjectManager) 
-        : base(spocrStoredProcdureManager, spocrProjectManager)
-        { }
-
-        public override int OnExecute()
-        {
-            base.OnExecute();
-            return (int)SpocrStoredProcdureManager.List(StoredProcedureCommandOptions);
-        }
+        await base.OnExecuteAsync();
+        return (int)spocrStoredProcdureManager.List(StoredProcedureCommandOptions);
     }
 }

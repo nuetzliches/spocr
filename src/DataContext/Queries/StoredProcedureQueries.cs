@@ -4,57 +4,57 @@ using System.Threading;
 using System.Threading.Tasks;
 using SpocR.DataContext.Models;
 
-namespace SpocR.DataContext.Queries
+namespace SpocR.DataContext.Queries;
+
+public static class StoredProcedureQueries
 {
-    public static class StoredProcedureQueries
+    public static Task<List<StoredProcedure>> StoredProcedureListAsync(this DbContext context, string schemaList, CancellationToken cancellationToken)
     {
-        public static Task<List<StoredProcedure>> StoredProcedureListAsync(this DbContext context, string schemaList, CancellationToken cancellationToken)
+        var parameters = new List<SqlParameter>
         {
-            var parameters = new List<SqlParameter>
-            {
-            };
-            var queryString = "SELECT s.name AS schema_name, o.name, o.modify_date FROM sys.objects AS o INNER JOIN sys.schemas AS s ON s.schema_id = o.schema_id WHERE o.type = N'P' AND s.name IN(@schemaList) ORDER BY o.name;".Replace("@schemaList", schemaList);
-            return context.ListAsync<StoredProcedure>(queryString, parameters, cancellationToken);
+        };
+        var queryString = "SELECT s.name AS schema_name, o.name, o.modify_date FROM sys.objects AS o INNER JOIN sys.schemas AS s ON s.schema_id = o.schema_id WHERE o.type = N'P' AND s.name IN(@schemaList) ORDER BY o.name;".Replace("@schemaList", schemaList);
+        return context.ListAsync<StoredProcedure>(queryString, parameters, cancellationToken);
+    }
+
+    public static async Task<List<StoredProcedureOutput>> StoredProcedureOutputListAsync(this DbContext context, string schemaName, string name, CancellationToken cancellationToken)
+    {
+        var storedProcedure = await context.ObjectAsync(schemaName, name, cancellationToken);
+        if (storedProcedure == null)
+        {
+            return null;
         }
 
-        public static async Task<List<StoredProcedureOutput>> StoredProcedureOutputListAsync(this DbContext context, string schemaName, string name, CancellationToken cancellationToken)
+        var parameters = new List<SqlParameter>
         {
-            var storedProcedure = await context.ObjectAsync(schemaName, name, cancellationToken);
-            if (storedProcedure == null)
-            {
-                return null;
-            }
-
-            var parameters = new List<SqlParameter>
-            {
-                new SqlParameter("@objectId", storedProcedure.Id)
-            };
-            // max_length see: https://www.sqlservercentral.com/forums/topic/sql-server-max_lenght-returns-double-the-actual-size#unicode
-            var queryString = @"SELECT name, 
+            new("@objectId", storedProcedure.Id)
+        };
+        // max_length see: https://www.sqlservercentral.com/forums/topic/sql-server-max_lenght-returns-double-the-actual-size#unicode
+        var queryString = @"SELECT name, 
                                     is_nullable, 
                                     system_type_name, 
                                     IIF(system_type_name LIKE 'nvarchar%', max_length / 2, max_length) AS max_length, 
                                     is_identity_column 
                                 FROM sys.dm_exec_describe_first_result_set_for_object (@objectId, 0) 
                                 ORDER BY column_ordinal;";
-            return await context.ListAsync<StoredProcedureOutput>(queryString, parameters, cancellationToken);
+        return await context.ListAsync<StoredProcedureOutput>(queryString, parameters, cancellationToken);
+    }
+
+    public static async Task<List<StoredProcedureInput>> StoredProcedureInputListAsync(this DbContext context, string schemaName, string name, CancellationToken cancellationToken)
+    {
+        var storedProcedure = await context.ObjectAsync(schemaName, name, cancellationToken);
+        if (storedProcedure == null)
+        {
+            return null;
         }
 
-        public static async Task<List<StoredProcedureInput>> StoredProcedureInputListAsync(this DbContext context, string schemaName, string name, CancellationToken cancellationToken)
+        var parameters = new List<SqlParameter>
         {
-            var storedProcedure = await context.ObjectAsync(schemaName, name, cancellationToken);
-            if (storedProcedure == null)
-            {
-                return null;
-            }
-
-            var parameters = new List<SqlParameter>
-            {
-                new SqlParameter("@objectId", storedProcedure.Id)
-            };
-            // is_nullable kann beim Input nur über userdefined types definiert werden
-            // max_length see: https://www.sqlservercentral.com/forums/topic/sql-server-max_lenght-returns-double-the-actual-size#unicode
-            var queryString = @"SELECT p.name, 
+            new("@objectId", storedProcedure.Id)
+        };
+        // is_nullable kann beim Input nur über userdefined types definiert werden
+        // max_length see: https://www.sqlservercentral.com/forums/topic/sql-server-max_lenght-returns-double-the-actual-size#unicode
+        var queryString = @"SELECT p.name, 
                                     t1.is_nullable, 
                                     t.name AS system_type_name, 
                                     IIF(t.name LIKE 'nvarchar%', p.max_length / 2, p.max_length) AS max_length,  
@@ -70,21 +70,20 @@ namespace SpocR.DataContext.Queries
                                 LEFT OUTER JOIN sys.schemas AS t1s ON t1s.schema_id = t1.schema_id
                                 WHERE p.object_id = @objectId ORDER BY p.parameter_id;";
 
-            return await context.ListAsync<StoredProcedureInput>(queryString, parameters, cancellationToken);
-        }
+        return await context.ListAsync<StoredProcedureInput>(queryString, parameters, cancellationToken);
+    }
 
-        public static Task<Object> ObjectAsync(this DbContext context, string schemaName, string name, CancellationToken cancellationToken)
+    public static Task<Object> ObjectAsync(this DbContext context, string schemaName, string name, CancellationToken cancellationToken)
+    {
+        var parameters = new List<SqlParameter>
         {
-            var parameters = new List<SqlParameter>
-            {
-                new SqlParameter("@schemaName", schemaName),
-                new SqlParameter("@name", name)
-            };
-            var queryString = @"SELECT o.object_id
+            new("@schemaName", schemaName),
+            new("@name", name)
+        };
+        var queryString = @"SELECT o.object_id
                                 FROM sys.objects AS o
                                 INNER JOIN sys.schemas AS s ON s.schema_id = o.schema_id
                                 WHERE s.name = @schemaName AND o.name = @name;";
-            return context.SingleAsync<Object>(queryString, parameters, cancellationToken);
-        }
+        return context.SingleAsync<Object>(queryString, parameters, cancellationToken);
     }
 }

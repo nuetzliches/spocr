@@ -1,7 +1,8 @@
-﻿namespace SpocR.Commands
+﻿using System.Threading.Tasks;
+
+namespace SpocR.Commands;
+
+public interface IAppCommand
 {
-    public interface IAppCommand
-    {
-        int OnExecute();
-    }
+    Task<int> OnExecuteAsync();
 }

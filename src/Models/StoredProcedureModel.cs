@@ -4,66 +4,69 @@ using System.Linq;
 using System.Text.Json.Serialization;
 using SpocR.DataContext.Models;
 
-namespace SpocR.Models
+namespace SpocR.Models;
+
+public class StoredProcedureModel : IEquatable<StoredProcedureModel>
 {
-    public class StoredProcedureModel : IEquatable<StoredProcedureModel>
+    private readonly StoredProcedure _item;
+
+    public StoredProcedureModel() // required for json serialization
     {
-        private readonly StoredProcedure _item;
+        _item = new StoredProcedure();
+    }
 
-        public StoredProcedureModel() // required for json serialization
-        {
-            _item = new StoredProcedure();
-        }
+    public StoredProcedureModel(StoredProcedure item)
+    {
+        _item = item;
+    }
 
-        public StoredProcedureModel(StoredProcedure item)
-        {
-            _item = item;
-        }
+    public string Name
+    {
+        get => _item.Name;
+        set => _item.Name = value;
+    }
 
-        // public int Id
-        // {
-        //     get => _item.Id;
-        //     set => _item.Id = value;
-        // }
+    [JsonIgnore]
+    public string SchemaName
+    {
+        get => _item.SchemaName;
+        set => _item.SchemaName = value;
+    }
 
-        public string Name
-        {
-            get => _item.Name;
-            set => _item.Name = value;
-        }
+    private IEnumerable<StoredProcedureInputModel> _input;
+    public IEnumerable<StoredProcedureInputModel> Input
+    {
+        get => _input?.Any() ?? false ? _input : null;
+        set => _input = value;
+    }
 
-        [JsonIgnore]
-        public string SchemaName
-        {
-            get => _item.SchemaName;
-            set => _item.SchemaName = value;
-        }
+    private IEnumerable<StoredProcedureOutputModel> _output;
+    public IEnumerable<StoredProcedureOutputModel> Output
+    {
+        get => _output?.Any() ?? false ? _output : null;
+        set => _output = value;
+    }
 
-        private IEnumerable<StoredProcedureInputModel> _input;
-        public IEnumerable<StoredProcedureInputModel> Input
-        {
-            get => _input?.Any() ?? false ? _input : null;
-            set => _input = value;
-        }
+    // public IEnumerable<StoredProcedureInputModel> Input { get; set; }
+    // public IEnumerable<StoredProcedureOutputModel> Output { get; set; }
 
-        private IEnumerable<StoredProcedureOutputModel> _output;
-        public IEnumerable<StoredProcedureOutputModel> Output
-        {
-            get => _output?.Any() ?? false ? _output : null;
-            set => _output = value;
-        }
+    public bool Equals(StoredProcedureModel other)
+    {
+        return SchemaName == other.SchemaName && Name == other.Name;
+    }
 
-        // public IEnumerable<StoredProcedureInputModel> Input { get; set; }
-        // public IEnumerable<StoredProcedureOutputModel> Output { get; set; }
+    public override bool Equals(object obj)
+    {
+        return Equals(obj as StoredProcedureModel);
+    }
 
-        public bool Equals(StoredProcedureModel other)
-        {
-            return SchemaName == other.SchemaName && Name == other.Name;
-        }
+    public override int GetHashCode()
+    {
+        throw new NotImplementedException();
+    }
 
-        public override string ToString()
-        {
-            return $"[SchemaName].[Name]";
-        }
+    public override string ToString()
+    {
+        return $"[SchemaName].[Name]";
     }
 }

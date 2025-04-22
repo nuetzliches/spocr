@@ -1,37 +1,32 @@
 ﻿using McMaster.Extensions.CommandLineUtils;
 using SpocR.Managers;
 using SpocR.Utils;
+using System.Threading.Tasks;
 
-namespace SpocR.Commands.Spocr
+namespace SpocR.Commands.Spocr;
+
+public class SpocrCommandBase(
+    SpocrProjectManager spocrProjectManager
+) : CommandBase
 {
-    public class SpocrCommandBase : CommandBase
+    [Option("-pr|--project", "Name of project that has path to spocr.json", CommandOptionType.SingleValue)]
+    public string Project { get; set; }
+
+    public override async Task<int> OnExecuteAsync()
     {
-        [Option("-pr|--project", "Name of project that has path to spocr.json", CommandOptionType.SingleValue)]
-        public virtual string Project { get; set; }
-
-        protected readonly SpocrProjectManager SpocrProjectManager;
-
-        public SpocrCommandBase(SpocrProjectManager spocrProjectManager)
+        // Read Path to spocr.json from Project configuration
+        if (!string.IsNullOrEmpty(Project))
         {
-            SpocrProjectManager = spocrProjectManager;
-        }
-
-        public override int OnExecute()
-        {
-            // Read Path to spocr.json from Project configuration
-            if (!string.IsNullOrEmpty(Project))
-            {
-                var project = SpocrProjectManager.FindByName(Project);
-                if (project != null)
-                    Path = project.ConfigFile;
-            } 
-            else if (!string.IsNullOrEmpty(Path) && !DirectoryUtils.IsPath(Path))
-            {
-                var project = SpocrProjectManager.FindByName(Path);
+            var project = spocrProjectManager.FindByName(Project);
+            if (project != null)
                 Path = project.ConfigFile;
-            }
-
-            return base.OnExecute();
         }
+        else if (!string.IsNullOrEmpty(Path) && !DirectoryUtils.IsPath(Path))
+        {
+            var project = spocrProjectManager.FindByName(Path);
+            Path = project.ConfigFile;
+        }
+
+        return await base.OnExecuteAsync();
     }
 }

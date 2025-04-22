@@ -1,5 +1,6 @@
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using McMaster.Extensions.CommandLineUtils;
 using SpocR.Commands;
 using SpocR.Commands.Project;
@@ -7,235 +8,247 @@ using SpocR.Enums;
 using SpocR.Models;
 using SpocR.Services;
 
-namespace SpocR.Managers
+namespace SpocR.Managers;
+
+public class SpocrProjectManager(
+    FileManager<GlobalConfigurationModel> globalConfigFile,
+    IReportService reportService
+)
 {
-    public class SpocrProjectManager
+    public async Task<ExecuteResultEnum> CreateAsync(IProjectCommandOptions options)
     {
-        private readonly FileManager<GlobalConfigurationModel> _globalConfigFile;
-        private readonly IReportService _reportService;
-
-        public SpocrProjectManager(
-            FileManager<GlobalConfigurationModel> globalConfigFile,
-            IReportService reportService
-        )
+        var path = options.Path;
+        var displayName = options.DisplayName;
+        if (string.IsNullOrEmpty(path))
         {
-            _globalConfigFile = globalConfigFile;
-            _reportService = reportService;
-        }
-
-        public ExecuteResultEnum Create(IProjectCommandOptions options)
-        {
-            var path = options.Path;
-            var displayName = options.DisplayName;
-            if (string.IsNullOrEmpty(path))
-            {
-                if (options.Silent)
-                {
-                    _reportService.Error($"Path to spocr.json is required");
-                    _reportService.Output($"\tPlease use '--path'");
-                    return ExecuteResultEnum.Error;
-                }
-                else
-                {
-                    path = Prompt.GetString("Enter path to spocr.json, e.g. base directory of your project:", new DirectoryInfo(Directory.GetCurrentDirectory()).Name);
-                }
-            }
-
-            if (string.IsNullOrEmpty(path))
-            {
-                return ExecuteResultEnum.Aborted;
-            }
-
-            path = CreateConfigFilePath(path);
-
-            if (string.IsNullOrEmpty(displayName))
-            {
-                displayName = CreateDisplayNameFromPath(path);
-            }
-
-            if (string.IsNullOrEmpty(displayName))
-            {
-                _reportService.Error($"DisplayName for project is required");
-                _reportService.Output($"\tPlease use '--name'");
-                return ExecuteResultEnum.Error;
-            }
-
-            if (IsDisplayNameAlreadyUsed(displayName, options))
-            {
-                return ExecuteResultEnum.Error;
-            }
-
-            _globalConfigFile.Config?.Projects.Add(new GlobalProjectConfigurationModel
-            {
-                DisplayName = displayName,
-                ConfigFile = path
-            });
-
-            _globalConfigFile.Save(_globalConfigFile.Config);
-
             if (options.Silent)
             {
-                _reportService.Output($"{{ \"displayName\": \"{displayName}\" }}");
+                reportService.Error($"Path to spocr.json is required");
+                reportService.Output($"\tPlease use '--path'");
+                return ExecuteResultEnum.Error;
             }
             else
             {
-                _reportService.Output($"Project '{displayName}' created.");
+                path = Prompt.GetString("Enter path to spocr.json, e.g. base directory of your project:", new DirectoryInfo(Directory.GetCurrentDirectory()).Name);
             }
-            return ExecuteResultEnum.Succeeded;
         }
 
-        public ExecuteResultEnum Update(IProjectUpdateCommandOptions options)
+        if (string.IsNullOrEmpty(path))
         {
-            var displayName = options.DisplayName;
-            var projectIndex = FindIndexByName(displayName);
+            return ExecuteResultEnum.Aborted;
+        }
 
-            if (projectIndex < 0)
+        path = CreateConfigFilePath(path);
+
+        if (string.IsNullOrEmpty(displayName))
+        {
+            displayName = CreateDisplayNameFromPath(path);
+        }
+
+        if (string.IsNullOrEmpty(displayName))
+        {
+            reportService.Error($"DisplayName for project is required");
+            reportService.Output($"\tPlease use '--name'");
+            return ExecuteResultEnum.Error;
+        }
+
+        if (IsDisplayNameAlreadyUsed(displayName, options))
+        {
+            return ExecuteResultEnum.Error;
+        }
+
+        globalConfigFile.Config?.Projects.Add(new GlobalProjectConfigurationModel
+        {
+            DisplayName = displayName,
+            ConfigFile = path
+        });
+
+        await Task.Run(() => globalConfigFile.Save(globalConfigFile.Config));
+
+        if (options.Silent)
+        {
+            reportService.Output($"{{ \"displayName\": \"{displayName}\" }}");
+        }
+        else
+        {
+            reportService.Output($"Project '{displayName}' created.");
+        }
+        return ExecuteResultEnum.Succeeded;
+    }
+
+    public ExecuteResultEnum Create(IProjectCommandOptions options)
+    {
+        return CreateAsync(options).GetAwaiter().GetResult();
+    }
+
+    public async Task<ExecuteResultEnum> UpdateAsync(IProjectUpdateCommandOptions options)
+    {
+        var displayName = options.DisplayName;
+        var projectIndex = FindIndexByName(displayName);
+
+        if (projectIndex < 0)
+        {
+            reportService.Error($"Cant find project '{displayName}'");
+            return ExecuteResultEnum.Error;
+        }
+
+        var path = options.Path;
+        if (!string.IsNullOrEmpty(path))
+        {
+            path = CreateConfigFilePath(path);
+        }
+
+        var newDisplayName = options.NewDisplayName;
+        if (!string.IsNullOrEmpty(newDisplayName))
+        {
+            if (IsDisplayNameAlreadyUsed(newDisplayName, options))
             {
-                _reportService.Error($"Cant find project '{displayName}'");
                 return ExecuteResultEnum.Error;
             }
-
-            var path = options.Path;
-            if (!string.IsNullOrEmpty(path))
-            {
-                path = CreateConfigFilePath(path);
-            }
-
-            var newDisplayName = options.NewDisplayName;
-            if (!string.IsNullOrEmpty(newDisplayName))
-            {
-                if (IsDisplayNameAlreadyUsed(newDisplayName, options))
-                {
-                    return ExecuteResultEnum.Error;
-                }
-            }
-
-            if (!string.IsNullOrEmpty(newDisplayName))
-            {
-                _globalConfigFile.Config.Projects[projectIndex].DisplayName = newDisplayName;
-            }
-
-            if (!string.IsNullOrEmpty(path))
-            {
-                _globalConfigFile.Config.Projects[projectIndex].ConfigFile = path;
-            }
-
-            _globalConfigFile.Save(_globalConfigFile.Config);
-
-            _reportService.Output($"Project '{newDisplayName ?? displayName}' updated.");
-            return ExecuteResultEnum.Succeeded;
-
         }
 
-        public ExecuteResultEnum Delete(IProjectCommandOptions options)
+        if (!string.IsNullOrEmpty(newDisplayName))
         {
-            var displayName = options.DisplayName;
-            var projectIndex = FindIndexByName(displayName);
+            globalConfigFile.Config.Projects[projectIndex].DisplayName = newDisplayName;
+        }
 
-            if (projectIndex < 0)
+        if (!string.IsNullOrEmpty(path))
+        {
+            globalConfigFile.Config.Projects[projectIndex].ConfigFile = path;
+        }
+
+        await Task.Run(() => globalConfigFile.Save(globalConfigFile.Config));
+
+        reportService.Output($"Project '{newDisplayName ?? displayName}' updated.");
+        return ExecuteResultEnum.Succeeded;
+    }
+
+    public ExecuteResultEnum Update(IProjectUpdateCommandOptions options)
+    {
+        return UpdateAsync(options).GetAwaiter().GetResult();
+    }
+
+    public async Task<ExecuteResultEnum> DeleteAsync(IProjectCommandOptions options)
+    {
+        var displayName = options.DisplayName;
+        var projectIndex = FindIndexByName(displayName);
+
+        if (projectIndex < 0)
+        {
+            reportService.Error($"Cant find project '{displayName}'");
+            return ExecuteResultEnum.Error;
+        }
+
+        if (!options.Force)
+        {
+            if (options.Silent)
             {
-                _reportService.Error($"Cant find project '{displayName}'");
+                reportService.Warn($"Please add --force to delete project '{displayName}'");
                 return ExecuteResultEnum.Error;
             }
-
-            if (!options.Force)
+            else
             {
-                if (options.Silent)
-                {
-                    _reportService.Warn($"Please add --force to delete project '{displayName}'");
-                    return ExecuteResultEnum.Error;
-                }
-                else
-                {
-                    var delete = Prompt.GetYesNo($"Delete project '{displayName}'", false, System.ConsoleColor.Red);
-                    if (!delete) return ExecuteResultEnum.Aborted;
-                }
+                var delete = Prompt.GetYesNo($"Delete project '{displayName}'", false, System.ConsoleColor.Red);
+                if (!delete) return ExecuteResultEnum.Aborted;
             }
-
-            _globalConfigFile.Config.Projects.RemoveAt(projectIndex);
-
-            _globalConfigFile.Save(_globalConfigFile.Config);
-
-            _reportService.Output($"Project '{displayName}' deleted.");
-            return ExecuteResultEnum.Succeeded;
         }
 
-        public ExecuteResultEnum List(ICommandOptions options)
+        globalConfigFile.Config.Projects.RemoveAt(projectIndex);
+
+        await Task.Run(() => globalConfigFile.Save(globalConfigFile.Config));
+
+        reportService.Output($"Project '{displayName}' deleted.");
+        return ExecuteResultEnum.Succeeded;
+    }
+
+    public ExecuteResultEnum Delete(IProjectCommandOptions options)
+    {
+        return DeleteAsync(options).GetAwaiter().GetResult();
+    }
+
+    public async Task<ExecuteResultEnum> ListAsync(ICommandOptions options)
+    {
+        var projects = globalConfigFile.Config?.Projects;
+
+        if (!options.Silent && !(projects?.Any() ?? false))
         {
-            var projects = _globalConfigFile.Config?.Projects;
+            reportService.Warn($"No Projects found");
+            return ExecuteResultEnum.Aborted;
+        }
 
-            if (!options.Silent && !(projects?.Any() ?? false))
-            {
-                _reportService.Warn($"No Projects found");
-                return ExecuteResultEnum.Aborted;
-            }
-
-            _reportService.Output($"[{(projects.Count > 0 ? "{" : "")}");
+        await Task.Run(() =>
+        {
+            reportService.Output($"[{(projects.Count > 0 ? "{" : "")}");
             projects.ForEach(project =>
             {
                 var fileExists = File.Exists(project.ConfigFile).ToString().ToLower();
-                _reportService.Output($"\t\"displayName\": \"{project.DisplayName}\",");
-                _reportService.Output($"\t\"path\": \"{project.ConfigFile}\",");
-                _reportService.Output($"\t\"fileExists\": {fileExists}");
+                reportService.Output($"\t\"displayName\": \"{project.DisplayName}\",");
+                reportService.Output($"\t\"path\": \"{project.ConfigFile}\",");
+                reportService.Output($"\t\"fileExists\": {fileExists}");
                 if (projects.FindIndex(_ => _ == project) < projects.Count - 1)
                 {
-                    _reportService.Output("}, {");
+                    reportService.Output("}, {");
                 }
             });
-            _reportService.Output($"{(projects.Count > 0 ? "}" : "")}]");
+            reportService.Output($"{(projects.Count > 0 ? "}" : "")}]");
+        });
 
-            return ExecuteResultEnum.Succeeded;
-        }
+        return ExecuteResultEnum.Succeeded;
+    }
 
-        private string CreateConfigFilePath(string path)
+    public ExecuteResultEnum List(ICommandOptions options)
+    {
+        return ListAsync(options).GetAwaiter().GetResult();
+    }
+
+    private string CreateConfigFilePath(string path)
+    {
+        var fileInfo = new FileInfo(path);
+        if (fileInfo.Name != Constants.ConfigurationFile)
         {
-            var fileInfo = new FileInfo(path);
-            if (fileInfo.Name != Configuration.ConfigurationFile)
-            {
-                path = path.EndsWith("/") ? path : $"{path}/";
-                path = Path.GetDirectoryName(path);
-                path = $"{Path.Combine(path, Configuration.ConfigurationFile)}";
-            }
-            return path?.Replace("\\", "/");
-        }
-
-        private string CreateDisplayNameFromPath(string path)
-        {
-            var fileInfo = new FileInfo(path);
-
-            // Remove any File
+            path = path.EndsWith("/") ? path : $"{path}/";
             path = Path.GetDirectoryName(path);
-
-            // Get the last DirectoryName
-            var displayName = Path.GetFileName(path);
-            return displayName;
+            path = $"{Path.Combine(path, Constants.ConfigurationFile)}";
         }
+        return path?.Replace("\\", "/");
+    }
 
-        internal GlobalProjectConfigurationModel FindByName(string displayName)
-        {
-            var projects = _globalConfigFile.Config?.Projects;
-            return projects?.Find(project => project.DisplayName.Equals(displayName));
-        }
+    private string CreateDisplayNameFromPath(string path)
+    {
+        var fileInfo = new FileInfo(path);
 
-        private int FindIndexByName(string displayName)
-        {
-            var projects = _globalConfigFile.Config?.Projects;
-            return projects.FindIndex(project => project.DisplayName.Equals(displayName));
-        }
+        // Remove any File
+        path = Path.GetDirectoryName(path);
 
-        private bool IsDisplayNameAlreadyUsed(string displayName, IProjectCommandOptions options)
+        // Get the last DirectoryName
+        var displayName = Path.GetFileName(path);
+        return displayName;
+    }
+
+    internal GlobalProjectConfigurationModel FindByName(string displayName)
+    {
+        var projects = globalConfigFile.Config?.Projects;
+        return projects?.Find(project => project.DisplayName.Equals(displayName));
+    }
+
+    private int FindIndexByName(string displayName)
+    {
+        var projects = globalConfigFile.Config?.Projects;
+        return projects.FindIndex(project => project.DisplayName.Equals(displayName));
+    }
+
+    private bool IsDisplayNameAlreadyUsed(string displayName, IProjectCommandOptions options)
+    {
+        if (FindByName(displayName) != null)
         {
-            if (FindByName(displayName) != null)
+            reportService.Error($"Project {displayName} already exists");
+            if (!options.Silent)
             {
-                _reportService.Error($"Project {displayName} already exists");
-                if (!options.Silent)
-                {
-                    _reportService.Output($"\tPlease run '{Configuration.Name} project ls' to show all existing projects");
-                }
-                return true;
+                reportService.Output($"\tPlease run '{Constants.Name} project ls' to show all existing projects");
             }
-
-            return false;
+            return true;
         }
+
+        return false;
     }
 }

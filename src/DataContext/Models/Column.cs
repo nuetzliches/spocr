@@ -1,19 +1,18 @@
 using SpocR.DataContext.Attributes;
 
-namespace SpocR.DataContext.Models
+namespace SpocR.DataContext.Models;
+
+public class Column
 {
-    public class Column
-    {
-        [SqlFieldName("name")]
-        public string Name { get; set; }
+    [SqlFieldName("name")]
+    public string Name { get; set; }
 
-        [SqlFieldName("is_nullable")]
-        public bool IsNullable { get; set; }
+    [SqlFieldName("is_nullable")]
+    public bool IsNullable { get; set; }
 
-        [SqlFieldName("system_type_name")]
-        public string SqlTypeName { get; set; }
+    [SqlFieldName("system_type_name")]
+    public string SqlTypeName { get; set; }
 
-        [SqlFieldName("max_length")]
-        public int MaxLength { get; set; }
-    }
+    [SqlFieldName("max_length")]
+    public int MaxLength { get; set; }
 }

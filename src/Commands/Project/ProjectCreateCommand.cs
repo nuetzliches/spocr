@@ -1,20 +1,18 @@
 ﻿using McMaster.Extensions.CommandLineUtils;
 using SpocR.Managers;
+using System.Threading.Tasks;
 
-namespace SpocR.Commands.Project
+namespace SpocR.Commands.Project;
+
+[HelpOption("-?|-h|--help")]
+[Command("create", Description = "Creates a new SpocR Project")]
+public class ProjectCreateCommand(
+    SpocrProjectManager spocrProjectManager
+) : ProjectCommandBase
 {
-    [HelpOption("-?|-h|--help")]
-    [Command("create", Description = "Creates a new SpocR Project")]
-    public class ProjectCreateCommand : ProjectCommandBase
+    public override async Task<int> OnExecuteAsync()
     {
-        public ProjectCreateCommand(SpocrProjectManager spocrProjectManager)
-        : base(spocrProjectManager)
-        { }
-
-        public override int OnExecute()
-        {
-            base.OnExecute();
-            return (int)SpocrProjectManager.Create(ProjectCommandOptions);
-        }
+        await base.OnExecuteAsync();
+        return (int)await spocrProjectManager.CreateAsync(ProjectCommandOptions);
     }
 }

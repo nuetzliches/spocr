@@ -1,24 +1,19 @@
 ﻿using McMaster.Extensions.CommandLineUtils;
 using SpocR.Managers;
+using System.Threading.Tasks;
 
-namespace SpocR.Commands.Spocr
+namespace SpocR.Commands.Spocr;
+
+[HelpOption("-?|-h|--help")]
+[Command("pull", Description = "Pull all schema informations from DB into spocr.json")]
+public class PullCommand(
+    SpocrManager spocrManager,
+    SpocrProjectManager spocrProjectManager
+) : SpocrCommandBase(spocrProjectManager)
 {
-    [HelpOption("-?|-h|--help")]
-    [Command("pull", Description = "Pull all schema informations from DB into spocr.json")]
-    public class PullCommand : SpocrCommandBase
+    public override async Task<int> OnExecuteAsync()
     {
-        private readonly SpocrManager _spocrManager;
-
-        public PullCommand(SpocrManager spocrManager, SpocrProjectManager spocrProjectManager) 
-        : base(spocrProjectManager)
-        {
-            _spocrManager = spocrManager;
-        }
-
-        public override int OnExecute()
-        {
-            base.OnExecute();
-            return (int)_spocrManager.Pull(CommandOptions);
-        }
+        await base.OnExecuteAsync();
+        return (int)await spocrManager.PullAsync(CommandOptions);
     }
 }

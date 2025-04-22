@@ -1,24 +1,19 @@
 ﻿using McMaster.Extensions.CommandLineUtils;
 using SpocR.Managers;
+using System.Threading.Tasks;
 
-namespace SpocR.Commands.Spocr
+namespace SpocR.Commands.Spocr;
+
+[HelpOption("-?|-h|--help")]
+[Command("remove", Description = "Removes the SpocR Project")]
+public class RemoveCommand(
+    SpocrManager spocrManager,
+    SpocrProjectManager spocrProjectManager
+) : SpocrCommandBase(spocrProjectManager)
 {
-    [HelpOption("-?|-h|--help")]
-    [Command("remove", Description = "Removes the SpocR Project")]
-    public class RemoveCommand : SpocrCommandBase
+    public override async Task<int> OnExecuteAsync()
     {
-        private readonly SpocrManager _spocrManager;
-
-        public RemoveCommand(SpocrManager spocrManager, SpocrProjectManager spocrProjectManager) 
-        : base(spocrProjectManager)
-        {
-            _spocrManager = spocrManager;
-        }
-
-        public override int OnExecute()
-        {
-            base.OnExecute();
-            return (int)_spocrManager.Remove(CommandOptions);
-        }
+        await base.OnExecuteAsync();
+        return (int)await spocrManager.RemoveAsync(CommandOptions);
     }
 }

@@ -1,24 +1,33 @@
-﻿using McMaster.Extensions.CommandLineUtils;
+﻿using System.Threading.Tasks;
+using McMaster.Extensions.CommandLineUtils;
 using SpocR.Managers;
+using SpocR.Utils;
 
-namespace SpocR.Commands.Spocr
+namespace SpocR.Commands.Spocr;
+
+[HelpOption("-?|-h|--help")]
+[Command("build", Description = "Build DataContext depending on spocr.json")]
+public class BuildCommand(
+    SpocrManager spocrManager,
+    SpocrProjectManager spocrProjectManager
+) : SpocrCommandBase(spocrProjectManager)
 {
-    [HelpOption("-?|-h|--help")]
-    [Command("build", Description = "Build DataContex depending on spocr.json")]
-    public class BuildCommand : SpocrCommandBase
+    public override async Task<int> OnExecuteAsync()
     {
-        private readonly SpocrManager _spocrManager;
-
-        public BuildCommand(SpocrManager spocrManager, SpocrProjectManager spocrProjectManager) 
-        : base(spocrProjectManager)
+        // Read Path to spocr.json from Project configuration
+        if (!string.IsNullOrEmpty(Project))
         {
-            _spocrManager = spocrManager;
+            var project = spocrProjectManager.FindByName(Project);
+            if (project != null)
+                Path = project.ConfigFile;
+        }
+        else if (!string.IsNullOrEmpty(Path) && !DirectoryUtils.IsPath(Path))
+        {
+            var project = spocrProjectManager.FindByName(Path);
+            Path = project.ConfigFile;
         }
 
-        public override int OnExecute()
-        {
-            base.OnExecute();
-            return (int)_spocrManager.Build(CommandOptions);
-        }
+        await base.OnExecuteAsync();
+        return (int)await spocrManager.BuildAsync(CommandOptions);
     }
 }

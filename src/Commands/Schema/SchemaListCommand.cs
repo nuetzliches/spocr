@@ -1,20 +1,19 @@
 ﻿using McMaster.Extensions.CommandLineUtils;
 using SpocR.Managers;
+using System.Threading.Tasks;
 
-namespace SpocR.Commands.Schema
+namespace SpocR.Commands.Schema;
+
+[HelpOption("-?|-h|--help")]
+[Command("ls", Description = "List all SpocR Schemas")]
+public class SchemaListCommand(
+    SpocrSchemaManager spocrSchemaManager,
+    SpocrProjectManager spocrProjectManager
+) : SchemaCommandBase(spocrProjectManager)
 {
-    [HelpOption("-?|-h|--help")]
-    [Command("ls", Description = "List all SpocR Schemas")]
-    public class SchemaListCommand : SchemaCommandBase
+    public override async Task<int> OnExecuteAsync()
     {
-        public SchemaListCommand(SpocrSchemaManager spocrSchemaManager, SpocrProjectManager spocrProjectManager)
-        : base(spocrSchemaManager, spocrProjectManager)
-        { }
-
-        public override int OnExecute()
-        {
-            base.OnExecute();
-            return (int)SpocrSchemaManager.List(CommandOptions);
-        }
+        await base.OnExecuteAsync();
+        return (int)await spocrSchemaManager.ListAsync(CommandOptions);
     }
 }

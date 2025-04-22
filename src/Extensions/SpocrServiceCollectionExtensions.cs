@@ -15,10 +15,9 @@ namespace SpocR.Extensions
         public static IServiceCollection AddSpocR(this IServiceCollection services)
         {
 #if DEBUG
-            //var globalConfigurationFileName = Path.Combine(DirectoryUtils.GetAppDataDirectory(), Configuration.GlobalConfigurationFile);
-            var globalConfigurationFileName = Path.Combine(DirectoryUtils.GetWorkingDirectory(), Configuration.GlobalConfigurationFile);
+            var globalConfigurationFileName = Path.Combine(DirectoryUtils.GetWorkingDirectory(), Constants.GlobalConfigurationFile);
 #else
-            var globalConfigurationFileName = Path.Combine(DirectoryUtils.GetAppDataDirectory(), Configuration.GlobalConfigurationFile);
+            var globalConfigurationFileName = Path.Combine(DirectoryUtils.GetAppDataDirectory(), Constants.GlobalConfigurationFile);
 #endif
 
             var spocrService = new SpocrService();
@@ -35,7 +34,7 @@ namespace SpocR.Extensions
             services.AddSingleton<SpocrStoredProcdureManager>();
             services.AddSingleton<SpocrConfigManager>();
             services.AddSingleton<FileManager<GlobalConfigurationModel>>(new FileManager<GlobalConfigurationModel>(spocrService, globalConfigurationFileName, spocrService.GetGlobalDefaultConfiguration()));
-            services.AddSingleton<FileManager<ConfigurationModel>>(new FileManager<ConfigurationModel>(spocrService, Configuration.ConfigurationFile, spocrService.GetDefaultConfiguration()));
+            services.AddSingleton<FileManager<ConfigurationModel>>(new FileManager<ConfigurationModel>(spocrService, Constants.ConfigurationFile, spocrService.GetDefaultConfiguration()));
             services.AddSingleton<Generator>();
             services.AddSingleton<IReportService>(new ReportService(new ColoredConsoleReporter(PhysicalConsole.Singleton, true, false), commandOptions));
 

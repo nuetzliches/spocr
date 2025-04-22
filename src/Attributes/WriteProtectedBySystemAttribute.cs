@@ -1,10 +1,9 @@
 using System;
 
-namespace SpocR.Attributes 
+namespace SpocR.Attributes;
+
+[AttributeUsage(AttributeTargets.Property, Inherited = true)]
+public class WriteProtectedBySystem : Attribute
 {
-    [AttributeUsage(AttributeTargets.Property, Inherited = true)]
-    public class WriteProtectedBySystem : Attribute 
-    {
-        public bool IsProtected { get; set; } = true;
-    }
+    public bool IsProtected { get; set; } = true;
 }

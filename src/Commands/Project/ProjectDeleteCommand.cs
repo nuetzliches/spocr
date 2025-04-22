@@ -1,20 +1,18 @@
 ﻿using McMaster.Extensions.CommandLineUtils;
 using SpocR.Managers;
+using System.Threading.Tasks;
 
-namespace SpocR.Commands.Project
+namespace SpocR.Commands.Project;
+
+[HelpOption("-?|-h|--help")]
+[Command("delete", Description = "Delete an existing SpocR Project")]
+public class ProjectDeleteCommand(
+    SpocrProjectManager spocrProjectManager
+) : ProjectCommandBase
 {
-    [HelpOption("-?|-h|--help")]
-    [Command("delete", Description = "Delete an existing SpocR Project")]
-    public class ProjectDeleteCommand : ProjectCommandBase
+    public override async Task<int> OnExecuteAsync()
     {
-        public ProjectDeleteCommand(SpocrProjectManager spocrProjectManager)
-        : base(spocrProjectManager)
-        { }
-
-        public override int OnExecute()
-        {
-            base.OnExecute();
-            return (int)SpocrProjectManager.Delete(ProjectCommandOptions);
-        }
+        await base.OnExecuteAsync();
+        return (int)await spocrProjectManager.DeleteAsync(ProjectCommandOptions);
     }
 }

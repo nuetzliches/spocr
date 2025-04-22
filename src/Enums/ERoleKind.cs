@@ -1,9 +1,8 @@
-namespace SpocR.Enums
+namespace SpocR.Enums;
+
+public enum ERoleKind
 {
-    public enum ERoleKind
-    {
-        Default,
-        Lib,
-        Extension
-    }
+    Default,
+    Lib,
+    Extension
 }

@@ -1,13 +1,13 @@
 using System;
 
-namespace SpocR.DataContext.Attributes
+namespace SpocR.DataContext.Attributes;
+
+[AttributeUsage(AttributeTargets.Property)]
+internal class SqlFieldNameAttribute : Attribute
 {
-    internal class SqlFieldNameAttribute : Attribute
+    internal readonly string Name;
+    internal SqlFieldNameAttribute(string name)
     {
-        internal readonly string Name;
-        internal SqlFieldNameAttribute(string name)
-        {
-            Name = name;
-        }
+        Name = name;
     }
 }

@@ -1,9 +1,8 @@
 using System;
 
-namespace SpocR.Interfaces
+namespace SpocR.Interfaces;
+
+public interface IVersioned
 {
-    public interface IVersioned
-    {
-        Version Version { get; set; }
-    }
+    Version Version { get; set; }
 }

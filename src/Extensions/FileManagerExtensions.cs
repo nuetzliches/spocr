@@ -1,41 +1,61 @@
 using System;
-using System.Collections.Generic;
+using System.Collections;
 using System.Linq;
 
-namespace SpocR.Extensions
+namespace SpocR.Extensions;
+
+public static class FileManagerExtensions
 {
-    public static class FileManagerExtensions
+    public static T OverwriteWith<T>(this T target, T source) where T : class
     {
-        public static T OverwriteWith<T>(this T target, T source) where T : class
+        if (source == null) return target;
+        if (target == null) return source;
+
+        var properties = target.GetType().GetProperties();
+
+        foreach (var property in properties.Where(p => p.CanWrite))
         {
-            if (source == null) return target;
-            var properties = target.GetType().GetProperties();
+            var propertyType = property.PropertyType;
+            var sourceValue = property.GetValue(source, null);
 
-            foreach (var property in properties.Where(p => p.CanWrite))
+            // Skip null values and empty strings in source
+            if (sourceValue == null ||
+                (propertyType == typeof(string) && string.IsNullOrWhiteSpace(sourceValue.ToString())))
             {
-                var propertyType = property.PropertyType;
-                var sourceValue = property.GetValue(source, null);
-                if (sourceValue == null
-                    || (propertyType == typeof(string) && string.IsNullOrWhiteSpace(sourceValue.ToString())))
-                {
-                    continue;
-                }
+                continue;
+            }
 
-                if (propertyType.IsClass && !propertyType.IsCollection() && !propertyType.IsSealed) // !IsSealed: ignore Strings and other SystemTypes
+            // Handle special case for collections
+            if (propertyType.IsCollection())
+            {
+                // Only override collections if they have items
+                if (sourceValue is IEnumerable sourceCollection && sourceCollection.Cast<object>().Any())
                 {
-                    var targetValue = property.GetValue(target, null);
+                    property.SetValue(target, sourceValue, null);
+                }
+                continue;
+            }
+
+            // Handle nested objects (recursively)
+            if (propertyType.IsClass && !propertyType.IsSealed) // !IsSealed: ignore Strings and other SystemTypes
+            {
+                var targetValue = property.GetValue(target, null);
+                if (targetValue != null)
+                {
                     sourceValue = targetValue.OverwriteWith(sourceValue);
                 }
-
-                property.SetValue(target, sourceValue, null);
             }
-            return target;
-        }
 
-        public static bool IsCollection(this Type propertyType)
-        {
-            return propertyType.GetInterface(typeof(IEnumerable<>).FullName) != null;
+            // Set the value
+            property.SetValue(target, sourceValue, null);
         }
+        return target;
     }
 
+    public static bool IsCollection(this Type propertyType)
+    {
+        return propertyType != typeof(string) &&
+               (typeof(IEnumerable).IsAssignableFrom(propertyType) ||
+               propertyType.GetInterfaces().Any(i => i == typeof(IEnumerable)));
+    }
 }

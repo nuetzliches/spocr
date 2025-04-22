@@ -2,151 +2,44 @@ using System;
 using System.Linq;
 using System.Reflection;
 using McMaster.Extensions.CommandLineUtils;
-using Microsoft.Extensions.Configuration;
 using SpocR.Attributes;
-using SpocR.DataContext;
 using SpocR.Enums;
 using SpocR.Models;
 using SpocR.Services;
 
-namespace SpocR.Managers
+namespace SpocR.Managers;
+
+public class SpocrConfigManager(
+    IReportService reportService,
+    FileManager<GlobalConfigurationModel> globalConfigFile
+)
 {
-    public class SpocrConfigManager
+    public ExecuteResultEnum Config()
     {
-        private readonly IConfiguration _configuration;
-        private readonly SpocrService _spocr;
-        private readonly OutputService _output;
-        private readonly Generator _engine;
-        private readonly IReportService _reportService;
-        private readonly SchemaManager _schemaManager;
-        private readonly FileManager<GlobalConfigurationModel> _globalConfigFile;
-        private readonly DbContext _dbContext;
-
-        public SpocrConfigManager(
-            IConfiguration configuration,
-            SpocrService spocr,
-            OutputService output,
-            Generator engine,
-            IReportService reportService,
-            SchemaManager schemaManager,
-            FileManager<GlobalConfigurationModel> globalConfigFile,
-            FileManager<ConfigurationModel> configFile,
-            DbContext dbContext)
+        if (!globalConfigFile.Exists())
         {
-            _configuration = configuration;
-            _spocr = spocr;
-            _output = output;
-            _engine = engine;
-            _reportService = reportService;
-            _schemaManager = schemaManager;
-            _globalConfigFile = globalConfigFile;
-            _dbContext = dbContext;
+            reportService.Error($"Global config is missing!");
         }
 
-        public ExecuteResultEnum Config()
+        var config = globalConfigFile.Read();
+
+        var propertyInfos = typeof(GlobalConfigurationModel)
+                                .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                                .Where(prop => !(prop.GetCustomAttribute<WriteProtectedBySystem>()?.IsProtected ?? false));
+
+        reportService.Warn("Please enter your Configuration:");
+
+        foreach (var prop in propertyInfos)
         {
-            if (!_globalConfigFile.Exists())
-            {
-                _reportService.Error($"Global config is missing!");
-            }
-
-            var config = _globalConfigFile.Read();
-
-            var propertyInfos = typeof(GlobalConfigurationModel)
-                                    .GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                                    .Where(prop => !(prop.GetCustomAttribute<WriteProtectedBySystem>()?.IsProtected ?? false));
-
-            _reportService.Warn("Please enter your Configuration:");
-
-            foreach (var prop in propertyInfos)
-            {
-                var input = Prompt.GetString(prop.Name, prop.GetValue(config)?.ToString());
-                prop.SetValue(config, input);
-            }
-
-            var proceed = Prompt.GetYesNo("Write your entries to GlobalConfigFile?", true, ConsoleColor.Red);
-            if (!proceed) return ExecuteResultEnum.Aborted;
-
-            _globalConfigFile.Save(config);
-
-            // var proceed = Prompt.GetYesNo("Create a new SpocR Project?", true);
-            // if (!proceed) return ExecuteResultEnum.Aborted;
-
-            // var appNamespace = Prompt.GetString("Your Project Namespace:", new DirectoryInfo(Directory.GetCurrentDirectory()).Name);
-
-            // // var configurationFileExists = _configuration.FileExists();
-            // // if(!configurationFileExists) 
-            // // {
-            // //     var fileName = Extensions.ConfigurationExtensions.FileName;
-            // //     var proceedAppsettings = Prompt.GetYesNo("Create a new SpocR Project?", true);
-            // //     if (!proceedAppsettings) return ExecuteResultEnum.Aborted;
-            // // }
-
-            // // Prompt.OnSelection("Please choose an option", )
-            // // var optionKey = 1;
-            // // foreach(var identifier in _configuration.GetSection("ConnectionStrings").GetChildren()) {
-            // //     _reporter.Output($"{optionKey}");            
-            // // }
-            // var connectionString = "";
-
-            // var roleKindString = Prompt.GetString("SpocR Role [Default, Lib, Extension]:", "Default");
-            // var roleKind = default(ERoleKind);
-            // Enum.TryParse(roleKindString, true, out roleKind);
-
-            // var role = new RoleModel
-            // {
-            //     Kind = roleKind,
-            //     LibNamespace = roleKind == ERoleKind.Extension
-            //         ? Prompt.GetString("SpocR Lib Namespace:", "Nuts.DbContext")
-            //         : null
-            // };
-
-            // var identityKindString = Prompt.GetString("SpocR Identity [WithUserId, None]:", "WithUserId");
-            // var identityKind = default(EIdentityKind);
-            // Enum.TryParse(identityKindString, true, out identityKind);
-
-            // var identity = new IdentityModel
-            // {
-            //     Kind = identityKind
-            // };
-
-            // var config = new ConfigurationModel
-            // {
-            //     Version = _spocr.Version,
-            //     Project = new ProjectModel
-            //     {
-            //         Role = role,
-            //         Identity = identity,
-            //         DataBase = new DataBaseModel
-            //         {
-            //             // the default appsettings.json ConnectString Identifier
-            //             // you can customize this one later on in the spocr.json
-            //             RuntimeConnectionStringIdentifier = "DefaultConnection",
-            //             ConnectionString = connectionString ?? ""
-            //         },
-            //         Output = new OutputModel {
-            //             Namespace = appNamespace,
-            //             DataContext = new DataContextModel {
-            //                 Path = "./DataContext",
-            //                 Models = new DataContextModelsModel {
-            //                     Path = "./Models",
-            //                 },
-            //                 TableTypes = new DataContextTableTypesModel {
-            //                     Path = "./TableTypes",
-            //                 },
-            //                 StoredProcedures = new DataContextStoredProceduresModel {
-            //                     Path = "./StoredProcedures",
-            //                 }
-            //             }
-            //         }
-            //     },
-            //     Schema = new List<SchemaModel>()
-            // };
-
-            // _globalConfigFile.Save(config);
-            // _reporter.Output($"{Configuration.Name} successfully created.");
-
-            return ExecuteResultEnum.Succeeded;
+            var input = Prompt.GetString(prop.Name, prop.GetValue(config)?.ToString());
+            prop.SetValue(config, input);
         }
+
+        var proceed = Prompt.GetYesNo("Write your entries to GlobalConfigFile?", true, ConsoleColor.Red);
+        if (!proceed) return ExecuteResultEnum.Aborted;
+
+        globalConfigFile.Save(config);
+
+        return ExecuteResultEnum.Succeeded;
     }
 }

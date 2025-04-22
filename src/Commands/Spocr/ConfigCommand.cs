@@ -1,24 +1,19 @@
 ﻿using McMaster.Extensions.CommandLineUtils;
 using SpocR.Managers;
+using System.Threading.Tasks;
 
-namespace SpocR.Commands.Spocr
+namespace SpocR.Commands.Spocr;
+
+[HelpOption("-?|-h|--help")]
+[Command("config", Description = "Configure SpocR")]
+public class ConfigCommand(
+    SpocrConfigManager spocrConfigManager,
+    SpocrProjectManager spocrProjectManager
+) : SpocrCommandBase(spocrProjectManager)
 {
-    [HelpOption("-?|-h|--help")]
-    [Command("config", Description = "Configure SpocR")]
-    public class ConfigCommand : SpocrCommandBase
+    public override async Task<int> OnExecuteAsync()
     {
-        private readonly SpocrConfigManager _spocrConfigManager;
-
-        public ConfigCommand(SpocrConfigManager spocrConfigManager, SpocrProjectManager spocrProjectManager) 
-        : base(spocrProjectManager)
-        {
-            _spocrConfigManager = spocrConfigManager;
-        }
-
-        public override int OnExecute()
-        {
-            base.OnExecute();         
-            return (int)_spocrConfigManager.Config();
-        }
+        await base.OnExecuteAsync();
+        return (int)spocrConfigManager.Config();
     }
 }

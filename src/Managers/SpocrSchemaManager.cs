@@ -1,81 +1,85 @@
 using System;
 using System.Linq;
+using System.Threading.Tasks;
 using SpocR.Commands;
 using SpocR.Commands.Schema;
 using SpocR.Enums;
 using SpocR.Models;
 using SpocR.Services;
 
-namespace SpocR.Managers
+namespace SpocR.Managers;
+
+public class SpocrSchemaManager(
+    FileManager<ConfigurationModel> configFile,
+    IReportService reportService
+)
 {
-    public class SpocrSchemaManager
+    public async Task<ExecuteResultEnum> UpdateAsync(ISchemaUpdateCommandOptions options)
     {
-        private readonly FileManager<ConfigurationModel> _configFile;
-        private readonly IReportService _reportService;
+        var schemaName = options.SchemaName;
+        var schemaIndex = FindIndexByName(schemaName);
 
-        public SpocrSchemaManager(
-            FileManager<ConfigurationModel> configFile,
-            IReportService reportService
-        )
+        if (schemaIndex < 0)
         {
-            _configFile = configFile;
-            _reportService = reportService;
+            reportService.Error($"Cant find schema '{schemaName}'");
+            return ExecuteResultEnum.Error;
         }
 
-        public ExecuteResultEnum Update(ISchemaUpdateCommandOptions options)
+        var status = options.Status;
+        if (!string.IsNullOrEmpty(status))
         {
-            var schemaName = options.SchemaName;
-            var schemaIndex = FindIndexByName(schemaName);
-
-            if (schemaIndex < 0)
-            {
-                _reportService.Error($"Cant find schema '{schemaName}'");
-                return ExecuteResultEnum.Error;
-            }
-
-            var status = options.Status;
-            if (!string.IsNullOrEmpty(status))
-            {
-                _configFile.Config.Schema[schemaIndex].Status = Enum.Parse<SchemaStatusEnum>(status);
-            }
-
-            _configFile.Save(_configFile.Config);
-
-            _reportService.Output($"Schema '{schemaName}' updated.");
-            return ExecuteResultEnum.Succeeded;
-
+            configFile.Config.Schema[schemaIndex].Status = Enum.Parse<SchemaStatusEnum>(status);
         }
 
-        public ExecuteResultEnum List(ICommandOptions options)
+        await Task.Run(() => configFile.Save(configFile.Config));
+
+        reportService.Output($"Schema '{schemaName}' updated.");
+        return ExecuteResultEnum.Succeeded;
+    }
+
+    // Behalte die synchrone Methode für Abwärtskompatibilität
+    public ExecuteResultEnum Update(ISchemaUpdateCommandOptions options)
+    {
+        return UpdateAsync(options).GetAwaiter().GetResult();
+    }
+
+    public async Task<ExecuteResultEnum> ListAsync(ICommandOptions options)
+    {
+        var schemas = configFile.Config?.Schema;
+
+        if (!options.Silent && !(schemas?.Any() ?? false))
         {
-            // _configFile.Read();
-            var schemas = _configFile.Config?.Schema;
+            reportService.Warn($"No Schemas found");
+            return ExecuteResultEnum.Aborted;
+        }
 
-            if (!options.Silent && !(schemas?.Any() ?? false))
-            {
-                _reportService.Warn($"No Schemas found");
-                return ExecuteResultEnum.Aborted;
-            }
-
-            _reportService.Output($"[{(schemas.Count > 0 ? "{" : "")}");
+        await Task.Run(() =>
+        {
+            reportService.Output($"[{(schemas.Count > 0 ? "{" : "")}");
             schemas.ForEach(schema =>
             {
-                _reportService.Output($"\t\"name\": \"{schema.Name}\",");
-                _reportService.Output($"\t\"status\": \"{schema.Status}\"");
+                reportService.Output($"\t\"name\": \"{schema.Name}\",");
+                reportService.Output($"\t\"status\": \"{schema.Status}\"");
                 if (schemas.FindIndex(_ => _ == schema) < schemas.Count - 1)
                 {
-                    _reportService.Output("}, {");
+                    reportService.Output("}, {");
                 }
             });
-            _reportService.Output($"{(schemas.Count > 0 ? "}" : "")}]");
+            reportService.Output($"{(schemas.Count > 0 ? "}" : "")}]");
+        });
 
-            return ExecuteResultEnum.Succeeded;
-        }
+        return ExecuteResultEnum.Succeeded;
+    }
 
-        private int FindIndexByName(string schemaName)
-        {
-            var schemaList = _configFile.Config.Schema;
-            return schemaList.FindIndex(schema => schema.Name.Equals(schemaName));
-        }
+    // Behalte die synchrone Methode für Abwärtskompatibilität
+    public ExecuteResultEnum List(ICommandOptions options)
+    {
+        return ListAsync(options).GetAwaiter().GetResult();
+    }
+
+    private int FindIndexByName(string schemaName)
+    {
+        var schemaList = configFile.Config.Schema;
+        return schemaList.FindIndex(schema => schema.Name.Equals(schemaName));
     }
 }

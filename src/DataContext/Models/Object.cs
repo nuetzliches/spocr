@@ -1,10 +1,9 @@
 using SpocR.DataContext.Attributes;
 
-namespace SpocR.DataContext.Models
+namespace SpocR.DataContext.Models;
+
+public class Object
 {
-    public class Object
-    {
-        [SqlFieldName("object_id")]
-        public int Id { get; set; }
-    }
+    [SqlFieldName("object_id")]
+    public int Id { get; set; }
 }
