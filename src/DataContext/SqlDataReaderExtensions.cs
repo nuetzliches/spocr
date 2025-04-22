@@ -26,23 +26,24 @@ namespace SpocR.DataContext
                 // Find Property by SqlFieldNameAttribute ?? PropertyName
                 var propertie = properties.SingleOrDefault(p => (p.GetCustomAttribute(typeof(SqlFieldNameAttribute)) as SqlFieldNameAttribute)?.Name.Equals(fieldName) ?? false)
                     ?? properties.SingleOrDefault(p => p.Name.Equals(fieldName, StringComparison.OrdinalIgnoreCase));
-                
+
+                var value = reader.GetValue(i);
                 // SqlDataReader returns DateTime as Unspecified, but spocr is modifing it when storing -> src\Output-v5-0\DataContext\AppDbContext.base.cs #77
                 if (value != null && value is DateTime)
                 {
                     var useUtc = fieldName.EndsWith("Utc", StringComparison.InvariantCultureIgnoreCase);
                     var ticks = ((DateTime)value).Ticks;
-                    if (useUtc) 
-                    { 
+                    if (useUtc)
+                    {
                         value = new DateTime(ticks, DateTimeKind.Utc);
                     }
-                    else 
+                    else
                     {
                         value = new DateTime(ticks, DateTimeKind.Local);
                     }
                 }
-                
-                propertie?.SetValue(obj, reader.GetValue(i));
+
+                propertie?.SetValue(obj, value);
             }
 
             return obj;

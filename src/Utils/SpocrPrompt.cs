@@ -234,7 +234,15 @@ namespace SpocR.Utils
             {
                 try
                 {
-                    _original = Console.CursorVisible;
+                    // Prüfe, ob wir auf Windows laufen
+                    if (OperatingSystem.IsWindows())
+                    {
+                        _original = Console.CursorVisible;
+                    }
+                    else
+                    {
+                        _original = true;
+                    }
                 }
                 catch
                 {
@@ -250,7 +258,11 @@ namespace SpocR.Utils
             {
                 try
                 {
-                    Console.CursorVisible = visible;
+                    // Prüfe, ob wir auf Windows laufen
+                    if (OperatingSystem.IsWindows())
+                    {
+                        Console.CursorVisible = visible;
+                    }
                 }
                 catch
                 {

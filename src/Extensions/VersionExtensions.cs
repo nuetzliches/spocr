@@ -40,7 +40,7 @@ namespace SpocR.Extensions
         ///
         internal static bool Equals(this Version version, Version versionToCompare)
         {
-            return Compare(version, versionToCompare) < 0;
+            return Compare(version, versionToCompare) == 0;
         }
     }
 }
