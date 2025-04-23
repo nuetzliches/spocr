@@ -68,11 +68,6 @@ public class ConsoleService(
     private readonly string _lineMinus = new('-', 50);
     private readonly string _lineUnderscore = new('_', 50);
 
-    public ConsoleService(IConsole console)
-        : this(console, new CommandOptions())
-    {
-    }
-
     /// <summary>
     /// Is verbose output displayed.
     /// </summary>
