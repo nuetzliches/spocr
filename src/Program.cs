@@ -9,7 +9,9 @@ using SpocR.Commands.Spocr;
 using SpocR.Commands.StoredProcdure;
 using SpocR.DataContext;
 using SpocR.Extensions;
-using SpocR.Utils;
+using SpocR.AutoUpdater;
+using SpocR.Services;
+using System.IO;
 
 namespace SpocR;
 
@@ -27,23 +29,38 @@ namespace SpocR;
 [HelpOption("-?|-h|--help")]
 public class Program
 {
-    static async Task Main(string[] args)
+    static async Task<int> Main(string[] args)
     {
-        var aspNetCoreEnvironment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
+        // Umgebung aus Umgebungsvariablen ermitteln
+        string environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ??
+                             Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ??
+                             "Production";
 
-        var builder = new ConfigurationBuilder()
-            .SetBasePath(DirectoryUtils.GetApplicationRoot())
-            .AddJsonFile("appsettings.json", true, true)
-            .AddJsonFile($"appsettings.{aspNetCoreEnvironment}.json", true, true);
+        // Konfiguration mit den bestehenden Microsoft.Extensions.Configuration-APIs erstellen
+        var configuration = new ConfigurationBuilder()
+            .SetBasePath(Directory.GetCurrentDirectory())
+            .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false)
+            .AddJsonFile($"appsettings.{environment}.json", optional: true, reloadOnChange: false)
+            .Build();
 
-        var configuration = builder.Build();
+        // ServiceCollection für Dependency Injection
+        var services = new ServiceCollection();
 
-        var serviceProvider = new ServiceCollection()
-            .AddSpocR()
-            .AddDbContext()
-            .AddSingleton<IConfiguration>(configuration)
-            .BuildServiceProvider();
+        // Konfiguration als Service registrieren
+        services.AddSingleton<IConfiguration>(configuration);
 
+        // SpocR-Dienste registrieren
+        services.AddSpocR();
+        services.AddDbContext();
+
+        // Auto-Update Dienste registrieren
+        services.AddTransient<AutoUpdaterService>();
+        services.AddTransient<IPackageManager, NugetService>();
+
+        // ServiceProvider erstellen
+        using var serviceProvider = services.BuildServiceProvider();
+
+        // CommandLine-App mit Dependency Injection konfigurieren
         var app = new CommandLineApplication<Program>
         {
             Name = "spocr",
@@ -56,13 +73,47 @@ public class Program
 
         app.InitializeGlobalConfig(serviceProvider);
 
-        app.OnExecute(() =>
-        {
-            app.ShowRootCommandFullNameAndVersion();
-            app.ShowHelp();
-            return 0;
-        });
+        // Automatische Prüfung auf Updates beim Startup
+        var consoleService = serviceProvider.GetRequiredService<IConsoleService>();
+        var autoUpdater = serviceProvider.GetRequiredService<AutoUpdaterService>();
 
-        await Task.Run(() => app.Execute(args));
+        // Aktuelle Umgebung anzeigen (optional)
+        consoleService.Verbose($"Current environment: {environment}");
+
+        try
+        {
+            // Prüfung auf Updates, aber nicht blockierend ausführen
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await autoUpdater.RunAsync();
+                }
+                catch (Exception ex)
+                {
+                    // Fehler beim Update-Check sollten die Hauptfunktion nicht beeinträchtigen
+                    consoleService.Warn($"Update check failed: {ex.Message}");
+                }
+            });
+
+            app.OnExecute(() =>
+            {
+                app.ShowRootCommandFullNameAndVersion();
+                app.ShowHelp();
+                return 0;
+            });
+
+            // Command line ausführen
+            return await app.ExecuteAsync(args);
+        }
+        catch (Exception ex)
+        {
+            consoleService.Error($"Unhandled exception: {ex.Message}");
+            if (ex.InnerException != null)
+            {
+                consoleService.Error($"Inner exception: {ex.InnerException.Message}");
+            }
+            return 1; // Fehlercode zurückgeben
+        }
     }
 }
