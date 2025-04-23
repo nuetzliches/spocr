@@ -20,7 +20,7 @@ public interface IReportService
     void Output(string message);
     void Error(string message);
     void Warn(string message);
-    void Note(string message);
+    void Info(string message);
     void Verbose(string message);
     void Success(string message);
 
@@ -40,6 +40,11 @@ public interface IReportService
 
     void PrintFileActionMessage(string fileName, FileAction fileAction);
     void PrintCorruptConfigMessage(string message);
+
+    // Progress Tracking
+    void StartProgress(string message);
+    void CompleteProgress(bool success = true);
+    void UpdateProgressStatus(string status);
 }
 
 public class ReportService(
@@ -53,6 +58,8 @@ public class ReportService(
 
     private readonly IConsoleReporter _reporter = reporter;
     private readonly ICommandOptions _commandOptions = commandOptions;
+
+    private bool _progressActive = false;
 
     public void Output(string message)
         => _reporter.Output(message);
@@ -72,7 +79,7 @@ public class ReportService(
             _reporter.Verbose($"{message}");
     }
 
-    public void Note(string message)
+    public void Info(string message)
         => _reporter.Warn($"{message}");
 
     public void PrintTitle(string title)
@@ -183,5 +190,39 @@ public class ReportService(
     public void PrintCorruptConfigMessage(string message)
     {
         this.Warn($"Looks like your spocr.json config file is corrupt: {message}");
+    }
+
+    public void StartProgress(string message)
+    {
+        _progressActive = true;
+        Green("");
+        Green($"► {message}");
+        Output(LineMinus);
+    }
+
+    public void CompleteProgress(bool success = true)
+    {
+        if (_progressActive)
+        {
+            Output(LineMinus);
+            if (success)
+            {
+                Green($"✓ Abgeschlossen");
+            }
+            else
+            {
+                Red($"✗ Fehlgeschlagen");
+            }
+            Green("");
+            _progressActive = false;
+        }
+    }
+
+    public void UpdateProgressStatus(string status)
+    {
+        if (_progressActive)
+        {
+            Gray($"  {status}");
+        }
     }
 }

@@ -7,6 +7,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 using SpocR.CodeGenerators.Base;
+using SpocR.CodeGenerators.Utils;
 using SpocR.Contracts;
 using SpocR.Enums;
 using SpocR.Extensions;
@@ -15,23 +16,21 @@ using SpocR.Models;
 using SpocR.Services;
 using SpocR.Utils;
 
-namespace SpocR.CodeGenerators.Extensions;
+namespace SpocR.CodeGenerators.Models;
 
 public class StoredProcedureGenerator(
     FileManager<ConfigurationModel> configFile,
     OutputService output,
-    IReportService reportService
+    IReportService reportService,
+    TemplateManager templateManager
 ) : GeneratorBase(configFile, output, reportService)
 {
-    public SourceText GetStoredProcedureText(Definition.Schema schema, List<Definition.StoredProcedure> storedProcedures)
+    public SourceText GetStoredProcedureExtensionsCode(Definition.Schema schema, List<Definition.StoredProcedure> storedProcedures)
     {
         var entityName = storedProcedures.First().EntityName;
 
-        var rootDir = Output.GetOutputRootDir();
-        var fileContent = File.ReadAllText(Path.Combine(rootDir.FullName, "DataContext", "StoredProcedures", "StoredProcedureExtensions.cs"));
-
-        var tree = CSharpSyntaxTree.ParseText(fileContent);
-        var root = tree.GetCompilationUnitRoot();
+        // Template mit TemplateManager laden und verarbeiten
+        var root = templateManager.GetProcessedTemplate("StoredProcedures/StoredProcedureExtensions.cs", schema.Name, $"{entityName}Extensions");
 
         // If its an extension, add usings for the lib
         if (ConfigFile.Config.Project.Role.Kind == ERoleKind.Extension)
@@ -97,33 +96,12 @@ public class StoredProcedureGenerator(
         foreach (var tableTypeSchema in tableTypeSchemas)
         {
             var tableTypeSchemaConfig = ConfigFile.Config.Schema.Find(s => s.Name.Equals(tableTypeSchema));
-            var useFromLib = tableTypeSchemaConfig?.Status != SchemaStatusEnum.Build
-                && ConfigFile.Config.Project.Role.Kind == ERoleKind.Extension;
-
-            var paramUsingDirective = useFromLib
-                                ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Role.LibNamespace}.TableTypes.{tableTypeSchema.FirstCharToUpper()}"))
-                                : ConfigFile.Config.Project.Role.Kind == ERoleKind.Lib
-                                    ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.TableTypes.{tableTypeSchema.FirstCharToUpper()}"))
-                                    : SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.DataContext.TableTypes.{tableTypeSchema.FirstCharToUpper()}"));
-            root = root.AddUsings(paramUsingDirective.NormalizeWhitespace().WithLeadingTrivia(SyntaxFactory.CarriageReturnLineFeed)).WithTrailingTrivia(SyntaxFactory.CarriageReturnLineFeed);
+            root = AddTableTypeImport(root, tableTypeSchema);
         }
 
         // Remove Template Usings
         var usings = root.Usings.Where(_ => !_.Name.ToString().StartsWith("Source."));
         root = root.WithUsings([.. usings]);
-
-        // Replace Namespace
-        if (ConfigFile.Config.Project.Role.Kind == ERoleKind.Lib)
-        {
-            root = root.ReplaceNamespace(ns => ns.Replace("Source.DataContext", ConfigFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name));
-        }
-        else
-        {
-            root = root.ReplaceNamespace(ns => ns.Replace("Source", ConfigFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name));
-        }
-
-        // Replace ClassName
-        root = root.ReplaceClassName(ci => ci.Replace("StoredProcedure", entityName));
 
         var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
         var classNode = (ClassDeclarationSyntax)nsNode.Members[0];
@@ -153,7 +131,7 @@ public class StoredProcedureGenerator(
         classNode = (ClassDeclarationSyntax)nsNode.Members[0];
         root = root.ReplaceNode(classNode, classNode.WithMembers([.. classNode.Members.Cast<MethodDeclarationSyntax>().Skip(2)]));
 
-        return root.NormalizeWhitespace().GetText();
+        return TemplateManager.GenerateSourceText(root);
     }
 
     private MethodDeclarationSyntax GenerateStoredProcedureMethodText(MethodDeclarationSyntax methodNode, Definition.StoredProcedure storedProcedure, bool isOverload = false)
@@ -233,7 +211,7 @@ public class StoredProcedureGenerator(
                 arguments.Add(SyntaxFactory.InvocationExpression(
                     SyntaxFactory.MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
                         SyntaxFactory.IdentifierName("AppDbContext"),
-                            SyntaxFactory.IdentifierName((i.IsTableType ?? false) ? "GetCollectionParameter" : "GetParameter")))
+                            SyntaxFactory.IdentifierName(i.IsTableType ?? false ? "GetCollectionParameter" : "GetParameter")))
                         .WithArgumentList(SyntaxFactory.ArgumentList(SyntaxFactory.SeparatedList<ArgumentSyntax>(args))));
 
                 if (!isLastItem)
@@ -345,7 +323,7 @@ public class StoredProcedureGenerator(
                 var fileName = $"{entityName}Extensions.cs";
                 var fileNameWithPath = Path.Combine(path, fileName);
 
-                var sourceText = GetStoredProcedureText(schema, groupedStoredProcedures);
+                var sourceText = GetStoredProcedureExtensionsCode(schema, groupedStoredProcedures);
 
                 Output.Write(fileNameWithPath, sourceText, isDryRun);
             }

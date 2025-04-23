@@ -20,7 +20,7 @@ namespace SpocR.Managers;
 public class SpocrManager(
     SpocrService service,
     OutputService output,
-    GeneratorOrchestrator engine,
+    CodeGenerationOrchestrator orchestrator,
     SpocrProjectManager projectManager,
     IReportService reportService,
     SchemaManager schemaManager,
@@ -183,7 +183,7 @@ public class SpocrManager(
             reportService.Output("");
         }
 
-        reportService.Note($"Pulled {pulledStoredProcedures.Count} StoredProcedures from {pullSchemas.Count()} Schemas [{string.Join(", ", pullSchemas.Select(x => x.Name))}] in {stopwatch.ElapsedMilliseconds} ms.");
+        reportService.Info($"Pulled {pulledStoredProcedures.Count} StoredProcedures from {pullSchemas.Count()} Schemas [{string.Join(", ", pullSchemas.Select(x => x.Name))}] in {stopwatch.ElapsedMilliseconds} ms.");
         reportService.Output("");
 
         if (options.DryRun)
@@ -392,31 +392,31 @@ public class SpocrManager(
             currentStep++;
             stopwatch.Restart();
             reportService.PrintSubTitle($"Generating TableTypes (Step {currentStep}/{totalSteps})");
-            engine.GenerateDataContextTableTypes(options.DryRun);
+            orchestrator.GenerateDataContextTableTypes(options.DryRun);
             elapsed.Add("TableTypes", stopwatch.ElapsedMilliseconds);
 
             currentStep++;
             stopwatch.Restart();
             reportService.PrintSubTitle($"Generating Inputs (Step {currentStep}/{totalSteps})");
-            engine.GenerateDataContextInputs(options.DryRun);
+            orchestrator.GenerateDataContextInputs(options.DryRun);
             elapsed.Add("Inputs", stopwatch.ElapsedMilliseconds);
 
             currentStep++;
             stopwatch.Restart();
             reportService.PrintSubTitle($"Generating Outputs (Step {currentStep}/{totalSteps})"); // Output Parameter
-            engine.GenerateDataContextOutputs(options.DryRun);
+            orchestrator.GenerateDataContextOutputs(options.DryRun);
             elapsed.Add("Outputs", stopwatch.ElapsedMilliseconds);
 
             currentStep++;
             stopwatch.Restart();
             reportService.PrintSubTitle($"Generating Output Models (Step {currentStep}/{totalSteps})");
-            engine.GenerateDataContextModels(options.DryRun);
+            orchestrator.GenerateDataContextModels(options.DryRun);
             elapsed.Add("Models", stopwatch.ElapsedMilliseconds);
 
             currentStep++;
             stopwatch.Restart();
             reportService.PrintSubTitle($"Generating StoredProcedures (Step {currentStep}/{totalSteps})");
-            engine.GenerateDataContextStoredProcedures(options.DryRun);
+            orchestrator.GenerateDataContextStoredProcedures(options.DryRun);
             elapsed.Add("StoredProcedures", stopwatch.ElapsedMilliseconds);
         }
         catch (Exception ex)

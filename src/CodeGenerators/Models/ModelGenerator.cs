@@ -5,8 +5,8 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 using SpocR.CodeGenerators.Base;
+using SpocR.CodeGenerators.Utils;
 using SpocR.Contracts;
-using SpocR.Enums;
 using SpocR.Extensions;
 using SpocR.Managers;
 using SpocR.Models;
@@ -18,34 +18,20 @@ namespace SpocR.CodeGenerators.Models;
 public class ModelGenerator(
     FileManager<ConfigurationModel> configFile,
     OutputService output,
-    IReportService reportService
+    IReportService reportService,
+    TemplateManager templateManager
 ) : GeneratorBase(configFile, output, reportService)
 {
     public SourceText GetModelTextForStoredProcedure(Definition.Schema schema, Definition.StoredProcedure storedProcedure)
     {
-        var rootDir = Output.GetOutputRootDir();
-        var fileContent = File.ReadAllText(Path.Combine(rootDir.FullName, "DataContext", "Models", "Model.cs"));
+        // Template mit TemplateManager laden und verarbeiten
+        var root = templateManager.GetProcessedTemplate("Models/Model.cs", schema.Name, storedProcedure.Name);
 
-        var tree = CSharpSyntaxTree.ParseText(fileContent);
-        var root = tree.GetCompilationUnitRoot();
-
-        // Replace Namespace
-        if (ConfigFile.Config.Project.Role.Kind == ERoleKind.Lib)
-        {
-            root = root.ReplaceNamespace(ns => ns.Replace("Source.DataContext", ConfigFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name));
-        }
-        else
-        {
-            root = root.ReplaceNamespace(ns => ns.Replace("Source", ConfigFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name));
-        }
-
-        // Replace ClassName
-        root = root.ReplaceClassName(ci => ci.Replace("Model", storedProcedure.Name));
-
-        // Generate Properties
+        // Properties generieren
         var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
         var classNode = (ClassDeclarationSyntax)nsNode.Members[0];
         var propertyNode = (PropertyDeclarationSyntax)classNode.Members[0];
+
         var outputs = storedProcedure.Output?.ToList() ?? [];
         foreach (var item in outputs)
         {
@@ -54,20 +40,16 @@ public class ModelGenerator(
 
             var propertyIdentifier = SyntaxFactory.ParseToken($" {item.Name.FirstCharToUpper()} ");
             propertyNode = propertyNode
-                .WithType(ParseTypeFromSqlDbTypeName(item.SqlTypeName, item.IsNullable ?? false));
-
-            propertyNode = propertyNode
+                .WithType(ParseTypeFromSqlDbTypeName(item.SqlTypeName, item.IsNullable ?? false))
                 .WithIdentifier(propertyIdentifier);
 
             root = root.AddProperty(ref classNode, propertyNode);
         }
 
-        // Remove template Property
-        nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-        classNode = (ClassDeclarationSyntax)nsNode.Members[0];
-        root = root.ReplaceNode(classNode, classNode.WithMembers([.. classNode.Members.Cast<PropertyDeclarationSyntax>().Skip(1)]));
+        // Template-Property entfernen
+        root = TemplateManager.RemoveTemplateProperty(root);
 
-        return root.NormalizeWhitespace().GetText();
+        return TemplateManager.GenerateSourceText(root);
     }
 
     public void GenerateDataContextModels(bool isDryRun)

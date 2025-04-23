@@ -6,6 +6,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 using SpocR.CodeGenerators.Base;
+using SpocR.CodeGenerators.Utils;
 using SpocR.Contracts;
 using SpocR.Enums;
 using SpocR.Extensions;
@@ -20,16 +21,14 @@ namespace SpocR.CodeGenerators.Models;
 public class OutputGenerator(
     FileManager<ConfigurationModel> configFile,
     OutputService output,
-    IReportService reportService
+    IReportService reportService,
+    TemplateManager templateManager
 ) : GeneratorBase(configFile, output, reportService)
 {
     public SourceText GetOutputTextForStoredProcedure(Definition.Schema schema, Definition.StoredProcedure storedProcedure)
     {
-        var rootDir = Output.GetOutputRootDir();
-        var fileContent = File.ReadAllText(Path.Combine(rootDir.FullName, "DataContext", "Outputs", "Output.cs"));
-
-        var tree = CSharpSyntaxTree.ParseText(fileContent);
-        var root = tree.GetCompilationUnitRoot();
+        // Template mit TemplateManager laden und verarbeiten
+        var root = templateManager.GetProcessedTemplate("Outputs/Output.cs", schema.Name, storedProcedure.GetOutputTypeName());
 
         // Add Usings
         if (ConfigFile.Config.Project.Role.Kind == ERoleKind.Extension)
@@ -37,19 +36,6 @@ public class OutputGenerator(
             var outputUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Role.LibNamespace}.Outputs"));
             root = root.AddUsings(outputUsingDirective.NormalizeWhitespace().WithLeadingTrivia(SyntaxFactory.CarriageReturnLineFeed)).WithTrailingTrivia(SyntaxFactory.CarriageReturnLineFeed);
         }
-
-        // Replace Namespace
-        if (ConfigFile.Config.Project.Role.Kind == ERoleKind.Lib)
-        {
-            root = root.ReplaceNamespace(ns => ns.Replace("Source.DataContext", ConfigFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name));
-        }
-        else
-        {
-            root = root.ReplaceNamespace(ns => ns.Replace("Source", ConfigFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name));
-        }
-
-        // Replace ClassName
-        root = root.ReplaceClassName(ci => ci.Replace("Output", storedProcedure.GetOutputTypeName()));
 
         // Generate Properties
         var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
@@ -76,12 +62,10 @@ public class OutputGenerator(
             root = root.AddProperty(ref classNode, propertyNode);
         }
 
-        // Remove template Property
-        nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-        classNode = (ClassDeclarationSyntax)nsNode.Members[0];
-        root = root.ReplaceNode(classNode, classNode.WithMembers([.. classNode.Members.Cast<PropertyDeclarationSyntax>().Skip(1)]));
+        // Template-Property entfernen
+        root = TemplateManager.RemoveTemplateProperty(root);
 
-        return root.NormalizeWhitespace().GetText();
+        return TemplateManager.GenerateSourceText(root);
     }
 
     public void GenerateDataContextOutputs(bool isDryRun)

@@ -7,6 +7,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 using SpocR.CodeGenerators.Base;
+using SpocR.CodeGenerators.Utils;
 using SpocR.Contracts;
 using SpocR.Enums;
 using SpocR.Extensions;
@@ -20,26 +21,14 @@ namespace SpocR.CodeGenerators.Models;
 public class TableTypeGenerator(
     FileManager<ConfigurationModel> configFile,
     OutputService output,
-    IReportService reportService
+    IReportService reportService,
+    TemplateManager templateManager
 ) : GeneratorBase(configFile, output, reportService)
 {
     public SourceText GetTableTypeText(Definition.Schema schema, Definition.TableType tableType)
     {
-        var rootDir = Output.GetOutputRootDir();
-        var fileContent = File.ReadAllText(Path.Combine(rootDir.FullName, "DataContext", "TableTypes", "TableType.cs"));
-
-        var tree = CSharpSyntaxTree.ParseText(fileContent);
-        var root = tree.GetCompilationUnitRoot();
-
-        // Replace Namespace
-        if (ConfigFile.Config.Project.Role.Kind == ERoleKind.Lib)
-        {
-            root = root.ReplaceNamespace(ns => ns.Replace("Source.DataContext", ConfigFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name));
-        }
-        else
-        {
-            root = root.ReplaceNamespace(ns => ns.Replace("Source", ConfigFile.Config.Project.Output.Namespace).Replace("Schema", schema.Name));
-        }
+        // Template mit TemplateManager laden und verarbeiten
+        var root = templateManager.GetProcessedTemplate("TableTypes/TableType.cs", schema.Name, GetTypeNameForTableType(tableType));
 
         // If its an extension, add usings for the lib
         if (ConfigFile.Config.Project.Role.Kind == ERoleKind.Extension)
@@ -49,13 +38,7 @@ public class TableTypeGenerator(
         }
 
         var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-
-        // Replace ClassName
         var classNode = (ClassDeclarationSyntax)nsNode.Members[0];
-        var classIdentifier = SyntaxFactory.ParseToken($"{classNode.Identifier.ValueText.Replace("TableType", $"{GetTypeNameForTableType(tableType)}")} ");
-        classNode = classNode.WithIdentifier(classIdentifier);
-
-        root = root.ReplaceNode(nsNode, nsNode.AddMembers(classNode));
 
         // Create Properties
         if (tableType.Columns != null)
@@ -63,7 +46,7 @@ public class TableTypeGenerator(
             foreach (var column in tableType.Columns)
             {
                 nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-                classNode = (ClassDeclarationSyntax)nsNode.Members[1];
+                classNode = (ClassDeclarationSyntax)nsNode.Members[0];
                 var propertyNode = (PropertyDeclarationSyntax)classNode.Members[0];
 
                 var propertyIdentifier = SyntaxFactory.ParseToken($" {column.Name} ");
@@ -90,16 +73,10 @@ public class TableTypeGenerator(
             }
         }
 
-        // Remove template Property
-        nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-        classNode = (ClassDeclarationSyntax)nsNode.Members[1];
-        root = root.ReplaceNode(classNode, classNode.WithMembers([.. classNode.Members.Cast<PropertyDeclarationSyntax>().Skip(1)]));
+        // Template-Property entfernen
+        root = TemplateManager.RemoveTemplateProperty(root);
 
-        // Remove template Class
-        nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-        root = root.ReplaceNode(nsNode, nsNode.WithMembers([.. nsNode.Members.Cast<ClassDeclarationSyntax>().Skip(1)]));
-
-        return root.NormalizeWhitespace().GetText();
+        return TemplateManager.GenerateSourceText(root);
     }
 
     public void GenerateDataContextTableTypes(bool isDryRun)

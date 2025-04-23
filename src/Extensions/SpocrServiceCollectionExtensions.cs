@@ -3,13 +3,14 @@ using McMaster.Extensions.CommandLineUtils;
 using Microsoft.Extensions.DependencyInjection;
 using SpocR.AutoUpdater;
 using SpocR.CodeGenerators;
-using SpocR.CodeGenerators.Extensions;
 using SpocR.CodeGenerators.Models;
+using SpocR.CodeGenerators.Utils;
 using SpocR.Commands;
 using SpocR.Managers;
 using SpocR.Models;
 using SpocR.Services;
 using SpocR.Utils;
+
 
 namespace SpocR.Extensions
 {
@@ -38,12 +39,13 @@ namespace SpocR.Extensions
             services.AddSingleton<SpocrConfigManager>();
             services.AddSingleton(new FileManager<GlobalConfigurationModel>(spocrService, globalConfigurationFileName, spocrService.GetGlobalDefaultConfiguration()));
             services.AddSingleton(new FileManager<ConfigurationModel>(spocrService, Constants.ConfigurationFile, spocrService.GetDefaultConfiguration()));
+            services.AddSingleton<TemplateManager>();
             services.AddSingleton<InputGenerator>();
             services.AddSingleton<OutputGenerator>();
             services.AddSingleton<ModelGenerator>();
             services.AddSingleton<TableTypeGenerator>();
             services.AddSingleton<StoredProcedureGenerator>();
-            services.AddSingleton<GeneratorOrchestrator>();
+            services.AddSingleton<CodeGenerationOrchestrator>();
             services.AddSingleton<IReportService>(new ReportService(new ColoredConsoleReporter(PhysicalConsole.Singleton, true, false), commandOptions));
 
             return services;

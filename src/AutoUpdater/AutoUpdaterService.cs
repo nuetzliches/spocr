@@ -70,7 +70,7 @@ public class AutoUpdaterService(
 
     public void InstallUpdate()
     {
-        reportService.Note("Updating SpocR. Please wait ...");
+        reportService.Info("Updating SpocR. Please wait ...");
 
         var process = new Process()
         {
