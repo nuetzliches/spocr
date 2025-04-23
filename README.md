@@ -120,6 +120,7 @@ dotnet tool uninstall -g spocr
 
 # Build and install from source
 cd src
+(dotnet msbuild -t:IncrementVersion)
 dotnet pack --output ./ --configuration Release
 dotnet tool install -g spocr --add-source ./
 ```
