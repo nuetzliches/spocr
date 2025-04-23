@@ -152,6 +152,6 @@ public static class Definition
         //     The FullName of the TableType
         public string Name => _name ?? (_name = _tableType.Name);
 
-        public IEnumerable<ColumnModel> Columns => _tableType.Columns ?? new List<ColumnModel>();
+        public IEnumerable<ColumnModel> Columns => _tableType.Columns ?? [];
     }
 }

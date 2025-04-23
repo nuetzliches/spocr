@@ -372,56 +372,18 @@ public class SpocrManager(
 
     private Dictionary<string, long> GenerateCode(ProjectModel project, ICommandOptions options)
     {
-        var stopwatch = new Stopwatch();
-        var elapsed = new Dictionary<string, long>();
-        var totalSteps = project.Role.Kind == ERoleKind.Extension ? 5 : 6;
-        var currentStep = 0;
-
         try
         {
-            var codeBaseAlreadyExists = project.Role.Kind == ERoleKind.Extension;
-            if (!codeBaseAlreadyExists)
+            if (options is IBuildCommandOptions buildOptions && buildOptions.GeneratorTypes != GeneratorTypes.All)
             {
-                currentStep++;
-                reportService.PrintSubTitle($"Generating CodeBase (Step {currentStep}/{totalSteps})");
-                stopwatch.Start();
-                output.GenerateCodeBase(project.Output, options.DryRun);
-                elapsed.Add("CodeBase", stopwatch.ElapsedMilliseconds);
+                orchestrator.EnabledGeneratorTypes = buildOptions.GeneratorTypes;
+                reportService.Verbose($"Generator-Typen eingeschränkt auf: {buildOptions.GeneratorTypes}");
             }
 
-            currentStep++;
-            stopwatch.Restart();
-            reportService.PrintSubTitle($"Generating TableTypes (Step {currentStep}/{totalSteps})");
-            orchestrator.GenerateDataContextTableTypes(options.DryRun);
-            elapsed.Add("TableTypes", stopwatch.ElapsedMilliseconds);
-
-            currentStep++;
-            stopwatch.Restart();
-            reportService.PrintSubTitle($"Generating Inputs (Step {currentStep}/{totalSteps})");
-            orchestrator.GenerateDataContextInputs(options.DryRun);
-            elapsed.Add("Inputs", stopwatch.ElapsedMilliseconds);
-
-            currentStep++;
-            stopwatch.Restart();
-            reportService.PrintSubTitle($"Generating Outputs (Step {currentStep}/{totalSteps})"); // Output Parameter
-            orchestrator.GenerateDataContextOutputs(options.DryRun);
-            elapsed.Add("Outputs", stopwatch.ElapsedMilliseconds);
-
-            currentStep++;
-            stopwatch.Restart();
-            reportService.PrintSubTitle($"Generating Output Models (Step {currentStep}/{totalSteps})");
-            orchestrator.GenerateDataContextModels(options.DryRun);
-            elapsed.Add("Models", stopwatch.ElapsedMilliseconds);
-
-            currentStep++;
-            stopwatch.Restart();
-            reportService.PrintSubTitle($"Generating StoredProcedures (Step {currentStep}/{totalSteps})");
-            orchestrator.GenerateDataContextStoredProcedures(options.DryRun);
-            elapsed.Add("StoredProcedures", stopwatch.ElapsedMilliseconds);
+            return orchestrator.GenerateCodeWithProgress(options.DryRun, project.Role.Kind, project.Output);
         }
         catch (Exception ex)
         {
-            reportService.Error($"Error during code generation step {currentStep}/{totalSteps}: {ex.Message}");
             if (options.Verbose)
             {
                 reportService.Error(ex.StackTrace);
@@ -430,13 +392,9 @@ public class SpocrManager(
             {
                 reportService.Output("\tRun with --verbose for more details");
             }
-        }
-        finally
-        {
-            stopwatch.Stop();
-        }
 
-        return elapsed;
+            return [];
+        }
     }
 
     private ConfigurationModel LoadAndMergeConfigurations()

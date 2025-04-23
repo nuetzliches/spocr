@@ -1,17 +1,50 @@
 ﻿using System.Threading.Tasks;
 using McMaster.Extensions.CommandLineUtils;
+using SpocR.CodeGenerators;
 using SpocR.Managers;
 using SpocR.Utils;
 
 namespace SpocR.Commands.Spocr;
+
+/// <summary>
+/// Interface für die Build-Befehlsoptionen
+/// </summary>
+public interface IBuildCommandOptions : ICommandOptions
+{
+    /// <summary>
+    /// Die Generator-Typen, die beim Build aktiviert werden sollen
+    /// </summary>
+    GeneratorTypes GeneratorTypes { get; }
+}
 
 [HelpOption("-?|-h|--help")]
 [Command("build", Description = "Build DataContext depending on spocr.json")]
 public class BuildCommand(
     SpocrManager spocrManager,
     SpocrProjectManager spocrProjectManager
-) : SpocrCommandBase(spocrProjectManager)
+) : SpocrCommandBase(spocrProjectManager), IBuildCommandOptions
 {
+    [Option("--generators", "Generator-Typen, die ausgeführt werden sollen (TableTypes,Inputs,Outputs,Models,StoredProcedures)", CommandOptionType.SingleValue)]
+    public string GeneratorTypesString { get; set; }
+
+    public GeneratorTypes GeneratorTypes
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(GeneratorTypesString))
+                return GeneratorTypes.All;
+
+            GeneratorTypes result = GeneratorTypes.None;
+            foreach (var typeName in GeneratorTypesString.Split(','))
+            {
+                if (System.Enum.TryParse<GeneratorTypes>(typeName.Trim(), out var generatorType))
+                    result |= generatorType;
+            }
+
+            return result == GeneratorTypes.None ? GeneratorTypes.All : result;
+        }
+    }
+
     public override async Task<int> OnExecuteAsync()
     {
         // Read Path to spocr.json from Project configuration
@@ -28,6 +61,6 @@ public class BuildCommand(
         }
 
         await base.OnExecuteAsync();
-        return (int)await spocrManager.BuildAsync(CommandOptions);
+        return (int)await spocrManager.BuildAsync(this);
     }
 }

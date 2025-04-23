@@ -15,7 +15,7 @@ public class GlobalConfigurationModel : IVersioned
     public string TargetFramework { get; set; } = "net9.0"; // Allowed values: null, net6.0, net9.0
     public string UserId { get; set; }
     public GlobalAutoUpdateConfigurationModel AutoUpdate { get; set; } = new GlobalAutoUpdateConfigurationModel { Enabled = true, LongPauseInMinutes = 1440, ShortPauseInMinutes = 15 };
-    public List<GlobalProjectConfigurationModel> Projects { get; set; } = new List<GlobalProjectConfigurationModel>();
+    public List<GlobalProjectConfigurationModel> Projects { get; set; } = [];
 }
 
 public class GlobalProjectConfigurationModel

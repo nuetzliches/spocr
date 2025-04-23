@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup Label="Build">
-    <Version>4.1.14</Version>
+    <Version>4.1.16</Version>
     <TargetFramework>net9.0</TargetFramework>
   </PropertyGroup>
   <PropertyGroup>

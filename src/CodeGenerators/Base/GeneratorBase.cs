@@ -213,10 +213,11 @@ public abstract class GeneratorBase(
         GenerateSchemaDirectoriesAndGetProcedures(string basePath, string subPath, bool requireInputs = false, bool isDryRun = false)
     {
         var schemas = ConfigFile.Config.Schema
-            .Where(i => i.Status == SchemaStatusEnum.Build && (i.StoredProcedures?.Any() ?? false))
-            .Select(Definition.ForSchema);
+            .Where(i => i.Status == SchemaStatusEnum.Build && (i.StoredProcedures?.Any() ?? false));
 
-        foreach (var schema in schemas)
+        var definitionSchemas = schemas.Select(Definition.ForSchema).ToList();
+
+        foreach (var schema in definitionSchemas)
         {
             var storedProcedures = schema.StoredProcedures;
 
