@@ -72,39 +72,58 @@ public class AutoUpdaterService(
         {
             consoleService.StartProgress("Updating SpocR to the latest version");
 
+            // Prüfen auf laufende Prozesse und diese beenden, bevor das Update ausgeführt wird
+            await CloseRunningSpocrInstancesAsync();
+
             // Temporäres Verzeichnis für das Update erstellen
             string tempUpdateDir = CreateTempUpdateDirectory();
 
-            using var updateProcess = PrepareUpdateProcess(tempUpdateDir);
-            var (outputTask, errorTask) = SetupProcessOutputHandling(updateProcess, cancellationTokenSource.Token);
+            // Mehrere Versuche, falls beim ersten Mal Zugriffsprobleme auftreten
+            int maxRetries = 3;
+            bool updateSucceeded = false;
 
-            consoleService.UpdateProgressStatus("Preparing update process...", percentage: InitialProgressPercentage);
-
-            // TaskCompletionSource für die Überwachung des Prozessabschlusses
-            var exitEvent = new TaskCompletionSource<bool>();
-            updateProcess.Exited += (_, _) => exitEvent.TrySetResult(updateProcess.ExitCode == 0);
-
-            // Prozess starten
-            consoleService.UpdateProgressStatus("Starting update process...", percentage: ProcessStartedPercentage);
-            updateProcess.Start();
-            updateProcess.BeginOutputReadLine();
-            updateProcess.BeginErrorReadLine();
-
-            consoleService.UpdateProgressStatus("Installing update...", percentage: InstallingPackagesPercentage);
-
-            // Auf den Abschluss warten mit Timeout
-            bool succeeded = await WaitForUpdateCompletionAsync(exitEvent, cancellationTokenSource);
-
-            // Ausgabetasks beenden lassen
-            await Task.WhenAll(outputTask, errorTask);
-
-            if (succeeded)
+            for (int attempt = 1; attempt <= maxRetries && !updateSucceeded; attempt++)
             {
-                await FinalizeSuccessfulUpdateAsync();
-            }
-            else
-            {
-                HandleFailedUpdate(errorTask.Result?.ToString() ?? "Unknown error");
+                if (attempt > 1)
+                {
+                    consoleService.Info($"Retry attempt {attempt} of {maxRetries}...");
+                    // Kurze Pause vor dem nächsten Versuch
+                    await Task.Delay(2000);
+                }
+
+                using var updateProcess = PrepareUpdateProcess(tempUpdateDir);
+                var (outputTask, errorTask) = SetupProcessOutputHandling(updateProcess, cancellationTokenSource.Token);
+
+                // Status aktualisieren
+                consoleService.UpdateProgressStatus("Preparing update process...", percentage: InitialProgressPercentage);
+
+                // TaskCompletionSource für die Überwachung des Prozessabschlusses
+                var exitEvent = new TaskCompletionSource<bool>();
+                updateProcess.Exited += (_, _) => exitEvent.TrySetResult(updateProcess.ExitCode == 0);
+
+                // Prozess starten
+                consoleService.UpdateProgressStatus("Starting update process...", percentage: ProcessStartedPercentage);
+                updateProcess.Start();
+                updateProcess.BeginOutputReadLine();
+                updateProcess.BeginErrorReadLine();
+
+                consoleService.UpdateProgressStatus("Installing update...", percentage: InstallingPackagesPercentage);
+
+                // Auf den Abschluss warten mit Timeout
+                updateSucceeded = await WaitForUpdateCompletionAsync(exitEvent, cancellationTokenSource);
+
+                // Ausgabetasks beenden lassen
+                await Task.WhenAll(outputTask, errorTask);
+
+                if (updateSucceeded)
+                {
+                    await FinalizeSuccessfulUpdateAsync();
+                    break;
+                }
+                else if (attempt == maxRetries)
+                {
+                    HandleFailedUpdate(errorTask.Result?.ToString() ?? "Update failed after multiple attempts. Access to required files may be denied.");
+                }
             }
         }
         catch (OperationCanceledException)
@@ -338,6 +357,98 @@ public class AutoUpdaterService(
         {
             // Fehler beim Parsen ignorieren
         }
+    }
+
+    /// <summary>
+    /// Schließt alle laufenden Instanzen von SpocR, um Zugriffsprobleme bei der Update-Installation zu vermeiden
+    /// </summary>
+    private async Task CloseRunningSpocrInstancesAsync()
+    {
+        consoleService.UpdateProgressStatus("Checking for other running instances...", percentage: 5);
+
+        try
+        {
+            var currentProcess = Process.GetCurrentProcess();
+            var processes = Process.GetProcessesByName(currentProcess.ProcessName);
+
+            foreach (var process in processes)
+            {
+                try
+                {
+                    if (process.Id != currentProcess.Id)
+                    {
+                        consoleService.Info($"Closing running instance of SpocR (PID: {process.Id})...");
+                        process.Kill();
+                        await process.WaitForExitAsync();
+                    }
+                }
+                catch (Exception ex)
+                {
+                    consoleService.Warn($"Could not terminate process {process.Id}: {ex.Message}");
+                }
+            }
+
+            // Als zusätzliche Maßnahme, nach dotnet-Prozessen suchen, die SpocR enthalten könnten
+            var dotnetProcesses = Process.GetProcessesByName("dotnet");
+            foreach (var process in dotnetProcesses)
+            {
+                try
+                {
+                    if (process.Id != currentProcess.Id)
+                    {
+                        // Versuchen zu prüfen, ob der Prozess mit SpocR zusammenhängt
+                        string processName = AutoUpdaterService.GetProcessCommandLine(process);
+                        if (processName != null && processName.Contains("spocr", StringComparison.OrdinalIgnoreCase))
+                        {
+                            consoleService.Info($"Closing dotnet process related to SpocR (PID: {process.Id})...");
+                            process.Kill();
+                            await process.WaitForExitAsync();
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    consoleService.Warn($"Could not check/terminate dotnet process {process.Id}: {ex.Message}");
+                }
+            }
+
+            // Kurze Pause, um sicherzustellen, dass alle Prozesse beendet sind
+            await Task.Delay(1000);
+        }
+        catch (Exception ex)
+        {
+            consoleService.Warn($"Error while checking for running processes: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Versucht, die Kommandozeile eines Prozesses zu ermitteln
+    /// </summary>
+    private static string GetProcessCommandLine(Process process)
+    {
+        // if platform is not Windows, return null
+        if (Environment.OSVersion.Platform != PlatformID.Win32NT)
+            return null;
+
+        try
+        {
+#pragma warning disable CA1416 // Validate platform compatibility
+            using var searcher = new System.Management.ManagementObjectSearcher(
+                $"SELECT CommandLine FROM Win32_Process WHERE ProcessId = {process.Id}");
+
+            using var objects = searcher.Get();
+            foreach (var obj in objects)
+            {
+                return obj["CommandLine"]?.ToString();
+            }
+#pragma warning restore CA1416 // Validate platform compatibility
+        }
+        catch
+        {
+            // Ignorieren, falls WMI nicht funktioniert
+        }
+
+        return null;
     }
 
     #endregion

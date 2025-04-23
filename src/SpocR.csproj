@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup Label="Build">
-    <Version>4.1.22</Version>
+    <Version>4.1.23</Version>
     <TargetFrameworks>net9.0;net8.0;</TargetFrameworks>
   </PropertyGroup>
   <PropertyGroup>
@@ -43,6 +43,7 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.4" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.4" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.0.*" />
+    <PackageReference Include="System.Management" Version="9.0.0" />
   </ItemGroup>
   <Target Name="IncrementVersion">
     <PropertyGroup>
