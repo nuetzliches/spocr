@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using McMaster.Extensions.CommandLineUtils;
 using SpocR.AutoUpdater;
+using SpocR.CodeGenerators;
 using SpocR.Commands;
 using SpocR.Commands.Spocr;
 using SpocR.DataContext;
@@ -19,7 +20,7 @@ namespace SpocR.Managers;
 public class SpocrManager(
     SpocrService service,
     OutputService output,
-    Generator engine,
+    GeneratorOrchestrator engine,
     SpocrProjectManager projectManager,
     IReportService reportService,
     SchemaManager schemaManager,
