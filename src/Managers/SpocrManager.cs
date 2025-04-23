@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using McMaster.Extensions.CommandLineUtils;
+using Microsoft.Data.SqlClient;
 using SpocR.AutoUpdater;
 using SpocR.CodeGenerators;
 using SpocR.Commands;
@@ -152,9 +153,22 @@ public class SpocrManager(
             }
             configSchemas = schemas;
         }
+        catch (SqlException sqlEx)
+        {
+            reportService.Error($"Datenbankfehler beim Abrufen der Schemas: {sqlEx.Message}");
+            if (options.Verbose)
+            {
+                reportService.Error(sqlEx.StackTrace);
+            }
+            return ExecuteResultEnum.Error;
+        }
         catch (Exception ex)
         {
-            reportService.Error($"Failed to pull schemas: {ex.Message}");
+            reportService.Error($"Fehler beim Abrufen der Schemas: {ex.Message}");
+            if (options.Verbose)
+            {
+                reportService.Error(ex.StackTrace);
+            }
             return ExecuteResultEnum.Error;
         }
 
@@ -235,30 +249,51 @@ public class SpocrManager(
             return ExecuteResultEnum.Error;
         }
 
-        dbContext.SetConnectionString(connectionString);
-
-        if (!hasSchemas)
+        try
         {
-            reportService.Error("Schema information is missing");
-            reportService.Output($"\tTo retrieve database schemas, run '{Constants.Name} pull'");
+            dbContext.SetConnectionString(connectionString);
+
+            if (!hasSchemas)
+            {
+                reportService.Error("Schema information is missing");
+                reportService.Output($"\tTo retrieve database schemas, run '{Constants.Name} pull'");
+                return ExecuteResultEnum.Error;
+            }
+
+            var elapsed = GenerateCode(project, options);
+
+            var summary = elapsed.Select(_ => $"{_.Key} generated in {_.Value} ms.");
+
+            reportService.PrintSummary(summary, $"{Constants.Name} v{service.Version.ToVersionString()}");
+
+            var totalElapsed = elapsed.Values.Sum();
+            reportService.PrintTotal($"Total elapsed time: {totalElapsed} ms.");
+
+            if (options.DryRun)
+            {
+                reportService.PrintDryRunMessage();
+            }
+
+            return ExecuteResultEnum.Succeeded;
+        }
+        catch (SqlException sqlEx)
+        {
+            reportService.Error($"Datenbankfehler während des Build-Vorgangs: {sqlEx.Message}");
+            if (options.Verbose)
+            {
+                reportService.Error(sqlEx.StackTrace);
+            }
             return ExecuteResultEnum.Error;
         }
-
-        var elapsed = GenerateCode(project, options);
-
-        var summary = elapsed.Select(_ => $"{_.Key} generated in {_.Value} ms.");
-
-        reportService.PrintSummary(summary, $"{Constants.Name} v{service.Version.ToVersionString()}");
-
-        var totalElapsed = elapsed.Values.Sum();
-        reportService.PrintTotal($"Total elapsed time: {totalElapsed} ms.");
-
-        if (options.DryRun)
+        catch (Exception ex)
         {
-            reportService.PrintDryRunMessage();
+            reportService.Error($"Unerwarteter Fehler während des Build-Vorgangs: {ex.Message}");
+            if (options.Verbose)
+            {
+                reportService.Error(ex.StackTrace);
+            }
+            return ExecuteResultEnum.Error;
         }
-
-        return ExecuteResultEnum.Succeeded;
     }
 
     public async Task<ExecuteResultEnum> RemoveAsync(ICommandOptions options)

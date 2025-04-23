@@ -68,11 +68,11 @@ public class DbContext : IDisposable
             }
 
             if (!_transactions.Any()) _connection.Close();
-
         }
         catch (Exception e)
         {
-            _reportService.Error(e.Message);
+            _reportService.Error($"Fehler in ExecuteListAsync für {procedureName}: {e.Message}");
+            throw;
         }
 
         return result;
@@ -111,12 +111,11 @@ public class DbContext : IDisposable
             }
 
             if (!_transactions.Any()) _connection.Close();
-
         }
         catch (Exception e)
         {
-            _reportService.Error(e.Message);
-            return null;
+            _reportService.Error($"Fehler in ListAsync für Query: {e.Message}");
+            throw;
         }
 
         return result;
@@ -216,7 +215,3 @@ public static class DbContextServiceCollectionExtensions
         }
     }
 }
-
-// public interface IDbContextBuilder {
-//     string ConnectionString {get;set;}
-// }
