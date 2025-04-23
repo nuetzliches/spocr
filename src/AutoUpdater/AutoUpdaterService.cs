@@ -1,5 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
+using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using SpocR.Extensions;
 using SpocR.Managers;
@@ -8,6 +12,9 @@ using SpocR.Services;
 
 namespace SpocR.AutoUpdater;
 
+/// <summary>
+/// Service für das automatisierte Aktualisieren der SpocR-Anwendung
+/// </summary>
 public class AutoUpdaterService(
     SpocrService spocrService,
     IPackageManager packageManager,
@@ -15,31 +22,28 @@ public class AutoUpdaterService(
     IConsoleService consoleService
 )
 {
-    public Task<Version> GetLatestVersionAsync()
-    {
-        return packageManager.GetLatestVersionAsync();
-    }
+    // Konstanten für Prozentangaben im Fortschritt
+    private const int InitialProgressPercentage = 10;
+    private const int ProcessStartedPercentage = 20;
+    private const int InstallingPackagesPercentage = 30;
+    private const int RestoringPackagesPercentage = 40;
+    private const int PackagesInstalledPercentage = 60;
+    private const int FinalizingPercentage = 90;
+    private const int CompletedPercentage = 100;
 
-    // Parameter:
-    //   force:
-    //     Run always even the configuration determines as paused or disabled
+    /// <summary>
+    /// Ruft die neueste verfügbare Version von SpocR ab
+    /// </summary>
+    public Task<Version> GetLatestVersionAsync() => packageManager.GetLatestVersionAsync();
+
+    /// <summary>
+    /// Führt die Überprüfung auf Updates durch und bietet dem Benutzer entsprechende Optionen an
+    /// </summary>
+    /// <param name="force">Update-Prüfung erzwingen, unabhängig von den Konfigurationseinstellungen</param>
     public async Task RunAsync(bool force = false)
     {
-        if (!force)
-        {
-            if (!globalConfigFile.Config.AutoUpdate.Enabled)
-            {
-                return;
-            }
-
-            var now = DateTime.Now.Ticks;
-            var nextCheckTicks = globalConfigFile.Config.AutoUpdate.NextCheckTicks;
-            var isExceeded = now > nextCheckTicks;
-            if (!isExceeded)
-            {
-                return;
-            }
-        }
+        if (!ShouldRunUpdate(force))
+            return;
 
         var latestVersion = await packageManager.GetLatestVersionAsync();
         if (latestVersion == null)
@@ -49,182 +53,65 @@ public class AutoUpdaterService(
             return;
         }
 
-        var skipThisUpdate = latestVersion.ToVersionString() == globalConfigFile.Config.AutoUpdate.SkipVersion;
-        if (!skipThisUpdate && latestVersion.IsGreaterThan(spocrService.Version))
+        if (ShouldOfferUpdate(latestVersion))
         {
-            consoleService.PrintImportantTitle($"A new SpocR version {latestVersion} is available");
-            consoleService.Info($"Current version: {spocrService.Version}");
-            consoleService.Info($"Latest version: {latestVersion}");
-            consoleService.Info("");
-
-            var answer = consoleService.GetSelection("Please choose an option:", ["Update", "Skip this version", "Remind me later"]);
-
-            switch (answer.Value)
-            {
-                case "Update":
-                    await InstallUpdateAsync();
-                    break;
-                case "Skip this version":
-                    WriteSkipThisVersion();
-                    break;
-                case "Remind me later":
-                default:
-                    WriteLongPause();
-                    break;
-            }
-
+            await OfferUpdateOptionsAsync(latestVersion);
             return;
         }
 
         WriteShortPause();
     }
 
+    /// <summary>
+    /// Führt die Installation des Updates durch
+    /// </summary>
     public async Task InstallUpdateAsync()
     {
+        CancellationTokenSource cancellationTokenSource = new();
         try
         {
             consoleService.StartProgress("Updating SpocR to the latest version");
-            consoleService.UpdateProgressStatus("Starting update process...");
 
-            const int startPercentage = 10;
-            const int updateCompletePercentage = 75;
-            const int verificationCompletePercentage = 100;
+            // Temporäres Verzeichnis für das Update erstellen
+            string tempUpdateDir = CreateTempUpdateDirectory();
 
-            consoleService.UpdateProgressStatus("Preparing update...", percentage: startPercentage);
+            using var updateProcess = PrepareUpdateProcess(tempUpdateDir);
+            var (outputTask, errorTask) = SetupProcessOutputHandling(updateProcess, cancellationTokenSource.Token);
 
-            var process = new Process()
+            consoleService.UpdateProgressStatus("Preparing update process...", percentage: InitialProgressPercentage);
+
+            // TaskCompletionSource für die Überwachung des Prozessabschlusses
+            var exitEvent = new TaskCompletionSource<bool>();
+            updateProcess.Exited += (_, _) => exitEvent.TrySetResult(updateProcess.ExitCode == 0);
+
+            // Prozess starten
+            consoleService.UpdateProgressStatus("Starting update process...", percentage: ProcessStartedPercentage);
+            updateProcess.Start();
+            updateProcess.BeginOutputReadLine();
+            updateProcess.BeginErrorReadLine();
+
+            consoleService.UpdateProgressStatus("Installing update...", percentage: InstallingPackagesPercentage);
+
+            // Auf den Abschluss warten mit Timeout
+            bool succeeded = await WaitForUpdateCompletionAsync(exitEvent, cancellationTokenSource);
+
+            // Ausgabetasks beenden lassen
+            await Task.WhenAll(outputTask, errorTask);
+
+            if (succeeded)
             {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = "dotnet",
-                    Arguments = $"tool update spocr -g",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true,
-                    UseShellExecute = false
-                }
-            };
-
-            int progressStep = (updateCompletePercentage - startPercentage) / 10;
-            int currentProgress = startPercentage;
-
-            process.OutputDataReceived += (sender, e) =>
-            {
-                if (!string.IsNullOrEmpty(e.Data))
-                {
-                    if (e.Data.Contains("Downloading") || e.Data.Contains("Installing"))
-                    {
-                        currentProgress += progressStep;
-                        consoleService.UpdateProgressStatus(e.Data, percentage: Math.Min(currentProgress, updateCompletePercentage - 1));
-                    }
-                    else
-                    {
-                        consoleService.UpdateProgressStatus(e.Data);
-                    }
-                }
-            };
-
-            process.ErrorDataReceived += (sender, e) =>
-            {
-                if (!string.IsNullOrEmpty(e.Data))
-                {
-                    consoleService.UpdateProgressStatus($"Error: {e.Data}", success: false);
-                }
-            };
-
-            var tcs = new TaskCompletionSource<bool>();
-
-            process.EnableRaisingEvents = true;
-            process.Exited += (sender, e) => tcs.TrySetResult(true);
-
-            process.Start();
-
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
-
-            consoleService.UpdateProgressStatus("Update in progress...", percentage: startPercentage + progressStep);
-
-            await tcs.Task;
-
-            if (process.ExitCode != 0)
-            {
-                consoleService.CompleteProgress(false);
-                consoleService.Error($"Update process failed with exit code: {process.ExitCode}");
-                WriteLongPause();
-                return;
-            }
-
-            consoleService.UpdateProgressStatus("Update completed. Verifying installation...",
-                percentage: updateCompletePercentage);
-
-            await Task.Delay(500);
-
-            var versionTcs = new TaskCompletionSource<bool>();
-            var versionProcess = new Process()
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = "spocr",
-                    Arguments = "version",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true,
-                    UseShellExecute = false
-                },
-                EnableRaisingEvents = true
-            };
-
-            versionProcess.Exited += (sender, e) => versionTcs.TrySetResult(true);
-
-            string versionOutput = string.Empty;
-            string versionErrorOutput = string.Empty;
-
-            versionProcess.OutputDataReceived += (sender, e) =>
-            {
-                if (!string.IsNullOrEmpty(e.Data))
-                {
-                    versionOutput += e.Data;
-                    consoleService.UpdateProgressStatus($"Version info: {e.Data}",
-                        percentage: updateCompletePercentage + (verificationCompletePercentage - updateCompletePercentage) / 2);
-                }
-            };
-
-            versionProcess.ErrorDataReceived += (sender, e) =>
-            {
-                if (!string.IsNullOrEmpty(e.Data))
-                {
-                    versionErrorOutput += e.Data;
-                    consoleService.UpdateProgressStatus($"Version check error: {e.Data}", success: false);
-                }
-            };
-
-            versionProcess.Start();
-            versionProcess.BeginOutputReadLine();
-            versionProcess.BeginErrorReadLine();
-
-            await versionTcs.Task;
-
-            if (!string.IsNullOrEmpty(versionErrorOutput))
-            {
-                consoleService.CompleteProgress(false);
-                consoleService.Error("Failed to check version after update:");
-                consoleService.Error(versionErrorOutput);
-                WriteLongPause();
+                await FinalizeSuccessfulUpdateAsync();
             }
             else
             {
-                string trimmedVersion = versionOutput.Trim();
-                consoleService.UpdateProgressStatus($"Successfully updated to: {trimmedVersion}",
-                    percentage: verificationCompletePercentage);
-                consoleService.CompleteProgress(true);
-
-                if (Version.TryParse(trimmedVersion, out var newVersion))
-                {
-                    WriteDefaults();
-                }
+                HandleFailedUpdate(errorTask.Result?.ToString() ?? "Unknown error");
             }
-
-            FinishUpdateProcess(true);
+        }
+        catch (OperationCanceledException)
+        {
+            consoleService.CompleteProgress(false);
+            consoleService.Error("Update process was cancelled or timed out.");
+            WriteLongPause();
         }
         catch (Exception ex)
         {
@@ -236,48 +123,244 @@ public class AutoUpdaterService(
             }
             WriteLongPause();
         }
+        finally
+        {
+            // Aufräumen
+            cancellationTokenSource.Dispose();
+        }
+    }
+
+    #region Private Helper Methods
+
+    /// <summary>
+    /// Prüft, ob eine Update-Prüfung durchgeführt werden soll
+    /// </summary>
+    private bool ShouldRunUpdate(bool force)
+    {
+        if (force)
+            return true;
+
+        if (!globalConfigFile.Config.AutoUpdate.Enabled)
+            return false;
+
+        var now = DateTime.Now.Ticks;
+        var nextCheckTicks = globalConfigFile.Config.AutoUpdate.NextCheckTicks;
+        return now > nextCheckTicks;
     }
 
     /// <summary>
-    /// Beendet den Update-Prozess ordnungsgemäß
+    /// Prüft, ob ein Update angeboten werden soll
     /// </summary>
-    /// <param name="success">Gibt an, ob das Update erfolgreich war</param>
-    private void FinishUpdateProcess(bool success)
+    private bool ShouldOfferUpdate(Version latestVersion)
     {
-        if (success)
+        var skipThisUpdate = latestVersion.ToVersionString() == globalConfigFile.Config.AutoUpdate.SkipVersion;
+        return !skipThisUpdate && latestVersion.IsGreaterThan(spocrService.Version);
+    }
+
+    /// <summary>
+    /// Bietet dem Benutzer Update-Optionen an
+    /// </summary>
+    private async Task OfferUpdateOptionsAsync(Version latestVersion)
+    {
+        consoleService.PrintImportantTitle($"A new SpocR version {latestVersion} is available");
+        consoleService.Info($"Current version: {spocrService.Version}");
+        consoleService.Info($"Latest version: {latestVersion}");
+        consoleService.Info("");
+
+        var options = new List<string> { "Update", "Skip this version", "Remind me later" };
+        var answer = consoleService.GetSelection("Please choose an option:", options);
+
+        switch (answer.Value)
         {
-            consoleService.Info("Update completed successfully. Please restart the application to use the new version.");
-            consoleService.Info("Application will exit in 3 seconds...");
-
-            Task.Delay(3000).Wait();
-
-            AppDomain.CurrentDomain.ProcessExit -= (s, e) => { };
-            Environment.ExitCode = 0;
-
-            throw new OperationCompletedException("Update completed successfully. Please restart the application.");
+            case "Update":
+                await InstallUpdateAsync();
+                break;
+            case "Skip this version":
+                WriteSkipThisVersion();
+                break;
+            case "Remind me later":
+            default:
+                WriteLongPause();
+                break;
         }
     }
 
     /// <summary>
-    /// Ausnahme, die signalisiert, dass ein Vorgang erfolgreich abgeschlossen wurde und die Anwendung neu starten sollte
+    /// Erstellt ein temporäres Verzeichnis für den Update-Prozess
     /// </summary>
-    public class OperationCompletedException(
-        string message
-    ) : Exception(message)
+    private static string CreateTempUpdateDirectory()
     {
+        string tempUpdateDir = Path.Combine(Path.GetTempPath(), $"SpocR_Update_{Guid.NewGuid()}");
+        Directory.CreateDirectory(tempUpdateDir);
+        return tempUpdateDir;
     }
 
-    private void WriteShortPause(bool save = true) { WriteToGlobalConfig(globalConfigFile.Config.AutoUpdate.ShortPauseInMinutes, false, save); }
-    private void WriteLongPause(bool save = true) { WriteToGlobalConfig(globalConfigFile.Config.AutoUpdate.LongPauseInMinutes, false, save); }
-    private void WriteSkipThisVersion(bool save = true) { WriteToGlobalConfig(globalConfigFile.Config.AutoUpdate.ShortPauseInMinutes, true, save); }
-    private void WriteDefaults(bool save = true) { WriteToGlobalConfig(globalConfigFile.Config.AutoUpdate.ShortPauseInMinutes, false, save); }
+    /// <summary>
+    /// Bereitet den Update-Prozess vor
+    /// </summary>
+    private static Process PrepareUpdateProcess(string workingDirectory)
+    {
+        return new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "dotnet",
+                Arguments = "tool update spocr -g",
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = false,
+                WorkingDirectory = workingDirectory
+            },
+            EnableRaisingEvents = true
+        };
+    }
+
+    /// <summary>
+    /// Richtet die Behandlung der Prozessausgabe ein
+    /// </summary>
+    private (Task<StringBuilder> OutputTask, Task<StringBuilder> ErrorTask) SetupProcessOutputHandling(Process process, CancellationToken cancellationToken)
+    {
+        var outputBuilder = new StringBuilder();
+        var errorBuilder = new StringBuilder();
+
+        var outputCompletionSource = new TaskCompletionSource<StringBuilder>();
+        var errorCompletionSource = new TaskCompletionSource<StringBuilder>();
+
+        process.OutputDataReceived += (_, args) =>
+        {
+            if (string.IsNullOrEmpty(args.Data))
+            {
+                outputCompletionSource.TrySetResult(outputBuilder);
+                return;
+            }
+
+            outputBuilder.AppendLine(args.Data);
+            ParseProgressAndUpdate(args.Data);
+        };
+
+        process.ErrorDataReceived += (_, args) =>
+        {
+            if (string.IsNullOrEmpty(args.Data))
+            {
+                errorCompletionSource.TrySetResult(errorBuilder);
+                return;
+            }
+
+            errorBuilder.AppendLine(args.Data);
+            consoleService.Error(args.Data);
+        };
+
+        // Abbruch-Token mit CompletionSource verbinden
+        cancellationToken.Register(() =>
+        {
+            outputCompletionSource.TrySetCanceled();
+            errorCompletionSource.TrySetCanceled();
+        });
+
+        return (outputCompletionSource.Task, errorCompletionSource.Task);
+    }
+
+    /// <summary>
+    /// Wartet auf den Abschluss des Update-Prozesses mit Timeout
+    /// </summary>
+    private async Task<bool> WaitForUpdateCompletionAsync(TaskCompletionSource<bool> exitEvent, CancellationTokenSource cancellationSource)
+    {
+        using var timeoutSource = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+        using var linkedSource = CancellationTokenSource.CreateLinkedTokenSource(
+            timeoutSource.Token, cancellationSource.Token);
+
+        try
+        {
+            return await exitEvent.Task.WaitAsync(linkedSource.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            if (timeoutSource.IsCancellationRequested)
+            {
+                consoleService.Error("Update process timed out after 2 minutes.");
+                return false;
+            }
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Schließt ein erfolgreiches Update ab
+    /// </summary>
+    private async Task FinalizeSuccessfulUpdateAsync()
+    {
+        consoleService.UpdateProgressStatus("Update completed successfully", percentage: CompletedPercentage);
+        consoleService.CompleteProgress(true);
+
+        consoleService.Info("SpocR has been updated successfully.");
+        consoleService.Info("Please restart the application to use the new version.");
+
+        // Kurze Pause, damit der Benutzer die Meldung lesen kann
+        await Task.Delay(3000);
+
+        // Beenden der Anwendung
+        Environment.Exit(0);
+    }
+
+    /// <summary>
+    /// Behandelt ein fehlgeschlagenes Update
+    /// </summary>
+    private void HandleFailedUpdate(string errorOutput)
+    {
+        consoleService.CompleteProgress(false);
+        consoleService.Error($"Update failed. Error: {errorOutput}");
+        WriteLongPause();
+    }
+
+    /// <summary>
+    /// Analysiert die Ausgabe des Update-Prozesses und aktualisiert den Fortschritt
+    /// </summary>
+    private void ParseProgressAndUpdate(string outputLine)
+    {
+        try
+        {
+            // Muster in der Ausgabe erkennen und Fortschritt entsprechend aktualisieren
+            if (outputLine.Contains("Restoring packages"))
+            {
+                consoleService.UpdateProgressStatus("Restoring packages...", percentage: RestoringPackagesPercentage);
+            }
+            else if (outputLine.Contains("Installing"))
+            {
+                consoleService.UpdateProgressStatus("Installing packages...", percentage: PackagesInstalledPercentage);
+            }
+            else if (outputLine.Contains("Successfully"))
+            {
+                consoleService.UpdateProgressStatus("Finalizing installation...", percentage: FinalizingPercentage);
+            }
+        }
+        catch
+        {
+            // Fehler beim Parsen ignorieren
+        }
+    }
+
+    #endregion
+
+    #region Configuration Management
+
+    private void WriteShortPause(bool save = true) =>
+        WriteToGlobalConfig(globalConfigFile.Config.AutoUpdate.ShortPauseInMinutes, false, save);
+
+    private void WriteLongPause(bool save = true) =>
+        WriteToGlobalConfig(globalConfigFile.Config.AutoUpdate.LongPauseInMinutes, false, save);
+
+    private void WriteSkipThisVersion(bool save = true) =>
+        WriteToGlobalConfig(globalConfigFile.Config.AutoUpdate.ShortPauseInMinutes, true, save);
+
+    private void WriteDefaults(bool save = true) =>
+        WriteToGlobalConfig(globalConfigFile.Config.AutoUpdate.ShortPauseInMinutes, false, save);
+
     private void WriteToGlobalConfig(int pause, bool skip = false, bool save = true)
     {
         if (skip)
         {
             globalConfigFile.Config.AutoUpdate.SkipVersion = spocrService.Version.ToVersionString();
-            globalConfigFile.Save(globalConfigFile.Config);
-
             consoleService.Info($"Version {spocrService.Version} will be skipped for updates.");
         }
         else
@@ -287,7 +370,6 @@ public class AutoUpdaterService(
 
         var now = DateTime.Now.Ticks;
         var pauseTicks = TimeSpan.FromMinutes(pause).Ticks;
-
         globalConfigFile.Config.AutoUpdate.NextCheckTicks = now + pauseTicks;
 
         if (save) SaveGlobalConfig();
@@ -297,6 +379,17 @@ public class AutoUpdaterService(
     {
         globalConfigFile.Save(globalConfigFile.Config);
     }
+
+    #endregion
+}
+
+/// <summary>
+/// Ausnahme, die signalisiert, dass ein Vorgang erfolgreich abgeschlossen wurde und die Anwendung neu starten sollte
+/// </summary>
+public class OperationCompletedException(
+    string message
+) : Exception(message)
+{
 }
 
 public interface IPackageManager
