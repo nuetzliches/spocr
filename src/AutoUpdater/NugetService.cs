@@ -4,15 +4,19 @@ using System.Linq;
 using System.Net.Http;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
+using SpocR.Services;
 
 // TODO Implement it as OOP based
 // Maybe move to Nuts.Packages.Providers
 
 namespace SpocR.AutoUpdater;
 
-public class NugetService : IPackageManager
+public class NugetService(
+    IReportService reportService
+) : IPackageManager
 {
     private readonly string _url = "https://api-v2v3search-0.nuget.org/query?q=spocr&take=1";
+
     public async Task<Version> GetLatestVersionAsync()
     {
         var latest = default(Version);
@@ -20,16 +24,37 @@ public class NugetService : IPackageManager
         {
             try
             {
+                httpClient.Timeout = TimeSpan.FromSeconds(10); // Timeout nach 10 Sekunden
                 var response = await httpClient.GetAsync(_url);
-                var searchResponse = await response.Content.ReadAsAsync<SearchResponse>();
-                if (response.IsSuccessStatusCode)
+
+                if (!response.IsSuccessStatusCode)
                 {
-                    latest = Version.Parse(searchResponse.Data.ToList().First().Version);
+                    reportService.Warn($"Failed to check for updates: Server returned {(int)response.StatusCode} {response.ReasonPhrase}");
+                    return latest;
                 }
+
+                var searchResponse = await response.Content.ReadAsAsync<SearchResponse>();
+                var packages = searchResponse.Data.ToList();
+
+                if (packages.Count == 0)
+                {
+                    reportService.Warn("No package information found from NuGet");
+                    return latest;
+                }
+
+                latest = Version.Parse(packages.First().Version);
             }
-            catch (HttpRequestException)
+            catch (HttpRequestException ex)
             {
-                // TODO: handle network exception
+                reportService.Warn($"Network error while checking for updates: {ex.Message}");
+            }
+            catch (TaskCanceledException)
+            {
+                reportService.Warn("Update check timed out. Please check your internet connection.");
+            }
+            catch (Exception ex)
+            {
+                reportService.Warn($"Unexpected error checking for updates: {ex.Message}");
             }
         }
         return latest;
