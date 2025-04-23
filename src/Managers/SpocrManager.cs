@@ -315,9 +315,11 @@ public class SpocrManager(
         return ExecuteResultEnum.Succeeded;
     }
 
+    private bool _versionCheckPerformed = false;
     private async Task<ExecuteResultEnum> RunConfigVersionCheckAsync(ICommandOptions options)
     {
-        if (options.NoVersionCheck) return ExecuteResultEnum.Skipped;
+        if (options.NoVersionCheck || _versionCheckPerformed) return ExecuteResultEnum.Skipped;
+        _versionCheckPerformed = true;
 
         var check = configFile.CheckVersion();
         if (!check.DoesMatch)
