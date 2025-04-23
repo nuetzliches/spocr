@@ -73,47 +73,49 @@ public class Program
 
         app.InitializeGlobalConfig(serviceProvider);
 
+        return await app.ExecuteAsync(args);
+
         // Automatische Prüfung auf Updates beim Startup
-        var consoleService = serviceProvider.GetRequiredService<IConsoleService>();
-        var autoUpdater = serviceProvider.GetRequiredService<AutoUpdaterService>();
+        // var consoleService = serviceProvider.GetRequiredService<IConsoleService>();
+        // var autoUpdater = serviceProvider.GetRequiredService<AutoUpdaterService>();
 
-        // Aktuelle Umgebung anzeigen (optional)
-        consoleService.Verbose($"Current environment: {environment}");
+        // Aktuelle Umgebung anzeigen
+        // consoleService.Verbose($"Current environment: {environment}");
 
-        try
-        {
-            // Prüfung auf Updates, aber nicht blockierend ausführen
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await autoUpdater.RunAsync();
-                }
-                catch (Exception ex)
-                {
-                    // Fehler beim Update-Check sollten die Hauptfunktion nicht beeinträchtigen
-                    consoleService.Warn($"Update check failed: {ex.Message}");
-                }
-            });
+        // try
+        // {
+        //     // Prüfung auf Updates, aber nicht blockierend ausführen
+        //     _ = Task.Run(async () =>
+        //     {
+        //         try
+        //         {
+        //             await autoUpdater.RunAsync();
+        //         }
+        //         catch (Exception ex)
+        //         {
+        //             // Fehler beim Update-Check sollten die Hauptfunktion nicht beeinträchtigen
+        //             consoleService.Warn($"Update check failed: {ex.Message}");
+        //         }
+        //     });
 
-            app.OnExecute(() =>
-            {
-                app.ShowRootCommandFullNameAndVersion();
-                app.ShowHelp();
-                return 0;
-            });
+        //     app.OnExecute(() =>
+        //     {
+        //         app.ShowRootCommandFullNameAndVersion();
+        //         app.ShowHelp();
+        //         return 0;
+        //     });
 
-            // Command line ausführen
-            return await app.ExecuteAsync(args);
-        }
-        catch (Exception ex)
-        {
-            consoleService.Error($"Unhandled exception: {ex.Message}");
-            if (ex.InnerException != null)
-            {
-                consoleService.Error($"Inner exception: {ex.InnerException.Message}");
-            }
-            return 1; // Fehlercode zurückgeben
-        }
+        //     // Command line ausführen
+        //     return await app.ExecuteAsync(args);
+        // }
+        // catch (Exception ex)
+        // {
+        //     consoleService.Error($"Unhandled exception: {ex.Message}");
+        //     if (ex.InnerException != null)
+        //     {
+        //         consoleService.Error($"Inner exception: {ex.InnerException.Message}");
+        //     }
+        //     return 1; // Fehlercode zurückgeben
+        // }
     }
 }
