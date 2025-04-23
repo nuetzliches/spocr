@@ -11,20 +11,17 @@ namespace SpocR.Services;
 
 public class OutputService(
     FileManager<ConfigurationModel> configFile,
-    IReportService reportService
+    IConsoleService consoleService
 )
 {
-    private readonly FileManager<ConfigurationModel> _configFile = configFile;
-    private readonly IReportService _reportService = reportService;
-
     public DirectoryInfo GetOutputRootDir()
     {
-        if (string.IsNullOrEmpty(_configFile.Config.TargetFramework))
+        if (string.IsNullOrEmpty(configFile.Config.TargetFramework))
         {
             return new DirectoryInfo(Path.Combine(DirectoryUtils.GetApplicationRoot(), "Output"));
         }
 
-        var targetFramework = _configFile.Config.TargetFramework;
+        var targetFramework = configFile.Config.TargetFramework;
         int.TryParse(targetFramework?.Replace("net", "")[0].ToString(), out var versionNumber);
 
         if (targetFramework.StartsWith("net9"))
@@ -78,13 +75,13 @@ public class OutputService(
         var fileContent = File.ReadAllText(file.FullName);
 
         // replace custom DefaultConnection identifier
-        var runtimeConnectionStringIdentifier = _configFile.Config.Project.DataBase.RuntimeConnectionStringIdentifier ?? "DefaultConnection";
+        var runtimeConnectionStringIdentifier = configFile.Config.Project.DataBase.RuntimeConnectionStringIdentifier ?? "DefaultConnection";
         fileContent = fileContent.Replace(@"<spocr>DefaultConnection</spocr>", runtimeConnectionStringIdentifier);
 
         var tree = CSharpSyntaxTree.ParseText(fileContent);
         var root = tree.GetCompilationUnitRoot();
 
-        if (_configFile.Config.Project.Role.Kind == ERoleKind.Lib)
+        if (configFile.Config.Project.Role.Kind == ERoleKind.Lib)
         {
             root = root.ReplaceUsings(u => u.Replace("Source.DataContext", $"{nameSpace}"));
             root = root.ReplaceNamespace(ns => ns.Replace("Source.DataContext", nameSpace));
@@ -110,7 +107,7 @@ public class OutputService(
     {
         var folderName = new DirectoryInfo(Path.GetDirectoryName(targetFileName)).Name;
         var fileName = Path.GetFileName(targetFileName);
-        var fileAction = FileAction.Created;
+        var fileAction = EFileAction.Created;
         var outputFileText = sourceText.ToString();
 
         if (File.Exists(targetFileName))
@@ -118,20 +115,20 @@ public class OutputService(
             var existingFileText = File.ReadAllText(targetFileName);
             var upToDate = string.Equals(existingFileText, outputFileText);
 
-            fileAction = upToDate ? FileAction.UpToDate : FileAction.Modified;
+            fileAction = upToDate ? EFileAction.UpToDate : EFileAction.Modified;
         }
 
-        if (!isDryRun && fileAction != FileAction.UpToDate)
+        if (!isDryRun && fileAction != EFileAction.UpToDate)
             File.WriteAllText(targetFileName, outputFileText);
 
-        _reportService.PrintFileActionMessage($"{folderName}/{fileName}", fileAction);
+        consoleService.PrintFileActionMessage($"{folderName}/{fileName}", fileAction);
     }
 
     public void RemoveGeneratedFiles(string pathToDelete, bool dryRun)
     {
         if (Directory.Exists(pathToDelete))
         {
-            _reportService.Warn($"DELETE: Generated spocr files");
+            consoleService.Warn($"DELETE: Generated spocr files");
 
             if (!dryRun)
                 Directory.Delete(pathToDelete, true);

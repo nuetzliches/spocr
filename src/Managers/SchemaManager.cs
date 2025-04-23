@@ -11,7 +11,7 @@ namespace SpocR.Managers;
 
 public class SchemaManager(
     DbContext dbContext,
-    IReportService reportService
+    IConsoleService consoleService
 )
 {
     public async Task<List<SchemaModel>> ListAsync(ConfigurationModel config, CancellationToken cancellationToken = default)
@@ -44,7 +44,7 @@ public class SchemaManager(
         var schemaListString = string.Join(',', schemas.Where(i => i.Status != SchemaStatusEnum.Ignore).Select(i => $"'{i.Name}'"));
         if (string.IsNullOrEmpty(schemaListString))
         {
-            reportService.Warn("No schemas found or all schemas ignored!");
+            consoleService.Warn("No schemas found or all schemas ignored!");
             return schemas;
         }
 

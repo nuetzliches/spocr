@@ -17,7 +17,7 @@ public abstract class CommandBase : IAppCommand, ICommandOptions
     public virtual bool Force { get; set; }
 
     [Option("-s|--silent", "Run without user interactions and dont check for updates", CommandOptionType.NoValue)]
-    public virtual bool Silent { get; set; }
+    public virtual bool Quiet { get; set; }
 
     [Option("-v|--verbose", "Show non necessary information", CommandOptionType.NoValue)]
     public virtual bool Verbose { get; set; }
@@ -34,7 +34,7 @@ public abstract class CommandBase : IAppCommand, ICommandOptions
     public virtual async Task<int> OnExecuteAsync()
     {
         DirectoryUtils.SetBasePath(Path);
-        return await Task.FromResult((int)ExecuteResultEnum.Succeeded);
+        return await Task.FromResult((int)EExecuteResult.Succeeded);
     }
 
     public ICommandOptions CommandOptions => new CommandOptions(this);
@@ -45,23 +45,40 @@ public interface ICommandOptions
     string Path { get; }
     bool DryRun { get; }
     bool Force { get; }
-    bool Silent { get; }
+    bool Quiet { get; }
     bool Verbose { get; }
     bool NoVersionCheck { get; set; }
     bool NoAutoUpdate { get; set; }
     bool Debug { get; }
 }
 
-public class CommandOptions(
-    ICommandOptions options
-) : ICommandOptions
+public class CommandOptions(ICommandOptions options) : ICommandOptions
 {
-    public string Path => options.Path?.Trim();
-    public bool DryRun => options.DryRun;
-    public bool Force => options.Force;
-    public bool Silent => options.Silent;
-    public bool Verbose { get; set; } = options?.Verbose ?? false;
-    public bool NoVersionCheck { get; set; } = options?.NoVersionCheck ?? false;
-    public bool NoAutoUpdate { get; set; }
-    public bool Debug => options.Debug;
+
+    // Parameterloser Konstruktor
+    public CommandOptions() : this(new EmptyCommandOptions())
+    {
+    }
+
+    public string Path => options?.Path?.Trim();
+    public bool DryRun => options?.DryRun ?? false;
+    public bool Force => options?.Force ?? false;
+    public bool Quiet => options?.Quiet ?? false;
+    public bool Verbose { get; set; } = false;
+    public bool NoVersionCheck { get; set; } = false;
+    public bool NoAutoUpdate { get; set; } = false;
+    public bool Debug => options?.Debug ?? false;
+}
+
+// Hilfsklasse für den parameterlosen Konstruktor
+internal class EmptyCommandOptions : ICommandOptions
+{
+    public string Path => null;
+    public bool DryRun => false;
+    public bool Force => false;
+    public bool Quiet => false;
+    public bool Verbose { get; set; } = false;
+    public bool NoVersionCheck { get; set; } = false;
+    public bool NoAutoUpdate { get; set; } = false;
+    public bool Debug => false;
 }

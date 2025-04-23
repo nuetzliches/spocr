@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using SpocR.CodeGenerators.Models;
 using SpocR.Enums;
+using SpocR.Extensions;
 using SpocR.Models;
 using SpocR.Services;
 
@@ -20,7 +21,7 @@ public class CodeGenerationOrchestrator(
     ModelGenerator modelGenerator,
     TableTypeGenerator tableTypeGenerator,
     StoredProcedureGenerator storedProcedureGenerator,
-    IReportService reportService,
+    IConsoleService consoleService,
     OutputService outputService
 )
 {
@@ -56,7 +57,7 @@ public class CodeGenerationOrchestrator(
             if (!codeBaseAlreadyExists && outputConfig != null)
             {
                 currentStep++;
-                reportService.PrintSubTitle($"Generating CodeBase (Step {currentStep}/{totalSteps})");
+                consoleService.PrintSubTitle($"Generating CodeBase (Step {currentStep}/{totalSteps})");
                 stopwatch.Start();
                 outputService.GenerateCodeBase(outputConfig, isDryRun);
                 elapsed.Add("CodeBase", stopwatch.ElapsedMilliseconds);
@@ -64,37 +65,37 @@ public class CodeGenerationOrchestrator(
 
             currentStep++;
             stopwatch.Restart();
-            reportService.PrintSubTitle($"Generating TableTypes (Step {currentStep}/{totalSteps})");
+            consoleService.PrintSubTitle($"Generating TableTypes (Step {currentStep}/{totalSteps})");
             GenerateDataContextTableTypes(isDryRun);
             elapsed.Add("TableTypes", stopwatch.ElapsedMilliseconds);
 
             currentStep++;
             stopwatch.Restart();
-            reportService.PrintSubTitle($"Generating Inputs (Step {currentStep}/{totalSteps})");
+            consoleService.PrintSubTitle($"Generating Inputs (Step {currentStep}/{totalSteps})");
             GenerateDataContextInputs(isDryRun);
             elapsed.Add("Inputs", stopwatch.ElapsedMilliseconds);
 
             currentStep++;
             stopwatch.Restart();
-            reportService.PrintSubTitle($"Generating Outputs (Step {currentStep}/{totalSteps})");
+            consoleService.PrintSubTitle($"Generating Outputs (Step {currentStep}/{totalSteps})");
             GenerateDataContextOutputs(isDryRun);
             elapsed.Add("Outputs", stopwatch.ElapsedMilliseconds);
 
             currentStep++;
             stopwatch.Restart();
-            reportService.PrintSubTitle($"Generating Output Models (Step {currentStep}/{totalSteps})");
+            consoleService.PrintSubTitle($"Generating Output Models (Step {currentStep}/{totalSteps})");
             GenerateDataContextModels(isDryRun);
             elapsed.Add("Models", stopwatch.ElapsedMilliseconds);
 
             currentStep++;
             stopwatch.Restart();
-            reportService.PrintSubTitle($"Generating StoredProcedures (Step {currentStep}/{totalSteps})");
+            consoleService.PrintSubTitle($"Generating StoredProcedures (Step {currentStep}/{totalSteps})");
             GenerateDataContextStoredProcedures(isDryRun);
             elapsed.Add("StoredProcedures", stopwatch.ElapsedMilliseconds);
         }
         catch (Exception ex)
         {
-            reportService.Error($"Error during code generation step {currentStep}/{totalSteps}: {ex.Message}");
+            consoleService.Error($"Error during code generation step {currentStep}/{totalSteps}: {ex.Message}");
             HasErrors = true;
             throw;
         }
@@ -115,7 +116,7 @@ public class CodeGenerationOrchestrator(
 
         try
         {
-            reportService.StartProgress("Generiere Code...");
+            consoleService.StartProgress("Generiere Code...");
 
             GenerateDataContextTableTypes(isDryRun);
             GenerateDataContextInputs(isDryRun);
@@ -123,13 +124,13 @@ public class CodeGenerationOrchestrator(
             GenerateDataContextModels(isDryRun);
             GenerateDataContextStoredProcedures(isDryRun);
 
-            reportService.CompleteProgress();
+            consoleService.CompleteProgress();
         }
         catch (Exception ex)
         {
-            reportService.Error($"Fehler bei der Code-Generierung: {ex.Message}");
+            consoleService.Error($"Fehler bei der Code-Generierung: {ex.Message}");
             HasErrors = true;
-            reportService.CompleteProgress(success: false);
+            consoleService.CompleteProgress(success: false);
             throw;
         }
     }
@@ -143,7 +144,7 @@ public class CodeGenerationOrchestrator(
 
         try
         {
-            reportService.StartProgress("Generiere ausgewählte Code-Typen...");
+            consoleService.StartProgress("Generiere ausgewählte Code-Typen...");
 
             if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.TableTypes))
                 GenerateDataContextTableTypes(isDryRun);
@@ -160,13 +161,13 @@ public class CodeGenerationOrchestrator(
             if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.StoredProcedures))
                 GenerateDataContextStoredProcedures(isDryRun);
 
-            reportService.CompleteProgress();
+            consoleService.CompleteProgress();
         }
         catch (Exception ex)
         {
-            reportService.Error($"Fehler bei der Code-Generierung: {ex.Message}");
+            consoleService.Error($"Fehler bei der Code-Generierung: {ex.Message}");
             HasErrors = true;
-            reportService.CompleteProgress(success: false);
+            consoleService.CompleteProgress(success: false);
         }
     }
 

@@ -1,6 +1,6 @@
 namespace SpocR.Enums;
 
-public enum ExecuteResultEnum
+public enum EExecuteResult
 {
     Undefined = 0,
     Succeeded = 1,

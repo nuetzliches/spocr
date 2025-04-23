@@ -19,9 +19,9 @@ namespace SpocR.CodeGenerators.Models;
 public class InputGenerator(
     FileManager<ConfigurationModel> configFile,
     OutputService output,
-    IReportService reportService,
+    IConsoleService consoleService,
     TemplateManager templateManager
-) : GeneratorBase(configFile, output, reportService)
+) : GeneratorBase(configFile, output, consoleService)
 {
     public SourceText GetInputTextForStoredProcedure(Definition.Schema schema, Definition.StoredProcedure storedProcedure)
     {

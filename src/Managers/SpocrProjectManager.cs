@@ -1,7 +1,6 @@
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using McMaster.Extensions.CommandLineUtils;
 using SpocR.Commands;
 using SpocR.Commands.Project;
 using SpocR.Enums;
@@ -12,30 +11,30 @@ namespace SpocR.Managers;
 
 public class SpocrProjectManager(
     FileManager<GlobalConfigurationModel> globalConfigFile,
-    IReportService reportService
+    IConsoleService consoleService
 )
 {
-    public async Task<ExecuteResultEnum> CreateAsync(IProjectCommandOptions options)
+    public async Task<EExecuteResult> CreateAsync(IProjectCommandOptions options)
     {
         var path = options.Path;
         var displayName = options.DisplayName;
         if (string.IsNullOrEmpty(path))
         {
-            if (options.Silent)
+            if (options.Quiet)
             {
-                reportService.Error($"Path to spocr.json is required");
-                reportService.Output($"\tPlease use '--path'");
-                return ExecuteResultEnum.Error;
+                consoleService.Error($"Path to spocr.json is required");
+                consoleService.Output($"\tPlease use '--path'");
+                return EExecuteResult.Error;
             }
             else
             {
-                path = Prompt.GetString("Enter path to spocr.json, e.g. base directory of your project:", new DirectoryInfo(Directory.GetCurrentDirectory()).Name);
+                path = consoleService.GetString("Enter path to spocr.json, e.g. base directory of your project:", new DirectoryInfo(Directory.GetCurrentDirectory()).Name);
             }
         }
 
         if (string.IsNullOrEmpty(path))
         {
-            return ExecuteResultEnum.Aborted;
+            return EExecuteResult.Aborted;
         }
 
         path = CreateConfigFilePath(path);
@@ -47,14 +46,14 @@ public class SpocrProjectManager(
 
         if (string.IsNullOrEmpty(displayName))
         {
-            reportService.Error($"DisplayName for project is required");
-            reportService.Output($"\tPlease use '--name'");
-            return ExecuteResultEnum.Error;
+            consoleService.Error($"DisplayName for project is required");
+            consoleService.Output($"\tPlease use '--name'");
+            return EExecuteResult.Error;
         }
 
         if (IsDisplayNameAlreadyUsed(displayName, options))
         {
-            return ExecuteResultEnum.Error;
+            return EExecuteResult.Error;
         }
 
         globalConfigFile.Config?.Projects.Add(new GlobalProjectConfigurationModel
@@ -65,31 +64,31 @@ public class SpocrProjectManager(
 
         await Task.Run(() => globalConfigFile.Save(globalConfigFile.Config));
 
-        if (options.Silent)
+        if (options.Quiet)
         {
-            reportService.Output($"{{ \"displayName\": \"{displayName}\" }}");
+            consoleService.Output($"{{ \"displayName\": \"{displayName}\" }}");
         }
         else
         {
-            reportService.Output($"Project '{displayName}' created.");
+            consoleService.Output($"Project '{displayName}' created.");
         }
-        return ExecuteResultEnum.Succeeded;
+        return EExecuteResult.Succeeded;
     }
 
-    public ExecuteResultEnum Create(IProjectCommandOptions options)
+    public EExecuteResult Create(IProjectCommandOptions options)
     {
         return CreateAsync(options).GetAwaiter().GetResult();
     }
 
-    public async Task<ExecuteResultEnum> UpdateAsync(IProjectUpdateCommandOptions options)
+    public async Task<EExecuteResult> UpdateAsync(IProjectUpdateCommandOptions options)
     {
         var displayName = options.DisplayName;
         var projectIndex = FindIndexByName(displayName);
 
         if (projectIndex < 0)
         {
-            reportService.Error($"Cant find project '{displayName}'");
-            return ExecuteResultEnum.Error;
+            consoleService.Error($"Cant find project '{displayName}'");
+            return EExecuteResult.Error;
         }
 
         var path = options.Path;
@@ -103,7 +102,7 @@ public class SpocrProjectManager(
         {
             if (IsDisplayNameAlreadyUsed(newDisplayName, options))
             {
-                return ExecuteResultEnum.Error;
+                return EExecuteResult.Error;
             }
         }
 
@@ -119,37 +118,37 @@ public class SpocrProjectManager(
 
         await Task.Run(() => globalConfigFile.Save(globalConfigFile.Config));
 
-        reportService.Output($"Project '{newDisplayName ?? displayName}' updated.");
-        return ExecuteResultEnum.Succeeded;
+        consoleService.Output($"Project '{newDisplayName ?? displayName}' updated.");
+        return EExecuteResult.Succeeded;
     }
 
-    public ExecuteResultEnum Update(IProjectUpdateCommandOptions options)
+    public EExecuteResult Update(IProjectUpdateCommandOptions options)
     {
         return UpdateAsync(options).GetAwaiter().GetResult();
     }
 
-    public async Task<ExecuteResultEnum> DeleteAsync(IProjectCommandOptions options)
+    public async Task<EExecuteResult> DeleteAsync(IProjectCommandOptions options)
     {
         var displayName = options.DisplayName;
         var projectIndex = FindIndexByName(displayName);
 
         if (projectIndex < 0)
         {
-            reportService.Error($"Cant find project '{displayName}'");
-            return ExecuteResultEnum.Error;
+            consoleService.Error($"Cant find project '{displayName}'");
+            return EExecuteResult.Error;
         }
 
         if (!options.Force)
         {
-            if (options.Silent)
+            if (options.Quiet)
             {
-                reportService.Warn($"Please add --force to delete project '{displayName}'");
-                return ExecuteResultEnum.Error;
+                consoleService.Warn($"Please add --force to delete project '{displayName}'");
+                return EExecuteResult.Error;
             }
             else
             {
-                var delete = Prompt.GetYesNo($"Delete project '{displayName}'", false, System.ConsoleColor.Red);
-                if (!delete) return ExecuteResultEnum.Aborted;
+                var delete = consoleService.GetYesNo($"Delete project '{displayName}'", false, System.ConsoleColor.Red);
+                if (!delete) return EExecuteResult.Aborted;
             }
         }
 
@@ -157,46 +156,46 @@ public class SpocrProjectManager(
 
         await Task.Run(() => globalConfigFile.Save(globalConfigFile.Config));
 
-        reportService.Output($"Project '{displayName}' deleted.");
-        return ExecuteResultEnum.Succeeded;
+        consoleService.Output($"Project '{displayName}' deleted.");
+        return EExecuteResult.Succeeded;
     }
 
-    public ExecuteResultEnum Delete(IProjectCommandOptions options)
+    public EExecuteResult Delete(IProjectCommandOptions options)
     {
         return DeleteAsync(options).GetAwaiter().GetResult();
     }
 
-    public async Task<ExecuteResultEnum> ListAsync(ICommandOptions options)
+    public async Task<EExecuteResult> ListAsync(ICommandOptions options)
     {
         var projects = globalConfigFile.Config?.Projects;
 
-        if (!options.Silent && !(projects?.Any() ?? false))
+        if (!options.Quiet && !(projects?.Any() ?? false))
         {
-            reportService.Warn($"No Projects found");
-            return ExecuteResultEnum.Aborted;
+            consoleService.Warn($"No Projects found");
+            return EExecuteResult.Aborted;
         }
 
         await Task.Run(() =>
         {
-            reportService.Output($"[{(projects.Count > 0 ? "{" : "")}");
+            consoleService.Output($"[{(projects.Count > 0 ? "{" : "")}");
             projects.ForEach(project =>
             {
                 var fileExists = File.Exists(project.ConfigFile).ToString().ToLower();
-                reportService.Output($"\t\"displayName\": \"{project.DisplayName}\",");
-                reportService.Output($"\t\"path\": \"{project.ConfigFile}\",");
-                reportService.Output($"\t\"fileExists\": {fileExists}");
+                consoleService.Output($"\t\"displayName\": \"{project.DisplayName}\",");
+                consoleService.Output($"\t\"path\": \"{project.ConfigFile}\",");
+                consoleService.Output($"\t\"fileExists\": {fileExists}");
                 if (projects.FindIndex(_ => _ == project) < projects.Count - 1)
                 {
-                    reportService.Output("}, {");
+                    consoleService.Output("}, {");
                 }
             });
-            reportService.Output($"{(projects.Count > 0 ? "}" : "")}]");
+            consoleService.Output($"{(projects.Count > 0 ? "}" : "")}]");
         });
 
-        return ExecuteResultEnum.Succeeded;
+        return EExecuteResult.Succeeded;
     }
 
-    public ExecuteResultEnum List(ICommandOptions options)
+    public EExecuteResult List(ICommandOptions options)
     {
         return ListAsync(options).GetAwaiter().GetResult();
     }
@@ -241,10 +240,10 @@ public class SpocrProjectManager(
     {
         if (FindByName(displayName) != null)
         {
-            reportService.Error($"Project {displayName} already exists");
-            if (!options.Silent)
+            consoleService.Error($"Project {displayName} already exists");
+            if (!options.Quiet)
             {
-                reportService.Output($"\tPlease run '{Constants.Name} project ls' to show all existing projects");
+                consoleService.Output($"\tPlease run '{Constants.Name} project ls' to show all existing projects");
             }
             return true;
         }

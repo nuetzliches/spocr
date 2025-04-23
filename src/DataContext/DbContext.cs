@@ -10,22 +10,18 @@ using SpocR.Services;
 
 namespace SpocR.DataContext;
 
-public class DbContext : IDisposable
+public class DbContext(
+    IConsoleService consoleService
+) : IDisposable
 {
-    private readonly IReportService _reportService;
     private SqlConnection _connection;
 
     private List<AppSqlTransaction> _transactions;
 
-    public DbContext(IReportService reportService)
-    {
-        _reportService = reportService;
-    }
-
     public void SetConnectionString(string connectionString)
     {
         _connection = new SqlConnection(connectionString);
-        _transactions = new List<AppSqlTransaction>();
+        _transactions = [];
     }
 
     public void Dispose()
@@ -71,7 +67,7 @@ public class DbContext : IDisposable
         }
         catch (Exception e)
         {
-            _reportService.Error($"Fehler in ExecuteListAsync für {procedureName}: {e.Message}");
+            consoleService.Error($"Fehler in ExecuteListAsync für {procedureName}: {e.Message}");
             throw;
         }
 
@@ -114,7 +110,7 @@ public class DbContext : IDisposable
         }
         catch (Exception e)
         {
-            _reportService.Error($"Fehler in ListAsync für Query: {e.Message}");
+            consoleService.Error($"Fehler in ListAsync für Query: {e.Message}");
             throw;
         }
 
@@ -207,11 +203,8 @@ public static class DbContextServiceCollectionExtensions
 {
     public static IServiceCollection AddDbContext(this IServiceCollection services)
     {
-        using (var provider = services.BuildServiceProvider())
-        {
-            var reportService = provider.GetService<IReportService>();
-            services.AddSingleton(new DbContext(reportService));
-            return services;
-        }
+        services.AddSingleton(provider =>
+            new DbContext(provider.GetRequiredService<IConsoleService>()));
+        return services;
     }
 }

@@ -11,7 +11,6 @@ using SpocR.Models;
 using SpocR.Services;
 using SpocR.Utils;
 
-
 namespace SpocR.Extensions
 {
     public static class SpocrServiceCollectionExtensions
@@ -25,7 +24,12 @@ namespace SpocR.Extensions
 #endif
 
             var spocrService = new SpocrService();
-            var commandOptions = new CommandOptions(null);
+            var commandOptions = new CommandOptions();
+
+            services.AddSingleton(PhysicalConsole.Singleton);
+            services.AddSingleton(commandOptions);
+            services.AddSingleton<IConsoleService>(provider =>
+                new ConsoleService(provider.GetRequiredService<IConsole>(), commandOptions));
 
             services.AddSingleton(spocrService);
             services.AddSingleton<IPackageManager, NugetService>();
@@ -46,7 +50,6 @@ namespace SpocR.Extensions
             services.AddSingleton<TableTypeGenerator>();
             services.AddSingleton<StoredProcedureGenerator>();
             services.AddSingleton<CodeGenerationOrchestrator>();
-            services.AddSingleton<IReportService>(new ReportService(new ColoredConsoleReporter(PhysicalConsole.Singleton, true, false), commandOptions));
 
             return services;
         }

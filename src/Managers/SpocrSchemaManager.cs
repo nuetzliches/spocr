@@ -11,18 +11,18 @@ namespace SpocR.Managers;
 
 public class SpocrSchemaManager(
     FileManager<ConfigurationModel> configFile,
-    IReportService reportService
+    IConsoleService consoleService
 )
 {
-    public async Task<ExecuteResultEnum> UpdateAsync(ISchemaUpdateCommandOptions options)
+    public async Task<EExecuteResult> UpdateAsync(ISchemaUpdateCommandOptions options)
     {
         var schemaName = options.SchemaName;
         var schemaIndex = FindIndexByName(schemaName);
 
         if (schemaIndex < 0)
         {
-            reportService.Error($"Cant find schema '{schemaName}'");
-            return ExecuteResultEnum.Error;
+            consoleService.Error($"Cant find schema '{schemaName}'");
+            return EExecuteResult.Error;
         }
 
         var status = options.Status;
@@ -33,46 +33,46 @@ public class SpocrSchemaManager(
 
         await Task.Run(() => configFile.Save(configFile.Config));
 
-        reportService.Output($"Schema '{schemaName}' updated.");
-        return ExecuteResultEnum.Succeeded;
+        consoleService.Output($"Schema '{schemaName}' updated.");
+        return EExecuteResult.Succeeded;
     }
 
     // Behalte die synchrone Methode für Abwärtskompatibilität
-    public ExecuteResultEnum Update(ISchemaUpdateCommandOptions options)
+    public EExecuteResult Update(ISchemaUpdateCommandOptions options)
     {
         return UpdateAsync(options).GetAwaiter().GetResult();
     }
 
-    public async Task<ExecuteResultEnum> ListAsync(ICommandOptions options)
+    public async Task<EExecuteResult> ListAsync(ICommandOptions options)
     {
         var schemas = configFile.Config?.Schema;
 
-        if (!options.Silent && !(schemas?.Any() ?? false))
+        if (!options.Quiet && !(schemas?.Any() ?? false))
         {
-            reportService.Warn($"No Schemas found");
-            return ExecuteResultEnum.Aborted;
+            consoleService.Warn($"No Schemas found");
+            return EExecuteResult.Aborted;
         }
 
         await Task.Run(() =>
         {
-            reportService.Output($"[{(schemas.Count > 0 ? "{" : "")}");
+            consoleService.Output($"[{(schemas.Count > 0 ? "{" : "")}");
             schemas.ForEach(schema =>
             {
-                reportService.Output($"\t\"name\": \"{schema.Name}\",");
-                reportService.Output($"\t\"status\": \"{schema.Status}\"");
+                consoleService.Output($"\t\"name\": \"{schema.Name}\",");
+                consoleService.Output($"\t\"status\": \"{schema.Status}\"");
                 if (schemas.FindIndex(_ => _ == schema) < schemas.Count - 1)
                 {
-                    reportService.Output("}, {");
+                    consoleService.Output("}, {");
                 }
             });
-            reportService.Output($"{(schemas.Count > 0 ? "}" : "")}]");
+            consoleService.Output($"{(schemas.Count > 0 ? "}" : "")}]");
         });
 
-        return ExecuteResultEnum.Succeeded;
+        return EExecuteResult.Succeeded;
     }
 
     // Behalte die synchrone Methode für Abwärtskompatibilität
-    public ExecuteResultEnum List(ICommandOptions options)
+    public EExecuteResult List(ICommandOptions options)
     {
         return ListAsync(options).GetAwaiter().GetResult();
     }

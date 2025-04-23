@@ -7,36 +7,40 @@ using SpocR.Services;
 namespace SpocR.Managers;
 
 public class SpocrStoredProcdureManager(
-    FileManager<ConfigurationModel> configFile,
-    IReportService reportService
+    IConsoleService consoleService
 )
 {
-    public ExecuteResultEnum List(IStoredProcedureCommandOptions options)
+    public EExecuteResult List(IStoredProcedureCommandOptions options)
     {
-        var storedProcedures = configFile.Config?.Schema.FirstOrDefault(_ => _.Name.Equals(options.SchemaName))?.StoredProcedures?.ToList();
+        var configFile = new FileManager<ConfigurationModel>(null, Constants.ConfigurationFile);
+        if (!configFile.TryOpen(options.Path, out ConfigurationModel config))
+        {
+            consoleService.Warn($"No StoredProcduress found");
+            return EExecuteResult.Aborted;
+        }
+
+        var storedProcedures = config?.Schema.FirstOrDefault(_ => _.Name.Equals(options.SchemaName))?.StoredProcedures?.ToList();
 
         if (!(storedProcedures?.Any() ?? false))
         {
-            if (!options.Silent)
+            if (!options.Quiet)
             {
-                reportService.Warn($"No StoredProcduress found");
+                consoleService.Warn($"No StoredProcduress found");
             }
-            return ExecuteResultEnum.Aborted;
+            return EExecuteResult.Aborted;
         }
 
-        reportService.Output($"[{(storedProcedures.Count > 0 ? "{" : "")}");
+        consoleService.Output($"[{(storedProcedures.Count > 0 ? "{" : "")}]");
         storedProcedures.ForEach(storedprocdures =>
         {
-            reportService.Output($"\t\"name\": \"{storedprocdures.Name}\"");
-            // _reportService.Output($"\t\"name\": \"{storedprocdures.Name}\",");
-            // _reportService.Output($"\t\"status\": \"{storedprocdures.Status}\"");
+            consoleService.Output($"\t\"name\": \"{storedprocdures.Name}\"");
             if (storedProcedures.FindIndex(_ => _ == storedprocdures) < storedProcedures.Count - 1)
             {
-                reportService.Output("}, {");
+                consoleService.Output("}, {");
             }
         });
-        reportService.Output($"{(storedProcedures.Count > 0 ? "}" : "")}]");
+        consoleService.Output($"{(storedProcedures.Count > 0 ? "}" : "")}]");
 
-        return ExecuteResultEnum.Succeeded;
+        return EExecuteResult.Succeeded;
     }
 }

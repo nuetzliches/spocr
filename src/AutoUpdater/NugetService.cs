@@ -6,13 +6,14 @@ using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using SpocR.Services;
 
+
 // TODO Implement it as OOP based
 // Maybe move to Nuts.Packages.Providers
 
 namespace SpocR.AutoUpdater;
 
 public class NugetService(
-    IReportService reportService
+    IConsoleService consoleService
 ) : IPackageManager
 {
     private readonly string _url = "https://api-v2v3search-0.nuget.org/query?q=spocr&take=1";
@@ -29,7 +30,7 @@ public class NugetService(
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    reportService.Warn($"Failed to check for updates: Server returned {(int)response.StatusCode} {response.ReasonPhrase}");
+                    consoleService.Warn($"Failed to check for updates: Server returned {(int)response.StatusCode} {response.ReasonPhrase}");
                     return latest;
                 }
 
@@ -38,7 +39,7 @@ public class NugetService(
 
                 if (packages.Count == 0)
                 {
-                    reportService.Warn("No package information found from NuGet");
+                    consoleService.Warn("No package information found from NuGet");
                     return latest;
                 }
 
@@ -46,15 +47,15 @@ public class NugetService(
             }
             catch (HttpRequestException ex)
             {
-                reportService.Warn($"Network error while checking for updates: {ex.Message}");
+                consoleService.Warn($"Network error while checking for updates: {ex.Message}");
             }
             catch (TaskCanceledException)
             {
-                reportService.Warn("Update check timed out. Please check your internet connection.");
+                consoleService.Warn("Update check timed out. Please check your internet connection.");
             }
             catch (Exception ex)
             {
-                reportService.Warn($"Unexpected error checking for updates: {ex.Message}");
+                consoleService.Warn($"Unexpected error checking for updates: {ex.Message}");
             }
         }
         return latest;

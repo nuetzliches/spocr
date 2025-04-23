@@ -21,9 +21,9 @@ namespace SpocR.CodeGenerators.Models;
 public class StoredProcedureGenerator(
     FileManager<ConfigurationModel> configFile,
     OutputService output,
-    IReportService reportService,
+    IConsoleService consoleService,
     TemplateManager templateManager
-) : GeneratorBase(configFile, output, reportService)
+) : GeneratorBase(configFile, output, consoleService)
 {
     public SourceText GetStoredProcedureExtensionsCode(Definition.Schema schema, List<Definition.StoredProcedure> storedProcedures)
     {

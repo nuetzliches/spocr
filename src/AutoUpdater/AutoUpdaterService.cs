@@ -5,7 +5,6 @@ using SpocR.Extensions;
 using SpocR.Managers;
 using SpocR.Models;
 using SpocR.Services;
-using SpocR.Utils;
 
 namespace SpocR.AutoUpdater;
 
@@ -13,7 +12,7 @@ public class AutoUpdaterService(
     SpocrService spocrService,
     IPackageManager packageManager,
     FileManager<GlobalConfigurationModel> globalConfigFile,
-    IReportService reportService
+    IConsoleService consoleService
 )
 {
     public Task<Version> GetLatestVersionAsync()
@@ -45,7 +44,7 @@ public class AutoUpdaterService(
         var latestVersion = await packageManager.GetLatestVersionAsync();
         if (latestVersion == null)
         {
-            reportService.Info("Could not check for updates. Will try again later.");
+            consoleService.Info("Could not check for updates. Will try again later.");
             WriteShortPause();
             return;
         }
@@ -53,24 +52,17 @@ public class AutoUpdaterService(
         var skipThisUpdate = latestVersion.ToVersionString() == globalConfigFile.Config.AutoUpdate.SkipVersion;
         if (!skipThisUpdate && latestVersion.IsGreaterThan(spocrService.Version))
         {
-            reportService.PrintImportantTitle($"A new SpocR version {latestVersion} is available");
-            reportService.Info($"Current version: {spocrService.Version}");
-            reportService.Info($"Latest version: {latestVersion}");
-            reportService.Info("");
+            consoleService.PrintImportantTitle($"A new SpocR version {latestVersion} is available");
+            consoleService.Info($"Current version: {spocrService.Version}");
+            consoleService.Info($"Latest version: {latestVersion}");
+            consoleService.Info("");
 
-            // Drei Optionen anbieten: Update, Skip, Cancel
-            reportService.Info("Options:");
-            reportService.Info("1: Update to the latest version");
-            reportService.Info("2: Skip this version (don't ask again for this version)");
-            reportService.Info("3: Not now (ask later)");
-            reportService.Info("");
-
-            var answer = SpocrPrompt.GetSelection("Please choose an option:", ["Update", "Skip this version", "Remind me later"]);
+            var answer = consoleService.GetSelection("Please choose an option:", ["Update", "Skip this version", "Remind me later"]);
 
             switch (answer.Value)
             {
                 case "Update":
-                    InstallUpdate();
+                    await InstallUpdateAsync();
                     break;
                 case "Skip this version":
                     WriteSkipThisVersion();
@@ -87,12 +79,18 @@ public class AutoUpdaterService(
         WriteShortPause();
     }
 
-    public void InstallUpdate()
+    public async Task InstallUpdateAsync()
     {
         try
         {
-            reportService.StartProgress("Updating SpocR to the latest version");
-            reportService.UpdateProgressStatus("Starting update process...");
+            consoleService.StartProgress("Updating SpocR to the latest version");
+            consoleService.UpdateProgressStatus("Starting update process...");
+
+            const int startPercentage = 10;
+            const int updateCompletePercentage = 75;
+            const int verificationCompletePercentage = 100;
+
+            consoleService.UpdateProgressStatus("Preparing update...", percentage: startPercentage);
 
             var process = new Process()
             {
@@ -106,34 +104,62 @@ public class AutoUpdaterService(
                     UseShellExecute = false
                 }
             };
-            process.Start();
-            reportService.UpdateProgressStatus("Update in progress...");
-            process.WaitForExit();
 
-            string output = process.StandardOutput.ReadToEnd();
-            string errorOutput = process.StandardError.ReadToEnd();
+            int progressStep = (updateCompletePercentage - startPercentage) / 10;
+            int currentProgress = startPercentage;
 
-            if (!string.IsNullOrEmpty(errorOutput))
+            process.OutputDataReceived += (sender, e) =>
             {
-                reportService.CompleteProgress(false);
-                reportService.Error("Update failed with errors:");
-                reportService.Error(errorOutput);
-                WriteLongPause();
-                return;
-            }
+                if (!string.IsNullOrEmpty(e.Data))
+                {
+                    if (e.Data.Contains("Downloading") || e.Data.Contains("Installing"))
+                    {
+                        currentProgress += progressStep;
+                        consoleService.UpdateProgressStatus(e.Data, percentage: Math.Min(currentProgress, updateCompletePercentage - 1));
+                    }
+                    else
+                    {
+                        consoleService.UpdateProgressStatus(e.Data);
+                    }
+                }
+            };
+
+            process.ErrorDataReceived += (sender, e) =>
+            {
+                if (!string.IsNullOrEmpty(e.Data))
+                {
+                    consoleService.UpdateProgressStatus($"Error: {e.Data}", success: false);
+                }
+            };
+
+            var tcs = new TaskCompletionSource<bool>();
+
+            process.EnableRaisingEvents = true;
+            process.Exited += (sender, e) => tcs.TrySetResult(true);
+
+            process.Start();
+
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
+
+            consoleService.UpdateProgressStatus("Update in progress...", percentage: startPercentage + progressStep);
+
+            await tcs.Task;
 
             if (process.ExitCode != 0)
             {
-                reportService.CompleteProgress(false);
-                reportService.Error($"Update process failed with exit code: {process.ExitCode}");
-                reportService.Info(output);
+                consoleService.CompleteProgress(false);
+                consoleService.Error($"Update process failed with exit code: {process.ExitCode}");
                 WriteLongPause();
                 return;
             }
 
-            reportService.UpdateProgressStatus(output.Trim());
-            reportService.UpdateProgressStatus("Update completed. Verifying installation...");
+            consoleService.UpdateProgressStatus("Update completed. Verifying installation...",
+                percentage: updateCompletePercentage);
 
+            await Task.Delay(500);
+
+            var versionTcs = new TaskCompletionSource<bool>();
             var versionProcess = new Process()
             {
                 StartInfo = new ProcessStartInfo
@@ -144,39 +170,107 @@ public class AutoUpdaterService(
                     RedirectStandardError = true,
                     CreateNoWindow = true,
                     UseShellExecute = false
+                },
+                EnableRaisingEvents = true
+            };
+
+            versionProcess.Exited += (sender, e) => versionTcs.TrySetResult(true);
+
+            string versionOutput = string.Empty;
+            string versionErrorOutput = string.Empty;
+
+            versionProcess.OutputDataReceived += (sender, e) =>
+            {
+                if (!string.IsNullOrEmpty(e.Data))
+                {
+                    versionOutput += e.Data;
+                    consoleService.UpdateProgressStatus($"Version info: {e.Data}",
+                        percentage: updateCompletePercentage + (verificationCompletePercentage - updateCompletePercentage) / 2);
                 }
             };
-            versionProcess.Start();
-            versionProcess.WaitForExit();
 
-            string versionOutput = versionProcess.StandardOutput.ReadToEnd();
-            string versionErrorOutput = versionProcess.StandardError.ReadToEnd();
+            versionProcess.ErrorDataReceived += (sender, e) =>
+            {
+                if (!string.IsNullOrEmpty(e.Data))
+                {
+                    versionErrorOutput += e.Data;
+                    consoleService.UpdateProgressStatus($"Version check error: {e.Data}", success: false);
+                }
+            };
+
+            versionProcess.Start();
+            versionProcess.BeginOutputReadLine();
+            versionProcess.BeginErrorReadLine();
+
+            await versionTcs.Task;
 
             if (!string.IsNullOrEmpty(versionErrorOutput))
             {
-                reportService.CompleteProgress(false);
-                reportService.Error("Failed to check version after update:");
-                reportService.Error(versionErrorOutput);
+                consoleService.CompleteProgress(false);
+                consoleService.Error("Failed to check version after update:");
+                consoleService.Error(versionErrorOutput);
+                WriteLongPause();
             }
             else
             {
-                reportService.UpdateProgressStatus($"Successfully updated to: {versionOutput.Trim()}");
-                reportService.CompleteProgress(true);
+                string trimmedVersion = versionOutput.Trim();
+                consoleService.UpdateProgressStatus($"Successfully updated to: {trimmedVersion}",
+                    percentage: verificationCompletePercentage);
+                consoleService.CompleteProgress(true);
+
+                if (Version.TryParse(trimmedVersion, out var newVersion))
+                {
+                    WriteDefaults();
+                }
             }
 
-            Environment.Exit(0);
+            FinishUpdateProcess(true);
         }
         catch (Exception ex)
         {
-            reportService.CompleteProgress(false);
-            reportService.Error($"Update process failed: {ex.Message}");
+            consoleService.CompleteProgress(false);
+            consoleService.Error($"Update process failed: {ex.Message}");
+            if (ex.InnerException != null)
+            {
+                consoleService.Error($"Details: {ex.InnerException.Message}");
+            }
             WriteLongPause();
         }
+    }
+
+    /// <summary>
+    /// Beendet den Update-Prozess ordnungsgemäß
+    /// </summary>
+    /// <param name="success">Gibt an, ob das Update erfolgreich war</param>
+    private void FinishUpdateProcess(bool success)
+    {
+        if (success)
+        {
+            consoleService.Info("Update completed successfully. Please restart the application to use the new version.");
+            consoleService.Info("Application will exit in 3 seconds...");
+
+            Task.Delay(3000).Wait();
+
+            AppDomain.CurrentDomain.ProcessExit -= (s, e) => { };
+            Environment.ExitCode = 0;
+
+            throw new OperationCompletedException("Update completed successfully. Please restart the application.");
+        }
+    }
+
+    /// <summary>
+    /// Ausnahme, die signalisiert, dass ein Vorgang erfolgreich abgeschlossen wurde und die Anwendung neu starten sollte
+    /// </summary>
+    public class OperationCompletedException(
+        string message
+    ) : Exception(message)
+    {
     }
 
     private void WriteShortPause(bool save = true) { WriteToGlobalConfig(globalConfigFile.Config.AutoUpdate.ShortPauseInMinutes, false, save); }
     private void WriteLongPause(bool save = true) { WriteToGlobalConfig(globalConfigFile.Config.AutoUpdate.LongPauseInMinutes, false, save); }
     private void WriteSkipThisVersion(bool save = true) { WriteToGlobalConfig(globalConfigFile.Config.AutoUpdate.ShortPauseInMinutes, true, save); }
+    private void WriteDefaults(bool save = true) { WriteToGlobalConfig(globalConfigFile.Config.AutoUpdate.ShortPauseInMinutes, false, save); }
     private void WriteToGlobalConfig(int pause, bool skip = false, bool save = true)
     {
         if (skip)
@@ -184,7 +278,11 @@ public class AutoUpdaterService(
             globalConfigFile.Config.AutoUpdate.SkipVersion = spocrService.Version.ToVersionString();
             globalConfigFile.Save(globalConfigFile.Config);
 
-            reportService.Info($"Version {spocrService.Version} will be skipped for updates.");
+            consoleService.Info($"Version {spocrService.Version} will be skipped for updates.");
+        }
+        else
+        {
+            globalConfigFile.Config.AutoUpdate.SkipVersion = null;
         }
 
         var now = DateTime.Now.Ticks;

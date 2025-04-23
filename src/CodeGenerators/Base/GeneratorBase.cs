@@ -6,7 +6,6 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
-using SpocR.CodeGenerators.Utils;
 using SpocR.Contracts;
 using SpocR.DataContext;
 using SpocR.Enums;
@@ -18,17 +17,21 @@ using SpocR.Utils;
 
 namespace SpocR.CodeGenerators.Base;
 
-public abstract class GeneratorBase(
-    FileManager<ConfigurationModel> configFile,
-    OutputService output,
-    IReportService reportService,
-    TemplateManager templateManager = null
-)
+/// <summary>
+/// Basis-Klasse für alle Code-Generatoren
+/// </summary>
+public abstract class GeneratorBase
 {
-    protected readonly FileManager<ConfigurationModel> ConfigFile = configFile;
-    protected readonly OutputService Output = output;
-    protected readonly IReportService ReportService = reportService;
-    protected readonly TemplateManager TemplateManager = templateManager;
+    protected readonly FileManager<ConfigurationModel> ConfigFile;
+    protected readonly OutputService Output;
+    protected readonly IConsoleService ConsoleService;
+
+    public GeneratorBase(FileManager<ConfigurationModel> configFile, OutputService output, IConsoleService consoleService)
+    {
+        ConfigFile = configFile;
+        Output = output;
+        ConsoleService = consoleService;
+    }
 
     #region Type Helpers
 
@@ -37,7 +40,7 @@ public abstract class GeneratorBase(
         // temporary for #56: we should not abort execution if config is corrupt
         if (string.IsNullOrEmpty(sqlTypeName))
         {
-            ReportService.PrintCorruptConfigMessage($"Could not parse 'SqlTypeName' - setting the type to dynamic");
+            ConsoleService.PrintCorruptConfigMessage($"Could not parse 'SqlTypeName' - setting the type to dynamic");
             sqlTypeName = "Variant";
         }
 

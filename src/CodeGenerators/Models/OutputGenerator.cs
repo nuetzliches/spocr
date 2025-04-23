@@ -20,13 +20,13 @@ namespace SpocR.CodeGenerators.Models;
 public class OutputGenerator(
     FileManager<ConfigurationModel> configFile,
     OutputService output,
-    IReportService reportService,
+    IConsoleService consoleService,
     TemplateManager templateManager
-) : GeneratorBase(configFile, output, reportService)
+) : GeneratorBase(configFile, output, consoleService)
 {
     public SourceText GetOutputTextForStoredProcedure(Definition.Schema schema, Definition.StoredProcedure storedProcedure)
     {
-        // Template mit TemplateManager laden und verarbeiten
+        // Load template and process it with TemplateManager
         var root = templateManager.GetProcessedTemplate("Outputs/Output.cs", schema.Name, storedProcedure.GetOutputTypeName());
 
         // Add Usings

@@ -112,6 +112,41 @@ public class FileManager<TConfig>(
                 File.Delete(fileName);
         }
     }
+
+    /// <summary>
+    /// Versucht, die Konfiguration aus einem bestimmten Pfad zu laden.
+    /// </summary>
+    /// <param name="path">Der Verzeichnispfad, in dem die Konfigurationsdatei gesucht werden soll.</param>
+    /// <param name="config">Die geladene Konfiguration, falls erfolgreich.</param>
+    /// <returns>True, wenn die Konfiguration erfolgreich geladen wurde, andernfalls False.</returns>
+    public bool TryOpen(string path, out TConfig config)
+    {
+        config = null;
+        try
+        {
+            if (string.IsNullOrEmpty(path))
+            {
+                return false;
+            }
+
+            var originalWorkingDirectory = DirectoryUtils.GetApplicationRoot();
+            DirectoryUtils.SetBasePath(path);
+
+            if (!Exists())
+            {
+                // Pfad zurücksetzen
+                DirectoryUtils.SetBasePath(originalWorkingDirectory);
+                return false;
+            }
+
+            config = Config;
+            return config != null;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
 }
 
 public class VersionCheckResult(
