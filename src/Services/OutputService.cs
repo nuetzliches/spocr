@@ -22,9 +22,9 @@ public class OutputService(
         }
 
         var targetFramework = configFile.Config.TargetFramework;
-        int.TryParse(targetFramework?.Replace("net", "")[0].ToString(), out var versionNumber);
+        _ = int.TryParse(targetFramework?.Replace("net", "")[0].ToString(), out var versionNumber);
 
-        if (targetFramework.StartsWith("net9"))
+        if (targetFramework.StartsWith("net8") || targetFramework.StartsWith("net9"))
         {
             return new DirectoryInfo(Path.Combine(DirectoryUtils.GetApplicationRoot(), "Output-v9-0"));
         }
@@ -81,7 +81,7 @@ public class OutputService(
         var tree = CSharpSyntaxTree.ParseText(fileContent);
         var root = tree.GetCompilationUnitRoot();
 
-        if (configFile.Config.Project.Role.Kind == ERoleKind.Lib)
+        if (configFile.Config.Project.Role.Kind == RoleKindEnum.Lib)
         {
             root = root.ReplaceUsings(u => u.Replace("Source.DataContext", $"{nameSpace}"));
             root = root.ReplaceNamespace(ns => ns.Replace("Source.DataContext", nameSpace));
@@ -107,7 +107,7 @@ public class OutputService(
     {
         var folderName = new DirectoryInfo(Path.GetDirectoryName(targetFileName)).Name;
         var fileName = Path.GetFileName(targetFileName);
-        var fileAction = EFileAction.Created;
+        var fileAction = FileActionEnum.Created;
         var outputFileText = sourceText.ToString();
 
         if (File.Exists(targetFileName))
@@ -115,10 +115,10 @@ public class OutputService(
             var existingFileText = File.ReadAllText(targetFileName);
             var upToDate = string.Equals(existingFileText, outputFileText);
 
-            fileAction = upToDate ? EFileAction.UpToDate : EFileAction.Modified;
+            fileAction = upToDate ? FileActionEnum.UpToDate : FileActionEnum.Modified;
         }
 
-        if (!isDryRun && fileAction != EFileAction.UpToDate)
+        if (!isDryRun && fileAction != FileActionEnum.UpToDate)
             File.WriteAllText(targetFileName, outputFileText);
 
         consoleService.PrintFileActionMessage($"{folderName}/{fileName}", fileAction);

@@ -1,6 +1,6 @@
 namespace SpocR.Enums;
 
-public enum ERoleKind
+public enum RoleKindEnum
 {
     Default,
     Lib,

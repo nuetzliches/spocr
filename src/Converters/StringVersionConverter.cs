@@ -17,15 +17,14 @@ public class StringVersionConverter : JsonConverter<Version>
         return new Version(versionText);
     }
 
-    public override void Write(Utf8JsonWriter writer, Version value, JsonSerializerOptions options)
+    public override void Write(Utf8JsonWriter writer, Version version, JsonSerializerOptions options)
     {
-        if (value == null)
+        if (version == null)
         {
             writer.WriteNull("Version");
             return;
         }
 
-        var version = (Version)value;
         writer.WriteStringValue($"{version.Major}.{version.Minor}.{version.Build}");
     }
 }

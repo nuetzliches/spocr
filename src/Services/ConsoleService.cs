@@ -43,7 +43,7 @@ public interface IConsoleService
     void PrintTotal(string total);
     void PrintDryRunMessage(string message = null);
     void PrintConfiguration(ConfigurationModel config);
-    void PrintFileActionMessage(string fileName, EFileAction fileAction);
+    void PrintFileActionMessage(string fileName, FileActionEnum fileAction);
     void PrintCorruptConfigMessage(string message);
 
     // Progress Tracking
@@ -513,19 +513,19 @@ public class ConsoleService(
         Output("");
     }
 
-    public void PrintFileActionMessage(string fileName, EFileAction fileAction)
+    public void PrintFileActionMessage(string fileName, FileActionEnum fileAction)
     {
         switch (fileAction)
         {
-            case EFileAction.Created:
+            case FileActionEnum.Created:
                 Green($"{fileName} (created)");
                 break;
 
-            case EFileAction.Modified:
+            case FileActionEnum.Modified:
                 Yellow($"{fileName} (modified)");
                 break;
 
-            case EFileAction.UpToDate:
+            case FileActionEnum.UpToDate:
                 Gray($"{fileName} (up to date)");
                 break;
         }

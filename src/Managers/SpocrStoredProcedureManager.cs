@@ -10,13 +10,13 @@ public class SpocrStoredProcdureManager(
     IConsoleService consoleService
 )
 {
-    public EExecuteResult List(IStoredProcedureCommandOptions options)
+    public ExecuteResultEnum List(IStoredProcedureCommandOptions options)
     {
         var configFile = new FileManager<ConfigurationModel>(null, Constants.ConfigurationFile);
         if (!configFile.TryOpen(options.Path, out ConfigurationModel config))
         {
             consoleService.Warn($"No StoredProcduress found");
-            return EExecuteResult.Aborted;
+            return ExecuteResultEnum.Aborted;
         }
 
         var storedProcedures = config?.Schema.FirstOrDefault(_ => _.Name.Equals(options.SchemaName))?.StoredProcedures?.ToList();
@@ -27,7 +27,7 @@ public class SpocrStoredProcdureManager(
             {
                 consoleService.Warn($"No StoredProcduress found");
             }
-            return EExecuteResult.Aborted;
+            return ExecuteResultEnum.Aborted;
         }
 
         consoleService.Output($"[{(storedProcedures.Count > 0 ? "{" : "")}]");
@@ -41,6 +41,6 @@ public class SpocrStoredProcdureManager(
         });
         consoleService.Output($"{(storedProcedures.Count > 0 ? "}" : "")}]");
 
-        return EExecuteResult.Succeeded;
+        return ExecuteResultEnum.Succeeded;
     }
 }

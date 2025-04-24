@@ -34,7 +34,7 @@ public abstract class CommandBase : IAppCommand, ICommandOptions
     public virtual async Task<int> OnExecuteAsync()
     {
         DirectoryUtils.SetBasePath(Path);
-        return await Task.FromResult((int)EExecuteResult.Succeeded);
+        return await Task.FromResult((int)ExecuteResultEnum.Succeeded);
     }
 
     public ICommandOptions CommandOptions => new CommandOptions(this);

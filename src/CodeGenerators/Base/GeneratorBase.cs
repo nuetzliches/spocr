@@ -116,11 +116,11 @@ public abstract class GeneratorBase
         var tableTypeSchemaConfig = ConfigFile.Config.Schema.Find(s => s.Name.Equals(tableTypeSchema));
         // is schema of table type ignored and its an extension?
         var useFromLib = tableTypeSchemaConfig?.Status != SchemaStatusEnum.Build
-            && ConfigFile.Config.Project.Role.Kind == ERoleKind.Extension;
+            && ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Extension;
 
         var paramUsingDirective = useFromLib
                             ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Role.LibNamespace}.TableTypes.{tableTypeSchema.FirstCharToUpper()}"))
-                            : ConfigFile.Config.Project.Role.Kind == ERoleKind.Lib
+                            : ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib
                                 ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.TableTypes.{tableTypeSchema.FirstCharToUpper()}"))
                                 : SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.DataContext.TableTypes.{tableTypeSchema.FirstCharToUpper()}"));
         return root.AddUsings(paramUsingDirective);
@@ -133,7 +133,7 @@ public abstract class GeneratorBase
     {
         string fullNamespace;
 
-        if (ConfigFile.Config.Project.Role.Kind == ERoleKind.Lib)
+        if (ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib)
         {
             fullNamespace = $"{ConfigFile.Config.Project.Output.Namespace}.{importNamespace}";
         }

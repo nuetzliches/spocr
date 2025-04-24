@@ -14,7 +14,7 @@ public class SpocrSchemaManager(
     IConsoleService consoleService
 )
 {
-    public async Task<EExecuteResult> UpdateAsync(ISchemaUpdateCommandOptions options)
+    public async Task<ExecuteResultEnum> UpdateAsync(ISchemaUpdateCommandOptions options)
     {
         var schemaName = options.SchemaName;
         var schemaIndex = FindIndexByName(schemaName);
@@ -22,7 +22,7 @@ public class SpocrSchemaManager(
         if (schemaIndex < 0)
         {
             consoleService.Error($"Cant find schema '{schemaName}'");
-            return EExecuteResult.Error;
+            return ExecuteResultEnum.Error;
         }
 
         var status = options.Status;
@@ -34,23 +34,23 @@ public class SpocrSchemaManager(
         await Task.Run(() => configFile.Save(configFile.Config));
 
         consoleService.Output($"Schema '{schemaName}' updated.");
-        return EExecuteResult.Succeeded;
+        return ExecuteResultEnum.Succeeded;
     }
 
     // Behalte die synchrone Methode für Abwärtskompatibilität
-    public EExecuteResult Update(ISchemaUpdateCommandOptions options)
+    public ExecuteResultEnum Update(ISchemaUpdateCommandOptions options)
     {
         return UpdateAsync(options).GetAwaiter().GetResult();
     }
 
-    public async Task<EExecuteResult> ListAsync(ICommandOptions options)
+    public async Task<ExecuteResultEnum> ListAsync(ICommandOptions options)
     {
         var schemas = configFile.Config?.Schema;
 
         if (!options.Quiet && !(schemas?.Any() ?? false))
         {
             consoleService.Warn($"No Schemas found");
-            return EExecuteResult.Aborted;
+            return ExecuteResultEnum.Aborted;
         }
 
         await Task.Run(() =>
@@ -68,11 +68,11 @@ public class SpocrSchemaManager(
             consoleService.Output($"{(schemas.Count > 0 ? "}" : "")}]");
         });
 
-        return EExecuteResult.Succeeded;
+        return ExecuteResultEnum.Succeeded;
     }
 
     // Behalte die synchrone Methode für Abwärtskompatibilität
-    public EExecuteResult List(ICommandOptions options)
+    public ExecuteResultEnum List(ICommandOptions options)
     {
         return ListAsync(options).GetAwaiter().GetResult();
     }

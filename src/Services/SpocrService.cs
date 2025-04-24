@@ -18,7 +18,7 @@ public class SpocrService
         return new GlobalConfigurationModel
         {
             Version = Version,
-            TargetFramework = "net9.0",
+            TargetFramework = Constants.DefaultTargetFramework.ToFrameworkString(),
             AutoUpdate = new GlobalAutoUpdateConfigurationModel
             {
                 Enabled = true,
@@ -29,12 +29,12 @@ public class SpocrService
         };
     }
 
-    public ConfigurationModel GetDefaultConfiguration(string targetFramework = "net9.0", string appNamespace = "", string connectionString = "", ERoleKind roleKind = default, string libNamespace = null)
+    public ConfigurationModel GetDefaultConfiguration(string targetFramework = null, string appNamespace = "", string connectionString = "", RoleKindEnum roleKind = default, string libNamespace = null)
     {
         var role = new RoleModel
         {
             Kind = roleKind,
-            LibNamespace = roleKind == ERoleKind.Extension
+            LibNamespace = roleKind == RoleKindEnum.Extension
                 ? libNamespace
                 : null
         };
@@ -42,7 +42,7 @@ public class SpocrService
         return new ConfigurationModel
         {
             Version = Version,
-            TargetFramework = targetFramework,
+            TargetFramework = targetFramework ?? Constants.DefaultTargetFramework.ToFrameworkString(),
             Project = new ProjectModel
             {
                 Role = role,

@@ -29,7 +29,7 @@ public class SpocrManager(
     AutoUpdaterService autoUpdaterService
 )
 {
-    public async Task<EExecuteResult> CreateAsync(ICreateCommandOptions options)
+    public async Task<ExecuteResultEnum> CreateAsync(ICreateCommandOptions options)
     {
         await RunAutoUpdateAsync(options);
 
@@ -37,13 +37,13 @@ public class SpocrManager(
         {
             consoleService.Error("Configuration already exists");
             consoleService.Output($"\tTo view current configuration, run '{Constants.Name} status'");
-            return EExecuteResult.Error;
+            return ExecuteResultEnum.Error;
         }
 
         if (!options.Quiet && !options.Force)
         {
             var proceed = consoleService.GetYesNo($"Create a new {Constants.ConfigurationFile} file?", true);
-            if (!proceed) return EExecuteResult.Aborted;
+            if (!proceed) return ExecuteResultEnum.Aborted;
         }
 
         var targetFramework = options.TargetFramework;
@@ -65,12 +65,12 @@ public class SpocrManager(
             roleKindString = consoleService.GetString($"{Constants.Name} Role [Default, Lib, Extension]:", "Default");
         }
 
-        Enum.TryParse(roleKindString, true, out ERoleKind roleKind);
+        Enum.TryParse(roleKindString, true, out RoleKindEnum roleKind);
 
         var libNamespace = options.LibNamespace;
         if (!options.Quiet)
         {
-            libNamespace = roleKind == ERoleKind.Extension
+            libNamespace = roleKind == RoleKindEnum.Extension
                     ? consoleService.GetString($"{Constants.Name} Lib Namespace:", "Nuts.DbContext")
                     : null;
         }
@@ -93,10 +93,10 @@ public class SpocrManager(
             }
         }
 
-        return EExecuteResult.Succeeded;
+        return ExecuteResultEnum.Succeeded;
     }
 
-    public async Task<EExecuteResult> PullAsync(ICommandOptions options)
+    public async Task<ExecuteResultEnum> PullAsync(ICommandOptions options)
     {
         await RunAutoUpdateAsync(options);
 
@@ -104,19 +104,19 @@ public class SpocrManager(
         {
             consoleService.Error("Configuration file not found");
             consoleService.Output($"\tTo create a configuration file, run '{Constants.Name} create'");
-            return EExecuteResult.Error;
+            return ExecuteResultEnum.Error;
         }
 
         var config = LoadAndMergeConfigurations();
 
-        if (await RunConfigVersionCheckAsync(options) == EExecuteResult.Aborted)
-            return EExecuteResult.Aborted;
+        if (await RunConfigVersionCheckAsync(options) == ExecuteResultEnum.Aborted)
+            return ExecuteResultEnum.Aborted;
 
         if (string.IsNullOrWhiteSpace(config?.Project?.DataBase?.ConnectionString))
         {
             consoleService.Error("Missing database connection string");
             consoleService.Output($"\tTo configure database access, run '{Constants.Name} set --cs \"your-connection-string\"'");
-            return EExecuteResult.Error;
+            return ExecuteResultEnum.Error;
         }
 
         dbContext.SetConnectionString(config.Project.DataBase.ConnectionString);
@@ -135,7 +135,7 @@ public class SpocrManager(
             {
                 consoleService.Error("No database schemas retrieved");
                 consoleService.Output("\tPlease check your database connection and permissions");
-                return EExecuteResult.Error;
+                return ExecuteResultEnum.Error;
             }
 
             var overwriteWithCurrentConfig = configSchemas.Count != 0;
@@ -158,7 +158,7 @@ public class SpocrManager(
             {
                 consoleService.Error(sqlEx.StackTrace);
             }
-            return EExecuteResult.Error;
+            return ExecuteResultEnum.Error;
         }
         catch (Exception ex)
         {
@@ -167,7 +167,7 @@ public class SpocrManager(
             {
                 consoleService.Error(ex.StackTrace);
             }
-            return EExecuteResult.Error;
+            return ExecuteResultEnum.Error;
         }
 
         var pullSchemas = configSchemas.Where(x => x.Status == SchemaStatusEnum.Build);
@@ -208,22 +208,22 @@ public class SpocrManager(
             configFile.Save(config);
         }
 
-        return EExecuteResult.Succeeded;
+        return ExecuteResultEnum.Succeeded;
     }
 
-    public async Task<EExecuteResult> BuildAsync(ICommandOptions options)
+    public async Task<ExecuteResultEnum> BuildAsync(ICommandOptions options)
     {
         if (!configFile.Exists())
         {
             consoleService.Error("Configuration file not found");
             consoleService.Output($"\tTo create a configuration file, run '{Constants.Name} create'");
-            return EExecuteResult.Error;
+            return ExecuteResultEnum.Error;
         }
 
         await RunAutoUpdateAsync(options);
 
-        if (await RunConfigVersionCheckAsync(options) == EExecuteResult.Aborted)
-            return EExecuteResult.Aborted;
+        if (await RunConfigVersionCheckAsync(options) == ExecuteResultEnum.Aborted)
+            return ExecuteResultEnum.Aborted;
 
         consoleService.PrintTitle($"Build DataContext from {Constants.ConfigurationFile}");
 
@@ -231,7 +231,7 @@ public class SpocrManager(
         if (config == null)
         {
             consoleService.Error("Configuration is invalid");
-            return EExecuteResult.Error;
+            return ExecuteResultEnum.Error;
         }
 
         var project = config.Project;
@@ -244,7 +244,7 @@ public class SpocrManager(
         {
             consoleService.Error("Missing database connection string");
             consoleService.Output($"\tTo configure database access, run '{Constants.Name} set --cs \"your-connection-string\"'");
-            return EExecuteResult.Error;
+            return ExecuteResultEnum.Error;
         }
 
         try
@@ -255,7 +255,7 @@ public class SpocrManager(
             {
                 consoleService.Error("Schema information is missing");
                 consoleService.Output($"\tTo retrieve database schemas, run '{Constants.Name} pull'");
-                return EExecuteResult.Error;
+                return ExecuteResultEnum.Error;
             }
 
             var elapsed = GenerateCode(project, options);
@@ -272,7 +272,7 @@ public class SpocrManager(
                 consoleService.PrintDryRunMessage();
             }
 
-            return EExecuteResult.Succeeded;
+            return ExecuteResultEnum.Succeeded;
         }
         catch (SqlException sqlEx)
         {
@@ -281,7 +281,7 @@ public class SpocrManager(
             {
                 consoleService.Error(sqlEx.StackTrace);
             }
-            return EExecuteResult.Error;
+            return ExecuteResultEnum.Error;
         }
         catch (Exception ex)
         {
@@ -290,17 +290,17 @@ public class SpocrManager(
             {
                 consoleService.Error(ex.StackTrace);
             }
-            return EExecuteResult.Error;
+            return ExecuteResultEnum.Error;
         }
     }
 
-    public async Task<EExecuteResult> RemoveAsync(ICommandOptions options)
+    public async Task<ExecuteResultEnum> RemoveAsync(ICommandOptions options)
     {
         if (!configFile.Exists())
         {
             consoleService.Error("Configuration file not found");
             consoleService.Output($"\tNothing to remove.");
-            return EExecuteResult.Error;
+            return ExecuteResultEnum.Error;
         }
 
         await RunAutoUpdateAsync(options);
@@ -308,11 +308,11 @@ public class SpocrManager(
         if (options.DryRun)
         {
             consoleService.PrintDryRunMessage("Would remove all generated files");
-            return EExecuteResult.Succeeded;
+            return ExecuteResultEnum.Succeeded;
         }
 
         var proceed1 = consoleService.GetYesNo("Remove all generated files?", true);
-        if (!proceed1) return EExecuteResult.Aborted;
+        if (!proceed1) return ExecuteResultEnum.Aborted;
 
         try
         {
@@ -322,19 +322,19 @@ public class SpocrManager(
         catch (Exception ex)
         {
             consoleService.Error($"Failed to remove files: {ex.Message}");
-            return EExecuteResult.Error;
+            return ExecuteResultEnum.Error;
         }
 
         var proceed2 = consoleService.GetYesNo($"Remove {Constants.ConfigurationFile}?", true);
-        if (!proceed2) return EExecuteResult.Aborted;
+        if (!proceed2) return ExecuteResultEnum.Aborted;
 
         configFile.Remove(options.DryRun);
         consoleService.Output($"{Constants.ConfigurationFile} removed.");
 
-        return EExecuteResult.Succeeded;
+        return ExecuteResultEnum.Succeeded;
     }
 
-    public async Task<EExecuteResult> GetVersionAsync()
+    public async Task<ExecuteResultEnum> GetVersionAsync()
     {
         var current = service.Version;
         var latest = await autoUpdaterService.GetLatestVersionAsync();
@@ -346,13 +346,13 @@ public class SpocrManager(
         else
             consoleService.Output($"Latest:  {latest?.ToVersionString() ?? current.ToVersionString()}");
 
-        return EExecuteResult.Succeeded;
+        return ExecuteResultEnum.Succeeded;
     }
 
     private bool _versionCheckPerformed = false;
-    private async Task<EExecuteResult> RunConfigVersionCheckAsync(ICommandOptions options)
+    private async Task<ExecuteResultEnum> RunConfigVersionCheckAsync(ICommandOptions options)
     {
-        if (options.NoVersionCheck || _versionCheckPerformed) return EExecuteResult.Skipped;
+        if (options.NoVersionCheck || _versionCheckPerformed) return ExecuteResultEnum.Skipped;
         _versionCheckPerformed = true;
 
         var check = configFile.CheckVersion();
@@ -364,7 +364,7 @@ public class SpocrManager(
                 var answer = consoleService.GetSelectionMultiline("Do you want to continue?", ["Continue", "Cancel"]);
                 if (answer.Value != "Continue")
                 {
-                    return EExecuteResult.Aborted;
+                    return ExecuteResultEnum.Aborted;
                 }
             }
             else if (check.SpocRVersion.IsLessThan(check.ConfigVersion))
@@ -380,12 +380,12 @@ public class SpocrManager(
                     case "Continue":
                         break;
                     default:
-                        return EExecuteResult.Aborted;
+                        return ExecuteResultEnum.Aborted;
                 }
             }
         }
 
-        return EExecuteResult.Succeeded;
+        return ExecuteResultEnum.Succeeded;
     }
 
     private async Task RunAutoUpdateAsync(ICommandOptions options)

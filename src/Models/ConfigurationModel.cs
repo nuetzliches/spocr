@@ -12,7 +12,10 @@ public class GlobalConfigurationModel : IVersioned
 {
     [JsonConverter(typeof(StringVersionConverter)), WriteProtectedBySystem]
     public Version Version { get; set; }
-    public string TargetFramework { get; set; } = "net9.0"; // Allowed values: null, net6.0, net9.0
+
+    [JsonConverter(typeof(TargetFrameworkConverter))]
+    public string TargetFramework { get; set; } = Constants.DefaultTargetFramework.ToFrameworkString();
+
     public string UserId { get; set; }
     public GlobalAutoUpdateConfigurationModel AutoUpdate { get; set; } = new GlobalAutoUpdateConfigurationModel { Enabled = true, LongPauseInMinutes = 1440, ShortPauseInMinutes = 15 };
     public List<GlobalProjectConfigurationModel> Projects { get; set; } = [];
@@ -37,7 +40,10 @@ public class ConfigurationModel : IVersioned
 {
     [JsonConverter(typeof(StringVersionConverter))]
     public Version Version { get; set; }
-    public string TargetFramework { get; set; } = "net9.0"; // Allowed values: null, net6.0, net9.0
+
+    [JsonConverter(typeof(TargetFrameworkConverter))]
+    public string TargetFramework { get; set; } = Constants.DefaultTargetFramework.ToFrameworkString(); // Erlaubte Werte: netcoreapp2.2, net6.0, net8.0, net9.0
+
     public ProjectModel Project { get; set; }
     public List<SchemaModel> Schema { get; set; }
 }
@@ -52,7 +58,7 @@ public class ProjectModel
 
 public class RoleModel
 {
-    public ERoleKind Kind { get; set; } = ERoleKind.Default;
+    public RoleKindEnum Kind { get; set; } = RoleKindEnum.Default;
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string LibNamespace { get; set; }

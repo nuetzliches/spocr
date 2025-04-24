@@ -75,7 +75,7 @@ public class TemplateManager
         var templateFileName = Path.GetFileNameWithoutExtension(templateType);
 
         // Replace Namespace
-        if (_configManager.Config.Project.Role.Kind == ERoleKind.Lib)
+        if (_configManager.Config.Project.Role.Kind == RoleKindEnum.Lib)
         {
             root = root.ReplaceNamespace(ns => ns.Replace("Source.DataContext", _configManager.Config.Project.Output.Namespace).Replace("Schema", schemaName));
         }
@@ -109,7 +109,7 @@ public class TemplateManager
     {
         string fullNamespace;
 
-        if (_configManager.Config.Project.Role.Kind == ERoleKind.Lib)
+        if (_configManager.Config.Project.Role.Kind == RoleKindEnum.Lib)
         {
             fullNamespace = $"{_configManager.Config.Project.Output.Namespace}.{importNamespace}";
         }
@@ -133,14 +133,14 @@ public class TemplateManager
     {
         // is schema of table type ignored and its an extension?
         var useFromLib = tableTypeSchemaConfig?.Status != SchemaStatusEnum.Build
-            && _configManager.Config.Project.Role.Kind == ERoleKind.Extension;
+            && _configManager.Config.Project.Role.Kind == RoleKindEnum.Extension;
 
         if (useFromLib)
         {
             return SyntaxFactory.UsingDirective(SyntaxFactory.ParseName(
                 $"{_configManager.Config.Project.Role.LibNamespace}.TableTypes.{tableTypeSchema.FirstCharToUpper()}"));
         }
-        else if (_configManager.Config.Project.Role.Kind == ERoleKind.Lib)
+        else if (_configManager.Config.Project.Role.Kind == RoleKindEnum.Lib)
         {
             return SyntaxFactory.UsingDirective(SyntaxFactory.ParseName(
                 $"{_configManager.Config.Project.Output.Namespace}.TableTypes.{tableTypeSchema.FirstCharToUpper()}"));

@@ -30,7 +30,7 @@ public class OutputGenerator(
         var root = templateManager.GetProcessedTemplate("Outputs/Output.cs", schema.Name, storedProcedure.GetOutputTypeName());
 
         // Add Usings
-        if (ConfigFile.Config.Project.Role.Kind == ERoleKind.Extension)
+        if (ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Extension)
         {
             var outputUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Role.LibNamespace}.Outputs"));
             root = root.AddUsings(outputUsingDirective.NormalizeWhitespace().WithLeadingTrivia(SyntaxFactory.CarriageReturnLineFeed)).WithTrailingTrivia(SyntaxFactory.CarriageReturnLineFeed);

@@ -13,7 +13,7 @@ public class SpocrConfigManager(
     FileManager<GlobalConfigurationModel> globalConfigFile
 )
 {
-    public EExecuteResult Config()
+    public ExecuteResultEnum Config()
     {
         if (!globalConfigFile.Exists())
         {
@@ -35,10 +35,10 @@ public class SpocrConfigManager(
         }
 
         var proceed = consoleService.GetYesNo("Write your entries to GlobalConfigFile?", true, ConsoleColor.Red);
-        if (!proceed) return EExecuteResult.Aborted;
+        if (!proceed) return ExecuteResultEnum.Aborted;
 
         globalConfigFile.Save(config);
 
-        return EExecuteResult.Succeeded;
+        return ExecuteResultEnum.Succeeded;
     }
 }

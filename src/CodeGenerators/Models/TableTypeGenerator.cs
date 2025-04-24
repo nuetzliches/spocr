@@ -31,7 +31,7 @@ public class TableTypeGenerator(
         var root = templateManager.GetProcessedTemplate("TableTypes/TableType.cs", schema.Name, GetTypeNameForTableType(tableType));
 
         // If its an extension, add usings for the lib
-        if (ConfigFile.Config.Project.Role.Kind == ERoleKind.Extension)
+        if (ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Extension)
         {
             var libModelUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Role.LibNamespace}.TableTypes"));
             root = root.AddUsings(libModelUsingDirective).NormalizeWhitespace();

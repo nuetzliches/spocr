@@ -42,18 +42,18 @@ public class CodeGenerationOrchestrator(
     /// <param name="roleKind">Die Rolle des Projekts</param>
     /// <param name="outputConfig">Die Output-Konfiguration</param>
     /// <returns>Dictionary mit den Ausführungszeiten der einzelnen Schritte</returns>
-    public Dictionary<string, long> GenerateCodeWithProgress(bool isDryRun, ERoleKind roleKind, OutputModel outputConfig = null)
+    public Dictionary<string, long> GenerateCodeWithProgress(bool isDryRun, RoleKindEnum roleKind, OutputModel outputConfig = null)
     {
         var stopwatch = new Stopwatch();
         var elapsed = new Dictionary<string, long>();
-        var totalSteps = roleKind == ERoleKind.Extension ? 5 : 6;
+        var totalSteps = roleKind == RoleKindEnum.Extension ? 5 : 6;
         var currentStep = 0;
 
         HasErrors = false;
 
         try
         {
-            var codeBaseAlreadyExists = roleKind == ERoleKind.Extension;
+            var codeBaseAlreadyExists = roleKind == RoleKindEnum.Extension;
             if (!codeBaseAlreadyExists && outputConfig != null)
             {
                 currentStep++;

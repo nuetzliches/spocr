@@ -33,7 +33,7 @@ public class StoredProcedureGenerator(
         var root = templateManager.GetProcessedTemplate("StoredProcedures/StoredProcedureExtensions.cs", schema.Name, $"{entityName}Extensions");
 
         // If its an extension, add usings for the lib
-        if (ConfigFile.Config.Project.Role.Kind == ERoleKind.Extension)
+        if (ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Extension)
         {
             var libUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Role.LibNamespace}"));
             root = root.AddUsings(libUsingDirective).NormalizeWhitespace();
@@ -53,7 +53,7 @@ public class StoredProcedureGenerator(
                 for (var i = 0; i < root.Usings.Count; i++)
                 {
                     var usingDirective = root.Usings[i];
-                    var newUsingName = ConfigFile.Config.Project.Role.Kind == ERoleKind.Lib
+                    var newUsingName = ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib
                         ? SyntaxFactory.ParseName($"{usingDirective.Name.ToString().Replace("Source.DataContext", ConfigFile.Config.Project.Output.Namespace)}")
                         : SyntaxFactory.ParseName($"{usingDirective.Name.ToString().Replace("Source", ConfigFile.Config.Project.Output.Namespace)}");
                     root = root.ReplaceNode(usingDirective, usingDirective.WithName(newUsingName));
@@ -64,7 +64,7 @@ public class StoredProcedureGenerator(
         // Add Using for Models
         if (storedProcedures.Any(i => i.ReadWriteKind == Definition.ReadWriteKindEnum.Read && i.Output?.Count() > 1))
         {
-            var modelUsingDirective = ConfigFile.Config.Project.Role.Kind == ERoleKind.Lib
+            var modelUsingDirective = ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib
                 ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.Models.{schema.Name}"))
                 : SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.DataContext.Models.{schema.Name}"));
             root = root.AddUsings(modelUsingDirective).NormalizeWhitespace();
@@ -73,7 +73,7 @@ public class StoredProcedureGenerator(
         // Add Usings for Inputs
         if (storedProcedures.Any(s => s.HasInputs()))
         {
-            var inputUsingDirective = ConfigFile.Config.Project.Role.Kind == ERoleKind.Lib
+            var inputUsingDirective = ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib
                 ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.Inputs.{schema.Name}"))
                 : SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.DataContext.Inputs.{schema.Name}"));
             root = root.AddUsings(inputUsingDirective.NormalizeWhitespace().WithLeadingTrivia(SyntaxFactory.CarriageReturnLineFeed)).WithTrailingTrivia(SyntaxFactory.CarriageReturnLineFeed);
@@ -82,7 +82,7 @@ public class StoredProcedureGenerator(
         // Add Usings for Outputs
         if (storedProcedures.Any(s => s.HasOutputs() && !s.IsDefaultOutput()))
         {
-            var inputUsingDirective = ConfigFile.Config.Project.Role.Kind == ERoleKind.Lib
+            var inputUsingDirective = ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib
                 ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.Outputs.{schema.Name}"))
                 : SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.DataContext.Outputs.{schema.Name}"));
             root = root.AddUsings(inputUsingDirective.NormalizeWhitespace().WithLeadingTrivia(SyntaxFactory.CarriageReturnLineFeed)).WithTrailingTrivia(SyntaxFactory.CarriageReturnLineFeed);
