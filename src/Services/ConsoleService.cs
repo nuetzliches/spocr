@@ -148,10 +148,10 @@ public class ConsoleService(
                 _console.Out.Write("[");
 
                 _console.ForegroundColor = ConsoleColor.Green;
-                _console.Out.Write(new string('●', filledPositions));
+                _console.Out.Write(new string('#', filledPositions));
 
                 _console.ForegroundColor = ConsoleColor.DarkGray;
-                _console.Out.Write(new string('○', barSize - filledPositions));
+                _console.Out.Write(new string('-', barSize - filledPositions));
                 _console.Out.Write("] ");
 
                 _console.ForegroundColor = ConsoleColor.Cyan;
