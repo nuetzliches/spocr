@@ -375,7 +375,7 @@ public class SpocrManager(
                 switch (answer.Value)
                 {
                     case "Update":
-                        await autoUpdaterService.InstallUpdateAsync();
+                        autoUpdaterService.InstallUpdate();
                         break;
                     case "Continue":
                         break;
