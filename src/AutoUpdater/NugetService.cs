@@ -6,10 +6,6 @@ using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using SpocR.Services;
 
-
-// TODO Implement it as OOP based
-// Maybe move to Nuts.Packages.Providers
-
 namespace SpocR.AutoUpdater;
 
 public class NugetService(

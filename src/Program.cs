@@ -10,7 +10,6 @@ using SpocR.Commands.StoredProcdure;
 using SpocR.DataContext;
 using SpocR.Extensions;
 using SpocR.AutoUpdater;
-using SpocR.Services;
 using System.IO;
 
 namespace SpocR;
