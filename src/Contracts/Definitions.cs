@@ -56,7 +56,7 @@ public static class Definition
         {
             _schema = schema;
             var name = schema.Name.ToLower();
-            Name = name.First().ToString().ToUpper() + name.Substring(1);
+            Name = string.Concat(name.First().ToString().ToUpper(), name.AsSpan(1));
             Path = Name;
         }
 
@@ -65,17 +65,15 @@ public static class Definition
 
         private IEnumerable<StoredProcedure> _storedProcedures;
         public IEnumerable<StoredProcedure> StoredProcedures
-            => _storedProcedures ?? (_storedProcedures = _schema.StoredProcedures?.Select(i => ForStoredProcedure(i, this)));
+            => _storedProcedures ??= _schema.StoredProcedures?.Select(i => ForStoredProcedure(i, this));
 
         private IEnumerable<TableType> _tableTypes;
         public IEnumerable<TableType> TableTypes
-            => _tableTypes ?? (_tableTypes = _schema.TableTypes?.Select(i => ForTableType(i, this)));
+            => _tableTypes ??= _schema.TableTypes?.Select(i => ForTableType(i, this));
     }
 
-    public class StoredProcedure
+    public class StoredProcedure(StoredProcedureModel storedProcedure, Schema schema)
     {
-        private readonly StoredProcedureModel _storedProcedure;
-        private readonly Schema _schema;
         private string _sqlObjectName;
         private string _name;
         private string _entityName;
@@ -84,74 +82,62 @@ public static class Definition
         private ReadWriteKindEnum _readWriteKind;
         private ResultKindEnum _resultKind;
 
-        public StoredProcedure(StoredProcedureModel storedProcedure, Schema schema)
-        {
-            _storedProcedure = storedProcedure;
-            _schema = schema;
-        }
-
         //
         // Returns:
         //     The sql object name of the StoredProcedure
-        public string SqlObjectName => _sqlObjectName ?? (_sqlObjectName = $"[{_schema.Name.ToLower()}].[{Name}]");
+        public string SqlObjectName => _sqlObjectName ??= $"[{schema.Name.ToLower()}].[{Name}]";
 
         //
         // Returns:
         //     The FullName of the StoredProcedure
-        public string Name => _name ?? (_name = _storedProcedure.Name);
+        public string Name => _name ??= storedProcedure.Name;
 
         //
         // Returns:
         //     The part of the Name before the [Operation] starts. 
         //     e.g.: "User" from Name "UserCreate"
-        public string EntityName => _entityName
-            ?? (_entityName = OperationKind != OperationKindEnum.Undefined
-                ? Name.Substring(0, Name.IndexOf(OperationKind.ToString()))
+        public string EntityName => _entityName ??= OperationKind != OperationKindEnum.Undefined
+                ? Name[..Name.IndexOf(OperationKind.ToString())]
                 : Name
-        );
-        public string Suffix => _suffix ?? (_suffix = Name.Substring(Name.IndexOf(OperationKind.ToString()) + OperationKind.ToString().Length));
+;
+        public string Suffix => _suffix ??= Name[(Name.IndexOf(OperationKind.ToString()) + OperationKind.ToString().Length)..];
         public OperationKindEnum OperationKind => _operationKind != OperationKindEnum.Undefined
             ? _operationKind
-            : (_operationKind = ((OperationKindEnum[])Enum.GetValues(typeof(OperationKindEnum)))
-                .FirstOrDefault(i => Name.Contains(i.ToString())));
+            : (_operationKind = Enum.GetValues<OperationKindEnum>()
+                .Select(kind => new { Kind = kind, Index = Name.IndexOf(kind.ToString()) })
+                .Where(x => x.Index >= 0)
+                .OrderBy(x => x.Index)
+                .FirstOrDefault()?.Kind ?? OperationKindEnum.Undefined);
         public ReadWriteKindEnum ReadWriteKind => _readWriteKind != ReadWriteKindEnum.Undefined
             ? _readWriteKind
-            : _readWriteKind = (new[] { OperationKindEnum.Find, OperationKindEnum.List }.Contains(OperationKind)
+            : _readWriteKind = new[] { OperationKindEnum.Find, OperationKindEnum.List }.Contains(OperationKind)
                         ? ReadWriteKindEnum.Read
-                        : ReadWriteKindEnum.Write);
+                        : ReadWriteKindEnum.Write;
         public ResultKindEnum ResultKind => _resultKind != ResultKindEnum.Undefined
             ? _resultKind
-            : (_resultKind = (OperationKind == OperationKindEnum.List || Name.Contains("WithChildren")
+            : (_resultKind = OperationKind == OperationKindEnum.List || Name.Contains("WithChildren")
                 ? ResultKindEnum.List
-                : ResultKindEnum.Single));
+                : ResultKindEnum.Single);
 
-        public IEnumerable<StoredProcedureInputModel> Input => _storedProcedure.Input ?? new List<StoredProcedureInputModel>();
-        public IEnumerable<StoredProcedureOutputModel> Output => _storedProcedure.Output ?? new List<StoredProcedureOutputModel>();
+        public IEnumerable<StoredProcedureInputModel> Input => storedProcedure.Input ?? [];
+        public IEnumerable<StoredProcedureOutputModel> Output => storedProcedure.Output ?? [];
     }
 
-    public class TableType
+    public class TableType(TableTypeModel tableType, Schema schema)
     {
-        private readonly TableTypeModel _tableType;
-        private readonly Schema _schema;
         private string _sqlObjectName;
         private string _name;
-
-        public TableType(TableTypeModel tableType, Schema schema)
-        {
-            _tableType = tableType;
-            _schema = schema;
-        }
 
         //
         // Returns:
         //     The sql object name of the TableType
-        public string SqlObjectName => _sqlObjectName ?? (_sqlObjectName = $"[{_schema.Name.ToLower()}].[{Name}]");
+        public string SqlObjectName => _sqlObjectName ??= $"[{schema.Name.ToLower()}].[{Name}]";
 
         //
         // Returns:
         //     The FullName of the TableType
-        public string Name => _name ?? (_name = _tableType.Name);
+        public string Name => _name ??= tableType.Name;
 
-        public IEnumerable<ColumnModel> Columns => _tableType.Columns ?? [];
+        public IEnumerable<ColumnModel> Columns => tableType.Columns ?? [];
     }
 }
