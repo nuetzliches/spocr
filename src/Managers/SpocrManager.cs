@@ -258,7 +258,7 @@ public class SpocrManager(
                 return ExecuteResultEnum.Error;
             }
 
-            var elapsed = GenerateCode(project, options);
+            var elapsed = await GenerateCodeAsync(project, options);
 
             var summary = elapsed.Select(_ => $"{_.Key} generated in {_.Value} ms.");
 
@@ -408,7 +408,7 @@ public class SpocrManager(
         }
     }
 
-    private Dictionary<string, long> GenerateCode(ProjectModel project, ICommandOptions options)
+    private Task<Dictionary<string, long>> GenerateCodeAsync(ProjectModel project, ICommandOptions options)
     {
         try
         {
@@ -418,7 +418,7 @@ public class SpocrManager(
                 consoleService.Verbose($"Generator-Typen eingeschränkt auf: {buildOptions.GeneratorTypes}");
             }
 
-            return orchestrator.GenerateCodeWithProgress(options.DryRun, project.Role.Kind, project.Output);
+            return orchestrator.GenerateCodeWithProgressAsync(options.DryRun, project.Role.Kind, project.Output);
         }
         catch (Exception ex)
         {
@@ -431,7 +431,7 @@ public class SpocrManager(
                 consoleService.Output("\tRun with --verbose for more details");
             }
 
-            return [];
+            return Task.FromResult(new Dictionary<string, long>());
         }
     }
 

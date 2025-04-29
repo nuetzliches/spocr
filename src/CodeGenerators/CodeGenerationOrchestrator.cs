@@ -42,7 +42,7 @@ public class CodeGenerationOrchestrator(
     /// <param name="roleKind">Die Rolle des Projekts</param>
     /// <param name="outputConfig">Die Output-Konfiguration</param>
     /// <returns>Dictionary mit den Ausführungszeiten der einzelnen Schritte</returns>
-    public Dictionary<string, long> GenerateCodeWithProgress(bool isDryRun, RoleKindEnum roleKind, OutputModel outputConfig = null)
+    public async Task<Dictionary<string, long>> GenerateCodeWithProgressAsync(bool isDryRun, RoleKindEnum roleKind, OutputModel outputConfig = null)
     {
         var stopwatch = new Stopwatch();
         var elapsed = new Dictionary<string, long>();
@@ -66,31 +66,31 @@ public class CodeGenerationOrchestrator(
             currentStep++;
             stopwatch.Restart();
             consoleService.PrintSubTitle($"Generating TableTypes (Step {currentStep}/{totalSteps})");
-            GenerateDataContextTableTypesAsync(isDryRun);
+            await GenerateDataContextTableTypesAsync(isDryRun);
             elapsed.Add("TableTypes", stopwatch.ElapsedMilliseconds);
 
             currentStep++;
             stopwatch.Restart();
             consoleService.PrintSubTitle($"Generating Inputs (Step {currentStep}/{totalSteps})");
-            GenerateDataContextInputsAsync(isDryRun);
+            await GenerateDataContextInputsAsync(isDryRun);
             elapsed.Add("Inputs", stopwatch.ElapsedMilliseconds);
 
             currentStep++;
             stopwatch.Restart();
             consoleService.PrintSubTitle($"Generating Outputs (Step {currentStep}/{totalSteps})");
-            GenerateDataContextOutputsAsync(isDryRun);
+            await GenerateDataContextOutputsAsync(isDryRun);
             elapsed.Add("Outputs", stopwatch.ElapsedMilliseconds);
 
             currentStep++;
             stopwatch.Restart();
             consoleService.PrintSubTitle($"Generating Output Models (Step {currentStep}/{totalSteps})");
-            GenerateDataContextModelsAsync(isDryRun);
+            await GenerateDataContextModelsAsync(isDryRun);
             elapsed.Add("Models", stopwatch.ElapsedMilliseconds);
 
             currentStep++;
             stopwatch.Restart();
             consoleService.PrintSubTitle($"Generating StoredProcedures (Step {currentStep}/{totalSteps})");
-            GenerateDataContextStoredProceduresAsync(isDryRun);
+            await GenerateDataContextStoredProceduresAsync(isDryRun);
             elapsed.Add("StoredProcedures", stopwatch.ElapsedMilliseconds);
         }
         catch (Exception ex)
