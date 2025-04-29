@@ -3,19 +3,20 @@ using McMaster.Extensions.CommandLineUtils;
 using SpocR.Managers;
 using Microsoft.Extensions.DependencyInjection;
 using SpocR.Models;
+using System.Threading.Tasks;
 
 namespace SpocR.Extensions;
 
 public static class CommandLineApplicationExtensions
 {
-    public static CommandLineApplication InitializeGlobalConfig<T>(this CommandLineApplication<T> cli, IServiceProvider serviceProvider) where T : class
+    public static async Task<CommandLineApplication> InitializeGlobalConfigAsync<T>(this CommandLineApplication<T> cli, IServiceProvider serviceProvider) where T : class
     {
         var globalConfigFile = serviceProvider.GetService<FileManager<GlobalConfigurationModel>>();
         // var version = Assembly.GetEntryAssembly().GetName().Version;
 
         if (!globalConfigFile.Exists())
         {
-            globalConfigFile.Save(globalConfigFile.DefaultConfig);
+            await globalConfigFile.SaveAsync(globalConfigFile.DefaultConfig);
         }
         // else 
         // {

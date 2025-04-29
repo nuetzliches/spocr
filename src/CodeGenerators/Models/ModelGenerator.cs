@@ -1,5 +1,6 @@
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -22,10 +23,10 @@ public class ModelGenerator(
     TemplateManager templateManager
 ) : GeneratorBase(configFile, output, consoleService)
 {
-    public SourceText GetModelTextForStoredProcedure(Definition.Schema schema, Definition.StoredProcedure storedProcedure)
+    public async Task<SourceText> GetModelTextForStoredProcedureAsync(Definition.Schema schema, Definition.StoredProcedure storedProcedure)
     {
         // Template mit TemplateManager laden und verarbeiten
-        var root = templateManager.GetProcessedTemplate("Models/Model.cs", schema.Name, storedProcedure.Name);
+        var root = await templateManager.GetProcessedTemplateAsync("Models/Model.cs", schema.Name, storedProcedure.Name);
 
         // Properties generieren
         var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
@@ -52,7 +53,7 @@ public class ModelGenerator(
         return TemplateManager.GenerateSourceText(root);
     }
 
-    public void GenerateDataContextModels(bool isDryRun)
+    public async Task GenerateDataContextModels(bool isDryRun)
     {
         var schemas = ConfigFile.Config.Schema
             .Where(i => i.Status == SchemaStatusEnum.Build && (i.StoredProcedures?.Any() ?? false))
@@ -84,9 +85,9 @@ public class ModelGenerator(
                 }
                 var fileName = $"{storedProcedure.Name}.cs";
                 var fileNameWithPath = Path.Combine(path, fileName);
-                var sourceText = GetModelTextForStoredProcedure(schema, storedProcedure);
+                var sourceText = await GetModelTextForStoredProcedureAsync(schema, storedProcedure);
 
-                Output.Write(fileNameWithPath, sourceText, isDryRun);
+                await Output.WriteAsync(fileNameWithPath, sourceText, isDryRun);
             }
         }
     }

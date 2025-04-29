@@ -62,7 +62,7 @@ public class SpocrProjectManager(
             ConfigFile = path
         });
 
-        await Task.Run(() => globalConfigFile.Save(globalConfigFile.Config));
+        await globalConfigFile.SaveAsync(globalConfigFile.Config);
 
         if (options.Quiet)
         {
@@ -116,7 +116,7 @@ public class SpocrProjectManager(
             globalConfigFile.Config.Projects[projectIndex].ConfigFile = path;
         }
 
-        await Task.Run(() => globalConfigFile.Save(globalConfigFile.Config));
+        await globalConfigFile.SaveAsync(globalConfigFile.Config);
 
         consoleService.Output($"Project '{newDisplayName ?? displayName}' updated.");
         return ExecuteResultEnum.Succeeded;
@@ -154,7 +154,7 @@ public class SpocrProjectManager(
 
         globalConfigFile.Config.Projects.RemoveAt(projectIndex);
 
-        await Task.Run(() => globalConfigFile.Save(globalConfigFile.Config));
+        await globalConfigFile.SaveAsync(globalConfigFile.Config);
 
         consoleService.Output($"Project '{displayName}' deleted.");
         return ExecuteResultEnum.Succeeded;
@@ -165,7 +165,7 @@ public class SpocrProjectManager(
         return DeleteAsync(options).GetAwaiter().GetResult();
     }
 
-    public async Task<ExecuteResultEnum> ListAsync(ICommandOptions options)
+    public ExecuteResultEnum List(ICommandOptions options)
     {
         var projects = globalConfigFile.Config?.Projects;
 
@@ -175,29 +175,21 @@ public class SpocrProjectManager(
             return ExecuteResultEnum.Aborted;
         }
 
-        await Task.Run(() =>
+        consoleService.Output($"[{(projects.Count > 0 ? "{" : "")}");
+        projects.ForEach(project =>
         {
-            consoleService.Output($"[{(projects.Count > 0 ? "{" : "")}");
-            projects.ForEach(project =>
+            var fileExists = File.Exists(project.ConfigFile).ToString().ToLower();
+            consoleService.Output($"\t\"displayName\": \"{project.DisplayName}\",");
+            consoleService.Output($"\t\"path\": \"{project.ConfigFile}\",");
+            consoleService.Output($"\t\"fileExists\": {fileExists}");
+            if (projects.FindIndex(_ => _ == project) < projects.Count - 1)
             {
-                var fileExists = File.Exists(project.ConfigFile).ToString().ToLower();
-                consoleService.Output($"\t\"displayName\": \"{project.DisplayName}\",");
-                consoleService.Output($"\t\"path\": \"{project.ConfigFile}\",");
-                consoleService.Output($"\t\"fileExists\": {fileExists}");
-                if (projects.FindIndex(_ => _ == project) < projects.Count - 1)
-                {
-                    consoleService.Output("}, {");
-                }
-            });
-            consoleService.Output($"{(projects.Count > 0 ? "}" : "")}]");
+                consoleService.Output("}, {");
+            }
         });
+        consoleService.Output($"{(projects.Count > 0 ? "}" : "")}]");
 
         return ExecuteResultEnum.Succeeded;
-    }
-
-    public ExecuteResultEnum List(ICommandOptions options)
-    {
-        return ListAsync(options).GetAwaiter().GetResult();
     }
 
     private string CreateConfigFilePath(string path)

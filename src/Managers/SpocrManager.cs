@@ -84,7 +84,7 @@ public class SpocrManager(
         }
         else
         {
-            configFile.Save(config);
+            await configFile.SaveAsync(config);
             projectManager.Create(options);
 
             if (!options.Quiet)
@@ -107,7 +107,7 @@ public class SpocrManager(
             return ExecuteResultEnum.Error;
         }
 
-        var config = LoadAndMergeConfigurations();
+        var config = await LoadAndMergeConfigurationsAsync();
 
         if (await RunConfigVersionCheckAsync(options) == ExecuteResultEnum.Aborted)
             return ExecuteResultEnum.Aborted;
@@ -205,7 +205,7 @@ public class SpocrManager(
         else
         {
             config.Schema = configSchemas;
-            configFile.Save(config);
+            await configFile.SaveAsync(config);
         }
 
         return ExecuteResultEnum.Succeeded;
@@ -328,7 +328,7 @@ public class SpocrManager(
         var proceed2 = consoleService.GetYesNo($"Remove {Constants.ConfigurationFile}?", true);
         if (!proceed2) return ExecuteResultEnum.Aborted;
 
-        configFile.Remove(options.DryRun);
+        await configFile.RemoveAsync(options.DryRun);
         consoleService.Output($"{Constants.ConfigurationFile} removed.");
 
         return ExecuteResultEnum.Succeeded;
@@ -347,6 +347,11 @@ public class SpocrManager(
             consoleService.Output($"Latest:  {latest?.ToVersionString() ?? current.ToVersionString()}");
 
         return ExecuteResultEnum.Succeeded;
+    }
+
+    public async Task ReloadConfigurationAsync()
+    {
+        await configFile.ReloadAsync();
     }
 
     private bool _versionCheckPerformed = false;
@@ -430,9 +435,9 @@ public class SpocrManager(
         }
     }
 
-    private ConfigurationModel LoadAndMergeConfigurations()
+    private async Task<ConfigurationModel> LoadAndMergeConfigurationsAsync()
     {
-        var config = configFile.Read();
+        var config = await configFile.ReadAsync();
         if (config == null)
         {
             consoleService.Error("Failed to read configuration file");
@@ -451,7 +456,7 @@ public class SpocrManager(
         if (userConfigFile.Exists())
         {
             consoleService.Verbose($"Merging user configuration from {userConfigFileName}");
-            var userConfig = userConfigFile.Read();
+            var userConfig = await userConfigFile.ReadAsync();
             if (userConfig != null)
             {
                 return config.OverwriteWith(userConfig);

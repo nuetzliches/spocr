@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 using SpocR.Attributes;
 using SpocR.Enums;
 using SpocR.Models;
@@ -13,14 +14,14 @@ public class SpocrConfigManager(
     FileManager<GlobalConfigurationModel> globalConfigFile
 )
 {
-    public ExecuteResultEnum Config()
+    public async Task<ExecuteResultEnum> ConfigAsync()
     {
-        if (!globalConfigFile.Exists())
+        if (!await globalConfigFile.ExistsAsync())
         {
             consoleService.Error($"Global config is missing!");
         }
 
-        var config = globalConfigFile.Read();
+        var config = await globalConfigFile.ReadAsync();
 
         var propertyInfos = typeof(GlobalConfigurationModel)
                                 .GetProperties(BindingFlags.Public | BindingFlags.Instance)
@@ -37,7 +38,7 @@ public class SpocrConfigManager(
         var proceed = consoleService.GetYesNo("Write your entries to GlobalConfigFile?", true, ConsoleColor.Red);
         if (!proceed) return ExecuteResultEnum.Aborted;
 
-        globalConfigFile.Save(config);
+        await globalConfigFile.SaveAsync(config);
 
         return ExecuteResultEnum.Succeeded;
     }

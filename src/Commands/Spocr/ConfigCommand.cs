@@ -14,6 +14,6 @@ public class ConfigCommand(
     public override async Task<int> OnExecuteAsync()
     {
         await base.OnExecuteAsync();
-        return (int)spocrConfigManager.Config();
+        return (int)await spocrConfigManager.ConfigAsync();
     }
 }

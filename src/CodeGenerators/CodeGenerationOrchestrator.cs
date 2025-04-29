@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Threading.Tasks;
 using SpocR.CodeGenerators.Models;
 using SpocR.Enums;
-using SpocR.Extensions;
 using SpocR.Models;
 using SpocR.Services;
 
@@ -66,31 +66,31 @@ public class CodeGenerationOrchestrator(
             currentStep++;
             stopwatch.Restart();
             consoleService.PrintSubTitle($"Generating TableTypes (Step {currentStep}/{totalSteps})");
-            GenerateDataContextTableTypes(isDryRun);
+            GenerateDataContextTableTypesAsync(isDryRun);
             elapsed.Add("TableTypes", stopwatch.ElapsedMilliseconds);
 
             currentStep++;
             stopwatch.Restart();
             consoleService.PrintSubTitle($"Generating Inputs (Step {currentStep}/{totalSteps})");
-            GenerateDataContextInputs(isDryRun);
+            GenerateDataContextInputsAsync(isDryRun);
             elapsed.Add("Inputs", stopwatch.ElapsedMilliseconds);
 
             currentStep++;
             stopwatch.Restart();
             consoleService.PrintSubTitle($"Generating Outputs (Step {currentStep}/{totalSteps})");
-            GenerateDataContextOutputs(isDryRun);
+            GenerateDataContextOutputsAsync(isDryRun);
             elapsed.Add("Outputs", stopwatch.ElapsedMilliseconds);
 
             currentStep++;
             stopwatch.Restart();
             consoleService.PrintSubTitle($"Generating Output Models (Step {currentStep}/{totalSteps})");
-            GenerateDataContextModels(isDryRun);
+            GenerateDataContextModelsAsync(isDryRun);
             elapsed.Add("Models", stopwatch.ElapsedMilliseconds);
 
             currentStep++;
             stopwatch.Restart();
             consoleService.PrintSubTitle($"Generating StoredProcedures (Step {currentStep}/{totalSteps})");
-            GenerateDataContextStoredProcedures(isDryRun);
+            GenerateDataContextStoredProceduresAsync(isDryRun);
             elapsed.Add("StoredProcedures", stopwatch.ElapsedMilliseconds);
         }
         catch (Exception ex)
@@ -118,11 +118,11 @@ public class CodeGenerationOrchestrator(
         {
             consoleService.StartProgress("Generiere Code...");
 
-            GenerateDataContextTableTypes(isDryRun);
-            GenerateDataContextInputs(isDryRun);
-            GenerateDataContextOutputs(isDryRun);
-            GenerateDataContextModels(isDryRun);
-            GenerateDataContextStoredProcedures(isDryRun);
+            GenerateDataContextTableTypesAsync(isDryRun);
+            GenerateDataContextInputsAsync(isDryRun);
+            GenerateDataContextOutputsAsync(isDryRun);
+            GenerateDataContextModelsAsync(isDryRun);
+            GenerateDataContextStoredProceduresAsync(isDryRun);
 
             consoleService.CompleteProgress();
         }
@@ -147,19 +147,19 @@ public class CodeGenerationOrchestrator(
             consoleService.StartProgress("Generiere ausgewählte Code-Typen...");
 
             if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.TableTypes))
-                GenerateDataContextTableTypes(isDryRun);
+                GenerateDataContextTableTypesAsync(isDryRun);
 
             if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.Inputs))
-                GenerateDataContextInputs(isDryRun);
+                GenerateDataContextInputsAsync(isDryRun);
 
             if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.Outputs))
-                GenerateDataContextOutputs(isDryRun);
+                GenerateDataContextOutputsAsync(isDryRun);
 
             if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.Models))
-                GenerateDataContextModels(isDryRun);
+                GenerateDataContextModelsAsync(isDryRun);
 
             if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.StoredProcedures))
-                GenerateDataContextStoredProcedures(isDryRun);
+                GenerateDataContextStoredProceduresAsync(isDryRun);
 
             consoleService.CompleteProgress();
         }
@@ -174,41 +174,41 @@ public class CodeGenerationOrchestrator(
     /// <summary>
     /// Generiert TableType-Klassen
     /// </summary>
-    public void GenerateDataContextTableTypes(bool isDryRun)
+    public Task GenerateDataContextTableTypesAsync(bool isDryRun)
     {
-        tableTypeGenerator.GenerateDataContextTableTypes(isDryRun);
+        return tableTypeGenerator.GenerateDataContextTableTypesAsync(isDryRun);
     }
 
     /// <summary>
     /// Generiert Input-Klassen für Stored Procedures
     /// </summary>
-    public void GenerateDataContextInputs(bool isDryRun)
+    public Task GenerateDataContextInputsAsync(bool isDryRun)
     {
-        inputGenerator.GenerateDataContextInputs(isDryRun);
+        return inputGenerator.GenerateDataContextInputs(isDryRun);
     }
 
     /// <summary>
     /// Generiert Output-Klassen für Stored Procedures
     /// </summary>
-    public void GenerateDataContextOutputs(bool isDryRun)
+    public Task GenerateDataContextOutputsAsync(bool isDryRun)
     {
-        outputGenerator.GenerateDataContextOutputs(isDryRun);
+        return outputGenerator.GenerateDataContextOutputsAsync(isDryRun);
     }
 
     /// <summary>
     /// Generiert Model-Klassen für Entitäten
     /// </summary>
-    public void GenerateDataContextModels(bool isDryRun)
+    public Task GenerateDataContextModelsAsync(bool isDryRun)
     {
-        modelGenerator.GenerateDataContextModels(isDryRun);
+        return modelGenerator.GenerateDataContextModels(isDryRun);
     }
 
     /// <summary>
     /// Generiert StoredProcedure-Erweiterungsmethoden
     /// </summary>
-    public void GenerateDataContextStoredProcedures(bool isDryRun)
+    public Task GenerateDataContextStoredProceduresAsync(bool isDryRun)
     {
-        storedProcedureGenerator.GenerateDataContextStoredProcedures(isDryRun);
+        return storedProcedureGenerator.GenerateDataContextStoredProceduresAsync(isDryRun);
     }
 }
 

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -25,12 +26,12 @@ public class StoredProcedureGenerator(
     TemplateManager templateManager
 ) : GeneratorBase(configFile, output, consoleService)
 {
-    public SourceText GetStoredProcedureExtensionsCode(Definition.Schema schema, List<Definition.StoredProcedure> storedProcedures)
+    public async Task<SourceText> GetStoredProcedureExtensionsCodeAsync(Definition.Schema schema, List<Definition.StoredProcedure> storedProcedures)
     {
         var entityName = storedProcedures.First().EntityName;
 
         // Template mit TemplateManager laden und verarbeiten
-        var root = templateManager.GetProcessedTemplate("StoredProcedures/StoredProcedureExtensions.cs", schema.Name, $"{entityName}Extensions");
+        var root = await templateManager.GetProcessedTemplateAsync("StoredProcedures/StoredProcedureExtensions.cs", schema.Name, $"{entityName}Extensions");
 
         // If its an extension, add usings for the lib
         if (ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Extension)
@@ -294,7 +295,7 @@ public class StoredProcedureGenerator(
         return methodNode.NormalizeWhitespace();
     }
 
-    public void GenerateDataContextStoredProcedures(bool isDryRun)
+    public async Task GenerateDataContextStoredProceduresAsync(bool isDryRun)
     {
         var schemas = ConfigFile.Config.Schema
             .Where(i => i.Status == SchemaStatusEnum.Build && (i.StoredProcedures?.Any() ?? false))
@@ -323,9 +324,9 @@ public class StoredProcedureGenerator(
                 var fileName = $"{entityName}Extensions.cs";
                 var fileNameWithPath = Path.Combine(path, fileName);
 
-                var sourceText = GetStoredProcedureExtensionsCode(schema, groupedStoredProcedures);
+                var sourceText = await GetStoredProcedureExtensionsCodeAsync(schema, groupedStoredProcedures);
 
-                Output.Write(fileNameWithPath, sourceText, isDryRun);
+                await Output.WriteAsync(fileNameWithPath, sourceText, isDryRun);
             }
         }
     }

@@ -16,10 +16,14 @@ public class RebuildCommand(
     {
         await base.OnExecuteAsync();
 
-        if (await spocrManager.PullAsync(CommandOptions) == ExecuteResultEnum.Succeeded
-            && await spocrManager.BuildAsync(CommandOptions) == ExecuteResultEnum.Succeeded)
-            return (int)ExecuteResultEnum.Succeeded;
-        else
-            return (int)ExecuteResultEnum.Error;
+        if (await spocrManager.PullAsync(CommandOptions) == ExecuteResultEnum.Succeeded)
+        {
+            await spocrManager.ReloadConfigurationAsync();
+
+            if (await spocrManager.BuildAsync(CommandOptions) == ExecuteResultEnum.Succeeded)
+                return (int)ExecuteResultEnum.Succeeded;
+        }
+
+        return (int)ExecuteResultEnum.Error;
     }
 }

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
@@ -23,10 +24,10 @@ public class InputGenerator(
     TemplateManager templateManager
 ) : GeneratorBase(configFile, output, consoleService)
 {
-    public SourceText GetInputTextForStoredProcedure(Definition.Schema schema, Definition.StoredProcedure storedProcedure)
+    public async Task<SourceText> GetInputTextForStoredProcedureAsync(Definition.Schema schema, Definition.StoredProcedure storedProcedure)
     {
         // Template-Verarbeitung mit dem TemplateManager
-        var root = templateManager.GetProcessedTemplate("Inputs/Input.cs", schema.Name, $"{storedProcedure.Name}Input");
+        var root = await templateManager.GetProcessedTemplateAsync("Inputs/Input.cs", schema.Name, $"{storedProcedure.Name}Input");
 
         // TableType-Imports hinzufügen
         var tableTypeSchemas = storedProcedure.Input
@@ -101,7 +102,7 @@ public class InputGenerator(
         return TemplateManager.GenerateSourceText(root);
     }
 
-    public void GenerateDataContextInputs(bool isDryRun)
+    public async Task GenerateDataContextInputs(bool isDryRun)
     {
         // Migrate to Version 1.3.2
         if (ConfigFile.Config.Project.Output.DataContext.Inputs == null)
@@ -141,9 +142,9 @@ public class InputGenerator(
                 }
                 var fileName = $"{storedProcedure.Name}.cs";
                 var fileNameWithPath = Path.Combine(path, fileName);
-                var sourceText = GetInputTextForStoredProcedure(schema, storedProcedure);
+                var sourceText = await GetInputTextForStoredProcedureAsync(schema, storedProcedure);
 
-                Output.Write(fileNameWithPath, sourceText, isDryRun);
+                await Output.WriteAsync(fileNameWithPath, sourceText, isDryRun);
             }
         }
     }

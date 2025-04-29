@@ -13,33 +13,24 @@ namespace SpocR.AutoUpdater;
 /// <summary>
 /// Service für das automatisierte Aktualisieren der SpocR-Anwendung
 /// </summary>
-public class AutoUpdaterService
+/// <remarks>
+/// Erstellt eine neue Instanz des AutoUpdaterService
+/// </remarks>
+public class AutoUpdaterService(
+    SpocrService spocrService,
+    IPackageManager packageManager,
+    FileManager<GlobalConfigurationModel> globalConfigFile,
+    IConsoleService consoleService)
 {
     #region Fields
 
-    private readonly SpocrService _spocrService;
-    private readonly IPackageManager _packageManager;
-    private readonly FileManager<GlobalConfigurationModel> _globalConfigFile;
-    private readonly IConsoleService _consoleService;
+    private readonly SpocrService _spocrService = spocrService ?? throw new ArgumentNullException(nameof(spocrService));
+    private readonly IPackageManager _packageManager = packageManager ?? throw new ArgumentNullException(nameof(packageManager));
+    private readonly FileManager<GlobalConfigurationModel> _globalConfigFile = globalConfigFile ?? throw new ArgumentNullException(nameof(globalConfigFile));
+    private readonly IConsoleService _consoleService = consoleService ?? throw new ArgumentNullException(nameof(consoleService));
 
     #endregion
-
     #region Constructor
-
-    /// <summary>
-    /// Erstellt eine neue Instanz des AutoUpdaterService
-    /// </summary>
-    public AutoUpdaterService(
-        SpocrService spocrService,
-        IPackageManager packageManager,
-        FileManager<GlobalConfigurationModel> globalConfigFile,
-        IConsoleService consoleService)
-    {
-        _spocrService = spocrService ?? throw new ArgumentNullException(nameof(spocrService));
-        _packageManager = packageManager ?? throw new ArgumentNullException(nameof(packageManager));
-        _globalConfigFile = globalConfigFile ?? throw new ArgumentNullException(nameof(globalConfigFile));
-        _consoleService = consoleService ?? throw new ArgumentNullException(nameof(consoleService));
-    }
 
     #endregion
 
@@ -67,7 +58,7 @@ public class AutoUpdaterService
             {
                 _consoleService.Info("Could not check for updates. Will try again later.");
             }
-            WriteShortPause();
+            await WriteShortPauseAsync();
             return;
         }
 
@@ -77,7 +68,7 @@ public class AutoUpdaterService
             return;
         }
 
-        WriteShortPause();
+        await WriteShortPauseAsync();
     }
 
     /// <summary>
@@ -116,7 +107,7 @@ public class AutoUpdaterService
         catch (Exception ex)
         {
             _consoleService.Error($"Failed to start update process: {ex.Message}");
-            WriteLongPause();
+            WriteLongPauseAsync();
         }
     }
 
@@ -168,11 +159,11 @@ public class AutoUpdaterService
                 InstallUpdate();
                 break;
             case "Skip this version":
-                WriteSkipThisVersion();
+                WriteSkipThisVersionAsync();
                 break;
             case "Remind me later":
             default:
-                WriteLongPause();
+                WriteLongPauseAsync();
                 break;
         }
 
@@ -186,25 +177,25 @@ public class AutoUpdaterService
     /// <summary>
     /// Setzt eine kurze Wartezeit bis zur nächsten Update-Prüfung
     /// </summary>
-    private void WriteShortPause(bool save = true) =>
-        WriteToGlobalConfig(_globalConfigFile.Config.AutoUpdate.ShortPauseInMinutes, false, save);
+    private Task WriteShortPauseAsync(bool save = true) =>
+        WriteToGlobalConfigAsync(_globalConfigFile.Config.AutoUpdate.ShortPauseInMinutes, false, save);
 
     /// <summary>
     /// Setzt eine lange Wartezeit bis zur nächsten Update-Prüfung
     /// </summary>
-    private void WriteLongPause(bool save = true) =>
-        WriteToGlobalConfig(_globalConfigFile.Config.AutoUpdate.LongPauseInMinutes, false, save);
+    private Task WriteLongPauseAsync(bool save = true) =>
+        WriteToGlobalConfigAsync(_globalConfigFile.Config.AutoUpdate.LongPauseInMinutes, false, save);
 
     /// <summary>
     /// Markiert die aktuelle Version zum Überspringen
     /// </summary>
-    private void WriteSkipThisVersion(bool save = true) =>
-        WriteToGlobalConfig(_globalConfigFile.Config.AutoUpdate.ShortPauseInMinutes, true, save);
+    private Task WriteSkipThisVersionAsync(bool save = true) =>
+        WriteToGlobalConfigAsync(_globalConfigFile.Config.AutoUpdate.ShortPauseInMinutes, true, save);
 
     /// <summary>
     /// Schreibt die Update-Konfiguration in die globale Konfiguration
     /// </summary>
-    private void WriteToGlobalConfig(int pause, bool skip = false, bool save = true)
+    private async Task WriteToGlobalConfigAsync(int pause, bool skip = false, bool save = true)
     {
         if (skip)
         {
@@ -220,15 +211,15 @@ public class AutoUpdaterService
         var pauseTicks = TimeSpan.FromMinutes(pause).Ticks;
         _globalConfigFile.Config.AutoUpdate.NextCheckTicks = now + pauseTicks;
 
-        if (save) SaveGlobalConfig();
+        if (save) await SaveGlobalConfigAsync();
     }
 
     /// <summary>
     /// Speichert die globale Konfiguration
     /// </summary>
-    private void SaveGlobalConfig()
+    private Task SaveGlobalConfigAsync()
     {
-        _globalConfigFile.Save(_globalConfigFile.Config);
+        return _globalConfigFile.SaveAsync(_globalConfigFile.Config);
     }
 
     #endregion

@@ -1,5 +1,6 @@
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -24,10 +25,10 @@ public class OutputGenerator(
     TemplateManager templateManager
 ) : GeneratorBase(configFile, output, consoleService)
 {
-    public SourceText GetOutputTextForStoredProcedure(Definition.Schema schema, Definition.StoredProcedure storedProcedure)
+    public async Task<SourceText> GetOutputTextForStoredProcedureAsync(Definition.Schema schema, Definition.StoredProcedure storedProcedure)
     {
         // Load template and process it with TemplateManager
-        var root = templateManager.GetProcessedTemplate("Outputs/Output.cs", schema.Name, storedProcedure.GetOutputTypeName());
+        var root = await templateManager.GetProcessedTemplateAsync("Outputs/Output.cs", schema.Name, storedProcedure.GetOutputTypeName());
 
         // Add Usings
         if (ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Extension)
@@ -67,7 +68,7 @@ public class OutputGenerator(
         return TemplateManager.GenerateSourceText(root);
     }
 
-    public void GenerateDataContextOutputs(bool isDryRun)
+    public async Task GenerateDataContextOutputsAsync(bool isDryRun)
     {
         var schemas = ConfigFile.Config.Schema
             .Where(i => i.Status == SchemaStatusEnum.Build && (i.StoredProcedures?.Any() ?? false))
@@ -97,9 +98,9 @@ public class OutputGenerator(
                 }
                 var fileName = $"{storedProcedure.Name}.cs";
                 var fileNameWithPath = Path.Combine(path, fileName);
-                var sourceText = GetOutputTextForStoredProcedure(schema, storedProcedure);
+                var sourceText = await GetOutputTextForStoredProcedureAsync(schema, storedProcedure);
 
-                Output.Write(fileNameWithPath, sourceText, isDryRun);
+                await Output.WriteAsync(fileNameWithPath, sourceText, isDryRun);
             }
         }
     }

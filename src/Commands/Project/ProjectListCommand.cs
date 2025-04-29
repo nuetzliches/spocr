@@ -13,6 +13,6 @@ public class ProjectListCommand(
     public override async Task<int> OnExecuteAsync()
     {
         await base.OnExecuteAsync();
-        return (int)await spocrProjectManager.ListAsync(CommandOptions);
+        return (int)spocrProjectManager.List(CommandOptions);
     }
 }

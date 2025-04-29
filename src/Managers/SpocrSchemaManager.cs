@@ -31,7 +31,7 @@ public class SpocrSchemaManager(
             configFile.Config.Schema[schemaIndex].Status = Enum.Parse<SchemaStatusEnum>(status);
         }
 
-        await Task.Run(() => configFile.Save(configFile.Config));
+        await configFile.SaveAsync(configFile.Config);
 
         consoleService.Output($"Schema '{schemaName}' updated.");
         return ExecuteResultEnum.Succeeded;

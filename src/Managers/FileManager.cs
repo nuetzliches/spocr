@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading.Tasks;
 using SpocR.Extensions;
 using SpocR.Interfaces;
 using SpocR.Services;
@@ -29,13 +30,15 @@ public class FileManager<TConfig>(
         {
             if (_config == null || _overwritenWithConfig != OverwriteWithConfig)
             {
+                var config = ReadAsync().GetAwaiter().GetResult();
+
                 _config = DefaultConfig == null
-                    ? Read()
-                    : DefaultConfig.OverwriteWith<TConfig>(Read());
+                    ? config
+                    : DefaultConfig.OverwriteWith(config);
 
                 if (OverwriteWithConfig != null)
                 {
-                    _config = _config.OverwriteWith<TConfig>(OverwriteWithConfig);
+                    _config = _config.OverwriteWith(OverwriteWithConfig);
                 }
                 _overwritenWithConfig = OverwriteWithConfig;
             }
@@ -51,6 +54,31 @@ public class FileManager<TConfig>(
         set => _overwriteWithConfig = value;
     }
 
+    private JsonSerializerOptions _deserializerOptions;
+    private JsonSerializerOptions DeserializerOptions
+    {
+        get => _deserializerOptions ??= new JsonSerializerOptions
+        {
+            Converters =
+            {
+                new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)
+            }
+        };
+    }
+
+    private JsonSerializerOptions _serializerOptions;
+    private JsonSerializerOptions SerializerOptions
+    {
+        get => _serializerOptions ??= new JsonSerializerOptions()
+        {
+            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+            WriteIndented = true,
+            Converters = {
+                new JsonStringEnumConverter()
+            }
+        };
+    }
+
     public VersionCheckResult CheckVersion()
     {
         return new VersionCheckResult(spocr.Version, Config.Version);
@@ -62,55 +90,51 @@ public class FileManager<TConfig>(
         return File.Exists(path);
     }
 
-    public TConfig Read()
+    public async Task<TConfig> ReadAsync()
     {
         if (!Exists())
         {
             return null;
         }
         var path = DirectoryUtils.GetWorkingDirectory(fileName);
-        var content = File.ReadAllText(path);
+        var content = await File.ReadAllTextAsync(path);
 
-        var options = new JsonSerializerOptions
-        {
-            Converters =
-            {
-                new JsonStringEnumConverter(JsonNamingPolicy.CamelCase)
-            }
-        };
-
-        var config = JsonSerializer.Deserialize<TConfig>(content, options);
+        var config = JsonSerializer.Deserialize<TConfig>(content, DeserializerOptions);
 
         return config;
     }
 
-    public void Save(TConfig config)
+    public async Task SaveAsync(TConfig config)
     {
-        var jsonSettings = new JsonSerializerOptions()
-        {
-            DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
-            WriteIndented = true,
-            Converters = {
-                new JsonStringEnumConverter()
-            }
-        };
-
         // Overwrite with current SpocR-Version
         config.Version = spocr.Version;
 
-        var json = JsonSerializer.Serialize(config, jsonSettings);
+        var json = JsonSerializer.Serialize(config, SerializerOptions);
         var path = DirectoryUtils.GetWorkingDirectory(fileName);
         Directory.CreateDirectory(Path.GetDirectoryName(path));
-        File.WriteAllText(path, json);
+        await File.WriteAllTextAsync(path, json);
     }
 
-    public void Remove(bool dryRun = false)
+    public async Task<bool> ExistsAsync()
     {
-        if (Exists())
+        var path = DirectoryUtils.GetWorkingDirectory(fileName);
+        return await Task.FromResult(File.Exists(path));
+    }
+
+    public async Task RemoveAsync(bool dryRun = false)
+    {
+        if (await ExistsAsync())
         {
             if (!dryRun)
                 File.Delete(fileName);
         }
+    }
+
+    public async Task ReloadAsync()
+    {
+        _config = null;
+        _overwritenWithConfig = null;
+        await Task.CompletedTask;
     }
 
     /// <summary>
@@ -146,6 +170,12 @@ public class FileManager<TConfig>(
         {
             return false;
         }
+    }
+
+    public void Reload()
+    {
+        _config = null;
+        _overwritenWithConfig = null;
     }
 }
 

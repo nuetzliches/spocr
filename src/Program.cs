@@ -70,7 +70,7 @@ public class Program
            .UseDefaultConventions()
            .UseConstructorInjection(serviceProvider);
 
-        app.InitializeGlobalConfig(serviceProvider);
+        await app.InitializeGlobalConfigAsync(serviceProvider);
 
         return await app.ExecuteAsync(args);
 

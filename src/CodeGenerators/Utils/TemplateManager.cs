@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -59,14 +60,14 @@ public class TemplateManager
     /// <summary>
     /// Lädt ein Template und führt grundlegende Namespace- und Klassenname-Ersetzungen durch
     /// </summary>
-    public CompilationUnitSyntax GetProcessedTemplate(string templateType, string schemaName, string className)
+    public async Task<CompilationUnitSyntax> GetProcessedTemplateAsync(string templateType, string schemaName, string className)
     {
         if (!_templateCache.TryGetValue(templateType, out var template))
         {
             // Fallback zum direkten Laden, falls nicht im Cache
             var rootDir = _output.GetOutputRootDir();
             var templatePath = Path.Combine(rootDir.FullName, "DataContext", templateType);
-            var fileContent = File.ReadAllText(templatePath);
+            var fileContent = await File.ReadAllTextAsync(templatePath);
             var tree = CSharpSyntaxTree.ParseText(fileContent);
             template = tree.GetCompilationUnitRoot();
         }

@@ -2,6 +2,7 @@ using System;
 using System.Data;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -25,10 +26,10 @@ public class TableTypeGenerator(
     TemplateManager templateManager
 ) : GeneratorBase(configFile, output, consoleService)
 {
-    public SourceText GetTableTypeText(Definition.Schema schema, Definition.TableType tableType)
+    public async Task<SourceText> GetTableTypeTextAsync(Definition.Schema schema, Definition.TableType tableType)
     {
         // Template mit TemplateManager laden und verarbeiten
-        var root = templateManager.GetProcessedTemplate("TableTypes/TableType.cs", schema.Name, GetTypeNameForTableType(tableType));
+        var root = await templateManager.GetProcessedTemplateAsync("TableTypes/TableType.cs", schema.Name, GetTypeNameForTableType(tableType));
 
         // If its an extension, add usings for the lib
         if (ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Extension)
@@ -79,7 +80,7 @@ public class TableTypeGenerator(
         return TemplateManager.GenerateSourceText(root);
     }
 
-    public void GenerateDataContextTableTypes(bool isDryRun)
+    public async Task GenerateDataContextTableTypesAsync(bool isDryRun)
     {
         var schemas = ConfigFile.Config.Schema
             .Where(i => i.TableTypes?.Any() ?? false)
@@ -100,9 +101,9 @@ public class TableTypeGenerator(
             {
                 var fileName = $"{tableType.Name}TableType.cs";
                 var fileNameWithPath = Path.Combine(path, fileName);
-                var sourceText = GetTableTypeText(schema, tableType);
+                var sourceText = await GetTableTypeTextAsync(schema, tableType);
 
-                Output.Write(fileNameWithPath, sourceText, isDryRun);
+                await Output.WriteAsync(fileNameWithPath, sourceText, isDryRun);
             }
         }
     }

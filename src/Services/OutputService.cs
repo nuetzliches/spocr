@@ -1,4 +1,5 @@
 using System.IO;
+using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
 using SpocR.Enums;
@@ -70,9 +71,9 @@ public class OutputService(
         }
     }
 
-    private void CopyFile(FileInfo file, string targetFileName, string nameSpace, bool isDryRun)
+    private async void CopyFile(FileInfo file, string targetFileName, string nameSpace, bool isDryRun)
     {
-        var fileContent = File.ReadAllText(file.FullName);
+        var fileContent = await File.ReadAllTextAsync(file.FullName);
 
         // replace custom DefaultConnection identifier
         var runtimeConnectionStringIdentifier = configFile.Config.Project.DataBase.RuntimeConnectionStringIdentifier ?? "DefaultConnection";
@@ -100,10 +101,10 @@ public class OutputService(
 
         var sourceText = root.GetText();
 
-        Write(targetFileName, sourceText, isDryRun);
+        await WriteAsync(targetFileName, sourceText, isDryRun);
     }
 
-    public void Write(string targetFileName, SourceText sourceText, bool isDryRun)
+    public async Task WriteAsync(string targetFileName, SourceText sourceText, bool isDryRun)
     {
         var folderName = new DirectoryInfo(Path.GetDirectoryName(targetFileName)).Name;
         var fileName = Path.GetFileName(targetFileName);
@@ -112,14 +113,14 @@ public class OutputService(
 
         if (File.Exists(targetFileName))
         {
-            var existingFileText = File.ReadAllText(targetFileName);
+            var existingFileText = await File.ReadAllTextAsync(targetFileName);
             var upToDate = string.Equals(existingFileText, outputFileText);
 
             fileAction = upToDate ? FileActionEnum.UpToDate : FileActionEnum.Modified;
         }
 
         if (!isDryRun && fileAction != FileActionEnum.UpToDate)
-            File.WriteAllText(targetFileName, outputFileText);
+            await File.WriteAllTextAsync(targetFileName, outputFileText);
 
         consoleService.PrintFileActionMessage($"{folderName}/{fileName}", fileAction);
     }
