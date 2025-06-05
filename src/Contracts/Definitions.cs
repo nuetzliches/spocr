@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using SpocR.Extensions;
 using SpocR.Models;
 
 namespace SpocR.Contracts;
@@ -55,8 +56,7 @@ public static class Definition
         public Schema(SchemaModel schema)
         {
             _schema = schema;
-            var name = schema.Name.ToLower();
-            Name = string.Concat(name.First().ToString().ToUpper(), name.AsSpan(1));
+            Name = schema.Name.ToLower().ToPascalCase();
             Path = Name;
         }
 
