@@ -56,10 +56,12 @@ public static class Definition
         public Schema(SchemaModel schema)
         {
             _schema = schema;
-            Name = schema.Name.ToLower().ToPascalCase();
+            Identifier = schema.Name;
+            Name = schema.Name.ToPascalCase();
             Path = Name;
         }
 
+        public string Identifier { get; }
         public string Name { get; }
         public string Path { get; }
 
@@ -85,7 +87,7 @@ public static class Definition
         //
         // Returns:
         //     The sql object name of the StoredProcedure
-        public string SqlObjectName => _sqlObjectName ??= $"[{schema.Name.ToLower()}].[{Name}]";
+        public string SqlObjectName => _sqlObjectName ??= $"[{schema.Identifier}].[{Name}]";
 
         //
         // Returns:
