@@ -24,9 +24,8 @@ namespace SpocR.Extensions
             if (root.Members[0] is FileScopedNamespaceDeclarationSyntax fileScopedNamespaceDeclarationSyntax)
             {
                 var nsValue = replacer.Invoke(fileScopedNamespaceDeclarationSyntax.Name.ToString());
-                var fullSchemaName = SyntaxFactory.ParseName($"{nsValue}{Environment.NewLine}");
+                var fullSchemaName = SyntaxFactory.ParseName($"{nsValue}");
                 return root.ReplaceNode(fileScopedNamespaceDeclarationSyntax, fileScopedNamespaceDeclarationSyntax.WithName(fullSchemaName));
-
             }
             else if (root.Members[0] is NamespaceDeclarationSyntax namespaceDeclarationSyntax)
             {
