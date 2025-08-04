@@ -21,10 +21,21 @@ namespace SpocR.Extensions
 
         internal static CompilationUnitSyntax ReplaceNamespace(this CompilationUnitSyntax root, Func<string, string> replacer)
         {
-            var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-            var nsValue = replacer.Invoke(nsNode.Name.ToString());
-            var fullSchemaName = SyntaxFactory.ParseName($"{nsValue}{Environment.NewLine}");
-            return root.ReplaceNode(nsNode, nsNode.WithName(fullSchemaName));
+            if (root.Members[0] is FileScopedNamespaceDeclarationSyntax fileScopedNamespaceDeclarationSyntax)
+            {
+                var nsValue = replacer.Invoke(fileScopedNamespaceDeclarationSyntax.Name.ToString());
+                var fullSchemaName = SyntaxFactory.ParseName($"{nsValue}{Environment.NewLine}");
+                return root.ReplaceNode(fileScopedNamespaceDeclarationSyntax, fileScopedNamespaceDeclarationSyntax.WithName(fullSchemaName));
+
+            }
+            else if (root.Members[0] is NamespaceDeclarationSyntax namespaceDeclarationSyntax)
+            {
+                var nsValue = replacer.Invoke(namespaceDeclarationSyntax.Name.ToString());
+                var fullSchemaName = SyntaxFactory.ParseName($"{nsValue}{Environment.NewLine}");
+                return root.ReplaceNode(namespaceDeclarationSyntax, namespaceDeclarationSyntax.WithName(fullSchemaName));
+            }
+
+            throw new InvalidOperationException("Root must contain a namespace declaration.");
         }
 
         internal static CompilationUnitSyntax ReplaceClassName(this CompilationUnitSyntax root, Func<string, string> replacer, Func<NamespaceDeclarationSyntax, ClassDeclarationSyntax> selector = null)
