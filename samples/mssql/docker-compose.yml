@@ -1,0 +1,20 @@
+services:
+  sql-sample:
+    build: .
+    image: spocr-sample-sql:latest
+    container_name: spocr-sample-sql
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      ACCEPT_EULA: "Y"
+    ports:
+      - "1433:1433"
+    volumes:
+      - spocr-sample-mssql-data:/var/opt/mssql
+      - ./init:/init
+      - ./scripts/entrypoint.sh:/entrypoint.sh:ro
+    entrypoint: ["/bin/bash", "/entrypoint.sh"]
+
+volumes:
+  spocr-sample-mssql-data:

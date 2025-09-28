@@ -58,6 +58,10 @@ DataContext/
 
 ```
 
+## Samples
+
+- samples/mssql: Docker Compose setup for a SQL Server instance with sample data and stored procedures (including JSON output) for experimenting with SpocR.
+
 # Integration with Your Application
 
 ## Register the DbContext
@@ -334,3 +338,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ```
 
 ```
+
