@@ -60,6 +60,9 @@ public class SchemaManager(
 
             foreach (var storedProcedure in schema.StoredProcedures)
             {
+                var definition = await dbContext.StoredProcedureContentAsync(storedProcedure.SchemaName, storedProcedure.Name, cancellationToken);
+                storedProcedure.Content = StoredProcedureContentModel.Parse(definition);
+
                 var inputs = await dbContext.StoredProcedureInputListAsync(storedProcedure.SchemaName, storedProcedure.Name, cancellationToken);
                 storedProcedure.Input = inputs.Select(i => new StoredProcedureInputModel(i)).ToList();
 

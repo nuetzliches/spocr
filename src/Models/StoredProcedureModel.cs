@@ -47,6 +47,24 @@ public class StoredProcedureModel : IEquatable<StoredProcedureModel>
         set => _output = value;
     }
 
+    private StoredProcedureContentModel _content;
+
+    [JsonIgnore]
+    public StoredProcedureContentModel Content
+    {
+        get => _content;
+        set => _content = value;
+    }
+
+    [JsonIgnore]
+    public bool ReturnsJson => Content?.ReturnsJson ?? false;
+
+    [JsonIgnore]
+    public bool ReturnsJsonArray => Content?.ReturnsJsonArray ?? false;
+
+    [JsonIgnore]
+    public bool ReturnsJsonWithoutArrayWrapper => Content?.ReturnsJsonWithoutArrayWrapper ?? false;
+
     // public IEnumerable<StoredProcedureInputModel> Input { get; set; }
     // public IEnumerable<StoredProcedureOutputModel> Output { get; set; }
 
