@@ -11,10 +11,10 @@ using SpocR.Services;
 namespace SpocR.AutoUpdater;
 
 /// <summary>
-/// Service für das automatisierte Aktualisieren der SpocR-Anwendung
+/// Service responsible for automatically updating the SpocR application
 /// </summary>
 /// <remarks>
-/// Erstellt eine neue Instanz des AutoUpdaterService
+/// Creates a new instance of the AutoUpdaterService
 /// </remarks>
 public class AutoUpdaterService(
     SpocrService spocrService,
@@ -37,15 +37,15 @@ public class AutoUpdaterService(
     #region Public Methods
 
     /// <summary>
-    /// Ruft die neueste verfügbare Version von SpocR ab
+    /// Retrieves the latest available SpocR version
     /// </summary>
     public Task<Version> GetLatestVersionAsync() => _packageManager.GetLatestVersionAsync();
 
     /// <summary>
-    /// Führt die Überprüfung auf Updates durch und bietet dem Benutzer entsprechende Optionen an
+    /// Performs the update check and offers the user appropriate options
     /// </summary>
-    /// <param name="force">Update-Prüfung erzwingen, unabhängig von den Konfigurationseinstellungen</param>
-    /// <param name="silent">Keine Benachrichtigungen anzeigen, außer wenn ein Update verfügbar ist</param>
+    /// <param name="force">Force the update check regardless of configuration settings</param>
+    /// <param name="silent">Suppress notifications unless an update is available</param>
     public async Task RunAsync(bool force = false, bool silent = false)
     {
         if (!ShouldRunUpdate(force))
@@ -72,7 +72,7 @@ public class AutoUpdaterService(
     }
 
     /// <summary>
-    /// Führt die Installation des Updates durch
+    /// Executes the update installation
     /// </summary>
     public void InstallUpdate()
     {
@@ -116,7 +116,7 @@ public class AutoUpdaterService(
     #region Private Update Methods
 
     /// <summary>
-    /// Prüft, ob eine Update-Prüfung durchgeführt werden soll
+    /// Determines whether an update check should be performed
     /// </summary>
     private bool ShouldRunUpdate(bool force)
     {
@@ -132,7 +132,7 @@ public class AutoUpdaterService(
     }
 
     /// <summary>
-    /// Prüft, ob ein Update angeboten werden soll
+    /// Determines whether an update should be offered
     /// </summary>
     private bool ShouldOfferUpdate(Version latestVersion)
     {
@@ -141,7 +141,7 @@ public class AutoUpdaterService(
     }
 
     /// <summary>
-    /// Bietet dem Benutzer Update-Optionen an
+    /// Presents update options to the user
     /// </summary>
     private Task OfferUpdateOptionsAsync(Version latestVersion)
     {
@@ -175,25 +175,25 @@ public class AutoUpdaterService(
     #region Configuration Management
 
     /// <summary>
-    /// Setzt eine kurze Wartezeit bis zur nächsten Update-Prüfung
+    /// Sets a short pause before the next update check
     /// </summary>
     private Task WriteShortPauseAsync(bool save = true) =>
         WriteToGlobalConfigAsync(_globalConfigFile.Config.AutoUpdate.ShortPauseInMinutes, false, save);
 
     /// <summary>
-    /// Setzt eine lange Wartezeit bis zur nächsten Update-Prüfung
+    /// Sets a long pause before the next update check
     /// </summary>
     private Task WriteLongPauseAsync(bool save = true) =>
         WriteToGlobalConfigAsync(_globalConfigFile.Config.AutoUpdate.LongPauseInMinutes, false, save);
 
     /// <summary>
-    /// Markiert die aktuelle Version zum Überspringen
+    /// Marks the current version to be skipped
     /// </summary>
     private Task WriteSkipThisVersionAsync(bool save = true) =>
         WriteToGlobalConfigAsync(_globalConfigFile.Config.AutoUpdate.ShortPauseInMinutes, true, save);
 
     /// <summary>
-    /// Schreibt die Update-Konfiguration in die globale Konfiguration
+    /// Writes the update configuration to the global configuration
     /// </summary>
     private async Task WriteToGlobalConfigAsync(int pause, bool skip = false, bool save = true)
     {
@@ -215,7 +215,7 @@ public class AutoUpdaterService(
     }
 
     /// <summary>
-    /// Speichert die globale Konfiguration
+    /// Persists the updated configuration
     /// </summary>
     private Task SaveGlobalConfigAsync()
     {
@@ -235,12 +235,12 @@ public class OperationCompletedException(
 }
 
 /// <summary>
-/// Interface für Package-Manager-Dienste
+/// Interface for package manager services
 /// </summary>
 public interface IPackageManager
 {
     /// <summary>
-    /// Ruft die neueste verfügbare Version von SpocR ab
+    /// Retrieves the latest available SpocR version
     /// </summary>
     Task<Version> GetLatestVersionAsync();
 }

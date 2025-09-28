@@ -15,7 +15,7 @@ using SpocR.Services;
 namespace SpocR.CodeGenerators.Utils;
 
 /// <summary>
-/// Verwaltet das Laden und Verarbeiten von Code-Templates für die Generator-Klassen
+/// Manages loading and processing code templates for the generator classes
 /// </summary>
 public class TemplateManager
 {
@@ -32,7 +32,7 @@ public class TemplateManager
     };
 
     /// <summary>
-    /// Erstellt eine neue Instanz des TemplateManager
+    /// Creates a new instance of the TemplateManager
     /// </summary>
     public TemplateManager(OutputService output, FileManager<ConfigurationModel> configManager)
     {
@@ -58,13 +58,13 @@ public class TemplateManager
     }
 
     /// <summary>
-    /// Lädt ein Template und führt grundlegende Namespace- und Klassenname-Ersetzungen durch
+    /// Loads a template and performs basic namespace and class name replacements
     /// </summary>
     public async Task<CompilationUnitSyntax> GetProcessedTemplateAsync(string templateType, string schemaName, string className)
     {
         if (!_templateCache.TryGetValue(templateType, out var template))
         {
-            // Fallback zum direkten Laden, falls nicht im Cache
+            // Fallback to loading directly from disk if it is not in the cache
             var rootDir = _output.GetOutputRootDir();
             var templatePath = Path.Combine(rootDir.FullName, "DataContext", templateType);
             var fileContent = await File.ReadAllTextAsync(templatePath);
@@ -92,7 +92,7 @@ public class TemplateManager
     }
 
     /// <summary>
-    /// Entfernt die erste Property aus einer Klasse (Template-Property)
+    /// Removes the first property from a class (the template placeholder property)
     /// </summary>
     public static CompilationUnitSyntax RemoveTemplateProperty(CompilationUnitSyntax root)
     {
@@ -104,7 +104,7 @@ public class TemplateManager
     }
 
     /// <summary>
-    /// Erzeugt einen Using-Import basierend auf dem Projekttyp
+    /// Creates a using directive based on the project type
     /// </summary>
     public UsingDirectiveSyntax CreateImportForNamespace(string importNamespace, string suffix = null)
     {
@@ -128,7 +128,7 @@ public class TemplateManager
     }
 
     /// <summary>
-    /// Erzeugt eine Using-Direktive für ein TableType-Schema
+    /// Creates a using directive for a table type schema
     /// </summary>
     public UsingDirectiveSyntax CreateTableTypeImport(string tableTypeSchema, SchemaModel tableTypeSchemaConfig)
     {
@@ -154,7 +154,7 @@ public class TemplateManager
     }
 
     /// <summary>
-    /// Generiert den finalen Source-Text aus einem Root-Element
+    /// Generates the final source text from a root element
     /// </summary>
     public static SourceText GenerateSourceText(CompilationUnitSyntax root)
     {

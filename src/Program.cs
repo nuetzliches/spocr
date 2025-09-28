@@ -30,36 +30,36 @@ public class Program
 {
     static async Task<int> Main(string[] args)
     {
-        // Umgebung aus Umgebungsvariablen ermitteln
+        // Determine environment from environment variables
         string environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ??
                              Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ??
                              "Production";
 
-        // Konfiguration mit den bestehenden Microsoft.Extensions.Configuration-APIs erstellen
+        // Build configuration using the standard Microsoft.Extensions.Configuration APIs
         var configuration = new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
             .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false)
             .AddJsonFile($"appsettings.{environment}.json", optional: true, reloadOnChange: false)
             .Build();
 
-        // ServiceCollection für Dependency Injection
+        // Create the ServiceCollection for dependency injection
         var services = new ServiceCollection();
 
-        // Konfiguration als Service registrieren
+        // Register configuration as a service
         services.AddSingleton<IConfiguration>(configuration);
 
-        // SpocR-Dienste registrieren
+        // Register SpocR services
         services.AddSpocR();
         services.AddDbContext();
 
-        // Auto-Update Dienste registrieren
+        // Register auto update services
         services.AddTransient<AutoUpdaterService>();
         services.AddTransient<IPackageManager, NugetService>();
 
-        // ServiceProvider erstellen
+        // Build the service provider
         using var serviceProvider = services.BuildServiceProvider();
 
-        // CommandLine-App mit Dependency Injection konfigurieren
+        // Configure the command line app with dependency injection
         var app = new CommandLineApplication<Program>
         {
             Name = "spocr",
@@ -74,16 +74,16 @@ public class Program
 
         return await app.ExecuteAsync(args);
 
-        // Automatische Prüfung auf Updates beim Startup
+        // Automatic update check on startup
         // var consoleService = serviceProvider.GetRequiredService<IConsoleService>();
         // var autoUpdater = serviceProvider.GetRequiredService<AutoUpdaterService>();
 
-        // Aktuelle Umgebung anzeigen
+        // Display the current environment
         // consoleService.Verbose($"Current environment: {environment}");
 
         // try
         // {
-        //     // Prüfung auf Updates, aber nicht blockierend ausführen
+        //     // Check for updates without blocking execution
         //     _ = Task.Run(async () =>
         //     {
         //         try
@@ -92,7 +92,7 @@ public class Program
         //         }
         //         catch (Exception ex)
         //         {
-        //             // Fehler beim Update-Check sollten die Hauptfunktion nicht beeinträchtigen
+        //             // Update check failures should not affect the main execution
         //             consoleService.Warn($"Update check failed: {ex.Message}");
         //         }
         //     });
@@ -104,7 +104,7 @@ public class Program
         //         return 0;
         //     });
 
-        //     // Command line ausführen
+        //     // Execute the command line
         //     return await app.ExecuteAsync(args);
         // }
         // catch (Exception ex)
@@ -114,7 +114,7 @@ public class Program
         //     {
         //         consoleService.Error($"Inner exception: {ex.InnerException.Message}");
         //     }
-        //     return 1; // Fehlercode zurückgeben
+        //     return 1; // Return error code
         // }
     }
 }

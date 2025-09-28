@@ -8,12 +8,12 @@ using SpocR.Roslyn.Helpers;
 namespace SpocR.CodeGenerators.Extensions;
 
 /// <summary>
-/// Spezialisierte Erweiterungsmethoden für die Arbeit mit Roslyn im Generator-Kontext
+/// Specialized extension methods for working with Roslyn in the generator context
 /// </summary>
 public static class RoslynGeneratorExtensions
 {
     /// <summary>
-    /// Fügt mehrere Using-Direktiven zu einem Root-Element hinzu
+    /// Adds multiple using directives to a root element
     /// </summary>
     public static CompilationUnitSyntax AddMultipleUsings(this CompilationUnitSyntax root, IEnumerable<string> namespaces, string prefix = null)
     {
@@ -28,7 +28,7 @@ public static class RoslynGeneratorExtensions
     }
 
     /// <summary>
-    /// Erstellt eine Property mit optionalen Attributen
+    /// Creates a property with optional attributes
     /// </summary>
     public static PropertyDeclarationSyntax CreatePropertyWithAttributes(
         this ClassDeclarationSyntax classNode,
@@ -36,10 +36,10 @@ public static class RoslynGeneratorExtensions
         string name,
         Dictionary<string, object> attributeValues = null)
     {
-        // Property erstellen
+        // Create property
         var property = classNode.CreateProperty(type, name);
 
-        // Attribute hinzufügen
+        // Add attributes
         if (attributeValues != null && attributeValues.Count > 0)
         {
             var attributeList = SyntaxFactory.AttributeList();
@@ -58,7 +58,7 @@ public static class RoslynGeneratorExtensions
     }
 
     /// <summary>
-    /// Fügt einer Klasse einen Konstruktor mit einem Parameter hinzu
+    /// Adds a constructor with a parameter to a class
     /// </summary>
     public static CompilationUnitSyntax AddParameterizedConstructor(
         this CompilationUnitSyntax root,
@@ -68,10 +68,10 @@ public static class RoslynGeneratorExtensions
         var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
         var classNode = (ClassDeclarationSyntax)nsNode.Members[0];
 
-        // Constructor erstellen
+        // Create constructor
         var constructor = classNode.CreateConstructor(className);
 
-        // Parameter hinzufügen
+        // Add parameter
         var paramList = constructor.ParameterList;
         var statements = new List<StatementSyntax>();
 
@@ -82,24 +82,24 @@ public static class RoslynGeneratorExtensions
 
             paramList = paramList.AddParameters(parameter);
 
-            // Zuweisung zum Property erstellen
+            // Create assignment for the property
             var assignment = ExpressionHelper.AssignmentStatement(propertyName, paramName);
             statements.Add(assignment);
         }
 
-        // Konstruktor aktualisieren
+        // Update constructor
         constructor = constructor
             .WithParameterList(paramList)
             .WithBody(constructor.Body.WithStatements(SyntaxFactory.List(statements)));
 
-        // Konstruktor zur Klasse hinzufügen
+        // Add constructor to the class
         root = root.AddConstructor(ref classNode, constructor);
 
         return root;
     }
 
     /// <summary>
-    /// Fügt eine obsolete Annotation mit Nachricht hinzu
+    /// Adds an obsolete attribute with a message
     /// </summary>
     public static TNode AddObsoleteAttribute<TNode>(this TNode node, string message) where TNode : MemberDeclarationSyntax
     {

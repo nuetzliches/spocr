@@ -30,7 +30,7 @@ public class StoredProcedureGenerator(
     {
         var entityName = storedProcedures.First().EntityName;
 
-        // Template mit TemplateManager laden und verarbeiten
+        // Load and process the template with the template manager
         var root = await templateManager.GetProcessedTemplateAsync("StoredProcedures/StoredProcedureExtensions.cs", schema.Name, $"{entityName}Extensions");
 
         // If its an extension, add usings for the lib

@@ -21,7 +21,7 @@ public class NugetService(
         {
             try
             {
-                httpClient.Timeout = TimeSpan.FromSeconds(10); // Timeout nach 10 Sekunden
+                httpClient.Timeout = TimeSpan.FromSeconds(10); // Timeout after 10 seconds
                 var response = await httpClient.GetAsync(_url);
 
                 if (!response.IsSuccessStatusCode)

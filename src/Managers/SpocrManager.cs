@@ -153,7 +153,7 @@ public class SpocrManager(
         }
         catch (SqlException sqlEx)
         {
-            consoleService.Error($"Datenbankfehler beim Abrufen der Schemas: {sqlEx.Message}");
+            consoleService.Error($"Database error while retrieving schemas: {sqlEx.Message}");
             if (options.Verbose)
             {
                 consoleService.Error(sqlEx.StackTrace);
@@ -162,7 +162,7 @@ public class SpocrManager(
         }
         catch (Exception ex)
         {
-            consoleService.Error($"Fehler beim Abrufen der Schemas: {ex.Message}");
+            consoleService.Error($"Error while retrieving schemas: {ex.Message}");
             if (options.Verbose)
             {
                 consoleService.Error(ex.StackTrace);
@@ -276,7 +276,7 @@ public class SpocrManager(
         }
         catch (SqlException sqlEx)
         {
-            consoleService.Error($"Datenbankfehler während des Build-Vorgangs: {sqlEx.Message}");
+            consoleService.Error($"Database error during the build process: {sqlEx.Message}");
             if (options.Verbose)
             {
                 consoleService.Error(sqlEx.StackTrace);
@@ -285,7 +285,7 @@ public class SpocrManager(
         }
         catch (Exception ex)
         {
-            consoleService.Error($"Unerwarteter Fehler während des Build-Vorgangs: {ex.Message}");
+            consoleService.Error($"Unexpected error during the build process: {ex.Message}");
             if (options.Verbose)
             {
                 consoleService.Error(ex.StackTrace);
@@ -415,7 +415,7 @@ public class SpocrManager(
             if (options is IBuildCommandOptions buildOptions && buildOptions.GeneratorTypes != GeneratorTypes.All)
             {
                 orchestrator.EnabledGeneratorTypes = buildOptions.GeneratorTypes;
-                consoleService.Verbose($"Generator-Typen eingeschränkt auf: {buildOptions.GeneratorTypes}");
+                consoleService.Verbose($"Generator types restricted to: {buildOptions.GeneratorTypes}");
             }
 
             return orchestrator.GenerateCodeWithProgressAsync(options.DryRun, project.Role.Kind, project.Output);

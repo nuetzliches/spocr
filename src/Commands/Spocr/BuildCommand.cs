@@ -7,12 +7,12 @@ using SpocR.Utils;
 namespace SpocR.Commands.Spocr;
 
 /// <summary>
-/// Interface für die Build-Befehlsoptionen
+/// Interface for build command options
 /// </summary>
 public interface IBuildCommandOptions : ICommandOptions
 {
     /// <summary>
-    /// Die Generator-Typen, die beim Build aktiviert werden sollen
+    /// Generator types that should be activated during the build
     /// </summary>
     GeneratorTypes GeneratorTypes { get; }
 }
@@ -24,7 +24,7 @@ public class BuildCommand(
     SpocrProjectManager spocrProjectManager
 ) : SpocrCommandBase(spocrProjectManager), IBuildCommandOptions
 {
-    [Option("--generators", "Generator-Typen, die ausgeführt werden sollen (TableTypes,Inputs,Outputs,Models,StoredProcedures)", CommandOptionType.SingleValue)]
+    [Option("--generators", "Generator types to execute (TableTypes,Inputs,Outputs,Models,StoredProcedures)", CommandOptionType.SingleValue)]
     public string GeneratorTypesString { get; set; }
 
     public GeneratorTypes GeneratorTypes

@@ -307,7 +307,7 @@ public class ConsoleService(
                 }
                 catch (Exception)
                 {
-                    Output("\nBitte wählen Sie eine Option:");
+                    Output("\nPlease choose an option:");
                     WriteOptions(options, currentSelectedIndex);
                 }
             }
@@ -415,7 +415,7 @@ public class ConsoleService(
         }
         catch (Exception ex)
         {
-            Error($"Konsolenanzeige konnte nicht vollständig dargestellt werden: {ex.Message}");
+            Error($"Console output could not be rendered completely: {ex.Message}");
             foreach (var option in options)
             {
                 Output($"- {option}");

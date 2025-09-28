@@ -28,7 +28,7 @@ public class TableTypeGenerator(
 {
     public async Task<SourceText> GetTableTypeTextAsync(Definition.Schema schema, Definition.TableType tableType)
     {
-        // Template mit TemplateManager laden und verarbeiten
+        // Load and process the template with the template manager
         var root = await templateManager.GetProcessedTemplateAsync("TableTypes/TableType.cs", schema.Name, GetTypeNameForTableType(tableType));
 
         // If its an extension, add usings for the lib
@@ -74,7 +74,7 @@ public class TableTypeGenerator(
             }
         }
 
-        // Template-Property entfernen
+        // Remove template placeholder property
         root = TemplateManager.RemoveTemplateProperty(root);
 
         return TemplateManager.GenerateSourceText(root);

@@ -62,7 +62,7 @@ public class OutputGenerator(
             root = root.AddProperty(ref classNode, propertyNode);
         }
 
-        // Template-Property entfernen
+        // Remove template placeholder property
         root = TemplateManager.RemoveTemplateProperty(root);
 
         return TemplateManager.GenerateSourceText(root);

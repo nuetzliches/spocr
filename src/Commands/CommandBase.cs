@@ -1,4 +1,6 @@
-﻿using System.Threading.Tasks;
+using System;
+using System.Threading;
+using System.Threading.Tasks;
 using McMaster.Extensions.CommandLineUtils;
 using SpocR.Enums;
 using SpocR.Utils;
@@ -52,33 +54,77 @@ public interface ICommandOptions
     bool Debug { get; }
 }
 
-public class CommandOptions(ICommandOptions options) : ICommandOptions
+public class CommandOptions : ICommandOptions
 {
+    private static readonly AsyncLocal<ICommandOptions> CurrentOptions = new();
+    private static readonly MutableCommandOptions DefaultOptions = new();
+    private readonly ICommandOptions _options;
 
-    // Parameterloser Konstruktor
-    public CommandOptions() : this(new EmptyCommandOptions())
+    public CommandOptions()
     {
     }
 
-    public string Path => options?.Path?.Trim();
-    public bool DryRun => options?.DryRun ?? false;
-    public bool Force => options?.Force ?? false;
-    public bool Quiet => options?.Quiet ?? false;
-    public bool Verbose { get; set; } = false;
-    public bool NoVersionCheck { get; set; } = false;
-    public bool NoAutoUpdate { get; set; } = false;
-    public bool Debug => options?.Debug ?? false;
-}
+    public CommandOptions(ICommandOptions options)
+    {
+        _options = options ?? throw new ArgumentNullException(nameof(options));
+        CurrentOptions.Value = options;
+    }
 
-// Hilfsklasse für den parameterlosen Konstruktor
-internal class EmptyCommandOptions : ICommandOptions
-{
-    public string Path => null;
-    public bool DryRun => false;
-    public bool Force => false;
-    public bool Quiet => false;
-    public bool Verbose { get; set; } = false;
-    public bool NoVersionCheck { get; set; } = false;
-    public bool NoAutoUpdate { get; set; } = false;
-    public bool Debug => false;
+    private ICommandOptions EffectiveOptions => _options ?? CurrentOptions.Value ?? DefaultOptions;
+
+    public string Path => EffectiveOptions.Path?.Trim();
+    public bool DryRun => EffectiveOptions.DryRun;
+    public bool Force => EffectiveOptions.Force;
+    public bool Quiet => EffectiveOptions.Quiet;
+    public bool Verbose => EffectiveOptions.Verbose;
+
+    public bool NoVersionCheck
+    {
+        get => EffectiveOptions.NoVersionCheck;
+        set
+        {
+            if (_options != null)
+            {
+                _options.NoVersionCheck = value;
+            }
+            else
+            {
+                var target = CurrentOptions.Value ?? DefaultOptions;
+                target.NoVersionCheck = value;
+                CurrentOptions.Value = target;
+            }
+        }
+    }
+
+    public bool NoAutoUpdate
+    {
+        get => EffectiveOptions.NoAutoUpdate;
+        set
+        {
+            if (_options != null)
+            {
+                _options.NoAutoUpdate = value;
+            }
+            else
+            {
+                var target = CurrentOptions.Value ?? DefaultOptions;
+                target.NoAutoUpdate = value;
+                CurrentOptions.Value = target;
+            }
+        }
+    }
+
+    public bool Debug => EffectiveOptions.Debug;
+
+    private sealed class MutableCommandOptions : ICommandOptions
+    {
+        public string Path { get; set; }
+        public bool DryRun { get; set; }
+        public bool Force { get; set; }
+        public bool Quiet { get; set; }
+        public bool Verbose { get; set; }
+        public bool NoVersionCheck { get; set; }
+        public bool NoAutoUpdate { get; set; }
+        public bool Debug { get; set; }
+    }
 }

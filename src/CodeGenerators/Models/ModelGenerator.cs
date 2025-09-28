@@ -25,10 +25,10 @@ public class ModelGenerator(
 {
     public async Task<SourceText> GetModelTextForStoredProcedureAsync(Definition.Schema schema, Definition.StoredProcedure storedProcedure)
     {
-        // Template mit TemplateManager laden und verarbeiten
+        // Load and process the template with the template manager
         var root = await templateManager.GetProcessedTemplateAsync("Models/Model.cs", schema.Name, storedProcedure.Name);
 
-        // Properties generieren
+        // Generate properties
         var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
         var classNode = (ClassDeclarationSyntax)nsNode.Members[0];
         var propertyNode = (PropertyDeclarationSyntax)classNode.Members[0];
@@ -47,7 +47,7 @@ public class ModelGenerator(
             root = root.AddProperty(ref classNode, propertyNode);
         }
 
-        // Template-Property entfernen
+        // Remove template placeholder property
         root = TemplateManager.RemoveTemplateProperty(root);
 
         return TemplateManager.GenerateSourceText(root);

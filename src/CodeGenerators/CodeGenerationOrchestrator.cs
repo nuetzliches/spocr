@@ -10,10 +10,10 @@ using SpocR.Services;
 namespace SpocR.CodeGenerators;
 
 /// <summary>
-/// Koordiniert die verschiedenen Code-Generator-Prozesse und bietet erweiterte Konfigurationsmöglichkeiten
+/// Coordinates the different code generation processes and provides advanced configuration options
 /// </summary>
 /// <remarks>
-/// Erstellt eine neue Instanz des CodeGenerationOrchestrator
+/// Creates a new instance of the CodeGenerationOrchestrator
 /// </remarks>
 public class CodeGenerationOrchestrator(
     InputGenerator inputGenerator,
@@ -26,22 +26,22 @@ public class CodeGenerationOrchestrator(
 )
 {
     /// <summary>
-    /// Gibt an, ob bei der Code-Generierung Fehler aufgetreten sind
+    /// Indicates whether errors occurred during code generation
     /// </summary>
     public bool HasErrors { get; private set; }
 
     /// <summary>
-    /// Die Generator-Typen, die bei GenerateSelected ausgeführt werden sollen
+    /// Generator types that should run when GenerateSelected is invoked
     /// </summary>
     public GeneratorTypes EnabledGeneratorTypes { get; set; } = GeneratorTypes.All;
 
     /// <summary>
-    /// Führt die vollständige Code-Generierung mit detaillierter Fortschrittsverfolgung und Zeiterfassung aus
+    /// Executes the full code generation pipeline with detailed progress tracking and timing
     /// </summary>
-    /// <param name="isDryRun">Gibt an, ob es sich um einen Testlauf ohne tatsächliche Änderungen handelt</param>
-    /// <param name="roleKind">Die Rolle des Projekts</param>
-    /// <param name="outputConfig">Die Output-Konfiguration</param>
-    /// <returns>Dictionary mit den Ausführungszeiten der einzelnen Schritte</returns>
+    /// <param name="isDryRun">Indicates whether the generator should run in dry-run mode without writing files</param>
+    /// <param name="roleKind">The project role</param>
+    /// <param name="outputConfig">The output configuration</param>
+    /// <returns>Dictionary with the elapsed time for each generation step</returns>
     public async Task<Dictionary<string, long>> GenerateCodeWithProgressAsync(bool isDryRun, RoleKindEnum roleKind, OutputModel outputConfig = null)
     {
         var stopwatch = new Stopwatch();
@@ -108,27 +108,32 @@ public class CodeGenerationOrchestrator(
     }
 
     /// <summary>
-    /// Generiert alle verfügbaren Code-Typen
+    /// Runs the asynchronous generator in a blocking fashion.
     /// </summary>
-    public void GenerateAll(bool isDryRun)
+    public void GenerateAll(bool isDryRun) => GenerateAllAsync(isDryRun).GetAwaiter().GetResult();
+
+    /// <summary>
+    /// Generates all available generator types
+    /// </summary>
+    public async Task GenerateAllAsync(bool isDryRun)
     {
         HasErrors = false;
 
         try
         {
-            consoleService.StartProgress("Generiere Code...");
+            consoleService.StartProgress("Generating code...");
 
-            GenerateDataContextTableTypesAsync(isDryRun);
-            GenerateDataContextInputsAsync(isDryRun);
-            GenerateDataContextOutputsAsync(isDryRun);
-            GenerateDataContextModelsAsync(isDryRun);
-            GenerateDataContextStoredProceduresAsync(isDryRun);
+            await GenerateDataContextTableTypesAsync(isDryRun);
+            await GenerateDataContextInputsAsync(isDryRun);
+            await GenerateDataContextOutputsAsync(isDryRun);
+            await GenerateDataContextModelsAsync(isDryRun);
+            await GenerateDataContextStoredProceduresAsync(isDryRun);
 
             consoleService.CompleteProgress();
         }
         catch (Exception ex)
         {
-            consoleService.Error($"Fehler bei der Code-Generierung: {ex.Message}");
+            consoleService.Error($"Error during code generation: {ex.Message}");
             HasErrors = true;
             consoleService.CompleteProgress(success: false);
             throw;
@@ -136,43 +141,48 @@ public class CodeGenerationOrchestrator(
     }
 
     /// <summary>
-    /// Generiert nur die ausgewählten Code-Typen basierend auf EnabledGeneratorTypes
+    /// Runs the selected generator pipeline synchronously for command handlers.
     /// </summary>
-    public void GenerateSelected(bool isDryRun)
+    public void GenerateSelected(bool isDryRun) => GenerateSelectedAsync(isDryRun).GetAwaiter().GetResult();
+
+    /// <summary>
+    /// Generates only the generator types defined by EnabledGeneratorTypes
+    /// </summary>
+    public async Task GenerateSelectedAsync(bool isDryRun)
     {
         HasErrors = false;
 
         try
         {
-            consoleService.StartProgress("Generiere ausgewählte Code-Typen...");
+            consoleService.StartProgress("Generating selected generator types...");
 
             if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.TableTypes))
-                GenerateDataContextTableTypesAsync(isDryRun);
+                await GenerateDataContextTableTypesAsync(isDryRun);
 
             if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.Inputs))
-                GenerateDataContextInputsAsync(isDryRun);
+                await GenerateDataContextInputsAsync(isDryRun);
 
             if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.Outputs))
-                GenerateDataContextOutputsAsync(isDryRun);
+                await GenerateDataContextOutputsAsync(isDryRun);
 
             if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.Models))
-                GenerateDataContextModelsAsync(isDryRun);
+                await GenerateDataContextModelsAsync(isDryRun);
 
             if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.StoredProcedures))
-                GenerateDataContextStoredProceduresAsync(isDryRun);
+                await GenerateDataContextStoredProceduresAsync(isDryRun);
 
             consoleService.CompleteProgress();
         }
         catch (Exception ex)
         {
-            consoleService.Error($"Fehler bei der Code-Generierung: {ex.Message}");
+            consoleService.Error($"Error during code generation: {ex.Message}");
             HasErrors = true;
             consoleService.CompleteProgress(success: false);
         }
     }
 
     /// <summary>
-    /// Generiert TableType-Klassen
+    /// Generates TableType classes
     /// </summary>
     public Task GenerateDataContextTableTypesAsync(bool isDryRun)
     {
@@ -180,7 +190,7 @@ public class CodeGenerationOrchestrator(
     }
 
     /// <summary>
-    /// Generiert Input-Klassen für Stored Procedures
+    /// Generates input classes for stored procedures
     /// </summary>
     public Task GenerateDataContextInputsAsync(bool isDryRun)
     {
@@ -188,7 +198,7 @@ public class CodeGenerationOrchestrator(
     }
 
     /// <summary>
-    /// Generiert Output-Klassen für Stored Procedures
+    /// Generates output classes for stored procedures
     /// </summary>
     public Task GenerateDataContextOutputsAsync(bool isDryRun)
     {
@@ -196,7 +206,7 @@ public class CodeGenerationOrchestrator(
     }
 
     /// <summary>
-    /// Generiert Model-Klassen für Entitäten
+    /// Generates entity model classes
     /// </summary>
     public Task GenerateDataContextModelsAsync(bool isDryRun)
     {
@@ -204,7 +214,7 @@ public class CodeGenerationOrchestrator(
     }
 
     /// <summary>
-    /// Generiert StoredProcedure-Erweiterungsmethoden
+    /// Generates stored procedure extension methods
     /// </summary>
     public Task GenerateDataContextStoredProceduresAsync(bool isDryRun)
     {
@@ -213,7 +223,7 @@ public class CodeGenerationOrchestrator(
 }
 
 /// <summary>
-/// Definiert die verschiedenen Generator-Typen, die einzeln aktiviert werden können
+/// Defines the generator types that can be enabled individually
 /// </summary>
 [Flags]
 public enum GeneratorTypes

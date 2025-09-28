@@ -15,16 +15,16 @@ using SpocR.Utils;
 namespace SpocR.Extensions
 {
     /// <summary>
-    /// Erweiterungsmethoden für die Registrierung der SpocR-Dienste in der DI-Container
+    /// Extension methods for registering SpocR services in the DI container
     /// </summary>
     public static class SpocrServiceCollectionExtensions
     {
         /// <summary>
-        /// Fügt alle SpocR-Dienste zur Service Collection hinzu
+        /// Adds all SpocR services to the service collection
         /// </summary>
         public static IServiceCollection AddSpocR(this IServiceCollection services)
         {
-            // Konfiguration für SpocR
+            // SpocR configuration
             services.AddOptions<SpocROptions>()
                 .Configure(options =>
                 {
@@ -36,29 +36,29 @@ namespace SpocR.Extensions
             services.AddSingleton(PhysicalConsole.Singleton);
             services.TryAddSingleton<CommandOptions>();
 
-            // Konsolen-Service mit verbesserten Logging-Fähigkeiten
+            // Console service with enhanced logging capabilities
             services.AddSingleton<IConsoleService>(provider =>
                 new ConsoleService(
                     provider.GetRequiredService<IConsole>(),
                     provider.GetRequiredService<CommandOptions>()));
 
-            // SpocR-Kerndienste
+            // Core SpocR services
             services.AddSingleton<SpocrService>();
 
-            // Manager-Dienste mit optimiertem Lebenszyklus
+            // Manager services with optimized lifecycle
             AddManagerServices(services);
 
-            // Dateiverwaltungs-Dienste
+            // File management services
             AddFileManagers(services);
 
-            // Code-Generierungs-Dienste
+            // Code generation services
             AddCodeGenerators(services);
 
             return services;
         }
 
         /// <summary>
-        /// Registriert die Manager-Dienste in der Service Collection
+        /// Registers manager services in the service collection
         /// </summary>
         private static void AddManagerServices(IServiceCollection services)
         {
@@ -72,7 +72,7 @@ namespace SpocR.Extensions
         }
 
         /// <summary>
-        /// Registriert die Dateiverwaltungs-Dienste in der Service Collection
+        /// Registers file management services in the service collection
         /// </summary>
         private static void AddFileManagers(IServiceCollection services)
         {
@@ -98,11 +98,11 @@ namespace SpocR.Extensions
         }
 
         /// <summary>
-        /// Registriert die Code-Generierungs-Dienste in der Service Collection
+        /// Registers code generation services in the service collection
         /// </summary>
         private static void AddCodeGenerators(IServiceCollection services)
         {
-            // Template- und Generatoren-Dienste
+            // Template and generator services
             services.AddSingleton<TemplateManager>();
             services.AddSingleton<InputGenerator>();
             services.AddSingleton<OutputGenerator>();
@@ -110,12 +110,12 @@ namespace SpocR.Extensions
             services.AddSingleton<TableTypeGenerator>();
             services.AddSingleton<StoredProcedureGenerator>();
 
-            // Orchestrator als letzte Komponente registrieren
+            // Register the orchestrator as the final component
             services.AddSingleton<CodeGenerationOrchestrator>();
         }
 
         /// <summary>
-        /// Ermittelt den Pfad zur globalen Konfigurationsdatei
+        /// Determines the path to the global configuration file
         /// </summary>
         private static string GetGlobalConfigPath()
         {
@@ -128,7 +128,7 @@ namespace SpocR.Extensions
     }
 
     /// <summary>
-    /// Optionen für die SpocR-Konfiguration
+    /// Options for the SpocR configuration
     /// </summary>
     public class SpocROptions
     {

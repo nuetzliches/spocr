@@ -18,7 +18,7 @@ using SpocR.Utils;
 namespace SpocR.CodeGenerators.Base;
 
 /// <summary>
-/// Basis-Klasse für alle Code-Generatoren
+/// Base class for all code generators
 /// </summary>
 public abstract class GeneratorBase
 {
@@ -84,7 +84,7 @@ public abstract class GeneratorBase
     #region Template Processing
 
     /// <summary>
-    /// Erstellt ein Verzeichnis für einen Schema-Pfad, falls es noch nicht existiert
+    /// Creates a directory for a schema path if it does not exist
     /// </summary>
     protected string EnsureDirectoryExists(string basePath, string subPath, string schemaPath, bool isDryRun)
     {
@@ -97,7 +97,7 @@ public abstract class GeneratorBase
     }
 
     /// <summary>
-    /// Fügt Imports für TableTypes zu einer Compilation-Unit hinzu
+    /// Adds imports for table types to a compilation unit
     /// </summary>
     protected CompilationUnitSyntax AddMultipleTableTypeImports(CompilationUnitSyntax root, IEnumerable<string> tableTypeSchemas)
     {
@@ -109,7 +109,7 @@ public abstract class GeneratorBase
     }
 
     /// <summary>
-    /// Fügt einen Using-Import für eine TableType-Schema hinzu
+    /// Adds a using directive for a table type schema
     /// </summary>
     protected CompilationUnitSyntax AddTableTypeImport(CompilationUnitSyntax root, string tableTypeSchema)
     {
@@ -127,7 +127,7 @@ public abstract class GeneratorBase
     }
 
     /// <summary>
-    /// Erzeugt einen generischen Using-Import basierend auf dem Projekt-Typ und Namespace
+    /// Creates a generic using directive based on the project type and namespace
     /// </summary>
     protected UsingDirectiveSyntax CreateImportDirective(string importNamespace, string suffix = null)
     {
@@ -151,7 +151,7 @@ public abstract class GeneratorBase
     }
 
     /// <summary>
-    /// Generiert den finalen Quelltext von einer Root-Syntax
+    /// Generates the final source text from a root syntax
     /// </summary>
     protected static SourceText GenerateSourceText(CompilationUnitSyntax root)
     {
@@ -159,7 +159,7 @@ public abstract class GeneratorBase
     }
 
     /// <summary>
-    /// Fügt eine Property zu einer Klasse hinzu
+    /// Adds a property to a class
     /// </summary>
     protected static CompilationUnitSyntax AddProperty(
         CompilationUnitSyntax root,
@@ -173,14 +173,14 @@ public abstract class GeneratorBase
     }
 
     /// <summary>
-    /// Erzeugt eine Property mit optionalen Attributen
+    /// Creates a property with optional attributes
     /// </summary>
     protected static PropertyDeclarationSyntax CreatePropertyWithAttributes(
         TypeSyntax type,
         string name,
         Dictionary<string, object> attributeValues = null)
     {
-        // Property erstellen
+        // Create property
         var property = SyntaxFactory.PropertyDeclaration(type, name)
             .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
             .AddAccessorListAccessors(
@@ -189,7 +189,7 @@ public abstract class GeneratorBase
                 SyntaxFactory.AccessorDeclaration(SyntaxKind.SetAccessorDeclaration)
                     .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken)));
 
-        // Attribute hinzufügen
+        // Add attributes
         if (attributeValues != null && attributeValues.Count > 0)
         {
             var attributeList = SyntaxFactory.AttributeList();
@@ -210,7 +210,7 @@ public abstract class GeneratorBase
     #endregion
 
     /// <summary>
-    /// Generiert ein Verzeichnis-Schema und gibt alle zugehörigen Stored Procedures zurück
+    /// Generates a directory schema and returns all related stored procedures
     /// </summary>
     protected IEnumerable<(Definition.Schema Schema, IEnumerable<Definition.StoredProcedure> StoredProcedures, string Path)>
         GenerateSchemaDirectoriesAndGetProcedures(string basePath, string subPath, bool requireInputs = false, bool isDryRun = false)

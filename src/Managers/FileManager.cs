@@ -138,11 +138,11 @@ public class FileManager<TConfig>(
     }
 
     /// <summary>
-    /// Versucht, die Konfiguration aus einem bestimmten Pfad zu laden.
+    /// Attempts to load the configuration from a given path.
     /// </summary>
-    /// <param name="path">Der Verzeichnispfad, in dem die Konfigurationsdatei gesucht werden soll.</param>
-    /// <param name="config">Die geladene Konfiguration, falls erfolgreich.</param>
-    /// <returns>True, wenn die Konfiguration erfolgreich geladen wurde, andernfalls False.</returns>
+    /// <param name="path">The directory path where the configuration file should be located.</param>
+    /// <param name="config">The configuration that was loaded if successful.</param>
+    /// <returns>True if the configuration was loaded successfully; otherwise false.</returns>
     public bool TryOpen(string path, out TConfig config)
     {
         config = null;
@@ -158,7 +158,7 @@ public class FileManager<TConfig>(
 
             if (!Exists())
             {
-                // Pfad zurücksetzen
+                // Reset the path
                 DirectoryUtils.SetBasePath(originalWorkingDirectory);
                 return false;
             }

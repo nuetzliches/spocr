@@ -2,7 +2,7 @@
 
 > **Sp**ent **o**n **c**ode **r**eduction - A modern C# code generator for SQL Server stored procedures
 
-## 🚀 Features
+## Features
 
 - Automatically scaffolds SQL Server stored procedures and models into C# files
 - Intuitive CLI interface for seamless integration into your workflow
@@ -28,33 +28,34 @@ SpocR offers three deployment models to fit your specific needs:
 
 ## Key Capabilities
 
-- ✅ **User-Defined Table Types**: Full support for complex SQL parameter types
-- ✅ **Strongly-Typed Models**: Automatic mapping to C# types with proper nullability
-- ✅ **Multiple Result Sets**: Handle procedures returning lists or complex hierarchical data
-- ✅ **JSON Support**: Direct handling of JSON string results without additional model classes
-- ✅ **Async Operations**: First-class async/await support with CancellationToken handling
+- **User-Defined Table Types**: Full support for complex SQL parameter types
+- **Strongly-Typed Models**: Automatic mapping to C# types with proper nullability
+- **Multiple Result Sets**: Handle procedures returning lists or complex hierarchical data
+- **JSON Support**: Direct handling of JSON string results without additional model classes
+- **Async Operations**: First-class async/await support with CancellationToken handling
 
 # Generated Project Structure
 
 ```
 DataContext/
-  ├── Models/
-  │   └── [schema]/
-  │       └── [StoredProcedureName].cs      # Output model classes
-  ├── Inputs/
-  │   └── [schema]/
-  │       └── [InputType].cs               # Input model classes
-  ├── StoredProcedures/
-  │   └── [schema]/
-  │       └── [EntityName]Extensions.cs    # Extension methods
-  ├── TableTypes/
-  │   └── [schema]/
-  │       └── [TableTypeName].cs           # Table type definitions
-  ├── AppDbContext.cs                      # Core database context
-  ├── AppDbContextExtensions.cs            # General extensions
-  ├── ServiceCollectionExtensions.cs       # DI registration
-  ├── SqlDataReaderExtensions.cs           # Data reader utilities
-  └── SqlParameterExtensions.cs            # Parameter utilities
+  |- Models/
+  |  |- [schema]/
+  |  |  |- [StoredProcedureName].cs      # Output model classes
+  |- Inputs/
+  |  |- [schema]/
+  |  |  |- [InputType].cs               # Input model classes
+  |- StoredProcedures/
+  |  |- [schema]/
+  |  |  |- [EntityName]Extensions.cs    # Extension methods
+  |- TableTypes/
+  |  |- [schema]/
+  |  |  |- [TableTypeName].cs           # Table type definitions
+  |- AppDbContext.cs                      # Core database context
+  |- AppDbContextExtensions.cs            # General extensions
+  |- ServiceCollectionExtensions.cs       # DI registration
+  |- SqlDataReaderExtensions.cs           # Data reader utilities
+  `- SqlParameterExtensions.cs            # Parameter utilities
+
 ```
 
 # Integration with Your Application

@@ -52,7 +52,7 @@ public static class StoredProcedureQueries
         {
             new("@objectId", storedProcedure.Id)
         };
-        // is_nullable kann beim Input nur über userdefined types definiert werden
+        // is_nullable can only be defined through user-defined types when used as input
         // max_length see: https://www.sqlservercentral.com/forums/topic/sql-server-max_lenght-returns-double-the-actual-size#unicode
         var queryString = @"SELECT p.name, 
                                     t1.is_nullable, 

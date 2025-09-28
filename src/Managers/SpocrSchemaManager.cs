@@ -37,7 +37,7 @@ public class SpocrSchemaManager(
         return ExecuteResultEnum.Succeeded;
     }
 
-    // Behalte die synchrone Methode für Abwärtskompatibilität
+    // Keep the synchronous method for backward compatibility
     public ExecuteResultEnum Update(ISchemaUpdateCommandOptions options)
     {
         return UpdateAsync(options).GetAwaiter().GetResult();
@@ -71,7 +71,7 @@ public class SpocrSchemaManager(
         return ExecuteResultEnum.Succeeded;
     }
 
-    // Behalte die synchrone Methode für Abwärtskompatibilität
+    // Keep the synchronous method for backward compatibility
     public ExecuteResultEnum List(ICommandOptions options)
     {
         return ListAsync(options).GetAwaiter().GetResult();

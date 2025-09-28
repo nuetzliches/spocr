@@ -1,7 +1,7 @@
 namespace SpocR.Enums;
 
 /// <summary>
-/// Kennzeichnet den Status einer Datei bei Generierungs- und Aktualisierungsprozessen
+/// Identifies the status of a file during generation and update operations
 /// </summary>
 public enum FileActionEnum
 {

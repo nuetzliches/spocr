@@ -67,7 +67,7 @@ public class DbContext(
         }
         catch (Exception e)
         {
-            consoleService.Error($"Fehler in ExecuteListAsync für {procedureName}: {e.Message}");
+            consoleService.Error($"Error in ExecuteListAsync for {procedureName}: {e.Message}");
             throw;
         }
 
@@ -110,7 +110,7 @@ public class DbContext(
         }
         catch (Exception e)
         {
-            consoleService.Error($"Fehler in ListAsync für Query: {e.Message}");
+            consoleService.Error($"Error in ListAsync for query: {e.Message}");
             throw;
         }
 

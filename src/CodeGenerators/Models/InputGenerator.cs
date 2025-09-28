@@ -26,10 +26,10 @@ public class InputGenerator(
 {
     public async Task<SourceText> GetInputTextForStoredProcedureAsync(Definition.Schema schema, Definition.StoredProcedure storedProcedure)
     {
-        // Template-Verarbeitung mit dem TemplateManager
+        // Process template with the template manager
         var root = await templateManager.GetProcessedTemplateAsync("Inputs/Input.cs", schema.Name, $"{storedProcedure.Name}Input");
 
-        // TableType-Imports hinzufügen
+        // Add table type imports
         var tableTypeSchemas = storedProcedure.Input
             .Where(i => i.IsTableType ?? false)
             .GroupBy(t => t.TableTypeSchemaName, (key, group) => key)
@@ -45,15 +45,15 @@ public class InputGenerator(
         var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
         var classNode = (ClassDeclarationSyntax)nsNode.Members[0];
 
-        // Obsoleten Constructor hinzufügen
+        // Add obsolete constructor
         var obsoleteConstructor = classNode.CreateConstructor($"{storedProcedure.Name}Input");
         obsoleteConstructor = obsoleteConstructor.AddObsoleteAttribute("This empty contructor will be removed in vNext. Please use constructor with parameters.");
         root = root.AddConstructor(ref classNode, obsoleteConstructor);
 
-        // Konstruktor mit Parametern erstellen
+        // Build constructor with parameters
         var inputs = storedProcedure.Input.Where(i => !i.IsOutput).ToList();
 
-        // Parameterliste für den Konstruktor erstellen
+        // Build parameter list for the constructor
         var parameters = new List<(string TypeName, string ParamName, string PropertyName)>();
         foreach (var input in inputs)
         {
@@ -64,10 +64,10 @@ public class InputGenerator(
             parameters.Add((typeName, paramName, GetPropertyFromSqlInputTableType(input.Name)));
         }
 
-        // Konstruktor zur Klasse hinzufügen
+        // Add constructor to the class
         root = root.AddParameterizedConstructor($"{storedProcedure.Name}Input", parameters);
 
-        // Properties generieren
+        // Generate properties
         nsNode = (NamespaceDeclarationSyntax)root.Members[0];
         classNode = (ClassDeclarationSyntax)nsNode.Members[0];
 
@@ -81,7 +81,7 @@ public class InputGenerator(
                 ? GetTypeSyntaxForTableType(item)
                 : ParseTypeFromSqlDbTypeName(item.SqlTypeName, item.IsNullable ?? false);
 
-            // Attribute hinzufügen für NVarChar mit MaxLength
+            // Add attribute for NVARCHAR with MaxLength
             if (!isTableType && (item.SqlTypeName?.Equals(System.Data.SqlDbType.NVarChar.ToString(), System.StringComparison.InvariantCultureIgnoreCase) ?? false)
                 && item.MaxLength.HasValue)
             {
@@ -107,7 +107,7 @@ public class InputGenerator(
         // Migrate to Version 1.3.2
         if (ConfigFile.Config.Project.Output.DataContext.Inputs == null)
         {
-            // Der SpocrService sollte als Abhängigkeit injiziert werden
+            // SpocrService should be registered as a dependency
             var defaultConfig = new SpocrService().GetDefaultConfiguration();
             ConfigFile.Config.Project.Output.DataContext.Inputs = defaultConfig.Project.Output.DataContext.Inputs;
         }
@@ -125,7 +125,7 @@ public class InputGenerator(
                 continue;
             }
 
-            // Verzeichnis anlegen
+            // Ensure target directory exists
             var dataContextInputPath = DirectoryUtils.GetWorkingDirectory(ConfigFile.Config.Project.Output.DataContext.Path, ConfigFile.Config.Project.Output.DataContext.Inputs.Path);
             var path = Path.Combine(dataContextInputPath, schema.Path);
             if (!Directory.Exists(path) && !isDryRun)
@@ -133,7 +133,7 @@ public class InputGenerator(
                 Directory.CreateDirectory(path);
             }
 
-            // Dateien generieren
+            // Generate files
             foreach (var storedProcedure in storedProcedures)
             {
                 if (!storedProcedure.HasInputs())

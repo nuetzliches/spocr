@@ -16,7 +16,7 @@ public class TargetFrameworkConverter : JsonConverter<string>
 
         TargetFrameworkEnum framework = TargetFrameworkExtensions.FromString(value);
 
-        // Normalisieren des Strings (für Konsistenz)
+        // Normalize the string (for consistency)
         return framework.ToFrameworkString();
     }
 
@@ -28,7 +28,7 @@ public class TargetFrameworkConverter : JsonConverter<string>
         }
         else
         {
-            // Normalisieren des Strings (für Konsistenz)
+            // Normalize the string (for consistency)
             TargetFrameworkEnum framework = TargetFrameworkExtensions.FromString(value);
             writer.WriteStringValue(framework.ToFrameworkString());
         }
