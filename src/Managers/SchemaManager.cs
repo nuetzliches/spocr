@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using SpocR.DataContext;
 using SpocR.DataContext.Queries;
+using SpocR.DataContext.Models;
 using SpocR.Models;
 using SpocR.Services;
 
@@ -61,13 +62,45 @@ public class SchemaManager(
             foreach (var storedProcedure in schema.StoredProcedures)
             {
                 var definition = await dbContext.StoredProcedureContentAsync(storedProcedure.SchemaName, storedProcedure.Name, cancellationToken);
-                storedProcedure.Content = StoredProcedureContentModel.Parse(definition);
+                storedProcedure.Content = StoredProcedureContentModel.Parse(definition, storedProcedure.SchemaName);
 
                 var inputs = await dbContext.StoredProcedureInputListAsync(storedProcedure.SchemaName, storedProcedure.Name, cancellationToken);
                 storedProcedure.Input = inputs.Select(i => new StoredProcedureInputModel(i)).ToList();
 
                 var output = await dbContext.StoredProcedureOutputListAsync(storedProcedure.SchemaName, storedProcedure.Name, cancellationToken);
-                storedProcedure.Output = output.Select(i => new StoredProcedureOutputModel(i)).ToList();
+                var outputModels = output.Select(i => new StoredProcedureOutputModel(i)).ToList();
+
+                var jsonColumns = storedProcedure.Content?.JsonColumns;
+                if (storedProcedure.ReturnsJson && jsonColumns?.Any() == true)
+                {
+                    var jsonOutputs = new List<StoredProcedureOutputModel>();
+                    foreach (var jsonColumn in jsonColumns)
+                    {
+                        Column columnInfo = null;
+                        if (!string.IsNullOrEmpty(jsonColumn.SourceTable) && !string.IsNullOrEmpty(jsonColumn.SourceColumn))
+                        {
+                            columnInfo = await dbContext.TableColumnAsync(jsonColumn.SourceSchema ?? storedProcedure.SchemaName, jsonColumn.SourceTable, jsonColumn.SourceColumn, cancellationToken);
+                        }
+
+                        var outputName = jsonColumn.Name ?? jsonColumn.SourceColumn ?? "Value";
+
+                        var column = new StoredProcedureOutput
+                        {
+                            Name = outputName,
+                            IsNullable = columnInfo?.IsNullable ?? true,
+                            SqlTypeName = columnInfo?.SqlTypeName ?? "nvarchar(max)",
+                            MaxLength = columnInfo?.MaxLength ?? 0
+                        };
+
+                        jsonOutputs.Add(new StoredProcedureOutputModel(column));
+                    }
+
+                    storedProcedure.Output = jsonOutputs.Any() ? jsonOutputs : outputModels;
+                }
+                else
+                {
+                    storedProcedure.Output = outputModels;
+                }
             }
 
             var tableTypeModels = new List<TableTypeModel>();

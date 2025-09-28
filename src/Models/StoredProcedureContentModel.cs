@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json.Serialization;
+using System.Text;
 using Microsoft.SqlServer.TransactSql.ScriptDom;
 
 namespace SpocR.Models;
@@ -28,7 +29,9 @@ public class StoredProcedureContentModel
     public string JsonRootProperty { get; init; }
     public bool ContainsOpenJson { get; init; }
 
-    public static StoredProcedureContentModel Parse(string definition)
+    public IReadOnlyList<JsonColumn> JsonColumns { get; init; } = Array.Empty<JsonColumn>();
+
+    public static StoredProcedureContentModel Parse(string definition, string defaultSchema = "dbo")
     {
         if (string.IsNullOrWhiteSpace(definition))
         {
@@ -50,7 +53,7 @@ public class StoredProcedureContentModel
             return CreateFallbackModel(definition);
         }
 
-        var analysis = new ProcedureContentAnalysis();
+        var analysis = new ProcedureContentAnalysis(defaultSchema);
         var visitor = new ProcedureContentVisitor(definition, analysis);
         fragment.Accept(visitor);
         analysis.FinalizeJson();
@@ -72,6 +75,7 @@ public class StoredProcedureContentModel
             ReturnsJsonArray = analysis.ReturnsJsonArray,
             ReturnsJsonWithoutArrayWrapper = analysis.ReturnsJsonWithoutArrayWrapper,
             JsonRootProperty = analysis.JsonRootProperty,
+            JsonColumns = analysis.JsonColumns.ToArray(),
             ContainsOpenJson = analysis.ContainsOpenJson
         };
     }
@@ -118,12 +122,29 @@ public class StoredProcedureContentModel
             ReturnsJsonArray = returnsJson && !returnsJsonWithoutArrayWrapper,
             ReturnsJsonWithoutArrayWrapper = returnsJsonWithoutArrayWrapper,
             JsonRootProperty = root,
+            JsonColumns = Array.Empty<JsonColumn>(),
             ContainsOpenJson = ContainsWord("OPENJSON")
         };
     }
 
+    public class JsonColumn
+    {
+        public string JsonPath { get; set; }
+        public string Name { get; set; }
+        public string SourceSchema { get; set; }
+        public string SourceTable { get; set; }
+        public string SourceColumn { get; set; }
+    }
+
     private sealed class ProcedureContentAnalysis
     {
+        public ProcedureContentAnalysis(string defaultSchema)
+        {
+            DefaultSchema = string.IsNullOrWhiteSpace(defaultSchema) ? "dbo" : defaultSchema;
+        }
+
+        public string DefaultSchema { get; }
+        public List<JsonColumn> JsonColumns { get; } = new();
         public bool ContainsSelect { get; set; }
         public bool ContainsInsert { get; set; }
         public bool ContainsUpdate { get; set; }
@@ -139,8 +160,11 @@ public class StoredProcedureContentModel
 
         public void FinalizeJson()
         {
-            ReturnsJsonArray = ReturnsJson && JsonWithArrayWrapper && !JsonWithoutArrayWrapper;
-            ReturnsJsonWithoutArrayWrapper = ReturnsJson && JsonWithoutArrayWrapper;
+            if (ReturnsJson)
+            {
+                ReturnsJsonWithoutArrayWrapper = JsonWithoutArrayWrapper;
+                ReturnsJsonArray = !JsonWithoutArrayWrapper;
+            }
         }
     }
 
@@ -272,11 +296,152 @@ public class StoredProcedureContentModel
                 {
                     _analysis.JsonWithArrayWrapper = true;
                 }
+                CollectJsonColumns(node);
             }
 
             base.ExplicitVisit(node);
         }
 
+        private void CollectJsonColumns(QuerySpecification node)
+        {
+            var aliasMap = new Dictionary<string, (string Schema, string Table)>(StringComparer.OrdinalIgnoreCase);
+            if (node.FromClause?.TableReferences != null)
+            {
+                foreach (var tableReference in node.FromClause.TableReferences)
+                {
+                    CollectTableReference(tableReference, aliasMap);
+                }
+            }
+
+            foreach (var element in node.SelectElements.OfType<SelectScalarExpression>())
+            {
+                var path = GetJsonPath(element);
+                if (string.IsNullOrEmpty(path))
+                {
+                    continue;
+                }
+
+                var jsonColumn = new JsonColumn
+                {
+                    JsonPath = path,
+                    Name = GetSafePropertyName(path)
+                };
+
+                if (element.Expression is ColumnReferenceExpression columnRef)
+                {
+                    var identifiers = columnRef.MultiPartIdentifier?.Identifiers;
+                    if (identifiers != null && identifiers.Count > 0)
+                    {
+                        jsonColumn.SourceColumn = identifiers[^1].Value;
+                        if (identifiers.Count > 1)
+                        {
+                            var qualifier = identifiers[^2].Value;
+                            if (aliasMap.TryGetValue(qualifier, out var tableInfo))
+                            {
+                                jsonColumn.SourceSchema = tableInfo.Schema;
+                                jsonColumn.SourceTable = tableInfo.Table;
+                            }
+                        }
+                    }
+                }
+
+                if (string.IsNullOrEmpty(jsonColumn.Name))
+                {
+                    continue;
+                }
+
+                if (!_analysis.JsonColumns.Any(c => string.Equals(c.Name, jsonColumn.Name, StringComparison.OrdinalIgnoreCase)))
+                {
+                    _analysis.JsonColumns.Add(jsonColumn);
+                }
+            }
+        }
+
+        private static string GetJsonPath(SelectScalarExpression element)
+        {
+            var alias = element.ColumnName?.Value;
+            if (!string.IsNullOrEmpty(alias))
+            {
+                return NormalizeJsonPath(alias);
+            }
+
+            if (element.Expression is ColumnReferenceExpression columnRef)
+            {
+                var identifiers = columnRef.MultiPartIdentifier?.Identifiers;
+                if (identifiers != null && identifiers.Count > 0)
+                {
+                    return NormalizeJsonPath(identifiers[^1].Value);
+                }
+            }
+
+            return null;
+        }
+
+        private static string NormalizeJsonPath(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+
+            var trimmed = value.Trim().Trim('[', ']', (char)34, (char)39);
+            return trimmed;
+        }
+
+        private static string GetSafePropertyName(string path)
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                return null;
+            }
+
+            var segments = path.Split('.', StringSplitOptions.RemoveEmptyEntries);
+            var candidate = segments.Length > 0 ? segments[^1] : path;
+
+            var builder = new StringBuilder();
+            foreach (var ch in candidate)
+            {
+                if (char.IsLetterOrDigit(ch) || ch == '_')
+                {
+                    builder.Append(ch);
+                }
+            }
+
+            if (builder.Length == 0)
+            {
+                return null;
+            }
+
+            if (!char.IsLetter(builder[0]) && builder[0] != '_')
+            {
+                builder.Insert(0, '_');
+            }
+
+            return builder.ToString();
+        }
+
+        private void CollectTableReference(TableReference tableReference, Dictionary<string, (string Schema, string Table)> aliasMap)
+        {
+            switch (tableReference)
+            {
+                case NamedTableReference named:
+                    var schema = named.SchemaObject?.SchemaIdentifier?.Value ?? _analysis.DefaultSchema;
+                    var table = named.SchemaObject?.BaseIdentifier?.Value;
+                    var alias = named.Alias?.Value ?? table;
+                    if (!string.IsNullOrEmpty(alias) && !string.IsNullOrEmpty(table))
+                    {
+                        aliasMap[alias] = (schema, table);
+                    }
+                    break;
+                case QualifiedJoin join:
+                    CollectTableReference(join.FirstTableReference, aliasMap);
+                    CollectTableReference(join.SecondTableReference, aliasMap);
+                    break;
+                case JoinParenthesisTableReference parenthesis when parenthesis.Join != null:
+                    CollectTableReference(parenthesis.Join, aliasMap);
+                    break;
+            }
+        }
         private void AddStatement(TSqlStatement statement)
         {
             if (statement?.StartOffset >= 0 && statement.FragmentLength > 0)

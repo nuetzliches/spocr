@@ -123,7 +123,7 @@ public class UserService
 
 - **EntityName** (required): Base SQL table name (e.g., `User`)
 - **Action** (required): `Create`, `Update`, `Delete`, `Merge`, `Upsert`, `Find`, `List`
-- **Suffix** (optional): `WithChildren`, custom suffix, etc.
+- **Suffix** (optional): `AsJson`, custom suffix, etc.
 
 ## CRUD Operation Result Schema
 
@@ -338,4 +338,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ```
 
 ```
-

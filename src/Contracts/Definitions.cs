@@ -117,9 +117,16 @@ public static class Definition
                         : ReadWriteKindEnum.Write;
         public ResultKindEnum ResultKind => _resultKind != ResultKindEnum.Undefined
             ? _resultKind
-            : (_resultKind = OperationKind == OperationKindEnum.List || Name.Contains("WithChildren")
-                ? ResultKindEnum.List
-                : ResultKindEnum.Single);
+            : (_resultKind = storedProcedure.ReturnsJson
+                ? (storedProcedure.ReturnsJsonArray ? ResultKindEnum.List : ResultKindEnum.Single)
+                : (OperationKind == OperationKindEnum.List || Name.Contains("WithChildren")
+                    ? ResultKindEnum.List
+                    : ResultKindEnum.Single));
+
+        public bool ReturnsJson => storedProcedure.ReturnsJson;
+        public bool ReturnsJsonArray => storedProcedure.ReturnsJsonArray;
+        public string JsonRootProperty => storedProcedure.Content?.JsonRootProperty;
+        public IReadOnlyList<StoredProcedureContentModel.JsonColumn> JsonColumns => storedProcedure.JsonColumns ?? Array.Empty<StoredProcedureContentModel.JsonColumn>();
 
         public IEnumerable<StoredProcedureInputModel> Input => storedProcedure.Input ?? [];
         public IEnumerable<StoredProcedureOutputModel> Output => storedProcedure.Output ?? [];
@@ -143,3 +150,4 @@ public static class Definition
         public IEnumerable<ColumnModel> Columns => tableType.Columns ?? [];
     }
 }
+

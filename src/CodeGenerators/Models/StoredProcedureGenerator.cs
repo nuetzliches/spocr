@@ -242,7 +242,21 @@ public class StoredProcedureGenerator(
         var returnType = "Task<CrudResult>";
         var returnModel = "CrudResult";
 
-        if (!storedProcedure.HasResult() && storedProcedure.HasOutputs())
+        if (storedProcedure.ReturnsJson)
+        {
+            returnModel = storedProcedure.Name;
+            if (storedProcedure.ReturnsJsonArray)
+            {
+                returnType = $"Task<List<{returnModel}>>";
+                returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", $"ReadJsonAsync<List<{returnModel}>>");
+            }
+            else
+            {
+                returnType = $"Task<{returnModel}>";
+                returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", $"ReadJsonAsync<{returnModel}>");
+            }
+        }
+        else if (!storedProcedure.HasResult() && storedProcedure.HasOutputs())
         {
             var outputType = storedProcedure.GetOutputTypeName();
 
@@ -255,7 +269,7 @@ public class StoredProcedureGenerator(
             returnModel = ParseTypeFromSqlDbTypeName(output.SqlTypeName, output.IsNullable ?? false).ToString();
 
             returnType = $"Task<{returnModel}>";
-            returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", $"ReadJsonAsync");
+            returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", "ReadJsonAsync");
         }
         else
         {

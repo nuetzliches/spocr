@@ -63,6 +63,9 @@ public class StoredProcedureModel : IEquatable<StoredProcedureModel>
     public bool ReturnsJsonArray => Content?.ReturnsJsonArray ?? false;
 
     [JsonIgnore]
+    public IReadOnlyList<StoredProcedureContentModel.JsonColumn> JsonColumns => Content?.JsonColumns;
+
+    [JsonIgnore]
     public bool ReturnsJsonWithoutArrayWrapper => Content?.ReturnsJsonWithoutArrayWrapper ?? false;
 
     // public IEnumerable<StoredProcedureInputModel> Input { get; set; }

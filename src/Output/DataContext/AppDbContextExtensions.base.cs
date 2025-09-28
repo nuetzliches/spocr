@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Data;
 using Microsoft.Data.SqlClient;
 using System.Linq;
+using System.Text.Json;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -78,6 +79,17 @@ namespace Source.DataContext
             reader.Close();
 
             return result.ToString();
+        }
+
+        public static async Task<T> ReadJsonAsync<T>(this IAppDbContextPipe pipe, string procedureName, IEnumerable<SqlParameter> parameters, CancellationToken cancellationToken = default)
+        {
+            var json = await pipe.ReadJsonAsync(procedureName, parameters, cancellationToken);
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return default;
+            }
+
+            return JsonSerializer.Deserialize<T>(json);
         }
 
         internal static async Task<SqlCommand> CreateSqlCommandAsync(this IAppDbContextPipe pipe, string procedureName, IEnumerable<SqlParameter> parameters, CancellationToken cancellationToken = default)
