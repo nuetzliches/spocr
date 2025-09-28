@@ -11,10 +11,10 @@ services:
     ports:
       - "1433:1433"
     volumes:
-      - mssql-data:/var/opt/mssql
+      - spocr-sample-mssql-data:/var/opt/mssql
       - ./init:/init
       - ./scripts/entrypoint.sh:/entrypoint.sh:ro
     entrypoint: ["/bin/bash", "/entrypoint.sh"]
 
 volumes:
-  mssql-data:
+  spocr-sample-mssql-data:
