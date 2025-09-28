@@ -73,6 +73,24 @@ public static class StoredProcedureQueries
         return await context.ListAsync<StoredProcedureInput>(queryString, parameters, cancellationToken);
     }
 
+    public static async Task<string> StoredProcedureContentAsync(this DbContext context, string schemaName, string name, CancellationToken cancellationToken)
+    {
+        var storedProcedure = await context.ObjectAsync(schemaName, name, cancellationToken);
+        if (storedProcedure == null)
+        {
+            return null;
+        }
+
+        var parameters = new List<SqlParameter>
+        {
+            new("@objectId", storedProcedure.Id)
+        };
+
+        var queryString = @"SELECT definition FROM sys.sql_modules WHERE object_id = @objectId;";
+        var content = await context.SingleAsync<StoredProcedureContent>(queryString, parameters, cancellationToken);
+        return content?.Definition;
+    }
+
     public static Task<Object> ObjectAsync(this DbContext context, string schemaName, string name, CancellationToken cancellationToken)
     {
         var parameters = new List<SqlParameter>
