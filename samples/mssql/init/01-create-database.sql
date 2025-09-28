@@ -1,0 +1,5 @@
+IF DB_ID(N'SpocRSample') IS NULL
+BEGIN
+    CREATE DATABASE SpocRSample;
+END
+GO

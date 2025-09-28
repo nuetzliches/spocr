@@ -40,4 +40,9 @@ msbuild.wrn
 # Custom vscode extension
 vscode/spocr/node_modules/
 src/*.nupkg
+
 samples/
+!samples/
+!samples/mssql/
+!samples/mssql/**
+samples/mssql/.env
