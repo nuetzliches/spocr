@@ -43,6 +43,7 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.4" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.4" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.0.*" />
+    <PackageReference Include="Microsoft.SqlServer.TransactSql.ScriptDom" Version="170.121.2" />
     <PackageReference Include="System.Management" Version="9.0.0" />
   </ItemGroup>
   <Target Name="IncrementVersion">
@@ -58,3 +59,4 @@
     <XmlPoke XmlInputPath="$(MSBuildProjectFullPath)" Query="/Project/PropertyGroup/Version" Value="$(NewVersion)" />
   </Target>
 </Project>
+
