@@ -20,10 +20,10 @@ setze - [x] fuer erledigte Todos.
   - [x] entwerfe eine Stored Procedure mit Inputparametern basierend auf custom data types und custom table types
   - [x] dokumentiere jede neue Stored Procedure samt erwarteter Resultsets fuer die Tests
 - [ ] Die Models sollen auf C# Ebene nicht implizit deserialisiert werden (Vorteil der Performance, direkt das Ergebnis an den Client weiterzugeben geht verloren!?) - Erstelle ein Konzept, wie dieser Vorgang optional durchgefuehrt werden kann.
-  - [ ] analysiere die aktuelle Deserialisierung in StoredProcedureContentModel und verwandten Klassen
-  - [ ] definiere eine Konfigurationsoption oder Pipeline, die die optionale Deserialisierung steuert
-  - [ ] erstelle einen Prototyp, der zwischen direkter JSON Weitergabe und Deserialisierung umschalten kann
-  - [ ] ermittle Performance-Kennzahlen fuer beide Varianten und dokumentiere die Ergebnisse
+  - [x] analysiere die aktuelle Deserialisierung in StoredProcedureContentModel und verwandten Klassen
+  - [x] definiere eine Konfigurationsoption oder Pipeline, die die optionale Deserialisierung steuert
+  - [ ] docs\optional-json-deserialization.md umsetzenkann
+  - [ ] dokumentiere diese Anpassungen
 - [ ] Beruecksichtige in den Output Models, dass mit den JSON Strukturen nun auch nested Objekte abgebildet werden muessen. Wie ist das am besten zu loesen? Eine neue Output Property?
   - [ ] inventarisiere alle Output Models unter src/Output auf vorhandene JSON Properties
   - [ ] entwerfe eine Strategie fuer verschachtelte JSON (z.B. separate Payload-Klasse oder dynamische Struktur)
