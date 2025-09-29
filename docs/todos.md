@@ -1,21 +1,20 @@
 Anweisung fuer codex:
-Halte dich an diese Todos, arbeite sie der Reihe nach ab.
-
-Setze - [ ] fuer neue Todos
-Setze - [x] fuer erledigte Todos
+Halte dich an diese Todos, arbeite sie der Reihe nach ab und
+setze - [ ] fuer neue Todos,
+setze - [x] fuer erledigte Todos.
 
 - [ ] passe samples\mssql\init an. trenne schema und tables, fuege custom data type und custom table types ein
-  - [ ] analysiere die bestehenden Skripte in samples\mssql\init und dokumentiere welche Teile Schema, Tabellen, Typen und Seed-Daten enthalten
-  - [ ] splitte die Schema-Definition in ein eigenes Skript (z.B. samples\mssql\init\01-create-schema.sql)
-  - [ ] verschiebe die Tabellen-Definition in ein separates Skript (z.B. samples\mssql\init\02-create-tables.sql)
-  - [ ] ergaenze ein Skript fuer custom scalar data types (z.B. samples\mssql\init\03-create-custom-types.sql)
-  - [ ] ergaenze ein Skript fuer custom table types und verknuepfe es mit dem Tabellen-Skript
-- [ ] verwende custom data types in den Tabellen
-  - [ ] pruefe jede Tabelle auf Spalten, die auf die neuen custom data types wechseln sollen
-  - [ ] passe die CREATE TABLE Skripte so an, dass die custom data types und table types verwendet werden
-  - [ ] aktualisiere Seed-Daten oder Defaults, damit sie mit den neuen Typen kompatibel sind
-  - [ ] gleiche EF Core Modelle und DbContext-Mappings mit den geaenderten Typen ab
-- [ ] weitere Test Prozeduren erstellen: Multiple Resultsets, nested Json Objekte, Inputs mit custom data type und custom table types.
+  - [x] analysiere die bestehenden Skripte in samples\mssql\init und dokumentiere welche Teile Schema, Tabellen, Typen und Seed-Daten enthalten
+  - [x] splitte die Schema-Definition in ein eigenes Skript (z.B. samples\mssql\init\01-create-schema.sql)
+  - [x] verschiebe die Tabellen-Definition in ein separates Skript (z.B. samples\mssql\init\02-create-tables.sql)
+  - [x] ergaenze ein Skript fuer custom scalar data types (z.B. samples\mssql\init\03-create-custom-types.sql)
+  - [x] ergaenze ein Skript fuer custom table types und verknuepfe es mit dem Tabellen-Skript
+- [x] verwende custom data types in den Tabellen
+  - [x] pruefe jede Tabelle auf Spalten, die auf die neuen custom data types wechseln sollen
+  - [x] passe die CREATE TABLE Skripte so an, dass die custom data types und table types verwendet werden
+  - [x] aktualisiere Seed-Daten oder Defaults, damit sie mit den neuen Typen kompatibel sind
+  - [x] Fuege Tabellen-Spalten mit nullable Type hinzu
+- [ ] weitere Test Prozeduren erstellen: Multiple Resultsets, nested Json Objekte, Inputs mit custom data type und custom table types, passe die Namen der Prozeduren an, vermeide Nummerierung.
   - [ ] entwerfe eine Stored Procedure mit mehreren Resultsets inklusive unterschiedlicher Schemata
   - [ ] entwerfe eine Stored Procedure, die verschachtelte JSON-Objekte zurueckgibt
   - [ ] entwerfe eine Stored Procedure mit Inputparametern basierend auf custom data types und custom table types
@@ -30,6 +29,10 @@ Setze - [x] fuer erledigte Todos
   - [ ] entwerfe eine Strategie fuer verschachtelte JSON (z.B. separate Payload-Klasse oder dynamische Struktur)
   - [ ] passe die Codegenerierung an, damit nested JSON korrekt serialisiert/deserialisiert wird
   - [ ] ergaenze Dokumentation fuer Konsumenten, wie nested JSON Felder zu verwenden sind
+- [ ] Den Output DataContext (C#) um einen weiteren Schalter erweitern "SET NO COUNT": "ON"|"OFF" Dies soll ueber die spocr.json und AppDbContextOptions konfigurierbar werden. Plane diesen Schritt zunaechst mit Unteraufgaben (Session Scope usw.)
+
+Mit folgenden Todos noch warten bis wir weiter fortgeschritten sind:
+
 - [ ] Tests implementieren: Auf Basis eines Docker Containers mit mssql DB die testbare StoredProcedures beinhaltet und zu einem soll-Output (spocr.json) fuehren soll? Daraus dann die Model-Generierung testen? Also mehrstufige Tests?
   - [ ] richte ein docker-compose Setup fuer eine MSSQL Testdatenbank inklusive Init-Skripten ein
   - [ ] automatisiere das Einspielen der Stored Procedures und der custom types im Container

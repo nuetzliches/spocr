@@ -6,7 +6,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT UserId, Email, DisplayName, CreatedAt
+    SELECT UserId, Email, DisplayName, CreatedAt, Bio
     FROM samples.Users
     ORDER BY DisplayName;
 END
@@ -18,7 +18,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT UserId, Email, DisplayName, CreatedAt
+    SELECT UserId, Email, DisplayName, CreatedAt, Bio
     FROM samples.Users
     WHERE UserId = @UserId;
 END
@@ -35,7 +35,8 @@ BEGIN
         u.Email,
         o.OrderId,
         o.TotalAmount,
-        o.PlacedAt
+        o.PlacedAt,
+        o.Notes
     FROM samples.Users AS u
         LEFT JOIN samples.Orders AS o ON o.UserId = u.UserId
     ORDER BY u.UserId, o.PlacedAt
@@ -56,7 +57,8 @@ BEGIN
         u.Email,
         o.OrderId,
         o.TotalAmount,
-        o.PlacedAt
+        o.PlacedAt,
+        o.Notes
     FROM samples.Users AS u
         LEFT JOIN samples.Orders AS o ON o.UserId = u.UserId
     WHERE u.UserId = @UserId

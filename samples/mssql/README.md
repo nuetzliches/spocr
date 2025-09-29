@@ -41,12 +41,16 @@ docker exec -it spocr-sample-sql /opt/mssql-tools/bin/sqlcmd \
   -Q "EXEC samples.UserList"
 ```
 
-The sample also includes a JSON-producing procedure:
+The sample also includes JSON-producing procedures:
 
 ```
 docker exec -it spocr-sample-sql /opt/mssql-tools/bin/sqlcmd \
   -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d SpocRSample \
-  -Q "EXEC samples.OrderSummaryJson"
+  -Q "EXEC samples.OrderList1"
+
+docker exec -it spocr-sample-sql /opt/mssql-tools/bin/sqlcmd \
+  -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d SpocRSample \
+  -Q "EXEC samples.OrderList2 @UserId = 1"
 ```
 
 ## Stopping & Cleanup
@@ -62,9 +66,12 @@ Add `-v` to remove the data volume (`./data`).
 ```
 init/
   01-create-database.sql
-  02-create-schema-and-tables.sql
-  03-seed-data.sql
-  04-create-procedures.sql
+  02-create-schema.sql
+  03-create-scalar-types.sql
+  04-create-table-types.sql
+  05-create-tables.sql
+  06-seed-data.sql
+  07-create-procedures.sql
 scripts/
   entrypoint.sh
 ```
