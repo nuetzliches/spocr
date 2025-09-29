@@ -10,11 +10,18 @@ using System.Threading.Tasks;
 
 namespace Source.DataContext;
 
+public enum JsonMaterializationMode
+{
+    Deserialize,
+    Raw
+}
+
 public interface IAppDbContextPipe
 {
     IAppDbContext Context { get; }
     SqlTransaction Transaction { get; set; }
     int? CommandTimeout { get; set; }
+    JsonMaterializationMode? JsonMaterializationOverride { get; set; }
 }
 
 public interface IAppDbContext
@@ -37,6 +44,7 @@ public class AppDbContextOptions
     /// The CommandTimeout in Seconds
     /// </summary>
     public int CommandTimeout { get; set; } = 30;
+    public JsonMaterializationMode JsonMaterializationMode { get; set; } = JsonMaterializationMode.Deserialize;
 }
 
 public class AppDbContextPipe(
@@ -46,6 +54,7 @@ public class AppDbContextPipe(
     public IAppDbContext Context { get; } = context;
     public SqlTransaction Transaction { get; set; }
     public int? CommandTimeout { get; set; }
+    public JsonMaterializationMode? JsonMaterializationOverride { get; set; }
 }
 
 public class AppDbContext(

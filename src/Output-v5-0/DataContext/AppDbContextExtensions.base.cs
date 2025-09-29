@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Data;
 using Microsoft.Data.SqlClient;
@@ -22,6 +23,11 @@ namespace Source.DataContext
             return context.CreatePipe().WithTransaction(transaction);
         }
 
+        public static IAppDbContextPipe WithJsonMaterialization(this IAppDbContext context, JsonMaterializationMode mode)
+        {
+            return context.CreatePipe().WithJsonMaterialization(mode);
+        }
+
         public static IAppDbContextPipe CreatePipe(this IAppDbContext context)
         {
             return new AppDbContextPipe(context).WithCommandTimeout(context.Options.CommandTimeout);
@@ -39,6 +45,12 @@ namespace Source.DataContext
         public static IAppDbContextPipe WithTransaction(this IAppDbContextPipe pipe, SqlTransaction transaction)
         {
             pipe.Transaction = transaction;
+            return pipe;
+        }
+
+        public static IAppDbContextPipe WithJsonMaterialization(this IAppDbContextPipe pipe, JsonMaterializationMode mode)
+        {
+            pipe.JsonMaterializationOverride = mode;
             return pipe;
         }
 
@@ -81,8 +93,19 @@ namespace Source.DataContext
             return result.ToString();
         }
 
+        public static Task<string> ReadJsonRawAsync(this IAppDbContextPipe pipe, string procedureName, IEnumerable<SqlParameter> parameters, CancellationToken cancellationToken = default)
+        {
+            return pipe.ReadJsonAsync(procedureName, parameters, cancellationToken);
+        }
+
         public static async Task<T> ReadJsonAsync<T>(this IAppDbContextPipe pipe, string procedureName, IEnumerable<SqlParameter> parameters, CancellationToken cancellationToken = default)
         {
+            var mode = ResolveJsonMaterializationMode(pipe);
+            if (mode == JsonMaterializationMode.Raw)
+            {
+                throw new InvalidOperationException("Json materialization mode is set to Raw. Use ReadJsonAsync to obtain the raw payload or configure JsonMaterializationMode.Deserialize for typed results.");
+            }
+
             var json = await pipe.ReadJsonAsync(procedureName, parameters, cancellationToken);
             if (string.IsNullOrWhiteSpace(json))
             {
@@ -120,6 +143,11 @@ namespace Source.DataContext
         internal static SqlTransaction GetCurrentTransaction(this IAppDbContextPipe pipe)
         {
             return pipe.Transaction ?? pipe.Context.Transactions.LastOrDefault();
+        }
+
+        private static JsonMaterializationMode ResolveJsonMaterializationMode(IAppDbContextPipe pipe)
+        {
+            return pipe.JsonMaterializationOverride ?? pipe.Context.Options.JsonMaterializationMode;
         }
     }
 }

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Data;
 using Microsoft.Data.SqlClient;
@@ -22,6 +23,11 @@ public static class AppDbContextExtensions
         return context.CreatePipe().WithTransaction(transaction);
     }
 
+    public static IAppDbContextPipe WithJsonMaterialization(this IAppDbContext context, JsonMaterializationMode mode)
+    {
+        return context.CreatePipe().WithJsonMaterialization(mode);
+    }
+
     public static IAppDbContextPipe CreatePipe(this IAppDbContext context)
     {
         return new AppDbContextPipe(context).WithCommandTimeout(context.Options.CommandTimeout);
@@ -39,6 +45,12 @@ public static class AppDbContextPipeExtensions
     public static IAppDbContextPipe WithTransaction(this IAppDbContextPipe pipe, SqlTransaction transaction)
     {
         pipe.Transaction = transaction;
+        return pipe;
+    }
+
+    public static IAppDbContextPipe WithJsonMaterialization(this IAppDbContextPipe pipe, JsonMaterializationMode mode)
+    {
+        pipe.JsonMaterializationOverride = mode;
         return pipe;
     }
 
@@ -81,6 +93,11 @@ public static class AppDbContextPipeExtensions
         return result.ToString();
     }
 
+    public static Task<string> ReadJsonRawAsync(this IAppDbContextPipe pipe, string procedureName, IEnumerable<SqlParameter> parameters, CancellationToken cancellationToken = default)
+    {
+        return pipe.ReadJsonAsync(procedureName, parameters, cancellationToken);
+    }
+
     internal static async Task<SqlCommand> CreateSqlCommandAsync(this IAppDbContextPipe pipe, string procedureName, IEnumerable<SqlParameter> parameters, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -109,5 +126,10 @@ public static class AppDbContextPipeExtensions
     internal static SqlTransaction GetCurrentTransaction(this IAppDbContextPipe pipe)
     {
         return pipe.Transaction ?? pipe.Context.Transactions.LastOrDefault();
+    }
+
+    private static JsonMaterializationMode ResolveJsonMaterializationMode(IAppDbContextPipe pipe)
+    {
+        return pipe.JsonMaterializationOverride ?? pipe.Context.Options.JsonMaterializationMode;
     }
 }
