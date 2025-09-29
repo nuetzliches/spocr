@@ -22,13 +22,13 @@ setze - [x] fuer erledigte Todos.
 - [ ] Die Models sollen auf C# Ebene nicht implizit deserialisiert werden (Vorteil der Performance, direkt das Ergebnis an den Client weiterzugeben geht verloren!?) - Erstelle ein Konzept, wie dieser Vorgang optional durchgefuehrt werden kann.
   - [x] analysiere die aktuelle Deserialisierung in StoredProcedureContentModel und verwandten Klassen
   - [x] definiere eine Konfigurationsoption oder Pipeline, die die optionale Deserialisierung steuert
-  - [ ] docs\optional-json-deserialization.md umsetzenkann
+  - [ ] docs\optional-json-deserialization.md umsetzen
   - [ ] dokumentiere diese Anpassungen
 - [ ] Beruecksichtige in den Output Models, dass mit den JSON Strukturen nun auch nested Objekte abgebildet werden muessen. Wie ist das am besten zu loesen? Eine neue Output Property?
-  - [ ] inventarisiere alle Output Models unter src/Output auf vorhandene JSON Properties
-  - [ ] entwerfe eine Strategie fuer verschachtelte JSON (z.B. separate Payload-Klasse oder dynamische Struktur)
+  - [x] inventarisiere alle Output Models unter src/Output auf vorhandene JSON Properties
+  - [x] entwerfe eine Strategie fuer verschachtelte JSON (z.B. separate Payload-Klasse oder dynamische Struktur)
   - [ ] passe die Codegenerierung an, damit nested JSON korrekt serialisiert/deserialisiert wird
-  - [ ] ergaenze Dokumentation fuer Konsumenten, wie nested JSON Felder zu verwenden sind
+  - [ ] ergaenze Dokumentation fuer Konsumenten, wie nested JSON Felder zu verwenden sind (nach Umsetzung)
 - [ ] Den Output DataContext (C#) um einen weiteren Schalter erweitern "SET NO COUNT": "ON"|"OFF" Dies soll ueber die spocr.json und AppDbContextOptions konfigurierbar werden. Plane diesen Schritt zunaechst mit Unteraufgaben (Session Scope usw.)
 
 Mit folgenden Todos noch warten bis wir weiter fortgeschritten sind:
@@ -54,3 +54,7 @@ Mit folgenden Todos noch warten bis wir weiter fortgeschritten sind:
   - [ ] implementiere eine Klassifizierung, die auf Resultset-Metadaten und JSON Settings basiert
   - [ ] teste die Klassifizierung mit den neuen Beispielprozeduren aus samples\mssql\init
   - [ ] nutze die Klassifizierung, um passende Output Modelle oder Generierungslogik abzuleiten
+
+Todos als Rohentwurf (müssen vervollständigt werden):
+
+- [ ] Prüfen, ob der AppDbContext Anpassungen im Bereich Transaktions-Sicherheit, Sicherheit im Allgemeinen und verbesserter Konfigurations-Pipeline (aktuelles C# .NET Pattern) benötigt.
