@@ -53,6 +53,30 @@ docker exec -it spocr-sample-sql /opt/mssql-tools/bin/sqlcmd \
   -Q "EXEC samples.OrderList2 @UserId = 1"
 ```
 
+
+### Advanced Test Procedures
+
+The sample database also includes procedures that exercise more complex result shapes:
+
+- `samples.UserDetailsWithOrders @UserId = 1` returns two result sets: the first contains the user profile, the second lists the related orders ordered by `PlacedAt`.
+- `samples.UserOrderHierarchyJson` returns nested JSON where each user includes an `Orders` property with the JSON array of orders.
+- `samples.UserBioUpdate @UserId, @Bio` accepts the custom scalar type `samples.UserBioType` and echoes the updated user record.
+- `samples.UserContactSync @Contacts` accepts the table type `samples.UserContactTableType` and reports how many contacts were updated versus missing.
+
+Examples:
+
+```
+docker exec -it spocr-sample-sql /opt/mssql-tools/bin/sqlcmd   -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d SpocRSample   -Q "EXEC samples.UserDetailsWithOrders @UserId = 1"
+
+docker exec -it spocr-sample-sql /opt/mssql-tools/bin/sqlcmd   -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d SpocRSample   -Q "EXEC samples.UserOrderHierarchyJson"
+
+# Update the bio for user 1 using the scalar custom type
+ docker exec -it spocr-sample-sql /opt/mssql-tools/bin/sqlcmd   -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d SpocRSample   -Q "EXEC samples.UserBioUpdate @UserId = 1, @Bio = N'Updated via sample'"
+
+# Demonstrate table-valued parameter usage
+ docker exec -it spocr-sample-sql /opt/mssql-tools/bin/sqlcmd   -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d SpocRSample   -Q "DECLARE @contacts samples.UserContactTableType; INSERT INTO @contacts (UserId, Email, DisplayName) VALUES (1, N'alice@example.com', N'Alice Example Updated'); EXEC samples.UserContactSync @Contacts = @contacts;"
+```
+
 ## Stopping & Cleanup
 
 ```

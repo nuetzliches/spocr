@@ -3,7 +3,7 @@ Halte dich an diese Todos, arbeite sie der Reihe nach ab und
 setze - [ ] fuer neue Todos,
 setze - [x] fuer erledigte Todos.
 
-- [ ] passe samples\mssql\init an. trenne schema und tables, fuege custom data type und custom table types ein
+- [x] passe samples\mssql\init an. trenne schema und tables, fuege custom data type und custom table types ein
   - [x] analysiere die bestehenden Skripte in samples\mssql\init und dokumentiere welche Teile Schema, Tabellen, Typen und Seed-Daten enthalten
   - [x] splitte die Schema-Definition in ein eigenes Skript (z.B. samples\mssql\init\01-create-schema.sql)
   - [x] verschiebe die Tabellen-Definition in ein separates Skript (z.B. samples\mssql\init\02-create-tables.sql)
@@ -14,11 +14,11 @@ setze - [x] fuer erledigte Todos.
   - [x] passe die CREATE TABLE Skripte so an, dass die custom data types und table types verwendet werden
   - [x] aktualisiere Seed-Daten oder Defaults, damit sie mit den neuen Typen kompatibel sind
   - [x] Fuege Tabellen-Spalten mit nullable Type hinzu
-- [ ] weitere Test Prozeduren erstellen: Multiple Resultsets, nested Json Objekte, Inputs mit custom data type und custom table types, passe die Namen der Prozeduren an, vermeide Nummerierung.
-  - [ ] entwerfe eine Stored Procedure mit mehreren Resultsets inklusive unterschiedlicher Schemata
-  - [ ] entwerfe eine Stored Procedure, die verschachtelte JSON-Objekte zurueckgibt
-  - [ ] entwerfe eine Stored Procedure mit Inputparametern basierend auf custom data types und custom table types
-  - [ ] dokumentiere jede neue Stored Procedure samt erwarteter Resultsets fuer die Tests
+- [x] weitere Test Prozeduren erstellen: Multiple Resultsets, nested Json Objekte, Inputs mit custom data type und custom table types, passe die Namen der Prozeduren an, vermeide Nummerierung.
+  - [x] entwerfe eine Stored Procedure mit mehreren Resultsets inklusive unterschiedlicher Schemata
+  - [x] entwerfe eine Stored Procedure, die verschachtelte JSON-Objekte zurueckgibt
+  - [x] entwerfe eine Stored Procedure mit Inputparametern basierend auf custom data types und custom table types
+  - [x] dokumentiere jede neue Stored Procedure samt erwarteter Resultsets fuer die Tests
 - [ ] Die Models sollen auf C# Ebene nicht implizit deserialisiert werden (Vorteil der Performance, direkt das Ergebnis an den Client weiterzugeben geht verloren!?) - Erstelle ein Konzept, wie dieser Vorgang optional durchgefuehrt werden kann.
   - [ ] analysiere die aktuelle Deserialisierung in StoredProcedureContentModel und verwandten Klassen
   - [ ] definiere eine Konfigurationsoption oder Pipeline, die die optionale Deserialisierung steuert
