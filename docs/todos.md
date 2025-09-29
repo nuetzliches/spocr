@@ -3,6 +3,10 @@ Halte dich an diese Todos, arbeite sie der Reihe nach ab und
 setze - [ ] fuer neue Todos,
 setze - [x] fuer erledigte Todos.
 
+> Next Steps
+> Generator & Output-Code für nested JSON anpassen (generateNestedModels/autoDeserialize Flags umsetzen).
+> Danach README/Doku um Beispiel für verschachtelte Payloads ergänzen (offenes Sub-Task).
+
 - [x] passe samples\mssql\init an. trenne schema und tables, fuege custom data type und custom table types ein
   - [x] analysiere die bestehenden Skripte in samples\mssql\init und dokumentiere welche Teile Schema, Tabellen, Typen und Seed-Daten enthalten
   - [x] splitte die Schema-Definition in ein eigenes Skript (z.B. samples\mssql\init\01-create-schema.sql)

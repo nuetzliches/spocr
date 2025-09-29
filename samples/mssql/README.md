@@ -46,13 +46,12 @@ The sample also includes JSON-producing procedures:
 ```
 docker exec -it spocr-sample-sql /opt/mssql-tools/bin/sqlcmd \
   -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d SpocRSample \
-  -Q "EXEC samples.OrderList1"
+  -Q "EXEC samples.OrderListAsJson"
 
 docker exec -it spocr-sample-sql /opt/mssql-tools/bin/sqlcmd \
   -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d SpocRSample \
-  -Q "EXEC samples.OrderList2 @UserId = 1"
+  -Q "EXEC samples.OrderListByUserAsJson @UserId = 1"
 ```
-
 
 ### Advanced Test Procedures
 
