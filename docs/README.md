@@ -72,6 +72,7 @@
               |-- security.md
               |-- release-process.md
               |-- glossary.md
+
 ```
 
 ## 4. Versionierungskonzept der Dokumentation
@@ -144,7 +145,7 @@ Ziel: Dokumentation maschinenlesbar machen, um:
 
 ## 6. Geplanter Migrationspfad (Phasen)
 
-1. Phase (Jetzt): Konzept (dieses Dokument) + Validierung mit Maintainer
+1. Phase: Konzept (dieses Dokument) + Validierung mit Maintainer
 2. Phase: Nuxt Content Grundgerüst + Landing + Getting Started + CLI Übersicht
 3. Phase: Vollständige CLI Referenz + Konfigurations-Referenz (inkl. Machine-readable JSON Schema)
 4. Phase: Architektur & Erweiterbarkeit + Behavior Contracts
@@ -170,15 +171,84 @@ Ziel: Dokumentation maschinenlesbar machen, um:
 - Option: Plugin Registry Seite (Community Erweiterungen)
 - Option: "AI Query" Endpoint: Q/A über Dokumentation + Code
 
-## 9. Nächste direkte Schritte (Empfehlung)
+### Lokales Starten
 
-- Feedback zum Konzept einholen
-- Verzeichnisstruktur initial anlegen (Phase 2 Start)
-- Frontmatter-Standard festschreiben und Linter definieren
+Voraussetzung: Node.js (>= 18 LTS)
+
+```
+cd docs
+npm install
+npm run dev
+```
+
+Dann im Browser öffnen: http://localhost:3000
+
+### Kurzfristige ToDos (Phase 2 Rest)
+
+- Command Detailseiten anlegen (mind. build, create, pull)
+- Konfiguration erweitern (vollständiges Beispiel + geplante Felder kennzeichnen)
+- Referenzseiten: enums, attributes skeleton
+- Script-Placeholder für späteren Frontmatter-Validator
+
+### Hinweis: Nuxt Welcome Seite
+
+Falls beim lokalen Start noch die Nuxt Welcome Page erscheint:
+
+1. Sicherstellen, dass `pages/` Ordner existiert (jetzt vorhanden: `index.vue`, `[...slug].vue`).
+2. Dev Server neu starten (`Strg+C` und erneut `npm run dev`).
+3. Prüfen, ob `content/index.md` vorhanden ist (Landing Inhalt).
+4. Browser Cache leeren / Hard Reload.
+   Danach sollte unter `http://localhost:3000/` die gerenderte `content/index.md` erscheinen.
+
+### Hinweis: Verwendung von ContentDoc
+
+Direkte Imports wie `import { queryContent } from '#content'` wurden entfernt, um Auflösungsfehler zu vermeiden. Stattdessen wird die offizielle `<ContentDoc>` Komponente genutzt:
+
+```vue
+<ContentDoc path="/" v-slot="{ doc }">
+  <ContentRenderer :value="doc" />
+</ContentDoc>
+```
+
+Für dynamische Pfade:
+
+```vue
+<ContentDoc :path="pfad" v-slot="{ doc }">...</ContentDoc>
+```
+
+### Inhalt: Content Konfiguration (aktuell)
+
+Eine minimale `content.config.ts` definiert Navigation-, Highlight- und Markdown-Optionen als Plain Object (kein `defineContentConfig` in dieser Version). Der `nuxt.config.ts` enthält nur den strukturellen Teil.
+
+`content.config.ts`:
+
+```ts
+export default {
+  navigation: { fields: ["versionIntroduced", "experimental", "aiTags"] },
+  highlight: { theme: "github-dark", preload: ["csharp", "json", "sql"] },
+  markdown: { toc: { depth: 3 } },
+};
+```
+
+`nuxt.config.ts` Auszug:
+
+```ts
+content: {
+  documentDriven: true;
+}
+```
+
+Vorteile:
+
+- Weniger Moving Parts / geringere Fehlersuche
+- Kompatibel mit der stabilen Content-Version
+- Einfachere Aktualisierung bei späterem Upgrade
+
+Die Datei `content.d.ts` bleibt für Frontmatter-Typen bestehen.
 
 ## 10. Offene Fragen
 
-- Welche Major-Version als erste Snapshot-Basis? (4.1.x?) Ja
+- Welche Major-Version als erste Snapshot-Basis? content/v4/
 - Exit Codes final definieren? Weiß nicht
 - Umfang Behavior Contracts: Nur Commands oder auch Generatoren intern? Nur Commands.
 

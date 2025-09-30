@@ -1,0 +1,18 @@
+{
+    "name": "spocr-docs",
+    "private": true,
+    "version": "0.1.0",
+    "type": "module",
+    "scripts": {
+        "typecheck": "npx tsc --noEmit",
+        "lint:md": "markdownlint \"content/**/*.md\"",
+        "validate:frontmatter": "node scripts/validate-frontmatter.mjs",
+        "validate": "npm run validate:frontmatter && npm run lint:md"
+    },
+    "dependencies": {
+        "nuxt-llms": "^0.1.3"
+    },
+    "devDependencies": {
+        "markdownlint-cli": "^0.45.0"
+    }
+}
