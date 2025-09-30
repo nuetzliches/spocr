@@ -21,6 +21,8 @@
   - Statischer Export für GitHub Pages (z.B. `/docs-site` Branch oder `gh-pages`)
   - Optional Containerisierung (Node 20 Alpine) für reproduzierbare Builds
 - SEO & DX: Autogenerierte Sidebar, Inhaltsverzeichnis, Volltextsuche (Nuxt Content Search / Algolia optional)
+- Using Nuxt UI documentation from https://ui.nuxt.com/llms.txt
+- Follow complete Nuxt UI guidelines from https://ui.nuxt.com/llms-full.txt
 
 ## 3. Geplante Inhaltsstruktur
 
@@ -84,6 +86,7 @@
   - Diff zwischen Versionen (Changelog-Generierung)
   - Markierung von Deprecated Inhalten mittels Frontmatter (`deprecated: true` + Hinweisblock)
 - Kennzeichnung experimenteller Features mit Frontmatter Flag `experimental: true`
+- https://content.nuxt.com/docs/integrations/llms einrichten
 
 ### Frontmatter-Standards
 

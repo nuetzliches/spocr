@@ -2,5 +2,11 @@
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
-  modules: ['@nuxt/content', '@nuxt/eslint', '@nuxt/ui']
+  modules: ['@nuxt/ui', '@nuxt/content', '@nuxt/eslint'],
+  pages: true,
+  ssr: false,
+  nitro: {
+    preset: 'static',
+    static: true
+  },
 })

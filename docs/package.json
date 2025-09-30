@@ -1,23 +1,23 @@
 {
-  "name": "nuxt-app",
-  "type": "module",
-  "private": true,
-  "scripts": {
-    "build": "nuxt build",
-    "dev": "nuxt dev",
-    "generate": "nuxt generate",
-    "preview": "nuxt preview",
-    "postinstall": "nuxt prepare"
-  },
-  "dependencies": {
-    "@nuxt/content": "3.7.1",
-    "@nuxt/eslint": "1.9.0",
-    "@nuxt/ui": "4.0.0",
-    "better-sqlite3": "^12.4.1",
-    "eslint": "^9.0.0",
-    "nuxt": "^4.1.2",
-    "typescript": "^5.6.3",
-    "vue": "^3.5.22",
-    "vue-router": "^4.5.1"
-  }
+    "name": "nuxt-app",
+    "type": "module",
+    "private": true,
+    "scripts": {
+        "build": "nuxt build",
+        "dev": "nuxt dev",
+        "generate": "nuxt generate",
+        "preview": "nuxt preview",
+        "postinstall": "nuxt prepare",
+        "lint": "eslint .",
+        "lint:fix": "eslint --fix ."
+    },
+    "dependencies": {
+        "@nuxt/content": "3.7.1",
+        "@nuxt/eslint": "1.9.0",
+        "@nuxt/ui": "4.0.0",
+        "better-sqlite3": "^12.4.1",
+        "eslint": "^9.0.0",
+        "nuxt": "^4.1.2",
+        "typescript": "^5.6.3"
+    }
 }
