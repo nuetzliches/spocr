@@ -6,9 +6,9 @@ interface Props {
   links?: Array<{
     label: string
     to: string
-    size?: string
-    color?: string
-    variant?: string
+    size?: "lg" | "xs" | "sm" | "md" | "xl"
+    color?: "primary" | "secondary" | "neutral" | "error" | "success" | "info" | "warning"
+    variant?: "solid" | "outline" | "ghost"
     icon?: string
     target?: string
   }>
