@@ -57,7 +57,7 @@ title: 'Why SpocR?'
   :::card
   ---
   title: 'Fast Integration'
-  icon: 'i-heroicons-lightning-bolt'
+  icon: 'i-heroicons-bolt'
   ---
   Integrate into existing .NET solutions within minutes, not hours.
   :::
