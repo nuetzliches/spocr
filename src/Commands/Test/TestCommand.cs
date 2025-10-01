@@ -48,7 +48,7 @@ public class TestCommand : CommandBase
             _consoleService.Info("==========================");
 
             var testResults = new TestResults();
-            
+
             if (ValidateOnly)
             {
                 return await RunValidationOnlyAsync(testResults);
@@ -75,7 +75,7 @@ public class TestCommand : CommandBase
     private async Task<int> RunValidationOnlyAsync(TestResults results)
     {
         _consoleService.Info("🔍 Running validation tests only...");
-        
+
         var validationTasks = new List<Task<bool>>
         {
             ValidateProjectStructureAsync(),
@@ -96,10 +96,10 @@ public class TestCommand : CommandBase
     private async Task<int> RunBenchmarksAsync(TestResults results)
     {
         _consoleService.Info("📊 Running performance benchmarks...");
-        
+
         // TODO: Implement BenchmarkDotNet integration
         _consoleService.Warn("Benchmark functionality coming soon!");
-        
+
         await Task.CompletedTask;
         return 0;
     }
@@ -137,7 +137,7 @@ public class TestCommand : CommandBase
     private async Task<int> RunUnitTestsAsync()
     {
         _consoleService.Info("  ✅ Running unit tests...");
-        
+
         var process = new Process
         {
             StartInfo = new ProcessStartInfo
@@ -155,14 +155,14 @@ public class TestCommand : CommandBase
 
         var success = process.ExitCode == 0;
         _consoleService.Info($"     Unit tests: {(success ? "✅ PASSED" : "❌ FAILED")}");
-        
+
         return process.ExitCode;
     }
 
     private async Task<int> RunIntegrationTestsAsync()
     {
         _consoleService.Info("  🔗 Running integration tests...");
-        
+
         var process = new Process
         {
             StartInfo = new ProcessStartInfo
@@ -180,14 +180,14 @@ public class TestCommand : CommandBase
 
         var success = process.ExitCode == 0;
         _consoleService.Info($"     Integration tests: {(success ? "✅ PASSED" : "❌ FAILED")}");
-        
+
         return process.ExitCode;
     }
 
     private async Task<int> RunValidationTestsAsync()
     {
         _consoleService.Info("  🔍 Running validation tests...");
-        
+
         var validationTasks = new[]
         {
             ValidateProjectStructureAsync(),
@@ -199,14 +199,14 @@ public class TestCommand : CommandBase
         var allPassed = results.All(r => r);
 
         _consoleService.Info($"     Validation tests: {(allPassed ? "✅ PASSED" : "❌ FAILED")}");
-        
+
         return allPassed ? 0 : 1;
     }
 
     private string BuildTestArguments(string projectName)
     {
         var args = new List<string> { "test", projectName };
-        
+
         if (CiMode)
         {
             args.AddRange(new[] { "--logger", "trx", "--verbosity", "minimal" });
@@ -223,8 +223,54 @@ public class TestCommand : CommandBase
     private async Task<bool> ValidateProjectStructureAsync()
     {
         _consoleService.Verbose("    🏗️  Validating project structure...");
-        
-        // Check if critical files exist
+
+        // Determine context: SpocR repository or generated project
+        var isSpocRRepository = Directory.Exists("src") && File.Exists("src/SpocR.csproj");
+        var isGeneratedProject = File.Exists("SpocR.csproj") && File.Exists("Program.cs");
+
+        if (isSpocRRepository)
+        {
+            _consoleService.Verbose("       📁 Detected SpocR repository context");
+            return await ValidateRepositoryStructureAsync();
+        }
+        else if (isGeneratedProject)
+        {
+            _consoleService.Verbose("       📁 Detected generated SpocR project context");
+            return await ValidateGeneratedProjectStructureAsync();
+        }
+        else
+        {
+            _consoleService.Error("       ❌ Unable to determine project context (neither SpocR repository nor generated project)");
+            return false;
+        }
+    }
+
+    private async Task<bool> ValidateRepositoryStructureAsync()
+    {
+        var criticalFiles = new[]
+        {
+            "src/SpocR.csproj",
+            "src/Program.cs",
+            "README.md",
+            "CONTRIBUTING.md"
+        };
+
+        foreach (var file in criticalFiles)
+        {
+            if (!File.Exists(file))
+            {
+                _consoleService.Error($"       ❌ Missing critical repository file: {file}");
+                return false;
+            }
+        }
+
+        _consoleService.Verbose("       ✅ Repository structure valid");
+        await Task.CompletedTask;
+        return true;
+    }
+
+    private async Task<bool> ValidateGeneratedProjectStructureAsync()
+    {
         var criticalFiles = new[]
         {
             "SpocR.csproj",
@@ -235,12 +281,12 @@ public class TestCommand : CommandBase
         {
             if (!File.Exists(file))
             {
-                _consoleService.Error($"       ❌ Missing critical file: {file}");
+                _consoleService.Error($"       ❌ Missing critical project file: {file}");
                 return false;
             }
         }
 
-        _consoleService.Verbose("       ✅ Project structure valid");
+        _consoleService.Verbose("       ✅ Generated project structure valid");
         await Task.CompletedTask;
         return true;
     }
@@ -248,7 +294,7 @@ public class TestCommand : CommandBase
     private async Task<bool> ValidateConfigurationAsync()
     {
         _consoleService.Verbose("    ⚙️  Validating configuration...");
-        
+
         // TODO: Add configuration validation logic
         _consoleService.Verbose("       ✅ Configuration valid");
         await Task.CompletedTask;
@@ -258,7 +304,7 @@ public class TestCommand : CommandBase
     private async Task<bool> ValidateGeneratedCodeAsync()
     {
         _consoleService.Verbose("    📝 Validating generated code...");
-        
+
         // TODO: Add generated code validation logic
         _consoleService.Verbose("       ✅ Generated code valid");
         await Task.CompletedTask;
@@ -290,12 +336,12 @@ public class TestCommand : CommandBase
         _consoleService.Info("");
         _consoleService.Info("📊 Test Results Summary");
         _consoleService.Info("=====================");
-        
+
         if (results.ValidationTests > 0)
         {
             _consoleService.Info($"Validation Tests: {results.ValidationPassed}/{results.ValidationTests} passed");
         }
-        
+
         if (results.TotalTests > 0)
         {
             _consoleService.Info($"Total Tests: {results.PassedTests}/{results.TotalTests} passed");

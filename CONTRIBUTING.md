@@ -33,21 +33,31 @@ dotnet build src/SpocR.csproj
 Quick quality check (Self-Validation):
 
 ```bash
+# From repository root (recommended)
+dotnet run --project src/SpocR.csproj -- test --validate
+
+# Or if you have SpocR installed globally
 spocr test --validate
 ```
 
 Run unit tests:
 
 ```bash
+# Run specific test projects
 dotnet test tests/SpocR.Tests
+dotnet test tests/SpocR.IntegrationTests
+
+# Run all tests via solution
+dotnet test tests/Tests.sln
 ```
 
-(Integration tests will be reactivated later under `tests/SpocR.IntegrationTests`.)
+(Integration tests are now reactivated under `tests/SpocR.IntegrationTests`.)
 
 ## Pull Request Checklist
 
-- [ ] Build successful (`dotnet build`)
-- [ ] `spocr test --validate` passes without errors
+- [ ] Build successful (`dotnet build src/SpocR.csproj`)
+- [ ] Self-validation passes (`dotnet run --project src/SpocR.csproj -- test --validate`)
+- [ ] All tests pass (`dotnet test tests/Tests.sln`)
 - [ ] If new feature: README / relevant documentation updated
 - [ ] No unnecessary debug output / Console.WriteLine
 - [ ] No dead files / unused usings
