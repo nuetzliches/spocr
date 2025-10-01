@@ -51,12 +51,12 @@ export default defineNuxtConfig({
   },
 
   llms: {
-    domain: 'https://docs-template.nuxt.dev/',
-    title: 'Nuxt Docs Template',
-    description: 'A template for building documentation with Nuxt UI and Nuxt Content.',
+    domain: 'https://spocr.dev/',
+    title: 'SpocR Documentation',
+    description: 'Code generator for SQL Server stored procedures that creates strongly typed C# classes.',
     full: {
-      title: 'Nuxt Docs Template - Full Documentation',
-      description: 'This is the full documentation for the Nuxt Docs Template.'
+      title: 'SpocR Documentation - Complete Reference',
+      description: 'Complete documentation for SpocR, the SQL Server stored procedure code generator for .NET applications.'
     },
     sections: [
       {
@@ -67,10 +67,24 @@ export default defineNuxtConfig({
         ]
       },
       {
-        title: 'Essentials',
+        title: 'CLI Reference',
         contentCollection: 'docs',
         contentFilters: [
-          { field: 'path', operator: 'LIKE', value: '/essentials%' }
+          { field: 'path', operator: 'LIKE', value: '/cli%' }
+        ]
+      },
+      {
+        title: 'Reference',
+        contentCollection: 'docs',
+        contentFilters: [
+          { field: 'path', operator: 'LIKE', value: '/reference%' }
+        ]
+      },
+      {
+        title: 'Roadmap',
+        contentCollection: 'docs',
+        contentFilters: [
+          { field: 'path', operator: 'LIKE', value: '/roadmap%' }
         ]
       }
     ]

@@ -1,35 +1,35 @@
 ---
-title: CLI Übersicht
-description: Überblick über die SpocR Kommandozeilenbefehle und globale Optionen.
+title: CLI Overview
+description: Overview of SpocR command-line interface and global options.
 ---
 
-# CLI Übersicht
+# CLI Overview
 
-Die SpocR CLI stellt Befehle zur Projektinitialisierung, Synchronisation und Code-Generierung bereit.
+The SpocR CLI provides commands for project initialization, synchronization, and code generation.
 
-## Globale Optionen (Auszug)
+## Global Options (Excerpt)
 
-| Option      | Beschreibung      |
-| ----------- | ----------------- |
-| `--help`    | Hilfe anzeigen    |
-| `--verbose` | Ausführliche Logs |
+| Option      | Description     |
+| ----------- | --------------- |
+| `--help`    | Show help       |
+| `--verbose` | Verbose logging |
 
-## Kernbefehle
+## Core Commands
 
-| Befehl    | Zweck                                           |
-| --------- | ----------------------------------------------- |
-| `create`  | Initialisiert Projektstruktur und Konfiguration |
-| `pull`    | Liest Stored Procedures & Schema aus Datenbank  |
-| `build`   | Führt Codegenerierung aus                       |
-| `rebuild` | Löscht und generiert neu                        |
-| `remove`  | Entfernt generierte Artefakte                   |
-| `version` | Zeigt Version an                                |
-| `config`  | Verwaltung der `spocr.json`                     |
-| `project` | Projektbezogene Operationen                     |
-| `schema`  | Arbeiten mit DB-Schema                          |
-| `sp`      | Einzelne Stored Procedure Operationen           |
+| Command   | Purpose                                        |
+| --------- | ---------------------------------------------- |
+| `create`  | Initialize project structure and configuration |
+| `pull`    | Read stored procedures & schema from database  |
+| `build`   | Execute code generation                        |
+| `rebuild` | Clean and regenerate                           |
+| `remove`  | Remove generated artifacts                     |
+| `version` | Show version                                   |
+| `config`  | Manage `spocr.json`                           |
+| `project` | Project-related operations                     |
+| `schema`  | Work with database schema                      |
+| `sp`      | Single stored procedure operations             |
 
-## Beispiele
+## Examples
 
 ```bash
 spocr build --verbose

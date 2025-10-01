@@ -1,11 +1,11 @@
 ---
 title: Quickstart
-description: Von Null zum ersten generierten Code in wenigen Minuten.
+description: From zero to first generated code in minutes.
 ---
 
 # Quickstart
 
-## 1. Projekt vorbereiten
+## 1. Prepare Project
 
 ```bash
 mkdir DemoSpocr
@@ -13,42 +13,42 @@ cd DemoSpocr
 dotnet new classlib -n Demo.Data
 ```
 
-## 2. SpocR konfigurieren
+## 2. Configure SpocR
 
 ```bash
 spocr create --project Demo.Data
 ```
 
-Dies erzeugt u.a. eine `spocr.json`.
+This creates a `spocr.json` among other files.
 
-## 3. Stored Procedures aus Datenbank ziehen
+## 3. Pull Stored Procedures from Database
 
 ```bash
 spocr pull --connection "Server=.;Database=AppDb;Trusted_Connection=True;"
 ```
 
-## 4. Code generieren
+## 4. Generate Code
 
 ```bash
 spocr build
 ```
 
-Erzeugte Dateien findest du im `Output/` Verzeichnis.
+Generated files can be found in the `Output/` directory.
 
-## 5. Beispiel-Aufruf (pseudocode)
+## 5. Example Usage (pseudocode)
 
 ```csharp
 var ctx = new GeneratedDbContext(connectionString);
 var result = await ctx.MyProcedureAsync(new MyProcedureInput { Id = 5 });
 ```
 
-## 6. Änderungen erneuern
+## 6. Refresh Changes
 
 ```bash
 spocr rebuild
 ```
 
-## Weiterführend
+## Further Reading
 
-- [CLI Übersicht](/cli/)
-- [Konfiguration](/reference/configuration-schema)
+- [CLI Overview](/cli/)
+- [Configuration](/reference/configuration-schema)

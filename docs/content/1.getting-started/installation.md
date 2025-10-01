@@ -1,47 +1,47 @@
 ---
 title: Installation
-description: Installation von SpocR und Grundvoraussetzungen.
+description: Installing SpocR and basic requirements.
 ---
 
 # Installation
 
-## Voraussetzungen
+## Prerequisites
 
-- .NET SDK (6.0 oder höher, empfohlen 8.0+)
-- Zugriff auf SQL Server Instanz
-- Git (optional für Projektintegration)
+- .NET SDK (6.0 or higher, recommended 8.0+)
+- Access to SQL Server instance
+- Git (optional for project integration)
 
-## Globale Installation
+## Global Installation
 
 ```bash
 dotnet tool install --global SpocR
 ```
 
-Aktualisieren:
+Update:
 
 ```bash
 dotnet tool update --global SpocR
 ```
 
-Version prüfen:
+Check version:
 
 ```bash
 spocr version
 ```
 
-## Lokale (projektgebundene) Installation
+## Local (project-bound) Installation
 
 ```bash
 dotnet new tool-manifest
 dotnet tool install SpocR
 ```
 
-Ausführen (lokal):
+Execute (local):
 
 ```bash
 dotnet tool run spocr version
 ```
 
-## Nächster Schritt
+## Next Step
 
-Weiter zu [Quickstart](/getting-started/quickstart).
+Continue to [Quickstart](/getting-started/quickstart).

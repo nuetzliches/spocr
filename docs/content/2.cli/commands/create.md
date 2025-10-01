@@ -1,6 +1,6 @@
 ---
 title: create
-description: Initialisiert SpocR Konfiguration und Verzeichnisstruktur.
+description: Initialize SpocR configuration and directory structure.
 versionIntroduced: 4.0.0
 experimental: false
 authoritative: true
@@ -9,12 +9,12 @@ aiTags: [cli, create, init]
 
 # create
 
-Initialisiert ein Projekt für die Nutzung mit SpocR und erzeugt u.a. eine `spocr.json`.
+Initialize a project for use with SpocR and create a `spocr.json` among other files.
 
-## Verwendung
+## Usage
 
 ```bash
-spocr create [Optionen]
+spocr create [Options]
 ```
 
 ## Behavior Contract (Draft)
@@ -31,7 +31,7 @@ spocr create [Optionen]
 }
 ```
 
-## Beispiele
+## Examples
 
 ```bash
 spocr create --project Demo.Data

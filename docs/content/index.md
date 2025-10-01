@@ -1,36 +1,206 @@
 ---
-title: Willkommen zu SpocR
-description: Einstieg und Überblick über das SpocR Code-Generierungs-Ökosystem.
-layout: doc
+title: Welcome to SpocR
+description: Code generator for SQL Server stored procedures that creates strongly typed C# classes.
+layout: landing
 ---
 
-# SpocR Dokumentation
+::hero
+---
+title: 'SpocR'
+description: 'Code generator for SQL Server stored procedures that creates strongly typed C# classes for inputs, outputs, and execution.'
+headline: 'SQL to C# Code Generation'
+links:
+  - label: 'Get Started'
+    to: '/getting-started/installation'
+    size: 'lg'
+    color: 'black'
+    icon: 'i-heroicons-rocket-launch'
+  - label: 'View on GitHub'
+    to: 'https://github.com/nuetzliches/spocr'
+    size: 'lg'
+    color: 'white'
+    variant: 'outline'
+    icon: 'i-simple-icons-github'
+    target: '_blank'
+---
 
-SpocR ist ein Code-Generator für SQL Server Stored Procedures und erzeugt stark typisierte C# Klassen für Inputs, Outputs und Ausführung.
+#title
+SpocR: [SQL]{.text-primary} to [C#]{.text-primary} Code Generation
 
-## Ziele
+#description
+Generate strongly typed C# classes from SQL Server stored procedures with minimal configuration. Reduce boilerplate, increase type safety, and boost development productivity.
 
-- Schnelle Integration in bestehende .NET Lösungen
-- Minimierung manueller Boilerplate
-- Konsistentes Naming & Struktur
-- Erweiterbarkeit und Automatisierbarkeit
+::
 
-## Was dich hier erwartet
+::section
+---
+title: 'Why SpocR?'
+---
 
-- Getting Started (Installation & Quickstart)
-- CLI Referenz
-- Architektur & Konzepte
-- Konfigurations-Referenz
-- Erweiterung & Anpassung
+  :::card-group
+  :::card
+  ---
+  title: 'Type Safety'
+  icon: 'i-heroicons-shield-check'
+  ---
+  Generate strongly typed C# classes that catch errors at compile time instead of runtime.
+  :::
 
-## Quick Preview
+  :::card
+  ---
+  title: 'Zero Boilerplate'
+  icon: 'i-heroicons-bolt'
+  ---
+  Eliminate manual mapping code. SpocR handles the tedious data access layer for you.
+  :::
 
-```bash
-spocr create --project MyProject
-spocr pull --connection "Server=.;Database=AppDb;Trusted_Connection=True;"
-spocr build
+  :::card
+  ---
+  title: 'Fast Integration'
+  icon: 'i-heroicons-lightning-bolt'
+  ---
+  Integrate into existing .NET solutions within minutes, not hours.
+  :::
+
+  :::card
+  ---
+  title: 'Extensible'
+  icon: 'i-heroicons-puzzle-piece'
+  ---
+  Customize naming conventions, output structure, and generation behavior.
+  :::
+  :::
+
+::
+
+::section
+---
+title: 'Quick Start'
+---
+
+Get up and running with SpocR in under 5 minutes:
+
+:::code-group
+```bash [Install]
+dotnet tool install --global SpocR
 ```
 
-## Nächste Schritte
+```bash [Initialize]
+spocr create --project MyProject
+```
 
-Gehe zu [Getting Started](/getting-started/installation).
+```bash [Connect]
+spocr pull --connection "Server=.;Database=AppDb;Trusted_Connection=True;"
+```
+
+```bash [Generate]
+spocr build
+```
+:::
+
+:::callout
+🎉 **That's it!** Your strongly typed C# classes are ready in the `Output/` directory.
+:::
+
+::
+
+::section
+---
+title: 'Example Usage'
+---
+
+See how clean your data access becomes:
+
+:::code-group
+```csharp [Before SpocR]
+// Manual, error-prone approach
+var command = new SqlCommand("EXEC GetUserById", connection);
+command.Parameters.AddWithValue("@UserId", 123);
+var reader = await command.ExecuteReaderAsync();
+
+var users = new List<User>();
+while (await reader.ReadAsync()) {
+    users.Add(new User {
+        Id = reader.GetInt32("Id"),
+        Name = reader.GetString("Name"),
+        Email = reader.IsDBNull("Email") ? null : reader.GetString("Email")
+        // ... more manual mapping
+    });
+}
+```
+
+```csharp [With SpocR]
+// Generated, type-safe approach
+var context = new GeneratedDbContext(connectionString);
+var result = await context.GetUserByIdAsync(new GetUserByIdInput { 
+    UserId = 123 
+});
+
+// Strongly typed, no manual mapping needed!
+foreach (var user in result) {
+    Console.WriteLine($"{user.Name} - {user.Email}");
+}
+```
+:::
+
+::
+
+::section
+---
+title: 'Ready to get started?'
+links:
+  - label: 'Installation Guide'
+    to: '/getting-started/installation'
+    color: 'black'
+    size: 'lg'
+  - label: 'CLI Reference'
+    to: '/cli'
+    variant: 'outline'
+    color: 'black'
+    size: 'lg'
+---
+
+Join developers who've eliminated thousands of lines of boilerplate code with SpocR.
+
+::
+
+::section
+---
+title: 'Features'
+---
+
+  :::card-group
+  :::card
+  ---
+  title: 'Multiple Output Formats'
+  icon: 'i-heroicons-document-duplicate'
+  ---
+  Generate models, data contexts, and extensions with flexible output options.
+  :::
+
+  :::card
+  ---
+  title: 'JSON Support'
+  icon: 'i-heroicons-code-bracket'
+  ---
+  Handle complex JSON return types with optional deserialization strategies.
+  :::
+
+  :::card
+  ---
+  title: 'Custom Types'
+  icon: 'i-heroicons-variable'
+  ---
+  Support for custom scalar types, table types, and complex parameter structures.
+  :::
+
+  :::card
+  ---
+  title: 'CI/CD Ready'
+  icon: 'i-heroicons-cog-6-tooth'
+  ---
+  Integrate seamlessly into build pipelines and automated deployment workflows.
+  :::
+  :::
+
+::
