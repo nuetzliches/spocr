@@ -1,9 +1,9 @@
 <script setup>
 // Page meta
-// definePageMeta({
-//     title: 'SpocR Documentation',
-//     description: 'Welcome to SpocR Documentation'
-// })
+definePageMeta({
+    title: 'SpocR Documentation',
+    description: 'Welcome to SpocR Documentation'
+})
 </script>
 
 <template>
