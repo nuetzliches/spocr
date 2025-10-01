@@ -1,15 +1,27 @@
-<script setup>
-// Page meta
-definePageMeta({
-    title: 'SpocR Documentation',
-    description: 'Welcome to SpocR Documentation'
+<script setup lang="ts">
+const { data: page } = await useAsyncData('index', () => queryCollection('landing').path('/').first())
+if (!page.value) {
+  throw createError({ statusCode: 404, statusMessage: 'Page not found', fatal: true })
+}
+
+const title = page.value.seo?.title || page.value.title
+const description = page.value.seo?.description || page.value.description
+
+useSeoMeta({
+  titleTemplate: '',
+  title,
+  ogTitle: title,
+  description,
+  ogDescription: description,
+  ogImage: 'https://ui.nuxt.com/assets/templates/nuxt/docs-light.png',
+  twitterImage: 'https://ui.nuxt.com/assets/templates/nuxt/docs-light.png'
 })
 </script>
 
 <template>
-    <div>
-        <h1>SpocR Documentation</h1>
-        <p>Welcome to the SpocR documentation.</p>
-        <p>This is the home page.</p>
-    </div>
+  <ContentRenderer
+    v-if="page"
+    :value="page"
+    :prose="false"
+  />
 </template>
