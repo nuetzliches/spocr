@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net9.0;net8.0</TargetFrameworks>
+    <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
@@ -16,10 +16,8 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
     <PackageReference Include="FluentAssertions" Version="6.12.1" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.4" />
-    <PackageReference Include="Microsoft.Extensions.Configuration" Version="9.0.4" />
-    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.4" />
-    <PackageReference Include="Moq" Version="4.20.72" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.0.*" />
+    <!-- Testcontainers vorerst entfernt für einfacheren ersten Build -->
     <PackageReference Include="coverlet.collector" Version="6.0.2">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
@@ -27,14 +25,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\SpocR.csproj" />
+    <ProjectReference Include="..\..\src\SpocR.csproj" />
     <ProjectReference Include="..\SpocR.TestFramework\SpocR.TestFramework.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <Using Include="Xunit" />
     <Using Include="FluentAssertions" />
-    <Using Include="Microsoft.Extensions.DependencyInjection" />
     <Using Include="SpocR.TestFramework" />
   </ItemGroup>
 

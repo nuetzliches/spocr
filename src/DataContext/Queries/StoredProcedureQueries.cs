@@ -91,7 +91,7 @@ public static class StoredProcedureQueries
         return content?.Definition;
     }
 
-    public static Task<Object> ObjectAsync(this DbContext context, string schemaName, string name, CancellationToken cancellationToken)
+    public static Task<DbObject> ObjectAsync(this DbContext context, string schemaName, string name, CancellationToken cancellationToken)
     {
         var parameters = new List<SqlParameter>
         {
@@ -102,6 +102,6 @@ public static class StoredProcedureQueries
                                 FROM sys.objects AS o
                                 INNER JOIN sys.schemas AS s ON s.schema_id = o.schema_id
                                 WHERE s.name = @schemaName AND o.name = @name;";
-        return context.SingleAsync<Object>(queryString, parameters, cancellationToken);
+    return context.SingleAsync<DbObject>(queryString, parameters, cancellationToken);
     }
 }

@@ -63,6 +63,23 @@ For comprehensive documentation, examples, and advanced configuration:
 
 **[📚 Visit the SpocR Documentation](https://nuetzliches.github.io/spocr/)**
 
+## ✅ Testing & Quality
+
+SpocR enthält einen mehrschichtigen Qualitäts-/Test-Ansatz:
+
+| Layer | Zweck | Aufruf |
+|-------|-------|--------|
+| Self-Validation | Syntax & Generator Validierung (Roslyn) | `spocr test --validate` |
+| Unit Tests | Logik / Services / Extensions | `dotnet test tests/SpocR.Tests` |
+| (geplant) Integration | DB & End-to-End Flows | `dotnet test tests/SpocR.IntegrationTests` |
+
+Schneller Vor-Commit Check:
+```bash
+spocr test --validate
+```
+
+Details & Roadmap siehe `tests/docs/TESTING.md`.
+
 ## 🛠️ Requirements
 
 - .NET SDK 6.0 or higher (8.0+ recommended)
@@ -114,11 +131,11 @@ SpocR uses a `spocr.json` configuration file to customize generation behavior:
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our [Contributing Guide](docs/content/4.meta/contributing.md) for details.
+We welcome contributions! A lightweight contributor guide is available in `CONTRIBUTING.md` (Root).
 
 - 🐛 **Bug Reports**: [Create an issue](https://github.com/nuetzliches/spocr/issues/new?template=bug_report.md)
 - 💡 **Feature Requests**: [Create an issue](https://github.com/nuetzliches/spocr/issues/new?template=feature_request.md)
-- 🔧 **Pull Requests**: [Contribution guidelines](docs/content/4.meta/contributing.md)
+- 🔧 **Pull Requests**: See `CONTRIBUTING.md`
 
 ## 📝 License
 

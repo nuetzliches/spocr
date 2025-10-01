@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFrameworks>net9.0;net8.0</TargetFrameworks>
+    <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
@@ -13,14 +13,13 @@
     <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.4" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.0.*" />
     <PackageReference Include="FluentAssertions" Version="6.12.1" />
-    <PackageReference Include="xunit" Version="2.6.6" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.6" />
-    <PackageReference Include="xunit.abstractions" Version="2.0.3" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.13.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\SpocR.csproj" />
+    <ProjectReference Include="..\..\src\SpocR.csproj" />
   </ItemGroup>
 
 </Project>

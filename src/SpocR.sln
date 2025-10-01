@@ -5,11 +5,11 @@ VisualStudioVersion = 16.0.28803.156
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SpocR", "SpocR.csproj", "{916B6854-3CB1-4517-9726-475CF307BD1F}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SpocR.TestFramework", "SpocR.TestFramework\SpocR.TestFramework.csproj", "{2A8F9B47-8C6D-4E5F-B4A1-3D2E1F5C7890}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SpocR.TestFramework", "..\tests\SpocR.TestFramework\SpocR.TestFramework.csproj", "{2A8F9B47-8C6D-4E5F-B4A1-3D2E1F5C7890}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SpocR.Tests", "SpocR.Tests\SpocR.Tests.csproj", "{3B9F0C58-9D7E-4F6F-C5B2-4E3F2F6C8901}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SpocR.Tests", "..\tests\SpocR.Tests\SpocR.Tests.csproj", "{3B9F0C58-9D7E-4F6F-C5B2-4E3F2F6C8901}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SpocR.IntegrationTests", "SpocR.IntegrationTests\SpocR.IntegrationTests.csproj", "{4C0F1D69-0E8F-4F7F-D6C3-5F4F3F7D9012}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SpocR.IntegrationTests", "..\tests\SpocR.IntegrationTests\SpocR.IntegrationTests.csproj", "{4C0F1D69-0E8F-4F7F-D6C3-5F4F3F7D9012}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
