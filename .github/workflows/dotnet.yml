@@ -13,10 +13,10 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Setup .NET 9.0
+      - name: Setup .NET 8.0
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 9.0.x
+          dotnet-version: 8.0.x
 
       - name: Restore dependencies
         run: dotnet restore src/SpocR.csproj
@@ -24,8 +24,11 @@ jobs:
       - name: Build
         run: dotnet build src/SpocR.csproj --configuration Release --no-restore
 
-      - name: Test
-        run: dotnet test src/SpocR.csproj --no-restore --verbosity normal
+      - name: Run Self-Validation
+        run: dotnet run --project src/SpocR.csproj --configuration Release -- test --validate
+
+      - name: Run Tests
+        run: dotnet test tests/Tests.sln --configuration Release --no-build
 
       # Publish
       - name: publish on version change

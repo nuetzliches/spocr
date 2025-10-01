@@ -42,6 +42,7 @@ spocr build
 ### Example Generated Code
 
 **Before SpocR** (manual, error-prone):
+
 ```csharp
 var command = new SqlCommand("EXEC GetUserById", connection);
 command.Parameters.AddWithValue("@UserId", 123);
@@ -50,10 +51,11 @@ var reader = await command.ExecuteReaderAsync();
 ```
 
 **With SpocR** (generated, type-safe):
+
 ```csharp
 var context = new GeneratedDbContext(connectionString);
-var result = await context.GetUserByIdAsync(new GetUserByIdInput { 
-    UserId = 123 
+var result = await context.GetUserByIdAsync(new GetUserByIdInput {
+    UserId = 123
 });
 ```
 
@@ -67,13 +69,14 @@ For comprehensive documentation, examples, and advanced configuration:
 
 SpocR enthält einen mehrschichtigen Qualitäts-/Test-Ansatz:
 
-| Layer | Zweck | Aufruf |
-|-------|-------|--------|
-| Self-Validation | Syntax & Generator Validierung (Roslyn) | `spocr test --validate` |
-| Unit Tests | Logik / Services / Extensions | `dotnet test tests/SpocR.Tests` |
-| (geplant) Integration | DB & End-to-End Flows | `dotnet test tests/SpocR.IntegrationTests` |
+| Layer                 | Zweck                                   | Aufruf                                     |
+| --------------------- | --------------------------------------- | ------------------------------------------ |
+| Self-Validation       | Syntax & Generator Validierung (Roslyn) | `spocr test --validate`                    |
+| Unit Tests            | Logik / Services / Extensions           | `dotnet test tests/SpocR.Tests`            |
+| (geplant) Integration | DB & End-to-End Flows                   | `dotnet test tests/SpocR.IntegrationTests` |
 
 Schneller Vor-Commit Check:
+
 ```bash
 spocr test --validate
 ```
@@ -96,11 +99,13 @@ Details & Roadmap siehe `tests/docs/TESTING.md`.
 ## 📦 Installation Options
 
 ### Global Tool (Recommended)
+
 ```bash
 dotnet tool install --global SpocR
 ```
 
 ### Project-local Tool
+
 ```bash
 dotnet new tool-manifest
 dotnet tool install SpocR
@@ -108,6 +113,7 @@ dotnet tool run spocr --version
 ```
 
 ### Package Reference
+
 ```xml
 <PackageReference Include="SpocR" Version="4.1.*" />
 ```
@@ -136,6 +142,7 @@ We welcome contributions! A lightweight contributor guide is available in `CONTR
 - 🐛 **Bug Reports**: [Create an issue](https://github.com/nuetzliches/spocr/issues/new?template=bug_report.md)
 - 💡 **Feature Requests**: [Create an issue](https://github.com/nuetzliches/spocr/issues/new?template=feature_request.md)
 - 🔧 **Pull Requests**: See `CONTRIBUTING.md`
+- 🤖 **AI Agents**: See `.ai/guidelines.md` for automated contribution standards
 
 ## 📝 License
 

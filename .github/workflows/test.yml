@@ -23,33 +23,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Docker (for Testcontainers)
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          sudo systemctl start docker
-          sudo docker info
-
       - name: Setup .NET ${{ matrix.dotnet-version }}
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ matrix.dotnet-version }}
 
       - name: Restore dependencies
-        run: dotnet restore src/SpocR.sln
+        run: dotnet restore src/SpocR.csproj
 
-      - name: Build solution
-        run: dotnet build src/SpocR.sln --no-restore --configuration Release
+      - name: Build project
+        run: dotnet build src/SpocR.csproj --no-restore --configuration Release
 
-      - name: Run Unit Tests
-        run: dotnet test tests/SpocR.Tests/SpocR.Tests.csproj --no-build --configuration Release --logger trx --results-directory TestResults
+      - name: Run Self-Validation
+        run: dotnet run --project src/SpocR.csproj --configuration Release -- test --validate
 
-      - name: Run Integration Tests (skipped placeholder)
-        run: echo "Integration Tests vorübergehend deaktiviert" && exit 0
-
-      - name: Run SpocR Self-Tests (validate only)
-        run: |
-          dotnet run --project src/SpocR --configuration Release -- test --validate --output TestResults/spocr-validate.xml
-        continue-on-error: true
+      - name: Run All Tests
+        run: dotnet test tests/Tests.sln --no-build --configuration Release --logger trx --results-directory TestResults
 
       - name: Upload Test Results
         uses: actions/upload-artifact@v4
@@ -61,6 +50,7 @@ jobs:
   coverage:
     name: Code Coverage
     runs-on: ubuntu-latest
+    needs: test
 
     steps:
       - name: Checkout code
@@ -72,87 +62,17 @@ jobs:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
       - name: Restore dependencies
-        run: dotnet restore src/SpocR.sln
+        run: dotnet restore src/SpocR.csproj
 
       - name: Run Tests with Coverage
         run: |
-          dotnet test tests/SpocR.Tests/SpocR.Tests.csproj \
+          dotnet test tests/Tests.sln \
             --configuration Release \
             --collect:"XPlat Code Coverage" \
             --results-directory ./TestResults
-            
-          echo "Integration Tests für Coverage derzeit deaktiviert"
-
-      - name: Generate Coverage Report
-        run: |
-          dotnet tool install -g dotnet-reportgenerator-globaltool
-          reportgenerator \
-            -reports:"./TestResults/**/coverage.cobertura.xml" \
-            -targetdir:"./CoverageReport" \
-            -reporttypes:"Html;Badges"
-
-      - name: Upload Coverage to Codecov
-        uses: codecov/codecov-action@v4
-        with:
-          directory: ./TestResults
-          fail_ci_if_error: false
 
       - name: Upload Coverage Report
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
-          path: CoverageReport/
-
-  quality:
-    name: Code Quality & Analysis
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-
-      - name: Restore dependencies
-        run: dotnet restore src/SpocR.sln
-
-      - name: Run Code Analysis
-        run: dotnet build src/SpocR.sln --configuration Release --verbosity normal
-
-      - name: Run SpocR Validation Tests
-        run: |
-          dotnet run --project src/SpocR --configuration Release -- test --validate
-
-  benchmark:
-    name: Performance Benchmarks
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-
-      - name: Restore dependencies
-        run: dotnet restore src/SpocR.sln
-
-      - name: Build solution
-        run: dotnet build src/SpocR.sln --configuration Release --no-restore
-
-      - name: Run Benchmarks
-        run: |
-          dotnet run --project src/SpocR --configuration Release -- test --benchmark
-        continue-on-error: true
-
-      - name: Upload Benchmark Results
-        uses: actions/upload-artifact@v4
-        with:
-          name: benchmark-results
-          path: BenchmarkDotNet.Artifacts/
+          path: TestResults/
