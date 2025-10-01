@@ -38,14 +38,15 @@ jobs:
         run: dotnet run --project src/SpocR.csproj --configuration Release -- test --validate
 
       - name: Run All Tests
-        run: dotnet test tests/Tests.sln --no-build --configuration Release --logger trx --results-directory TestResults
+        run: |
+          dotnet test tests/Tests.sln --no-build --configuration Release --logger trx --results-directory .artifacts/test-results
 
       - name: Upload Test Results
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: test-results-${{ matrix.os }}-${{ matrix.dotnet-version }}
-          path: TestResults/
+          path: .artifacts/test-results/
 
   coverage:
     name: Code Coverage
@@ -69,10 +70,38 @@ jobs:
           dotnet test tests/Tests.sln \
             --configuration Release \
             --collect:"XPlat Code Coverage" \
-            --results-directory ./TestResults
+            --results-directory ./.artifacts/test-results
+
+      - name: Generate Coverage Report
+        run: |
+          dotnet tool install -g dotnet-reportgenerator-globaltool
+          reportgenerator \
+            -reports:".artifacts/test-results/**/coverage.cobertura.xml" \
+            -targetdir:".artifacts/coverage" \
+            -reporttypes:"Html;Badges;Cobertura"
+
+      - name: Enforce Minimum Coverage (60%)
+        shell: bash
+        run: |
+          echo "Checking coverage threshold..."
+          SUMMARY_FILE=$(find .artifacts/coverage -name 'Summary.xml' | head -n 1)
+          if [ -z "$SUMMARY_FILE" ]; then echo "Summary.xml not found"; exit 1; fi
+          LINE_RATE=$(grep -o 'line-rate="[0-9.]*"' "$SUMMARY_FILE" | head -n1 | sed -E 's/.*line-rate="([0-9.]+)"/\1/')
+          if [ -z "$LINE_RATE" ]; then echo "Could not read line-rate"; exit 1; fi
+          PERCENT=$(awk -v lr=$LINE_RATE 'BEGIN { printf "%.2f", (lr*100) }')
+          echo "Line Coverage: $PERCENT%"
+          THRESHOLD=60
+          awk -v p=$PERCENT -v t=$THRESHOLD 'BEGIN { if (p < t) { exit 1 } }'
+          echo "Coverage threshold met."
 
       - name: Upload Coverage Report
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
-          path: TestResults/
+          path: .artifacts/coverage/
+
+      - name: Upload Raw Coverage Data
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-data
+          path: .artifacts/test-results/

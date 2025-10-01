@@ -38,6 +38,9 @@ dotnet run --project src/SpocR.csproj -- test --validate
 
 # Or if you have SpocR installed globally
 spocr test --validate
+
+# Full quality gates (build, test, coverage)
+powershell -ExecutionPolicy Bypass -File eng/quality-gates.ps1
 ```
 
 Run unit tests:
@@ -58,6 +61,7 @@ dotnet test tests/Tests.sln
 - [ ] Build successful (`dotnet build src/SpocR.csproj`)
 - [ ] Self-validation passes (`dotnet run --project src/SpocR.csproj -- test --validate`)
 - [ ] All tests pass (`dotnet test tests/Tests.sln`)
+- [ ] Quality gates pass (`powershell -ExecutionPolicy Bypass -File eng/quality-gates.ps1`)
 - [ ] If new feature: README / relevant documentation updated
 - [ ] No unnecessary debug output / Console.WriteLine
 - [ ] No dead files / unused usings

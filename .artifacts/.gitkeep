@@ -1,0 +1,2 @@
+# Reserved directory for transient build/test/coverage artifacts.
+# This file keeps the folder in git while other contents are ignored.

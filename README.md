@@ -3,7 +3,8 @@
 [![NuGet](https://img.shields.io/nuget/v/SpocR.svg)](https://www.nuget.org/packages/SpocR)
 [![NuGet Downloads](https://img.shields.io/nuget/dt/SpocR.svg)](https://www.nuget.org/packages/SpocR)
 [![License](https://img.shields.io/github/license/nuetzliches/spocr.svg)](LICENSE)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/nuetzliches/spocr/build.yml?branch=main)](https://github.com/nuetzliches/spocr/actions)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/nuetzliches/spocr/test.yml?branch=main)](https://github.com/nuetzliches/spocr/actions)
+[![Code Coverage](https://img.shields.io/badge/coverage-check%20actions-blue)](https://github.com/nuetzliches/spocr/actions)
 
 **SpocR** is a powerful code generator for SQL Server stored procedures that creates strongly typed C# classes for inputs, outputs, and execution. Eliminate boilerplate data access code and increase type safety in your .NET applications.
 
@@ -138,6 +139,8 @@ SpocR uses a `spocr.json` configuration file to customize generation behavior:
 ## 🤝 Contributing
 
 We welcome contributions! A lightweight contributor guide is available in `CONTRIBUTING.md` (Root).
+
+Engineering infrastructure lives under `eng/` (e.g., `eng/quality-gates.ps1`). Transient test & coverage artifacts are written to the hidden directory `.artifacts/` to keep the repository root clean.
 
 - 🐛 **Bug Reports**: [Create an issue](https://github.com/nuetzliches/spocr/issues/new?template=bug_report.md)
 - 💡 **Feature Requests**: [Create an issue](https://github.com/nuetzliches/spocr/issues/new?template=feature_request.md)
