@@ -27,7 +27,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\SpocR\SpocR.csproj" />
+    <ProjectReference Include="..\SpocR.csproj" />
     <ProjectReference Include="..\SpocR.TestFramework\SpocR.TestFramework.csproj" />
   </ItemGroup>
 

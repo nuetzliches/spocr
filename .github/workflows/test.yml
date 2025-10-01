@@ -24,6 +24,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup Docker (for Testcontainers)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo systemctl start docker
+          sudo docker info
+
       - name: Setup .NET ${{ matrix.dotnet-version }}
         uses: actions/setup-dotnet@v4
         with:
@@ -40,6 +46,9 @@ jobs:
 
       - name: Run Integration Tests
         run: dotnet test src/SpocR.IntegrationTests --no-build --configuration Release --logger trx --results-directory TestResults
+        env:
+          # Testcontainers requires Docker socket access
+          DOCKER_HOST: ${{ matrix.os == 'windows-latest' && 'npipe://./pipe/docker_engine' || 'unix:///var/run/docker.sock' }}
 
       - name: Run SpocR Self-Tests
         run: |

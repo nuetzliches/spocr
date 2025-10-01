@@ -41,6 +41,7 @@
     <PackageReference Include="Microsoft.Extensions.Configuration.FileExtensions" Version="9.0.4" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.4" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.4" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="9.0.4" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.4" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.0.*" />
     <PackageReference Include="Microsoft.SqlServer.TransactSql.ScriptDom" Version="170.121.2" />
@@ -59,4 +60,3 @@
     <XmlPoke XmlInputPath="$(MSBuildProjectFullPath)" Query="/Project/PropertyGroup/Version" Value="$(NewVersion)" />
   </Target>
 </Project>
-

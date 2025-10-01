@@ -1,28 +1,23 @@
 using Microsoft.Data.SqlClient;
-using Testcontainers.MsSql;
-using Xunit;
+using System;
+using System.Threading.Tasks;
 
 namespace SpocR.TestFramework;
 
 /// <summary>
-/// Provides SQL Server database fixtures for integration testing using Testcontainers
+/// Provides SQL Server database fixtures for integration testing using LocalDB
 /// </summary>
-public class SqlServerFixture : IAsyncLifetime
+public class SqlServerFixture : IDisposable
 {
-    private MsSqlContainer? _container;
+    public string ConnectionString { get; private set; } = "Server=(localdb)\\mssqllocaldb;Database=SpocRTest;Trusted_Connection=true;";
     
-    public string ConnectionString { get; private set; } = string.Empty;
+    public SqlServerFixture()
+    {
+        // Initialize with LocalDB connection string
+    }
     
     public async Task InitializeAsync()
     {
-        _container = new MsSqlBuilder()
-            .WithPassword("TestPassword123!")
-            .WithCleanUp(true)
-            .Build();
-            
-        await _container.StartAsync();
-        ConnectionString = _container.GetConnectionString();
-        
         // Wait for SQL Server to be ready
         await WaitForSqlServerAsync();
         
@@ -30,17 +25,20 @@ public class SqlServerFixture : IAsyncLifetime
         await CreateTestSchemaAsync();
     }
 
-    public async Task DisposeAsync()
+    public Task DisposeAsync()
     {
-        if (_container != null)
-        {
-            await _container.DisposeAsync();
-        }
+        // Clean up resources
+        return Task.CompletedTask;
+    }
+    
+    public void Dispose()
+    {
+        // Synchronous cleanup
     }
 
     private async Task WaitForSqlServerAsync()
     {
-        const int maxRetries = 30;
+        const int maxRetries = 10;
         const int delayMs = 1000;
         
         for (int i = 0; i < maxRetries; i++)
