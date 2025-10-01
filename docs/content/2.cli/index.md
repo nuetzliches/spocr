@@ -23,8 +23,9 @@ The SpocR CLI provides commands for project initialization, synchronization, and
 | `build`   | Execute code generation                        |
 | `rebuild` | Clean and regenerate                           |
 | `remove`  | Remove generated artifacts                     |
+| `test`    | Run tests and validations                      |
 | `version` | Show version                                   |
-| `config`  | Manage `spocr.json`                           |
+| `config`  | Manage `spocr.json`                            |
 | `project` | Project-related operations                     |
 | `schema`  | Work with database schema                      |
 | `sp`      | Single stored procedure operations             |
@@ -34,4 +35,5 @@ The SpocR CLI provides commands for project initialization, synchronization, and
 ```bash
 spocr build --verbose
 spocr pull --connection "Server=.;Database=AppDb;Trusted_Connection=True;"
+spocr test --validate
 ```

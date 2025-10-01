@@ -125,6 +125,24 @@ catch (SqlException ex) when (ex.Number == 2) // Timeout
 - **Configuration** - Document all configuration options
 - **Examples** - Provide usage examples for new features
 
+### Project Documentation (docs/)
+
+- **After code changes** - Always update relevant documentation in `docs/content/`
+- **Structure alignment** - Ensure docs reflect current codebase capabilities
+- **Getting Started** - Update `docs/content/1.getting-started/` for new features
+- **CLI Reference** - Update `docs/content/2.cli/` for command changes
+- **API Reference** - Update `docs/content/3.reference/` for public API changes
+- **Examples** - Add practical examples to documentation
+- **Deployment** - Docs are built with Nuxt.js from `docs/` directory
+
+### Documentation Update Checklist
+
+- [ ] **Feature docs** - New features documented in appropriate section
+- [ ] **CLI changes** - Command help and examples updated
+- [ ] **Breaking changes** - Migration guides provided
+- [ ] **Version alignment** - Documentation version matches code version
+- [ ] **Local testing** - Run `npm run dev` in docs/ to verify changes
+
 ### Commit Message Format
 
 ```
@@ -149,7 +167,7 @@ chore: update NuGet packages to latest versions
 1. **Self-validation** - `dotnet run --project src/SpocR.csproj -- test --validate`
 2. **Test execution** - `dotnet test tests/Tests.sln`
 3. **Build verification** - `dotnet build src/SpocR.csproj`
-4. **Documentation update** - Update relevant documentation
+4. **Documentation update** - Update relevant `docs/content/` files and verify with `npm run dev`
 
 ## 🔗 Resources
 
@@ -157,6 +175,8 @@ chore: update NuGet packages to latest versions
 
 - [CONTRIBUTING.md](../CONTRIBUTING.md) - Development setup and contribution guidelines
 - [tests/docs/TESTING.md](../tests/docs/TESTING.md) - Testing framework documentation
+- [docs/content/](../docs/content/) - Project documentation (Nuxt.js-based)
+- [README.md](../README.md) - Project overview and quick start
 - [.editorconfig](../.editorconfig) - Code formatting rules (if exists)
 
 ### External Standards
