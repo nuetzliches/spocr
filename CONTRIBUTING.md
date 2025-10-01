@@ -1,71 +1,85 @@
 # Contributing Guide
 
-Vielen Dank für dein Interesse an SpocR! Dieses Projekt freut sich über Issues und Pull Requests.
+Thank you for your interest in SpocR! This project welcomes issues and pull requests.
 
-## Grundprinzipien
-- Kleine, fokussierte Änderungen sind leichter zu reviewen.
-- Bevor du ein größeres Feature beginnst: Issue eröffnen und abstimmen.
-- Kein direktes Committen auf `main` – arbeite über Branches.
+## Core Principles
 
-## Branch Namenskonvention
+- Small, focused changes are easier to review.
+- Before starting a major feature: open an issue and discuss it first.
+- No direct commits to `main` – work through branches.
+
+## Branch Naming Convention
+
 ```
-feature/<kurzbeschreibung>
-fix/<bug-id-oder-kurzbeschreibung>
-docs/<thema>
-refactor/<bereich>
+feature/<short-description>
+fix/<bug-id-or-short-description>
+docs/<topic>
+refactor/<area>
 ```
 
-## Entwicklungs-Setup
-Voraussetzungen:
-- .NET 8 SDK (9 optional für Hauptprojekt Multi-Target)
+## Development Setup
+
+Prerequisites:
+
+- .NET 8 SDK (9 optional for main project multi-targeting)
 
 Restore & Build:
+
 ```bash
 dotnet restore
 dotnet build src/SpocR.csproj
 ```
 
-Schneller Qualitätscheck (Self-Validation):
+Quick quality check (Self-Validation):
+
 ```bash
 spocr test --validate
 ```
 
-Unit Tests ausführen:
+Run unit tests:
+
 ```bash
 dotnet test tests/SpocR.Tests
 ```
 
-(Integration Tests werden später unter `tests/SpocR.IntegrationTests` wieder aktiviert.)
+(Integration tests will be reactivated later under `tests/SpocR.IntegrationTests`.)
 
-## Pull Request Checkliste
-- [ ] Build erfolgreich (`dotnet build`)
-- [ ] `spocr test --validate` ohne Fehler
-- [ ] Falls neue Funktion: README / passende Doku ergänzt
-- [ ] Keine unnötigen Debug-Ausgaben / Console.WriteLine
-- [ ] Keine toten Dateien / nicht verwendeten Usings
+## Pull Request Checklist
 
-## Code Stil
-- C# `latest` Features erlaubt, aber pragmatisch einsetzen.
-- Nullability aktiv: Warnungen ernst nehmen.
-- Sinnvolle Benennungen – keine Abkürzungen außer weithin bekannt (`db`, `sql`).
+- [ ] Build successful (`dotnet build`)
+- [ ] `spocr test --validate` passes without errors
+- [ ] If new feature: README / relevant documentation updated
+- [ ] No unnecessary debug output / Console.WriteLine
+- [ ] No dead files / unused usings
+
+## Code Style
+
+- C# `latest` features allowed, but use pragmatically.
+- Nullability enabled: take warnings seriously.
+- Meaningful naming – no abbreviations except widely known (`db`, `sql`).
 
 ## Commit Messages
-Empfohlenes Muster (imperativ):
+
+Recommended pattern (imperative):
+
 ```
-feat: fügt einfachen Integration Test Skeleton hinzu
-fix: behebt NullReference in SchemaManager
-refactor: vereinfacht StoredProcedure Query Logik
-docs: ergänzt Testing Abschnitt
-chore: aktualisiert Abhängigkeiten
+feat: add simple integration test skeleton
+fix: resolve NullReference in SchemaManager
+refactor: simplify StoredProcedure query logic
+docs: add testing section
+chore: update dependencies
 ```
 
-## Versionierung
-Patch-Version wird automatisch beim Build hochgezählt (MSBuild Target). Größere Versionserhöhungen bitte im PR erwähnen.
+## Versioning
 
-## Sicherheit / Secrets
-Keine Zugangsdaten in Commits. Für lokale Tests: `.env` oder User Secrets (nicht im Repo).
+Patch version is automatically incremented during build (MSBuild target). For major version changes, please mention in the PR.
 
-## Kontakt / Diskussion
-Nutze Issues oder Diskussionen auf GitHub. Für größere Architekturänderungen bitte RFC-Issue anlegen.
+## Security / Secrets
 
-Viel Erfolg & danke für deinen Beitrag! 🙌
+No credentials in commits. For local tests: use `.env` or User Secrets (not in repo).
+
+## Contact / Discussion
+
+Use GitHub Issues or Discussions. For major architectural changes, please create an RFC issue.
+
+Thanks for your contribution! 🙌
