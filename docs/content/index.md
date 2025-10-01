@@ -37,39 +37,41 @@ Generate strongly typed C# classes from SQL Server stored procedures with minima
 title: 'Why SpocR?'
 ---
 
-  :::card-group
-  :::card
-  ---
-  title: 'Type Safety'
-  icon: 'i-heroicons-shield-check'
-  ---
-  Generate strongly typed C# classes that catch errors at compile time instead of runtime.
-  :::
+::u-container
+:::card-group
+:::card
+---
+title: 'Type Safety'
+icon: 'i-heroicons-shield-check'
+---
+Generate strongly typed C# classes that catch errors at compile time instead of runtime.
+:::
 
-  :::card
-  ---
-  title: 'Zero Boilerplate'
-  icon: 'i-heroicons-bolt'
-  ---
-  Eliminate manual mapping code. SpocR handles the tedious data access layer for you.
-  :::
+:::card
+---
+title: 'Zero Boilerplate'
+icon: 'i-heroicons-bolt'
+---
+Eliminate manual mapping code. SpocR handles the tedious data access layer for you.
+:::
 
-  :::card
-  ---
-  title: 'Fast Integration'
-  icon: 'i-heroicons-bolt'
-  ---
-  Integrate into existing .NET solutions within minutes, not hours.
-  :::
+:::card
+---
+title: 'Fast Integration'
+icon: 'i-heroicons-bolt'
+---
+Integrate into existing .NET solutions within minutes, not hours.
+:::
 
-  :::card
-  ---
-  title: 'Extensible'
-  icon: 'i-heroicons-puzzle-piece'
-  ---
-  Customize naming conventions, output structure, and generation behavior.
-  :::
-  :::
+:::card
+---
+title: 'Extensible'
+icon: 'i-heroicons-puzzle-piece'
+---
+Customize naming conventions, output structure, and generation behavior.
+:::
+:::
+::
 
 ::
 
@@ -78,6 +80,7 @@ title: 'Why SpocR?'
 title: 'Quick Start'
 ---
 
+::u-container
 Get up and running with SpocR in under 5 minutes:
 
 :::code-group
@@ -102,13 +105,16 @@ spocr build
 🎉 **That's it!** Your strongly typed C# classes are ready in the `Output/` directory.
 :::
 
+::spacer
+
 ::
 
-::section
+<!-- ::section
 ---
 title: 'Example Usage'
 ---
 
+::u-container
 See how clean your data access becomes:
 
 :::code-group
@@ -142,8 +148,9 @@ foreach (var user in result) {
 }
 ```
 :::
-
 ::
+
+:: -->
 
 ::section
 ---
@@ -160,7 +167,9 @@ links:
     size: 'lg'
 ---
 
+::u-container
 Join developers who've eliminated thousands of lines of boilerplate code with SpocR.
+::
 
 ::
 
@@ -169,38 +178,40 @@ Join developers who've eliminated thousands of lines of boilerplate code with Sp
 title: 'Features'
 ---
 
-  :::card-group
-  :::card
-  ---
-  title: 'Multiple Output Formats'
-  icon: 'i-heroicons-document-duplicate'
-  ---
-  Generate models, data contexts, and extensions with flexible output options.
-  :::
+::u-container
+:::card-group
+:::card
+---
+title: 'Multiple Output Formats'
+icon: 'i-heroicons-document-duplicate'
+---
+Generate models, data contexts, and extensions with flexible output options.
+:::
 
-  :::card
-  ---
-  title: 'JSON Support'
-  icon: 'i-heroicons-code-bracket'
-  ---
-  Handle complex JSON return types with optional deserialization strategies.
-  :::
+:::card
+---
+title: 'JSON Support'
+icon: 'i-heroicons-code-bracket'
+---
+Handle complex JSON return types with optional deserialization strategies.
+:::
 
-  :::card
-  ---
-  title: 'Custom Types'
-  icon: 'i-heroicons-variable'
-  ---
-  Support for custom scalar types, table types, and complex parameter structures.
-  :::
+:::card
+---
+title: 'Custom Types'
+icon: 'i-heroicons-variable'
+---
+Support for custom scalar types, table types, and complex parameter structures.
+:::
 
-  :::card
-  ---
-  title: 'CI/CD Ready'
-  icon: 'i-heroicons-cog-6-tooth'
-  ---
-  Integrate seamlessly into build pipelines and automated deployment workflows.
-  :::
-  :::
+:::card
+---
+title: 'CI/CD Ready'
+icon: 'i-heroicons-cog-6-tooth'
+---
+Integrate seamlessly into build pipelines and automated deployment workflows.
+:::
+:::
+::
 
 ::
