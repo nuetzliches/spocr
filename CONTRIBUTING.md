@@ -6,7 +6,7 @@ Thank you for your interest in SpocR! This project welcomes issues and pull requ
 
 - Small, focused changes are easier to review.
 - Before starting a major feature: open an issue and discuss it first.
-- No direct commits to `main` – work through branches.
+- No direct commits to `master` – work through branches.
 
 ## Branch Naming Convention
 
