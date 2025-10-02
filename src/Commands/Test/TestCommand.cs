@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using System.Xml.Linq;
 using McMaster.Extensions.CommandLineUtils;
 using SpocR.Services;
+using SpocR.Infrastructure;
 
 namespace SpocR.Commands.Test;
 
@@ -68,7 +69,7 @@ public class TestCommand : CommandBase
             {
                 _consoleService.Error($"Details: {ex}");
             }
-            return 1;
+            return ExitCodes.InternalError; // Unexpected execution failure
         }
     }
 
@@ -90,7 +91,7 @@ public class TestCommand : CommandBase
         results.ValidationPassed = validationResults.Count(r => r);
 
         PrintResults(results);
-        return allPassed ? 0 : 1;
+        return allPassed ? ExitCodes.Success : ExitCodes.ValidationError;
     }
 
     private async Task<int> RunBenchmarksAsync(TestResults results)
@@ -101,7 +102,7 @@ public class TestCommand : CommandBase
         _consoleService.Warn("Benchmark functionality coming soon!");
 
         await Task.CompletedTask;
-        return 0;
+        return ExitCodes.Success;
     }
 
     private async Task<int> RunFullTestSuiteAsync(TestResults results)
@@ -131,7 +132,7 @@ public class TestCommand : CommandBase
         }
 
         PrintResults(results);
-        return overallSuccess ? 0 : 1;
+        return overallSuccess ? ExitCodes.Success : ExitCodes.TestFailure;
     }
 
     private async Task<int> RunUnitTestsAsync()
@@ -200,7 +201,7 @@ public class TestCommand : CommandBase
 
         _consoleService.Info($"     Validation tests: {(allPassed ? "✅ PASSED" : "❌ FAILED")}");
 
-        return allPassed ? 0 : 1;
+        return allPassed ? ExitCodes.Success : ExitCodes.ValidationError;
     }
 
     private string BuildTestArguments(string projectName)

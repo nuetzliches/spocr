@@ -11,6 +11,8 @@ using SpocR.DataContext;
 using SpocR.Extensions;
 using SpocR.AutoUpdater;
 using System.IO;
+using SpocR.Services;
+using SpocR.Infrastructure;
 
 namespace SpocR;
 
@@ -73,7 +75,28 @@ public class Program
 
         await app.InitializeGlobalConfigAsync(serviceProvider);
 
-        return await app.ExecuteAsync(args);
+        try
+        {
+            return await app.ExecuteAsync(args);
+        }
+        catch (Exception ex)
+        {
+            // Attempt to log via console service if available
+            try
+            {
+                var console = serviceProvider.GetService<IConsoleService>();
+                console?.Error($"Unhandled exception: {ex.Message}");
+                if (ex.InnerException != null)
+                {
+                    console?.Error($"Inner exception: {ex.InnerException.Message}");
+                }
+            }
+            catch
+            {
+                // Swallow any logging failures – we are already failing hard.
+            }
+            return ExitCodes.InternalError;
+        }
 
         // Automatic update check on startup
         // var consoleService = serviceProvider.GetRequiredService<IConsoleService>();

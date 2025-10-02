@@ -1,6 +1,6 @@
 ---
 title: build
-description: Führt die Code-Generierung basierend auf aktueller Konfiguration aus.
+description: Executes code generation based on current configuration.
 versionIntroduced: 4.0.0
 experimental: false
 authoritative: true
@@ -9,22 +9,22 @@ aiTags: [cli, build, generation]
 
 # build
 
-Der `build` Befehl generiert alle konfigurierten Artefakte (Input-/Output-Modelle, DbContext Teile, Mappings usw.).
+The `build` command generates all configured artifacts (input/output models, DbContext parts, mappings, etc.).
 
-## Verwendung
+## Usage
 
 ```bash
 spocr build [Optionen]
 ```
 
-## Optionen (Auszug)
+## Options (Excerpt)
 
-| Option                | Typ    | Beschreibung                                         |
-| --------------------- | ------ | ---------------------------------------------------- |
-| `--project <name>`    | string | Zielprojekt überschreiben                            |
-| `--force`             | flag   | Überschreibt bestehende Dateien falls nötig          |
-| `--generators <list>` | string | Komma-liste zur Einschränkung bestimmter Generatoren |
-| `--verbose`           | flag   | Ausführlichere Logausgabe                            |
+| Option                | Type   | Description                                       |
+| --------------------- | ------ | ------------------------------------------------- |
+| `--project <name>`    | string | Override target project                           |
+| `--force`             | flag   | Overwrite existing files if necessary             |
+| `--generators <list>` | string | Comma-separated list to limit specific generators |
+| `--verbose`           | flag   | More verbose logging                              |
 
 ## Behavior Contract (Draft)
 
@@ -53,10 +53,13 @@ spocr build [Optionen]
 }
 ```
 
-## Beispiele
+## Examples
 
 ```bash
 spocr build
 spocr build --verbose
 spocr build --generators Inputs,Outputs
+
+---
+Note: This document was translated from German on 2025-10-02 to comply with the English-only language policy.
 ```

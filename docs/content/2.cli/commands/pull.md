@@ -1,6 +1,6 @@
 ---
 title: pull
-description: Synchronisiert Stored Procedures & Schema aus der Datenbank.
+description: Synchronizes stored procedures & schema from the database.
 versionIntroduced: 4.0.0
 experimental: false
 authoritative: true
@@ -9,9 +9,9 @@ aiTags: [cli, pull, sync]
 
 # pull
 
-Liest Metadaten (Stored Procedures, Parameter, ggf. Tabellen) aus einer SQL Server Datenbank und aktualisiert interne Modelle.
+Reads metadata (stored procedures, parameters, optionally tables) from a SQL Server database and updates internal models.
 
-## Verwendung
+## Usage
 
 ```bash
 spocr pull --connection "<connection-string>" [Optionen]
@@ -39,9 +39,12 @@ spocr pull --connection "<connection-string>" [Optionen]
 }
 ```
 
-## Beispiele
+## Examples
 
 ```bash
 spocr pull --connection "Server=.;Database=AppDb;Trusted_Connection=True;"
 spocr pull --connection "Server=.;Database=AppDb;Trusted_Connection=True;" --schema custom
+
+---
+Note: This document was translated from German on 2025-10-02 to comply with the English-only language policy.
 ```

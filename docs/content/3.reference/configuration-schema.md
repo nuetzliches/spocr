@@ -1,9 +1,9 @@
 ---
-title: Konfigurations-Referenz
-description: Struktur und Bedeutung der Felder der spocr.json.
+title: Configuration Reference
+description: Structure and meaning of fields in spocr.json.
 ---
 
-# Konfigurations-Referenz (`spocr.json`)
+# Configuration Reference (`spocr.json`)
 
 ## Beispiel
 
@@ -26,19 +26,23 @@ description: Struktur und Bedeutung der Felder der spocr.json.
 }
 ```
 
-## Wichtige Felder
+## Key Fields
 
-| Feld                               | Typ    | Beschreibung           |
-| ---------------------------------- | ------ | ---------------------- |
-| `version`                          | string | Schema-Version         |
-| `project.name`                     | string | Zielprojektname        |
-| `project.targetFramework`          | string | Ziel .NET TF           |
-| `database.connection`              | string | Verbindung zur DB      |
-| `database.schema`                  | string | Default Schema         |
-| `generation.outputDir`             | string | Ausgabeordner          |
-| `generation.namespaceRoot`         | string | Wurzel-Namespace       |
-| `generation.includeJsonProcedures` | bool   | JSON Procs einbeziehen |
+| Field                              | Type   | Description                       |
+| ---------------------------------- | ------ | --------------------------------- |
+| `version`                          | string | Schema version                    |
+| `project.name`                     | string | Target project name               |
+| `project.targetFramework`          | string | Target .NET TF                    |
+| `database.connection`              | string | Database connection string        |
+| `database.schema`                  | string | Default schema                    |
+| `generation.outputDir`             | string | Output directory                  |
+| `generation.namespaceRoot`         | string | Root namespace for generated code |
+| `generation.includeJsonProcedures` | bool   | Include JSON procedures           |
 
 ## TODO
 
-- Vollständiges maschinenlesbares JSON Schema folgt.
+- Full machine-readable JSON schema to follow.
+
+---
+
+Note: This document was translated from German on 2025-10-02 to comply with the English-only language policy.

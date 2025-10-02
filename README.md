@@ -160,6 +160,67 @@ Workflow:
 
 The project file no longer auto-increments version numbers; builds are reproducible from tags.
 
+## ⚙️ Exit Codes
+
+SpocR uses categorized, spaced exit codes to allow future expansion without breaking CI consumers.
+
+| Code | Category        | Meaning / Usage                            | Emitted Now                   | Notes                                          |
+| ---- | --------------- | ------------------------------------------ | ----------------------------- | ---------------------------------------------- |
+| 0    | Success         | Successful execution                       | Yes                           | Stable                                         |
+| 10   | Validation      | Validation / user input failure            | Yes (validate path)           |                                                |
+| 20   | Generation      | Code generation pipeline error             | No                            | Reserved                                       |
+| 30   | Dependency      | External system (DB/network) failure       | No                            | Reserved                                       |
+| 40   | Testing         | Test suite failure (aggregate)             | Yes (full test suite failure) | Future: 41=Unit, 42=Integration, 43=Validation |
+| 50   | Benchmark       | Benchmark execution failure                | No                            | Reserved (flag present, impl pending)          |
+| 60   | Rollback        | Rollback / recovery failed                 | No                            | Reserved                                       |
+| 70   | Configuration   | Config parsing/validation error            | No                            | Reserved                                       |
+| 80   | Internal        | Unexpected unhandled exception             | Yes (Program.cs catch)        | Critical – file issue/bug                      |
+| 99   | Future/Reserved | Experimental / feature-flag reserved space | No                            | Avoid relying on this                          |
+
+Guidance:
+
+- Treat any non-zero as failure if you do not need granularity.
+- To react specifically: validation remediation (10), test failure investigation (40), file an issue for 80 (internal error).
+- Future minor releases may add sub-codes inside the 40s without altering existing meanings.
+
+### JUnit / XML Test Output (Planned)
+
+SpocR aims to provide native JUnit-style XML output for integration with CI platforms (GitHub Actions, Azure DevOps, GitLab, Jenkins).
+
+Current status:
+
+- Basic placeholder implementation writes a minimal JUnit XML file when `--output <file>` is used with `spocr test`.
+- The structure currently contains a single aggregated testsuite with placeholder counts.
+- Future versions will emit one `<testsuite>` per logical test category (unit, integration, validation) and optional `<system-out>` / `<properties>` metadata.
+
+Planned enhancements:
+
+1. Real test counting integrated with `dotnet test` results parsing.
+2. Failure details mapped into `<failure>` nodes with message + stack trace.
+3. Duration tracking (wall clock + per suite timings).
+4. Optional attachment of generated artifacts summary.
+5. Exit code specialization (e.g. distinguishing generation vs dependency vs validation failures) aligned with reserved codes (2,3).
+
+Example (future target structure):
+
+```xml
+<testsuites tests="42" failures="2" time="3.421">
+  <testsuite name="unit" tests="30" failures="1" time="1.2" />
+  <testsuite name="integration" tests="8" failures="1" time="2.1" />
+  <testsuite name="validation" tests="4" failures="0" time="0.121" />
+</testsuites>
+```
+
+Usage (current minimal behavior):
+
+```
+spocr test --validate --output results.xml
+```
+
+If you rely on strict JUnit consumers today, treat this as experimental and validate the schema before ingest.
+
+For now, rely on 0 vs non‑zero; begin adapting scripts to treat 1 as a generic failure boundary. Future enhancements will keep 0 backward compatible and only refine non‑zero granularity.
+
 ## 🛠️ Requirements
 
 - .NET SDK 6.0 or higher (8.0+ recommended)

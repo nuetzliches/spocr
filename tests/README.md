@@ -1,37 +1,45 @@
 # Tests
 
-Dieser Ordner bündelt alle Test-bezogenen Artefakte von SpocR.
+This folder aggregates all test-related assets of SpocR.
 
-## Struktur
+## Structure
+
 ```
 tests/
-  SpocR.Tests/            # Aktive Unit Tests (net8)
-  SpocR.IntegrationTests/ # (Geplant) Integration / DB Tests
-  SpocR.TestFramework/    # Gemeinsame Test-Hilfen & Validatoren
-  docs/                   # Test-Dokumentation & Status
+  SpocR.Tests/            # Active unit tests (net8)
+  SpocR.IntegrationTests/ # (Planned) integration / DB tests
+  SpocR.TestFramework/    # Shared test helpers & validators
+  docs/                   # Test documentation & status
 ```
 
-## Schneller Start
+## Quick Start
+
 ```bash
-# Self-Validation (Generator + Syntax)
+# Self-validation (generator + syntax)
 spocr test --validate
 
-# Unit Tests
- dotnet test tests/SpocR.Tests
+# Unit tests
+dotnet test tests/SpocR.Tests
 ```
 
-## Zielsetzung
-1. Schnelle Rückmeldung (Self-Validation) vor jedem Commit
-2. Stabiler Ausbau Unit Tests → dann Integration Layer
-3. Später erweiterbar: Benchmarks, Coverage, Rollback, JUnit/XML Output
+## Goals
 
-## Roadmap Kurzfassung
-- [x] Migration nach /tests
-- [x] Minimaler grüner Unit Test
-- [ ] Reaktivierung ursprünglicher Unit Tests
-- [ ] LocalDB / vereinfachtes DB Fixture
-- [ ] Erster Integration Test
-- [ ] JUnit/XML Ausgabe für CI
-- [ ] Coverage aktivieren
+1. Fast feedback (self-validation) before each commit
+2. Expand unit tests → then integration layer
+3. Future expansion: coverage, rollback safety, JUnit/XML output
 
-Weitere Details: `docs/TESTING.md`
+## Roadmap Snapshot
+
+- [x] Migration to /tests
+- [x] Minimal green unit test
+- [ ] Reactivate original unit test set
+- [ ] LocalDB / simplified DB fixture
+- [ ] First integration test
+- [ ] JUnit/XML output for CI (planned)
+- [ ] Enable coverage report
+
+More details: `docs/TESTING.md`
+
+---
+
+Note: This document was translated from German on 2025-10-02 to comply with the English-only language policy.

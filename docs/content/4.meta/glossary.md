@@ -1,15 +1,19 @@
 ---
-title: Glossar
-description: Zentrale Begriffe und Definitionen im SpocR Ökosystem.
+title: Glossary
+description: Central terms and definitions in the SpocR ecosystem.
 ---
 
-# Glossar
+# Glossary
 
-| Begriff           | Definition                                                      |
-| ----------------- | --------------------------------------------------------------- |
-| Stored Procedure  | In SQL Server gespeicherte Prozedur mit Input/Output Parametern |
-| Generator         | Modul, das Code basierend auf Metadaten erstellt                |
-| Behavior Contract | Strukturierte Beschreibung von Ein-/Ausgaben eines CLI Befehls  |
-| JSON Procedure    | Prozedur, die strukturierte JSON Daten liefert                  |
-| Namespace Root    | Basispunkt für generierte Namespaces                            |
-| Output Directory  | Zielordner für generierten Code                                 |
+| Term              | Definition                                                |
+| ----------------- | --------------------------------------------------------- |
+| Stored Procedure  | Stored routine in SQL Server with input/output parameters |
+| Generator         | Module that produces code from metadata                   |
+| Behavior Contract | Structured description of a CLI command's inputs/outputs  |
+| JSON Procedure    | Procedure returning structured JSON data                  |
+| Namespace Root    | Root namespace base for generated code                    |
+| Output Directory  | Target directory for generated code                       |
+
+---
+
+Note: This document was translated from German on 2025-10-02 to comply with the English-only language policy.

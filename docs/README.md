@@ -1,30 +1,30 @@
 # SpocR Documentation Concept (spocr-docs)
 
-## 1. Ziele der spocr-Dokumentation
+## 1. Documentation Goals
 
-- Bereitstellung einer klar strukturierten, versionierten und erweiterbaren Produkt- und Entwicklerdokumentation
-- Reduktion der Einarbeitungszeit für neue Nutzer & Contributor
-- Unterstützung automatisierter Weiterentwicklung durch AI-Agents (Code- & Wissensextraktion)
-- Single Source of Truth für:
-  - Funktionsumfang & Architektur
-  - Naming & Konventionen
-  - CLI-Befehle & Optionen
-  - Konfigurationsschema
-  - Erweiterbarkeit / Plugin-Szenarien
-  - Migrations- und Upgrade-Hinweise zwischen Versionen
+- Provide a clearly structured, versioned, extensible product & developer documentation set
+- Reduce onboarding time for new users & contributors
+- Enable automated evolution via AI agents (code & knowledge extraction)
+- Single Source of Truth for:
+  - Feature scope & architecture
+  - Naming & conventions
+  - CLI commands & options
+  - Configuration schema
+  - Extensibility / plugin scenarios
+  - Migration & upgrade guidance across versions
 
-## 2. Technologische Basis
+## 2. Technology Stack
 
-- Framework: [Nuxt Content](https://content.nuxt.com/docs/getting-started) (statischer Export möglich, Markdown + MDC)
-- Struktur: `docs/` Root als zukünftiges Nuxt-Projekt (zunächst nur inhaltliches Konzept)
-- Build-Optionen:
-  - Statischer Export für GitHub Pages (z.B. `/docs-site` Branch oder `gh-pages`)
-  - Optional Containerisierung (Node 20 Alpine) für reproduzierbare Builds
-- SEO & DX: Autogenerierte Sidebar, Inhaltsverzeichnis, Volltextsuche (Nuxt Content Search / Algolia optional)
+- Framework: [Nuxt Content](https://content.nuxt.com/docs/getting-started) (static export possible; Markdown + MDC)
+- Structure: `docs/` root as future Nuxt project (currently concept only)
+- Build options:
+  - Static export for GitHub Pages (e.g. `/docs-site` branch or `gh-pages`)
+  - Optional containerization (Node 20 Alpine) for reproducible builds
+- SEO & DX: auto-generated sidebar, table of contents, full‑text search (Nuxt Content Search / Algolia optional)
 - Using Nuxt UI documentation from https://ui.nuxt.com/llms.txt
 - Follow complete Nuxt UI guidelines from https://ui.nuxt.com/llms-full.txt
 
-## 3. Geplante Inhaltsstruktur
+## 3. Planned Content Structure
 
 ```
 /docs
@@ -77,18 +77,18 @@
 
 ```
 
-## 4. Versionierungskonzept der Dokumentation
+## 4. Documentation Versioning Concept
 
-- Verzeichnis pro Major-Version: `content/v4/`, `content/v5/` usw.
-- `content/latest` als Symlink oder Kopie der höchsten stabilen Version
-- Gemeinsame, versionierte JSON Schema Files unter `content/shared/schemas/`
-- Automatisierter Sync-Skript (Node) für:
-  - Diff zwischen Versionen (Changelog-Generierung)
-  - Markierung von Deprecated Inhalten mittels Frontmatter (`deprecated: true` + Hinweisblock)
-- Kennzeichnung experimenteller Features mit Frontmatter Flag `experimental: true`
-- https://content.nuxt.com/docs/integrations/llms einrichten
+- Directory per major version: `content/v4/`, `content/v5/`, etc.
+- `content/latest` as symlink or copy of highest stable version
+- Shared, versioned JSON schema files under `content/shared/schemas/`
+- Automated sync script (Node) for:
+  - Diff between versions (changelog generation)
+  - Marking deprecated content via frontmatter (`deprecated: true` + notice block)
+- Mark experimental features with frontmatter flag `experimental: true`
+- Set up https://content.nuxt.com/docs/integrations/llms
 
-### Frontmatter-Standards
+### Frontmatter Standards
 
 ```yaml
 ---
@@ -104,24 +104,25 @@ aiTags: [cli, build, generation, pipeline]
 
 ## 5. AI-Agent Readiness
 
-Ziel: Dokumentation maschinenlesbar machen, um:
+Goal: Make documentation machine-consumable to:
 
-- Automatisch Tests / Validierungen zu generieren
-- API/CLI-Verhalten gegen Implementation zu prüfen
-- Prompt-Optimierung für Chatbots (Fehleranalyse, Vorschläge)
+- Auto-generate tests / validation scripts
+- Validate API/CLI behavior against implementation
+- Improve chatbot prompts (error analysis, suggestion quality)
 
-### Maßnahmen
+### Measures
 
-1. Strukturiertes Frontmatter mit domänenspezifischen Feldern
-2. JSON-/YAML-Artefakte pro Command & Config-Schema (leicht parsbar)
-3. Konsistente Begriffsdefinitionen in `glossary.md`
-4. Embeddings-Vorbereitung: Segmentierung in sinnvolle Chunks (<= 1.5k Tokens)
-5. Tagging-System (`aiTags`) zur Clustering-Optimierung
-6. Maschinenlesbares Mapping: Stored Procedure Name -> Generierte Klassen -> Dateipfade
-7. Abschnitt "Behavior Contracts" pro Command mit:
-   - Inputs (Parameter + Typ + Pflicht)
-   - Outputs (Files / Console / Exit Codes)
-   - Fehlerfälle & Exit Codes
+1. Structured frontmatter with domain-specific fields
+2. JSON/YAML artifacts per command & config schema (easy to parse)
+3. Consistent terminology definitions in `glossary.md`
+4. Embeddings preparation: chunk segmentation (<= 1.5k tokens)
+5. Tagging system (`aiTags`) for clustering
+6. Machine-readable mapping: Stored procedure name -> generated classes -> file paths
+7. "Behavior Contracts" section per command including:
+
+- Inputs (parameters + type + required)
+- Outputs (files / console / exit codes)
+- Error cases & exit codes
 
 ### Beispiel Behavior Contract (Build Command)
 
@@ -146,37 +147,37 @@ Ziel: Dokumentation maschinenlesbar machen, um:
 }
 ```
 
-## 6. Geplanter Migrationspfad (Phasen)
+## 6. Planned Migration Path (Phases)
 
-1. Phase: Konzept (dieses Dokument) + Validierung mit Maintainer
-2. Phase: Nuxt Content Grundgerüst + Landing + Getting Started + CLI Übersicht
-3. Phase: Vollständige CLI Referenz + Konfigurations-Referenz (inkl. Machine-readable JSON Schema)
-4. Phase: Architektur & Erweiterbarkeit + Behavior Contracts
-5. Phase: Versionierung (v4 Snapshot) + Upgrade/Migration Templates
-6. Phase: AI-Enrichment (Tags, JSON Artefakte, Embeddings-Strategie Doku)
-7. Phase: Automatisierte Tests (Docs Linter, Frontmatter Validator, Broken Link Check)
-8. Phase: Veröffentlichung (GitHub Pages / Deployment Pipeline)
+1. Concept (this document) + maintainer validation
+2. Nuxt Content scaffold + landing + getting started + CLI overview
+3. Complete CLI reference + configuration reference (incl. machine-readable JSON schema)
+4. Architecture & extensibility + behavior contracts
+5. Versioning (v4 snapshot) + upgrade/migration templates
+6. AI enrichment (tags, JSON artifacts, embeddings strategy doc)
+7. Automated tests (docs linter, frontmatter validator, broken link check)
+8. Publication (GitHub Pages / deployment pipeline)
 
-## 7. Qualitätssicherung & Tooling
+## 7. Quality Assurance & Tooling
 
-- Pre-commit Checks: Markdown Lint, Link Checker, Schema Validator
-- CI Pipeline Jobs:
-  - Build + Lint
-  - Frontmatter Scan (Pflichtfelder)
-  - Konsistenzprüfung: CLI Commands vs. Program.cs Reflektion
-  - Optional: Dead File Detector
-- Automatischer Changelog Generator basierend auf Git Tags + Conventional Commits
+- Pre-commit checks: markdown lint, link checker, schema validator
+- CI pipeline jobs:
+  - Build + lint
+  - Frontmatter scan (required fields)
+  - Consistency check: CLI commands vs. reflection of `Program.cs`
+  - Optional: dead file detector
+- Automatic changelog generator based on git tags + conventional commits
 
-## 8. Erweiterbarkeit & Zukunft
+## 8. Extensibility & Future Ideas
 
-- Option: Interaktive Playground-Seite (Parameter -> Generierter Code Preview)
-- Option: Live Diff Viewer zwischen Versionen einer Prozedur-Generierung
-- Option: Plugin Registry Seite (Community Erweiterungen)
-- Option: "AI Query" Endpoint: Q/A über Dokumentation + Code
+- Interactive playground (parameters -> generated code preview)
+- Live diff viewer across versions of a procedure generation
+- Plugin registry page (community extensions)
+- "AI Query" endpoint: Q/A across docs + code
 
-### Lokales Starten
+### Local Development
 
-Voraussetzung: Node.js (>= 18 LTS)
+Prerequisite: Node.js (>= 18 LTS)
 
 ```
 cd docs
@@ -184,14 +185,18 @@ bun install
 bun run dev
 ```
 
-Dann im Browser öffnen: http://localhost:3000
+Then open in browser: http://localhost:3000
 
-## 10. Offene Fragen
+## 10. Open Questions
 
-- Welche Major-Version als erste Snapshot-Basis? content/v4/
-- Exit Codes final definieren? Weiß nicht
-- Umfang Behavior Contracts: Nur Commands oder auch Generatoren intern? Nur Commands.
+- Which major version as first snapshot baseline? `content/v4/`
+- Finalize exit codes set?
+- Behavior contracts coverage: only commands (current plan)?
 
 ---
 
-Stand: 2025-09-30
+---
+
+Note: This document was translated from German on 2025-10-02 to comply with the English-only language policy.
+
+Status: 2025-09-30 (original conceptual date)

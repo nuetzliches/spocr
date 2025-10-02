@@ -38,7 +38,10 @@ public class VersionExtensionsTests
         // Compare truncates to first 3 components
         var a = new Version(1, 2, 3, 9);
         var b = new Version(1, 2, 3, 0);
-        a.Equals(b).Should().BeTrue();
+        // System.Version.Equals (instance) compares all 4 components => False
+        a.Equals(b).Should().BeFalse("System.Version considers revision component");
+        // Extension-based comparison (first 3 parts) => True
+        SpocR.Extensions.VersionExtensions.Equals(a, b).Should().BeTrue("extension Compare truncates to 3 parts");
     }
 }
 
@@ -48,7 +51,7 @@ public class StringExtensionsTests
     [InlineData(null, null)]
     [InlineData("", "")]
     [InlineData("Hello", "hello")]
-    public void FirstCharToLower_Works(string input, string expected)
+    public void FirstCharToLower_Works(string? input, string? expected)
     {
         input?.FirstCharToLower().Should().Be(expected);
         if (input == null) return; // null safe already tested
@@ -58,7 +61,7 @@ public class StringExtensionsTests
     [InlineData(null, null)]
     [InlineData("", "")]
     [InlineData("hello", "Hello")]
-    public void FirstCharToUpper_Works(string input, string expected)
+    public void FirstCharToUpper_Works(string? input, string? expected)
     {
         input?.FirstCharToUpper().Should().Be(expected);
     }
