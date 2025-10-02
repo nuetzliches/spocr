@@ -68,29 +68,81 @@ For comprehensive documentation, examples, and advanced configuration:
 
 ## ✅ Testing & Quality
 
-SpocR uses a layered quality strategy:
+SpocR provides a layered quality & verification stack with machine-readable reporting for CI.
 
-| Layer             | Purpose                                     | Command / Entry Point                          |
-| ----------------- | ------------------------------------------- | ---------------------------------------------- |
-| Self-Validation   | Static / structure validation (Roslyn)      | `spocr test --validate` or `dotnet run -- ...` |
-| Unit Tests        | Logic, helpers, generators, extensions      | `dotnet test tests/SpocR.Tests`                |
-| Integration (WIP) | DB & end-to-end stored procedure roundtrips | `dotnet test tests/SpocR.IntegrationTests`     |
+| Layer            | Purpose                                        | Command / Entry Point                      |
+| ---------------- | ---------------------------------------------- | ------------------------------------------ |
+| Validation       | Static / structural project checks (Roslyn)    | `spocr test --validate`                    |
+| Unit Tests       | Generators, helpers, extensions, core logic    | `dotnet test tests/SpocR.Tests`            |
+| Integration (\*) | DB & end-to-end stored procedure roundtrips    | `dotnet test tests/SpocR.IntegrationTests` |
+| Full Suite       | Orchestrated validation + unit (+ integration) | `spocr test --ci`                          |
 
-Quick pre-commit check:
+(\*) Integration suite currently deferred; orchestration scaffold in place.
+
+### Core Commands
 
 ```bash
+# Validation only (fast)
 spocr test --validate
+
+# Full suite (produces JSON + optional JUnit if requested)
+spocr test --ci --junit
+
+# Limit phases (comma-separated: unit,integration,validation)
+spocr test --ci --only unit,validation
+
+# Skip validation phase
+spocr test --ci --no-validation
 ```
 
-Full local quality gates (build + validate + tests + coverage):
+### JSON Summary Artifact
+
+When run with `--ci`, a rich summary is written to `.artifacts/test-summary.json`.
+
+Key fields (subset):
+
+| Field                                                | Description                                                          |
+| ---------------------------------------------------- | -------------------------------------------------------------------- |
+| `mode`                                               | `full-suite` or `validation-only`                                    |
+| `tests.total` / `tests.unit.total`                   | Aggregated & per-suite counts                                        |
+| `tests.unit.failed` / `tests.integration.failed`     | Failure counts per suite                                             |
+| `duration.unitMs` / `integrationMs` / `validationMs` | Phase durations (ms)                                                 |
+| `failureDetails[]`                                   | Objects with `name` & `message` for failed tests                     |
+| `startedAtUtc` / `endedAtUtc`                        | Wall clock boundaries                                                |
+| `success`                                            | Overall success flag (all selected phases passed & tests discovered) |
+
+Use this file for CI gating instead of scraping console output.
+
+### JUnit XML (Experimental Single-Suite)
+
+Add `--junit` to emit an aggregate JUnit-style XML (`.artifacts/junit-results.xml`).
+Multi-suite XML (separate unit/integration `<testsuite>` elements) is planned; track progress in the roadmap.
+
+### Exit Codes (Testing)
+
+SpocR specializes test failures:
+
+| Code | Meaning                  |
+| ---- | ------------------------ |
+| 41   | Unit test failure        |
+| 42   | Integration test failure |
+| 43   | Validation failure       |
+
+If multiple fail: precedence is 41 > 42 > 43; otherwise aggregate 40 is used.
+
+### Failure Summaries
+
+Console output lists up to 10 failing tests (with suite tag). Stack trace inclusion is a planned enhancement.
+
+### Quality Gates Script
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File eng/quality-gates.ps1 -CoverageThreshold 60
 ```
 
-Artifacts (test results & coverage) are written to the hidden `.artifacts/` directory and excluded from version control.
+Artifacts (JSON summary, JUnit XML, coverage) live under `.artifacts/` (git-ignored).
 
-See `tests/docs/TESTING.md` (future) for extended strategy details.
+Roadmap reference: see [Testing Framework](/roadmap/testing-framework) for remaining open enhancements.
 
 ## 🚢 Release & Publishing
 
@@ -164,18 +216,21 @@ The project file no longer auto-increments version numbers; builds are reproduci
 
 SpocR uses categorized, spaced exit codes to allow future expansion without breaking CI consumers.
 
-| Code | Category        | Meaning / Usage                            | Emitted Now                   | Notes                                          |
-| ---- | --------------- | ------------------------------------------ | ----------------------------- | ---------------------------------------------- |
-| 0    | Success         | Successful execution                       | Yes                           | Stable                                         |
-| 10   | Validation      | Validation / user input failure            | Yes (validate path)           |                                                |
-| 20   | Generation      | Code generation pipeline error             | No                            | Reserved                                       |
-| 30   | Dependency      | External system (DB/network) failure       | No                            | Reserved                                       |
-| 40   | Testing         | Test suite failure (aggregate)             | Yes (full test suite failure) | Future: 41=Unit, 42=Integration, 43=Validation |
-| 50   | Benchmark       | Benchmark execution failure                | No                            | Reserved (flag present, impl pending)          |
-| 60   | Rollback        | Rollback / recovery failed                 | No                            | Reserved                                       |
-| 70   | Configuration   | Config parsing/validation error            | No                            | Reserved                                       |
-| 80   | Internal        | Unexpected unhandled exception             | Yes (Program.cs catch)        | Critical – file issue/bug                      |
-| 99   | Future/Reserved | Experimental / feature-flag reserved space | No                            | Avoid relying on this                          |
+| Code | Category        | Meaning / Usage                            | Emitted Now                | Notes                                  |
+| ---- | --------------- | ------------------------------------------ | -------------------------- | -------------------------------------- |
+| 0    | Success         | Successful execution                       | Yes                        | Stable                                 |
+| 10   | Validation      | Validation / user input failure            | Yes (validate path)        |                                        |
+| 20   | Generation      | Code generation pipeline error             | No                         | Reserved                               |
+| 30   | Dependency      | External system (DB/network) failure       | No                         | Reserved                               |
+| 40   | Testing         | Test suite failure (aggregate)             | Yes                        | 41=Unit, 42=Integration, 43=Validation |
+| 41   | Testing         | Unit test failure                          | Yes (unit failures)        | More specific than 40                  |
+| 42   | Testing         | Integration test failure                   | Yes (integration failures) | Falls back to 40 if ambiguous          |
+| 43   | Testing         | Validation test failure                    | Yes (validation failures)  | Structural / repository validation     |
+| 50   | Benchmark       | Benchmark execution failure                | No                         | Reserved (flag present, impl pending)  |
+| 60   | Rollback        | Rollback / recovery failed                 | No                         | Reserved                               |
+| 70   | Configuration   | Config parsing/validation error            | No                         | Reserved                               |
+| 80   | Internal        | Unexpected unhandled exception             | Yes (Program.cs catch)     | Critical – file issue/bug              |
+| 99   | Future/Reserved | Experimental / feature-flag reserved space | No                         | Avoid relying on this                  |
 
 Guidance:
 
@@ -191,15 +246,59 @@ When running with `--ci`, SpocR writes a machine-readable summary to `.artifacts
 {
   "mode": "full-suite", // or validation-only
   "timestampUtc": "2025-10-02T12:34:56Z",
-  "validation": { "total": 3, "passed": 3 },
-  "tests": { "total": 0, "passed": 0 }, // 0 if only validation run
+  "startedAtUtc": "2025-10-02T12:34:50Z",
+  "endedAtUtc": "2025-10-02T12:34:56Z",
+  "validation": { "total": 3, "passed": 3, "failed": 0 },
+  "tests": { "total": 27, "passed": 27, "failed": 0, "skipped": 0 },
+  "duration": {
+    "totalMs": 1234,
+    "unitMs": 800,
+    "integrationMs": 434,
+    "validationMs": 52
+  },
+  "failedTestNames": [],
   "success": true
 }
 ```
 
-You can consume this in CI to branch logic (e.g. fail early, annotate PRs, or feed dashboards) without parsing console output. Future enhancements will merge parsed TRX data for per-suite timing and failure metadata.
+Notes:
 
-### JUnit / XML Test Output (Planned)
+- `failed` fields enable quick gating without recomputing.
+- `skipped` summarizes ignored / filtered tests.
+- `failedTestNames` (array) stays small (only failing tests) – empty on success.
+- `startedAtUtc` / `endedAtUtc` allow deriving wall-clock span; `duration.totalMs` is an explicit metric.
+- Fields may expand (non-breaking) in future (e.g. per-suite timing arrays).
+
+You can consume this in CI to branch logic (e.g. fail early, annotate PRs, or feed dashboards) without parsing console output. Future enhancements will merge richer failure metadata for per-suite timing and failure details.
+
+### JUnit / XML Test Output
+
+SpocR can emit a basic JUnit-style XML for CI systems that natively ingest it:
+
+```
+spocr test --ci --junit
+```
+
+By default this writes `.artifacts/junit-results.xml`. Use `--output <path>` to choose a custom location (takes precedence over `--junit`).
+
+### Phase Control & Skipping
+
+- `--no-validation` skips repository/project validation when running the full suite.
+- Validation time is still reported as `0` ms in JSON if skipped.
+
+### Exit Code Precedence
+
+If multiple phases fail the precedence applied is: Unit (41) > Integration (42) > Validation (43) > Aggregate (40).
+
+### Process Cleanup
+
+If you encounter repeated file lock build warnings (`SpocR.dll` / `testhost`), run:
+
+```
+powershell -ExecutionPolicy Bypass -File eng/kill-testhosts.ps1
+```
+
+This forcibly terminates stale test processes and stabilizes subsequent builds.
 
 SpocR aims to provide native JUnit-style XML output for integration with CI platforms (GitHub Actions, Azure DevOps, GitLab, Jenkins).
 

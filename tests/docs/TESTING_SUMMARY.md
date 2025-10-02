@@ -1,1 +1,0 @@
-# Moved from src/TESTING_SUMMARY.md (gekürzt) – aktuelle Version siehe Historie

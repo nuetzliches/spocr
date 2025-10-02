@@ -212,15 +212,21 @@ When run with `--ci`, the test command writes `.artifacts/test-summary.json`:
 
 ```jsonc
 {
-  "mode": "validation-only", // or full-suite
+  "mode": "validation-only",
   "timestampUtc": "<ISO8601 UTC>",
-  "validation": { "total": 3, "passed": 3 },
-  "tests": { "total": 0, "passed": 0 },
+  "validation": { "total": 3, "passed": 3, "failed": 0 },
+  "tests": { "total": 0, "passed": 0, "failed": 0 },
+  "duration": { "totalMs": 120, "unitMs": 0, "integrationMs": 0 },
   "success": true
 }
 ```
 
-Consume this in CI instead of scraping console output. Planned enhancements: integrate real counts via TRX parsing, failure lists, durations.
+Added fields:
+
+- `failed` counts for faster CI branching
+- `duration` (overall + per suite) for performance baselining
+
+Future roadmap: failure details array, suite timing breakdown, trend annotation.
 
 ### Documentation Development
 

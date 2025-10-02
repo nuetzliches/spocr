@@ -25,18 +25,22 @@ This section contains the development roadmap, planned features, and ongoing wor
 
 ## Consolidated Planned Features (High-Level)
 
-| Category          | Feature                                    | Status      | Notes                                                                                       |
-| ----------------- | ------------------------------------------ | ----------- | ------------------------------------------------------------------------------------------- |
-| Testing           | JUnit/XML multi-suite reporting            | Planned     | Minimal placeholder exists via `--output`; full parsing & per-suite aggregation pending     |
-| Testing           | Benchmark integration (`--benchmark`)      | Deferred    | Command flag still present; implementation scheduled post core validation suite             |
-| Testing           | Rollback mechanism (`--rollback`)          | Planned     | Requires snapshot + transactional file operations                                           |
-| Testing           | CI mode (`--ci`) enhancements              | In Progress | JSON summary implemented (`test-summary.json`); exit code sub-codes & TRX parsing pending   |
-| CLI               | Exit code specialization (spaced blocks)   | In Progress | New spaced mapping (0,10,20,30,40,50,60,70,80,99); further sub-codes TBD                    |
-| Versioning        | Dynamic publish workflow MinVer extraction | Planned     | Transition workflow to derive version from `dotnet minver` output instead of csproj parsing |
-| Output Strategies | Hybrid JSON materialization                | Design      | See Optional Features document                                                              |
-| Performance       | Structured benchmark baselines             | Planned     | Compare generation & runtime metrics across versions                                        |
+| Category          | Feature                                    | Status   | Notes                                                                                       |
+| ----------------- | ------------------------------------------ | -------- | ------------------------------------------------------------------------------------------- |
+| Testing           | CI mode JSON + per-suite stats             | Done     | `test-summary.json` with nested suite metrics, durations, failures                          |
+| Testing           | TRX robust parsing & retries               | Done     | Sequential orchestration + retry loop                                                       |
+| Testing           | Granular exit sub-codes (41/42/43)         | Done     | Unit / Integration / Validation failure precedence                                          |
+| Testing           | Console failure summary                    | Done     | Top failing tests (<=10) printed                                                            |
+| Testing           | Single-suite JUnit XML export              | Done     | `--junit` flag outputs aggregate suite                                                      |
+| Testing           | JUnit multi-suite reporting                | Planned  | See Remaining Open Items (Testing Framework)                                                |
+| Testing           | Benchmark integration (`--benchmark`)      | Deferred | Placeholder flag; implementation later                                                      |
+| Testing           | Rollback mechanism (`--rollback`)          | Planned  | Requires snapshot + transactional file operations                                           |
+| CLI               | Exit code specialization (spaced blocks)   | Done     | Spaced categories + sub-codes implemented                                                   |
+| Versioning        | Dynamic publish workflow MinVer extraction | Planned  | Transition workflow to derive version from `dotnet minver` output instead of csproj parsing |
+| Output Strategies | Hybrid JSON materialization                | Design   | See Optional Features document                                                              |
+| Performance       | Structured benchmark baselines             | Planned  | Compare generation & runtime metrics across versions                                        |
 
-Progress in this table should remain synchronized with the README Exit Codes and Testing sections.
+Progress in this table should remain synchronized with the README Exit Codes and Testing sections and the Testing Framework document.
 
 ## Version Planning
 

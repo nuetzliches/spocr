@@ -6,8 +6,31 @@ Format loosely inspired by Keep a Changelog. Dates use ISO 8601 (UTC).
 ## [Unreleased]
 
 - (planned) Reactivate integration tests (LocalDB)
-- (planned) JUnit/XML output for `spocr test` (structured CI reporting)
+- (planned) Multi-suite JUnit/XML output (separate unit/integration suites)
 - (planned) Rollback mechanism for AI‑agent workflows
+
+### Added
+
+- CI test summary artifact (`--ci`) writing `.artifacts/test-summary.json` with per-suite statistics
+- Per-suite metrics (unit/integration) including durations, skipped counts, failure details
+- JUnit single-suite XML export via `--junit` (aggregate suite)
+- CLI flags: `--only <phases>`, `--no-validation`, `--junit`, `--output <file>` for test artifacts
+- Granular test exit subcodes 41 (unit), 42 (integration), 43 (validation) with precedence logic
+- Console failure summary (top failing tests, truncated to 10)
+- Process cleanup script `eng/kill-testhosts.ps1` for lingering `testhost` processes
+
+### Changed
+
+- Test orchestration made sequential to ensure deterministic TRX parsing (removed race conditions)
+- JSON schema for test summary expanded (nested `tests.unit` / `tests.integration`, timestamps, per-phase durations)
+
+### Fixed
+
+- Intermittent zero-count test parsing due to premature TRX access (retry & readiness checks)
+
+### Notes
+
+- Multi-suite JUnit output, `--require-tests` guard, stack trace enrichment, and trait-based suite classification are deferred (see roadmap Testing Framework remaining items)
 
 ### Added / Internal
 

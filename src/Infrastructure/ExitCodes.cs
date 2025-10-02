@@ -9,6 +9,9 @@ namespace SpocR.Infrastructure;
 /// 20   : Generation Error
 /// 30   : Dependency / External Error
 /// 40   : Test Failure (aggregate; future: 41 unit, 42 integration, 43 validation)
+/// 41   : Unit Test Failure
+/// 42   : Integration Test Failure
+/// 43   : Validation Test Failure (generated project/repo validation phase)
 /// 50   : Benchmark Failure
 /// 60   : Rollback / Recovery Failure
 /// 70   : Configuration Error
@@ -31,6 +34,15 @@ public static class ExitCodes
 
     /// <summary>Test suite failure (aggregate).</summary>
     public const int TestFailure = 40;
+
+    /// <summary>Unit test failures occurred.</summary>
+    public const int UnitTestFailure = 41;
+
+    /// <summary>Integration test failures occurred.</summary>
+    public const int IntegrationTestFailure = 42;
+
+    /// <summary>Validation test failures occurred.</summary>
+    public const int ValidationTestFailure = 43;
 
     /// <summary>Benchmark execution failure.</summary>
     public const int BenchmarkFailure = 50;
