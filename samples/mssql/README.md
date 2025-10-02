@@ -100,3 +100,55 @@ scripts/
 ```
 
 The entrypoint script starts SQL Server, waits for readiness, and executes all scripts in `init/` in lexical order.
+
+## Full-Text Search (FTS)
+
+Das offizielle Image `mcr.microsoft.com/mssql/server:2022-latest` enthält die Full‑Text Komponenten bereits standardmäßig; es ist kein zusätzliches Debian-Paket nötig (das frühere Paket `mssql-server-fts` wird in dieser Variante nicht separat installiert und ist im Slim/GA Image integriert). Das Skript `08-fulltext.sql` legt beim ersten Start einen Full-Text Catalog und einen Index auf `samples.Users(DisplayName, Bio)` an.
+
+### Rebuild nach Änderungen
+
+Wenn Du das Dockerfile (z.B. für FTS) geändert hast:
+
+```
+docker compose build --no-cache
+docker compose up -d
+```
+
+### Überprüfen, ob Full-Text installiert & aktiv ist
+
+```
+docker exec -it spocr-sample-sql /opt/mssql-tools/bin/sqlcmd \
+  -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d SpocRSample \
+  -Q "SELECT SERVERPROPERTY('IsFullTextInstalled') AS IsFullTextInstalled, FULLTEXTSERVICEPROPERTY('IsFullTextInstalled') AS FtServiceInstalled;"
+```
+
+Erwarteter Wert für beide Spalten: `1`.
+
+### Kataloge & Indizes anzeigen
+
+```
+docker exec -it spocr-sample-sql /opt/mssql-tools/bin/sqlcmd \
+  -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d SpocRSample \
+  -Q "SELECT name FROM sys.fulltext_catalogs; SELECT object_name(object_id) AS TableName FROM sys.fulltext_indexes;"
+```
+
+### Beispiel Full-Text Query
+
+Sucht nach Benutzern, deren `DisplayName` entweder "Alice" oder "Builder" enthält:
+
+```
+docker exec -it spocr-sample-sql /opt/mssql-tools/bin/sqlcmd \
+  -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d SpocRSample \
+  -Q "SELECT UserId, DisplayName, Bio FROM samples.Users WHERE CONTAINS(DisplayName, '""Alice"" OR ""Builder""');"
+```
+
+### Eigenen Full-Text Index hinzufügen
+
+Beispiel für eine weitere Tabelle / Spalte:
+
+```
+CREATE FULLTEXT INDEX ON samples.Orders(Notes LANGUAGE 1031)
+KEY INDEX PK__Orders__3214EC07 ON SampleCatalog WITH CHANGE_TRACKING AUTO;
+```
+
+> Hinweis: Der Schlüsselindex muss mit dem tatsächlichen Namen des Primary Keys übereinstimmen (ggf. via `sp_helpindex samples.Orders` prüfen).
