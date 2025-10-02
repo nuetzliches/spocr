@@ -2,13 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 using McMaster.Extensions.CommandLineUtils;
 using SpocR.Services;
 using SpocR.Infrastructure;
+using System.Text.Json;
+using System.IO;
 
 namespace SpocR.Commands.Test;
 
@@ -91,6 +92,10 @@ public class TestCommand : CommandBase
         results.ValidationPassed = validationResults.Count(r => r);
 
         PrintResults(results);
+        if (CiMode)
+        {
+            await WriteJsonSummaryAsync(results, "validation-only");
+        }
         return allPassed ? ExitCodes.Success : ExitCodes.ValidationError;
     }
 
@@ -132,6 +137,10 @@ public class TestCommand : CommandBase
         }
 
         PrintResults(results);
+        if (CiMode)
+        {
+            await WriteJsonSummaryAsync(results, "full-suite");
+        }
         return overallSuccess ? ExitCodes.Success : ExitCodes.TestFailure;
     }
 
@@ -352,6 +361,35 @@ public class TestCommand : CommandBase
                            (results.TotalTests == 0 || results.PassedTests == results.TotalTests);
 
         _consoleService.Info($"Overall Result: {(overallSuccess ? "✅ SUCCESS" : "❌ FAILURE")}");
+    }
+
+    private async Task WriteJsonSummaryAsync(TestResults results, string mode)
+    {
+        try
+        {
+            var artifactsDir = ".artifacts";
+            Directory.CreateDirectory(artifactsDir);
+            var summaryPath = System.IO.Path.Combine(artifactsDir, "test-summary.json");
+            var payload = new
+            {
+                mode,
+                timestampUtc = DateTime.UtcNow,
+                validation = new { total = results.ValidationTests, passed = results.ValidationPassed },
+                tests = new { total = results.TotalTests, passed = results.PassedTests },
+                success = (results.ValidationTests == 0 || results.ValidationPassed == results.ValidationTests) &&
+                          (results.TotalTests == 0 || results.PassedTests == results.TotalTests)
+            };
+            var json = JsonSerializer.Serialize(payload, new JsonSerializerOptions
+            {
+                WriteIndented = true
+            });
+            await File.WriteAllTextAsync(summaryPath, json);
+            _consoleService.Info($"🧾 JSON summary written: {summaryPath}");
+        }
+        catch (Exception ex)
+        {
+            _consoleService.Warn($"Failed to write JSON summary: {ex.Message}");
+        }
     }
 
     private class TestResults

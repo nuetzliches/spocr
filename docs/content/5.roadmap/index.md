@@ -30,7 +30,7 @@ This section contains the development roadmap, planned features, and ongoing wor
 | Testing           | JUnit/XML multi-suite reporting            | Planned     | Minimal placeholder exists via `--output`; full parsing & per-suite aggregation pending     |
 | Testing           | Benchmark integration (`--benchmark`)      | Deferred    | Command flag still present; implementation scheduled post core validation suite             |
 | Testing           | Rollback mechanism (`--rollback`)          | Planned     | Requires snapshot + transactional file operations                                           |
-| Testing           | CI mode (`--ci`) enhancements              | Planned     | Structured machine-readable summary + dedicated exit code mapping                           |
+| Testing           | CI mode (`--ci`) enhancements              | In Progress | JSON summary implemented (`test-summary.json`); exit code sub-codes & TRX parsing pending   |
 | CLI               | Exit code specialization (spaced blocks)   | In Progress | New spaced mapping (0,10,20,30,40,50,60,70,80,99); further sub-codes TBD                    |
 | Versioning        | Dynamic publish workflow MinVer extraction | Planned     | Transition workflow to derive version from `dotnet minver` output instead of csproj parsing |
 | Output Strategies | Hybrid JSON materialization                | Design      | See Optional Features document                                                              |

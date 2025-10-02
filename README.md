@@ -183,6 +183,22 @@ Guidance:
 - To react specifically: validation remediation (10), test failure investigation (40), file an issue for 80 (internal error).
 - Future minor releases may add sub-codes inside the 40s without altering existing meanings.
 
+### CI JSON Summary
+
+When running with `--ci`, SpocR writes a machine-readable summary to `.artifacts/test-summary.json`:
+
+```jsonc
+{
+  "mode": "full-suite", // or validation-only
+  "timestampUtc": "2025-10-02T12:34:56Z",
+  "validation": { "total": 3, "passed": 3 },
+  "tests": { "total": 0, "passed": 0 }, // 0 if only validation run
+  "success": true
+}
+```
+
+You can consume this in CI to branch logic (e.g. fail early, annotate PRs, or feed dashboards) without parsing console output. Future enhancements will merge parsed TRX data for per-suite timing and failure metadata.
+
 ### JUnit / XML Test Output (Planned)
 
 SpocR aims to provide native JUnit-style XML output for integration with CI platforms (GitHub Actions, Azure DevOps, GitLab, Jenkins).

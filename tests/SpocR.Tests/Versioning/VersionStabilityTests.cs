@@ -6,7 +6,7 @@ using Xunit;
 
 namespace SpocR.Tests.Versioning;
 
- [Trait("Category","Slow")]
+[Trait("Category", "Slow")]
 public class VersionStabilityTests
 {
     [Fact]
