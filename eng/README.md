@@ -8,10 +8,11 @@ Keep the repository root clean and separate **product code** (`src/`, `tests/`) 
 
 ## Contents
 
-| File / Area         | Purpose                                                                                          |
-| ------------------- | ------------------------------------------------------------------------------------------------ |
-| `quality-gates.ps1` | Local pre-commit / pre-push build + validate + test + coverage script (writes to `.artifacts/`). |
-| `README.md`         | This document.                                                                                   |
+| File / Area                    | Purpose                                                                                          |
+| ------------------------------ | ------------------------------------------------------------------------------------------------ |
+| `quality-gates.ps1`            | Local pre-commit / pre-push build + validate + test + coverage script (writes to `.artifacts/`). |
+| `cleanup-legacy-artifacts.ps1` | Removes pre-migration artifact folders (`CoverageReport/`, `TestResults/`).                      |
+| `README.md`                    | This document.                                                                                   |
 
 ## Transient Artifacts
 
@@ -41,6 +42,14 @@ Run quality gates:
 ```
 powershell -ExecutionPolicy Bypass -File eng/quality-gates.ps1 -CoverageThreshold 60
 ```
+
+Manual release pipeline dry-run (no publish):
+
+1. GitHub → Actions → `Publish NuGet`
+2. Leave `dry-run=true`
+3. (Optional) set `override-version` (e.g. `9.9.9-local`)
+
+Artifacts produced under `.artifacts/nuget` and `.artifacts/sbom` (only for real release/publish or explicit pack step).
 
 ## Questions
 

@@ -17,6 +17,7 @@ This document provides standardized guidelines for AI agents working on the Spoc
 - [ ] **Coding standards** - Reference and apply project-specific coding guidelines
 - [ ] **Naming conventions** - Follow established C# and project naming patterns
 - [ ] **Documentation standards** - Ensure XML documentation and README compliance
+- [ ] **Language** - All new / modified content (code comments, docs, commit messages) in English only
 
 ## 🛠️ Development Standards
 
@@ -168,6 +169,7 @@ chore: update NuGet packages to latest versions
 2. **Test execution** - `dotnet test tests/Tests.sln`
 3. **Build verification** - `dotnet build src/SpocR.csproj`
 4. **Documentation update** - Update relevant `docs/content/` files and verify with `npm run dev`
+5. **(If releasing)** - Ensure tag will match `<Version>` in `src/SpocR.csproj` and optionally dry-run `Publish NuGet` workflow with `dry-run=true` before creating the release.
 
 ## 🔗 Resources
 

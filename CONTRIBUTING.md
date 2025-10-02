@@ -65,6 +65,25 @@ dotnet test tests/Tests.sln
 - [ ] If new feature: README / relevant documentation updated
 - [ ] No unnecessary debug output / Console.WriteLine
 - [ ] No dead files / unused usings
+- [ ] Release docs unaffected or updated (if changing packaging/version logic)
+
+## Language Policy
+
+All source code (identifiers, comments, XML documentation), commit messages, pull request descriptions, issues, and project documentation MUST be written in clear, professional English.
+
+Rationale:
+
+- Enables international collaboration
+- Simplifies automated analysis, search and AI assistance
+- Avoids mixed-language technical ambiguity
+
+Exceptions:
+
+- Third‑party legal notices or license text
+- Test data or domain samples that require original language
+- Historic changelog / commit history (not retroactively rewritten)
+
+If you encounter leftover German (or other language) fragments, submit a small cleanup PR.
 
 ## Code Style
 
@@ -84,9 +103,38 @@ docs: add testing section
 chore: update dependencies
 ```
 
-## Versioning
+## Versioning & Release Process
 
-Patch version is automatically incremented during build (MSBuild target). For major version changes, please mention in the PR.
+Semantic Versioning is used: MAJOR (breaking), MINOR (features), PATCH (fixes/refinements).
+
+### Release Steps
+
+1. Ensure quality gates pass locally:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File eng/quality-gates.ps1 -SkipCoverage
+   ```
+2. Choose next version (e.g. 4.1.36). Update `<Version>` in `src/SpocR.csproj` if necessary.
+3. Commit & push.
+4. Create Git tag `v<version>` and push:
+   ```bash
+   git tag v4.1.36
+   git push origin v4.1.36
+   ```
+5. Create GitHub Release (the publish workflow runs automatically).
+
+### Dry Run (No Publish)
+
+Run the `Publish NuGet` workflow manually (Actions tab) with `dry-run=true` to validate build & packing without pushing to NuGet. Optional: supply `override-version` to simulate a different version (never published in dry-run context).
+
+### Safeguards
+
+- Release workflow checks tag ↔ project version match
+- Skips publish if version already on NuGet
+- Produces SBOM (CycloneDX) + deterministic build
+
+### Internals & Testing
+
+`InternalsVisibleTo` exposes internals to `SpocR.Tests` for focused extension & helper testing.
 
 ## Security / Secrets
 

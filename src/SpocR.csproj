@@ -7,6 +7,11 @@
   <PropertyGroup>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>SpocR.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
   <ItemGroup Label="Package References">
     <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" PrivateAssets="All" Version="1.0.0" />
   </ItemGroup>

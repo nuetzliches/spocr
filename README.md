@@ -68,21 +68,73 @@ For comprehensive documentation, examples, and advanced configuration:
 
 ## ✅ Testing & Quality
 
-SpocR enthält einen mehrschichtigen Qualitäts-/Test-Ansatz:
+SpocR uses a layered quality strategy:
 
-| Layer                 | Zweck                                   | Aufruf                                     |
-| --------------------- | --------------------------------------- | ------------------------------------------ |
-| Self-Validation       | Syntax & Generator Validierung (Roslyn) | `spocr test --validate`                    |
-| Unit Tests            | Logik / Services / Extensions           | `dotnet test tests/SpocR.Tests`            |
-| (geplant) Integration | DB & End-to-End Flows                   | `dotnet test tests/SpocR.IntegrationTests` |
+| Layer             | Purpose                                     | Command / Entry Point                          |
+| ----------------- | ------------------------------------------- | ---------------------------------------------- |
+| Self-Validation   | Static / structure validation (Roslyn)      | `spocr test --validate` or `dotnet run -- ...` |
+| Unit Tests        | Logic, helpers, generators, extensions      | `dotnet test tests/SpocR.Tests`                |
+| Integration (WIP) | DB & end-to-end stored procedure roundtrips | `dotnet test tests/SpocR.IntegrationTests`     |
 
-Schneller Vor-Commit Check:
+Quick pre-commit check:
 
 ```bash
 spocr test --validate
 ```
 
-Details & Roadmap siehe `tests/docs/TESTING.md`.
+Full local quality gates (build + validate + tests + coverage):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File eng/quality-gates.ps1 -CoverageThreshold 60
+```
+
+Artifacts (test results & coverage) are written to the hidden `.artifacts/` directory and excluded from version control.
+
+See `tests/docs/TESTING.md` (future) for extended strategy details.
+
+## 🚢 Release & Publishing
+
+Releases are published automatically to NuGet when a GitHub Release is created with a tag matching the pattern:
+
+```
+v<semantic-version>
+```
+
+Example: `v4.1.36` will publish package version `4.1.36` if not already present on NuGet.
+
+Key safeguards:
+
+- Tag/version match validation
+- Skip if version already published
+- Deterministic build flags (`ContinuousIntegrationBuild=true`, `Deterministic=true`)
+- SBOM generation (CycloneDX) uploaded as artifact
+
+### Dry Run (Manual Test of Pipeline)
+
+You can test the release workflow without publishing:
+
+1. GitHub → Actions → `Publish NuGet`
+2. Run workflow (leave `dry-run=true`)
+3. (Optional) Set `override-version` (e.g. `9.9.9-local`) to simulate a different output
+
+The workflow builds, validates and tests but skips the publish step.
+
+### Local Pre-Release Validation
+
+```powershell
+powershell -ExecutionPolicy Bypass -File eng/quality-gates.ps1 -SkipCoverage
+```
+
+Then create a tag & release once green:
+
+```bash
+git tag v4.1.36
+git push origin v4.1.36
+```
+
+### Versioning
+
+Patch versions are managed by manually updating the project file today (semantic versioning: MAJOR breaking, MINOR features, PATCH fixes). Auto-increment/logical version automation may be added later.
 
 ## 🛠️ Requirements
 
@@ -141,6 +193,8 @@ SpocR uses a `spocr.json` configuration file to customize generation behavior:
 We welcome contributions! A lightweight contributor guide is available in `CONTRIBUTING.md` (Root).
 
 Engineering infrastructure lives under `eng/` (e.g., `eng/quality-gates.ps1`). Transient test & coverage artifacts are written to the hidden directory `.artifacts/` to keep the repository root clean.
+
+All code, comments, commit messages and documentation are authored in English (see Language Policy in `CONTRIBUTING.md`).
 
 - 🐛 **Bug Reports**: [Create an issue](https://github.com/nuetzliches/spocr/issues/new?template=bug_report.md)
 - 💡 **Feature Requests**: [Create an issue](https://github.com/nuetzliches/spocr/issues/new?template=feature_request.md)
