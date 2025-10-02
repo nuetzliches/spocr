@@ -1,6 +1,6 @@
 # SpocR Testing Framework
 
-🧪 **Comprehensive testing infrastructure for automated validation and KI-Agent integration**
+🧪 **Comprehensive testing infrastructure for automated validation and AI agent integration**
 
 ## Quick Start
 
@@ -13,79 +13,82 @@ spocr test
 # Validate generated code only
 spocr test --validate
 
-# CI-friendly mode with reports
-spocr test --ci --output junit.xml
-
-# Run performance benchmarks
-spocr test --benchmark
+# (Planned) Structured CI output & JUnit XML (not yet implemented)
+# (Removed) Performance benchmark shortcut (de-scoped for now)
 ```
 
-### Test Structure (aktualisiert)
+### Test Structure
 
 ```
 tests/
 ├── SpocR.Tests/               # Unit tests (net8)
-├── SpocR.IntegrationTests/    # (geplant) Integration tests
+├── SpocR.IntegrationTests/    # (planned) Integration tests
 ├── SpocR.TestFramework/       # Shared test infrastructure
-└── docs/                      # Test-Dokumentation (diese Datei)
+└── docs/                      # Test documentation (this file)
 ```
 
-Produktionscode verbleibt in `src/`.
+Production code remains in `src/`.
 
 ## Features
 
 ### ✅ **Unit Testing**
-- Manager und Service Tests
-- Extension Method Tests
-- Konfigurations-Validierung
-- Dependency Injection Setups
 
-### 🔗 **Integration Testing** (Reaktivierung geplant)
-- SQL Server / LocalDB Szenarien
-- Schema Validierung
-- End-to-End Codegenerierung
+- Manager & service tests
+- Extension method coverage
+- Configuration validation
+- Dependency injection setup verification
+
+### 🔗 **Integration Testing** (reactivation planned)
+
+- SQL Server / LocalDB scenarios
+- Schema validation
+- End-to-end code generation
 
 ### 🔍 **Self-Validation Framework**
-- Generierter C# Code Syntax Validierung (Roslyn)
-- Kompilierungsprüfung
-- Qualitäts-Hooks
-- (Geplant) Breaking Change Detection
+
+- Generated C# syntax validation (Roslyn)
+- Compilation check
+- Quality hooks
+- (Planned) Breaking change detection
 
 ### 📊 **CI/CD Integration**
-- GitHub Actions Workflow
-- (Geplant) JUnit XML Output
-- (Geplant) Coverage & Benchmarks
 
-## Architektur-Layer
+- GitHub Actions workflow
+- (Planned) JUnit XML output
+- Coverage (active in workflow)
+- Benchmarks (removed from near-term scope)
+
+## Architecture Layers
 
 ```
 🔄 Self-Validation
-🧪 Integration Tests (später)
-🏗️ Unit Tests (aktiv)
+🧪 Integration Tests (later)
+🏗️ Unit Tests (active)
 ```
 
-## Aktueller Fokus (01.10.2025)
+## Current Focus (2025-10-01)
 
-- Minimaler grüner Unit Test erreicht
-- Integration Tests deaktiviert bis Fixture vereinfacht
-- Testcontainers entfernt (Komplexität reduziert)
-- Ziel: Schrittweiser Ausbau Unit Layer → dann Integration
+- Minimal green unit test baseline established
+- Integration tests deferred until simplified fixture design
+- Testcontainers removed (reduced complexity)
+- Goal: Expand unit layer → reintroduce integration gradually
 
-## Beispiel: Developer Workflow
+## Example: Developer Workflow
 
 ```bash
 dotnet test tests/SpocR.Tests
 spocr test --validate
 ```
 
-## Roadmap (gekürzt)
+## Roadmap (condensed)
 
-1. Mehr Unit Tests reaktivieren
-2. Einfaches DB-Fixture (LocalDB) hinzufügen
-3. Integration Test (Connection + einfache Query)
-4. JUnit/XML Export implementieren
-5. Coverage aktivieren
-6. Performance Benchmark optional
+1. Expand unit test coverage
+2. Add lightweight DB fixture (LocalDB)
+3. Simple integration test (connection + basic query)
+4. Implement JUnit/XML export (planned)
+5. Strengthen coverage gates
+6. Optional performance benchmarking (long-term)
 
 ---
-Aktualisiert nach Migration der Test-Artefakte aus `src/` → `tests/`.
+
+Updated after migration of test artifacts from `src/` → `tests/`.

@@ -52,17 +52,13 @@
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.0.*" />
     <PackageReference Include="Microsoft.SqlServer.TransactSql.ScriptDom" Version="170.121.2" />
     <PackageReference Include="System.Management" Version="9.0.0" />
+    <!-- Semantic versioning derived from Git tags (replace version if newer MinVer available) -->
+    <PackageReference Include="MinVer" Version="5.0.0" PrivateAssets="all" />
   </ItemGroup>
-  <Target Name="IncrementVersion">
-    <PropertyGroup>
-      <CurrentVersion>$(Version)</CurrentVersion>
-      <VersionMajor>$([System.Version]::Parse($(CurrentVersion)).Major)</VersionMajor>
-      <VersionMinor>$([System.Version]::Parse($(CurrentVersion)).Minor)</VersionMinor>
-      <VersionPatch>$([System.Version]::Parse($(CurrentVersion)).Build)</VersionPatch>
-      <NewVersionPatch>$([MSBuild]::Add($(VersionPatch), 1))</NewVersionPatch>
-      <NewVersion>$(VersionMajor).$(VersionMinor).$(NewVersionPatch)</NewVersion>
-    </PropertyGroup>
-    <Message Text="Incrementing version from $(CurrentVersion) to $(NewVersion)" Importance="high" />
-    <XmlPoke XmlInputPath="$(MSBuildProjectFullPath)" Query="/Project/PropertyGroup/Version" Value="$(NewVersion)" />
-  </Target>
+  <!-- MinVer configuration: expects tags like v1.2.3; prerelease tags produce -alpha.X etc -->
+  <PropertyGroup Label="Versioning">
+    <MinVerTagPrefix>v</MinVerTagPrefix>
+    <MinVerAutoIncrement>patch</MinVerAutoIncrement>
+    <MinVerDefaultPreReleaseIdentifiers>preview</MinVerDefaultPreReleaseIdentifiers>
+  </PropertyGroup>
 </Project>

@@ -15,14 +15,19 @@ spocr test [options]
 
 ## Options
 
-| Option        | Description                                                  |
-| ------------- | ------------------------------------------------------------ |
-| `--validate`  | Only validate generated code without running full test suite |
-| `--benchmark` | Run performance benchmarks                                   |
-| `--rollback`  | Rollback changes if tests fail                               |
-| `--ci`        | CI-friendly mode with structured output                      |
-| `--output`    | Output file path for test results (JUnit XML format)         |
-| `--filter`    | Filter tests by name pattern                                 |
+| Option       | Description                                                   |
+| ------------ | ------------------------------------------------------------- |
+| `--validate` | Only validate generated code without running full test suite  |
+| `--filter`   | (Reserved) Filter tests by name pattern (not yet implemented) |
+
+Removed / Planned (not yet implemented – previously documented):
+
+- `--ci` (structured CI output)
+- `--output` (JUnit/XML file)
+- `--benchmark` (performance benchmarks)
+- `--rollback` (rollback changes)
+
+These will return once fully implemented. See the Roadmap for status.
 
 ## Examples
 
@@ -42,21 +47,13 @@ spocr test
 
 Runs all available tests including validation, unit tests, and integration tests.
 
-### CI/CD Integration
+### Planned CI/CD Output (Future)
 
-```bash
-spocr test --ci --output test-results.xml
-```
+Structured CI output (JUnit/XML) is planned to enable native test reporting in platforms like GitHub Actions and Azure DevOps. For now, integrate by running validation + dotnet test separately.
 
-Produces machine-readable output suitable for CI/CD pipelines.
+### Performance Benchmarking (Removed)
 
-### Performance Benchmarking
-
-```bash
-spocr test --benchmark
-```
-
-Runs performance benchmarks to measure code generation speed and memory usage.
+Benchmark support was removed from near-term scope to focus on stability and correctness first.
 
 ## Test Types
 
@@ -87,10 +84,10 @@ The `test` command automatically detects the execution context:
 
 ## Exit Codes
 
-| Code | Description        |
-| ---- | ------------------ |
-| 0    | All tests passed   |
-| 1    | One or more failed |
+| Code | Description                            |
+| ---- | -------------------------------------- |
+| 0    | Validation (and future tests) passed   |
+| 1    | Validation failed / future test errors |
 
 ## Related Commands
 

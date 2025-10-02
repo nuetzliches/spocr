@@ -134,7 +134,31 @@ git push origin v4.1.36
 
 ### Versioning
 
-Patch versions are managed by manually updating the project file today (semantic versioning: MAJOR breaking, MINOR features, PATCH fixes). Auto-increment/logical version automation may be added later.
+Semantic versions are derived from Git tags using [MinVer](https://github.com/adamralph/minver).
+
+Tag format:
+
+```
+v<MAJOR>.<MINOR>.<PATCH>
+```
+
+Examples:
+
+| Git Tag   | NuGet Package Version |
+| --------- | --------------------- |
+| `v4.1.36` | 4.1.36                |
+| `v5.0.0`  | 5.0.0                 |
+
+If you create a pre-release tag (e.g. `v4.2.0-alpha.1`), that version flows into the package.
+
+Workflow:
+
+1. Ensure tests & validation are green (`eng/quality-gates.ps1`).
+2. Decide version bump (SemVer): MAJOR (breaking), MINOR (features), PATCH (fixes).
+3. Create & push tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+4. Draft GitHub Release using that tag (or let automation publish on tag if configured in future).
+
+The project file no longer auto-increments version numbers; builds are reproducible from tags.
 
 ## 🛠️ Requirements
 

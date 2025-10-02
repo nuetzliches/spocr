@@ -105,7 +105,15 @@ chore: update dependencies
 
 ## Versioning & Release Process
 
-Semantic Versioning is used: MAJOR (breaking), MINOR (features), PATCH (fixes/refinements).
+Semantic Versioning (SemVer) is used: MAJOR (breaking), MINOR (features), PATCH (fixes/refinements). The effective version is derived from Git tags using **MinVer**. The `<Version>` element in the project file is no longer edited manually for normal releases.
+
+### Tag Format
+
+```
+v<MAJOR>.<MINOR>.<PATCH>
+```
+
+Pre‑releases may use suffixes: `v4.2.0-alpha.1` etc.
 
 ### Release Steps
 
@@ -113,24 +121,24 @@ Semantic Versioning is used: MAJOR (breaking), MINOR (features), PATCH (fixes/re
    ```powershell
    powershell -ExecutionPolicy Bypass -File eng/quality-gates.ps1 -SkipCoverage
    ```
-2. Choose next version (e.g. 4.1.36). Update `<Version>` in `src/SpocR.csproj` if necessary.
-3. Commit & push.
-4. Create Git tag `v<version>` and push:
+2. Decide next version bump (SemVer logic). No file edit required.
+3. Create & push tag:
    ```bash
    git tag v4.1.36
    git push origin v4.1.36
    ```
-5. Create GitHub Release (the publish workflow runs automatically).
+4. (Optional) Create a GitHub Release for changelog visibility. Publish workflow validates and pushes package if not dry-run and not already published.
 
 ### Dry Run (No Publish)
 
-Run the `Publish NuGet` workflow manually (Actions tab) with `dry-run=true` to validate build & packing without pushing to NuGet. Optional: supply `override-version` to simulate a different version (never published in dry-run context).
+Use workflow dispatch with `dry-run=true`. You may set `override-version` to simulate packaging metadata (never published in dry run or when override provided).
 
 ### Safeguards
 
-- Release workflow checks tag ↔ project version match
+- Tag presence + fetch-depth=0 ensures MinVer resolves version
 - Skips publish if version already on NuGet
-- Produces SBOM (CycloneDX) + deterministic build
+- Deterministic build flags (`ContinuousIntegrationBuild=true`, `Deterministic=true`)
+- SBOM (CycloneDX) generation
 
 ### Internals & Testing
 
