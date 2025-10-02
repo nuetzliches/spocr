@@ -76,9 +76,19 @@ public async Task<object> DoStuff(string cs)
 
 ### Version Management
 
-- **Patch versions** - Auto-incremented by MSBuild target
-- **Minor versions** - Manually updated for feature additions
-- **Major versions** - Breaking changes, requires RFC discussion
+SpocR uses tag-driven semantic versioning via MinVer:
+
+- Create annotated git tag `v<MAJOR>.<MINOR>.<PATCH>` to publish that version (CI workflow).
+- Pre-release tags (e.g. `v5.0.0-alpha.1`) propagate to `AssemblyInformationalVersion`.
+- Do NOT manually edit `<Version>` in project file; build derives it.
+- Bump rules: MAJOR = breaking, MINOR = feature, PATCH = fixes/internal.
+
+Release checklist (automation-ready):
+
+1. Validate: `eng/quality-gates.ps1 -SkipCoverage` (or with coverage threshold).
+2. Update docs / changelog if needed.
+3. Tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+4. Draft Release (or rely on automated publish pipeline once enabled).
 
 ## 🔧 Architecture Guidelines
 
@@ -152,9 +162,17 @@ fix: resolve connection timeout in SqlDbHelper
 docs: update README with new CLI commands
 test: add integration tests for schema generation
 chore: update NuGet packages to latest versions
+refactor: reorganize exit code constants
+ci: consume JSON test summary in pipeline
 ```
 
 ## 🚦 Quality Gates
+
+Additions:
+
+- Ensure `.artifacts/test-summary.json` is produced in CI mode test runs (`spocr test --validate --ci`).
+- Treat any non-zero exit code per categorized mapping (see Exit Codes section below).
+- Mark long-running build/rebuild/version reflection tests with `[Trait("Category","Slow")]`.
 
 ### Before Code Changes
 
@@ -170,6 +188,51 @@ chore: update NuGet packages to latest versions
 3. **Build verification** - `dotnet build src/SpocR.csproj`
 4. **Documentation update** - Update relevant `docs/content/` files and verify with `npm run dev`
 5. **(If releasing)** - Ensure tag will match `<Version>` in `src/SpocR.csproj` and optionally dry-run `Publish NuGet` workflow with `dry-run=true` before creating the release.
+
+### Exit Codes (Reference)
+
+| Code | Category      | Meaning                                             |
+| ---- | ------------- | --------------------------------------------------- |
+| 0    | Success       | All operations succeeded                            |
+| 10   | Validation    | Structural/semantic validation failure              |
+| 20   | Generation    | Code generation pipeline error (reserved)           |
+| 30   | Dependency    | External dependency (DB/network) failure (reserved) |
+| 40   | Testing       | Aggregate test failure (full suite)                 |
+| 50   | Benchmark     | Benchmark execution failure (reserved)              |
+| 60   | Rollback      | Rollback/recovery failure (reserved)                |
+| 70   | Configuration | Configuration parsing/validation error (reserved)   |
+| 80   | Internal      | Unhandled/internal exception                        |
+| 99   | Reserved      | Future experimental use                             |
+
+Future subcodes inside 40s may differentiate unit/integration/validation failures—avoid hard-coding those until documented.
+
+### JSON Test Summary Artifact
+
+When run with `--ci`, the test command writes `.artifacts/test-summary.json`:
+
+```jsonc
+{
+  "mode": "validation-only", // or full-suite
+  "timestampUtc": "<ISO8601 UTC>",
+  "validation": { "total": 3, "passed": 3 },
+  "tests": { "total": 0, "passed": 0 },
+  "success": true
+}
+```
+
+Consume this in CI instead of scraping console output. Planned enhancements: integrate real counts via TRX parsing, failure lists, durations.
+
+### Documentation Development
+
+Docs site uses Bun + Nuxt:
+
+```bash
+cd docs
+bun install
+bun run dev
+```
+
+Replace any lingering `npm run dev` references when updating docs contributions.
 
 ## 🔗 Resources
 
@@ -189,6 +252,6 @@ chore: update NuGet packages to latest versions
 
 ---
 
-**Last Updated:** October 1, 2025  
-**Version:** 1.0  
+**Last Updated:** October 2, 2025  
+**Guideline Version:** 1.1  
 **Applies to:** SpocR v4.1.x and later
