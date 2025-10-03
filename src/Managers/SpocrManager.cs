@@ -395,7 +395,21 @@ public class SpocrManager(
 
     private async Task RunAutoUpdateAsync(ICommandOptions options)
     {
-        if (!options.Quiet && !options.NoAutoUpdate)
+        if (options.NoAutoUpdate)
+        {
+            consoleService.Verbose("Auto-update skipped via --no-auto-update flag");
+            return;
+        }
+
+        // Environment variable guard (mirrors service internal check for early exit)
+        if (Environment.GetEnvironmentVariable("SPOCR_SKIP_UPDATE")?.Trim().ToLowerInvariant() is "1" or "true" or "yes" or "on" ||
+            Environment.GetEnvironmentVariable("SPOCR_NO_UPDATE")?.Trim().ToLowerInvariant() is "1" or "true" or "yes" or "on")
+        {
+            consoleService.Verbose("Auto-update skipped via environment variable before invoking service");
+            return;
+        }
+
+        if (!options.Quiet)
         {
             try
             {

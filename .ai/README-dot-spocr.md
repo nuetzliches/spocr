@@ -79,6 +79,24 @@ When adding new items under `.spocr/`:
 3. Prefer JSON for transparency unless binary size is a concern
 4. Document new subfolder purpose here
 
+## Auto-Update Skip Reference
+
+Environment variables influencing update behavior (checked very early):
+
+```
+SPOCR_SKIP_UPDATE=1      # or true/yes/on
+SPOCR_NO_UPDATE=true     # alias
+```
+
+CLI flags:
+
+```
+--no-auto-update   # disables check for that invocation
+--silent           # implicitly suppresses update prompts
+```
+
+If any is present, the auto-update service exits without contacting package sources.
+
 ---
 
 Last update: 2025-10-04

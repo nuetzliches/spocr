@@ -125,6 +125,20 @@ A: (If a dedicated command exists) run a targeted stored procedure build; otherw
 ## Suggested Next Enhancements (Generic)
 
 - Local metadata cache (fingerprint + hash) (IN PROGRESS; directory structure established)
+
+## Skipping Auto-Update
+
+You can disable the auto-update check in different ways:
+
+| Method          | Usage                  | Notes                                        |
+| --------------- | ---------------------- | -------------------------------------------- |
+| CLI Flag        | `--no-auto-update`     | One-off run suppression                      |
+| Quiet Mode      | `--silent`             | Also suppresses interactive prompts          |
+| Env Var         | `SPOCR_SKIP_UPDATE=1`  | Accepts: 1, true, yes, on (case-insensitive) |
+| Env Var (alias) | `SPOCR_NO_UPDATE=true` | Alias for the same behavior                  |
+
+When any of these are active the updater short-circuits before network calls.
+
 - Unified progress bar (pull + build combined view)
 - Optional diff report summarizing modified vs up-to-date files
 - Pluggable serializer / model post-processing hook

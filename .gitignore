@@ -1,3 +1,9 @@
+# SpocR local runtime & sensitive configs
+debug/spocr.json
+debug/.env
+.spocr/
+
+
 *.swp
 *.*~
 project.lock.json
@@ -33,6 +39,10 @@ bld/
 msbuild.log
 msbuild.err
 msbuild.wrn
+
+# Re-allow tracked example templates inside debug folder (must come AFTER the directory ignore above)
+!debug/spocr.json.example
+!debug/.env.example
 
 # Visual Studio 2015
 .vs/
