@@ -1,13 +1,13 @@
 services:
   sql-sample:
     build: .
-    image: spocr-sample-sql:latest
     container_name: spocr-sample-sql
     restart: unless-stopped
     env_file:
       - .env
     environment:
       ACCEPT_EULA: "Y"
+      MSSQL_PID: "Developer"
     ports:
       - "1433:1433"
     volumes:
@@ -15,6 +15,16 @@ services:
       - ./init:/init
       - ./scripts/entrypoint.sh:/entrypoint.sh:ro
     entrypoint: ["/bin/bash", "/entrypoint.sh"]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/mssql-tools/bin/sqlcmd -C -S localhost -U sa -P $${MSSQL_SA_PASSWORD} -Q 'SELECT 1' > /dev/null 2>&1 || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
 
 volumes:
   spocr-sample-mssql-data:

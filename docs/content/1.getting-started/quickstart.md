@@ -48,6 +48,32 @@ var result = await ctx.MyProcedureAsync(new MyProcedureInput { Id = 5 });
 spocr rebuild
 ```
 
+## 7. Update / Install the CLI from the local repository
+
+If you have cloned the SpocR repository and want to build & use the current source as a global .NET tool:
+
+```bash
+cd src
+# Build a NuGet package (Release)
+dotnet pack -c Release -o ./nupkg
+# Remove existing global installation (ignores error if not installed)
+dotnet tool uninstall -g spocr
+# Install or update from the freshly built local package source
+dotnet tool update -g spocr --add-source ./nupkg
+```
+
+After that:
+
+```bash
+spocr --version
+```
+
+Notes:
+
+- `dotnet tool update` acts as install if the tool was removed.
+- Repeat the pack & update steps whenever you change the source.
+- To force a specific version (e.g. during testing): `dotnet pack -c Release -o ./nupkg /p:Version=4.1.35-local`
+
 ## Further Reading
 
 - [CLI Overview](/cli/)

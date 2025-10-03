@@ -33,11 +33,11 @@ Server=localhost,1433;Database=SpocRSample;User ID=sa;Password=YourSecurePasswor
 
 ## Verify Sample Data
 
-Use `sqlcmd` (bundled with the container) to verify the sample stored procedures:
+Use `sqlcmd` (bundled with the container) to verify the sample stored procedures (flag `-C` trusts the self‑signed dev certificate):
 
 ```
 docker exec -it spocr-sample-sql /opt/mssql-tools/bin/sqlcmd \
-  -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d SpocRSample \
+  -C -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d SpocRSample \
   -Q "EXEC samples.UserList"
 ```
 
@@ -45,11 +45,11 @@ The sample also includes JSON-producing procedures:
 
 ```
 docker exec -it spocr-sample-sql /opt/mssql-tools/bin/sqlcmd \
-  -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d SpocRSample \
+  -C -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d SpocRSample \
   -Q "EXEC samples.OrderListAsJson"
 
 docker exec -it spocr-sample-sql /opt/mssql-tools/bin/sqlcmd \
-  -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d SpocRSample \
+  -C -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d SpocRSample \
   -Q "EXEC samples.OrderListByUserAsJson @UserId = 1"
 ```
 
@@ -65,15 +65,15 @@ The sample database also includes procedures that exercise more complex result s
 Examples:
 
 ```
-docker exec -it spocr-sample-sql /opt/mssql-tools/bin/sqlcmd   -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d SpocRSample   -Q "EXEC samples.UserDetailsWithOrders @UserId = 1"
+docker exec -it spocr-sample-sql /opt/mssql-tools/bin/sqlcmd   -C -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d SpocRSample   -Q "EXEC samples.UserDetailsWithOrders @UserId = 1"
 
-docker exec -it spocr-sample-sql /opt/mssql-tools/bin/sqlcmd   -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d SpocRSample   -Q "EXEC samples.UserOrderHierarchyJson"
+docker exec -it spocr-sample-sql /opt/mssql-tools/bin/sqlcmd   -C -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d SpocRSample   -Q "EXEC samples.UserOrderHierarchyJson"
 
 # Update the bio for user 1 using the scalar custom type
- docker exec -it spocr-sample-sql /opt/mssql-tools/bin/sqlcmd   -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d SpocRSample   -Q "EXEC samples.UserBioUpdate @UserId = 1, @Bio = N'Updated via sample'"
+ docker exec -it spocr-sample-sql /opt/mssql-tools/bin/sqlcmd   -C -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d SpocRSample   -Q "EXEC samples.UserBioUpdate @UserId = 1, @Bio = N'Updated via sample'"
 
 # Demonstrate table-valued parameter usage
- docker exec -it spocr-sample-sql /opt/mssql-tools/bin/sqlcmd   -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d SpocRSample   -Q "DECLARE @contacts samples.UserContactTableType; INSERT INTO @contacts (UserId, Email, DisplayName) VALUES (1, N'alice@example.com', N'Alice Example Updated'); EXEC samples.UserContactSync @Contacts = @contacts;"
+ docker exec -it spocr-sample-sql /opt/mssql-tools/bin/sqlcmd   -C -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d SpocRSample   -Q "DECLARE @contacts samples.UserContactTableType; INSERT INTO @contacts (UserId, Email, DisplayName) VALUES (1, N'alice@example.com', N'Alice Example Updated'); EXEC samples.UserContactSync @Contacts = @contacts;"
 ```
 
 ## Stopping & Cleanup
@@ -103,7 +103,11 @@ The entrypoint script starts SQL Server, waits for readiness, and executes all s
 
 ## Full-Text Search (FTS)
 
-Das offizielle Image `mcr.microsoft.com/mssql/server:2022-latest` enthält die Full‑Text Komponenten bereits standardmäßig; es ist kein zusätzliches Debian-Paket nötig (das frühere Paket `mssql-server-fts` wird in dieser Variante nicht separat installiert und ist im Slim/GA Image integriert). Das Skript `08-fulltext.sql` legt beim ersten Start einen Full-Text Catalog und einen Index auf `samples.Users(DisplayName, Bio)` an.
+Diese Standard-Variante basiert nun auf einem eigenen Ubuntu 20.04 (focal) Aufbau und installiert `mssql-server` sowie das Full‑Text Paket `mssql-server-fts` deterministisch während des Builds. Schlägt die Installation fehl, bricht der Build ab (Fail-Fast), sodass garantiert nur lauffähige Images mit aktiviertem FTS entstehen.
+
+Das Skript `08-fulltext.sql` richtet beim Erststart einen Full‑Text Katalog (`SampleCatalog`) und den Index auf `samples.Users(DisplayName)` ein. Weitere optionale Indizes kannst du nach Bedarf hinzufügen (siehe unten).
+
+Hinweis zum Wechsel von der früheren „best effort“ Variante: Falls du zuvor schon ein Volume ohne FTS erzeugt hattest, lösche es ( `docker compose down -v` ), damit das Initialisierungsskript erneut ausgeführt wird.
 
 ### Rebuild nach Änderungen
 
@@ -118,17 +122,29 @@ docker compose up -d
 
 ```
 docker exec -it spocr-sample-sql /opt/mssql-tools/bin/sqlcmd \
-  -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d SpocRSample \
-  -Q "SELECT SERVERPROPERTY('IsFullTextInstalled') AS IsFullTextInstalled, FULLTEXTSERVICEPROPERTY('IsFullTextInstalled') AS FtServiceInstalled;"
+  -C -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d SpocRSample \
+  -Q "SELECT SERVERPROPERTY('IsFullTextInstalled') AS ServerProp, FULLTEXTSERVICEPROPERTY('IsFullTextInstalled') AS ServiceProp;"
 ```
 
-Erwarteter Wert für beide Spalten: `1`.
+Interpretation:
+
+- ServerProp = 1 und ServiceProp = 1: FTS ist installiert und aktiv – `08-fulltext.sql` hat Katalog + Index erstellt.
+- Einer oder beide Werte = 0: FTS-Paket steht für das verwendete Tag nicht zur Verfügung (oder Installation war nicht möglich); das Skript hat sauber übersprungen.
+
+Da FTS jetzt erzwungen installiert wird, sollte folgende Prüfung immer beide Werte = 1 liefern. Falls nicht, ist beim Build etwas fehlgeschlagen und das Image sollte neu gebaut werden.
+
+Zur Diagnose kannst du außerdem prüfen:
+
+```
+docker exec -it spocr-sample-sql cat /etc/os-release
+docker logs spocr-sample-sql | findstr /i fulltext
+```
 
 ### Kataloge & Indizes anzeigen
 
 ```
 docker exec -it spocr-sample-sql /opt/mssql-tools/bin/sqlcmd \
-  -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d SpocRSample \
+  -C -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d SpocRSample \
   -Q "SELECT name FROM sys.fulltext_catalogs; SELECT object_name(object_id) AS TableName FROM sys.fulltext_indexes;"
 ```
 
@@ -138,17 +154,33 @@ Sucht nach Benutzern, deren `DisplayName` entweder "Alice" oder "Builder" enthä
 
 ```
 docker exec -it spocr-sample-sql /opt/mssql-tools/bin/sqlcmd \
-  -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d SpocRSample \
+  -C -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d SpocRSample \
   -Q "SELECT UserId, DisplayName, Bio FROM samples.Users WHERE CONTAINS(DisplayName, '""Alice"" OR ""Builder""');"
 ```
 
-### Eigenen Full-Text Index hinzufügen
+### Eigenen weiteren Full-Text Index hinzufügen
 
-Beispiel für eine weitere Tabelle / Spalte:
+Beispiel für eine zusätzliche Tabelle / Spalte – hier `samples.Orders.Notes`:
+
+1. Sicheren, deterministischen eindeutigen Schlüsselindex prüfen / anlegen (falls PK einen generierten Namen hat):
+
+```
+-- Beispiel (nur falls noch kein eindeutiger Index auf OrderId existiert):
+CREATE UNIQUE INDEX UX_Orders_OrderId ON samples.Orders(OrderId);
+```
+
+2. Full‑Text Index erstellen:
 
 ```
 CREATE FULLTEXT INDEX ON samples.Orders(Notes LANGUAGE 1031)
-KEY INDEX PK__Orders__3214EC07 ON SampleCatalog WITH CHANGE_TRACKING AUTO;
+KEY INDEX UX_Orders_OrderId ON SampleCatalog WITH CHANGE_TRACKING AUTO;
 ```
 
-> Hinweis: Der Schlüsselindex muss mit dem tatsächlichen Namen des Primary Keys übereinstimmen (ggf. via `sp_helpindex samples.Orders` prüfen).
+> Hinweis: Der angegebene KEY INDEX muss exakt existieren; bei Verwendung des automatisch generierten PK-Namens vorab via `sp_helpindex samples.Orders` prüfen.
+
+### Fehlerdiagnose (falls FTS wider Erwarten fehlt)
+
+1. Logs prüfen: `docker compose logs sql-sample | findstr /i fts`
+2. Image neu bauen ohne Cache: `docker compose build --no-cache`
+3. Volume entfernen und erneut starten: `docker compose down -v && docker compose up -d`
+4. Prüfen, ob externe Paketquelle erreichbar war (Netzwerk / Proxy).

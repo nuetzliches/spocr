@@ -39,18 +39,33 @@ SQL
       status=""
     fi
 
-    status=$(echo "${status}" | tr -d '\r\n ')
+    # Normalize output (remove control chars & spaces); keep a copy for debugging
+    local raw_status="${status}"
+    status=$(echo "${status}" | tr -d '\r\n' | xargs 2>/dev/null || true)
 
     if [[ "${status}" == "ONLINE" ]]; then
       if /opt/mssql-tools/bin/sqlcmd -S localhost -d "${db}" -U sa -P "${MSSQL_SA_PASSWORD}" -C -Q "SELECT 1" >/dev/null 2>&1; then
+        if (( i > 1 )); then
+          echo "Database ${db} is ONLINE (became accessible after ${i}s)."
+        else
+          echo "Database ${db} is already ONLINE."
+        fi
         return 0
       fi
     fi
 
     if (( i == 1 )); then
-      echo "Waiting for database ${db} to become accessible (status: ${status:-unknown})..."
+      # Simplified raw output display (strip newlines only)
+      local raw_display=$(echo "${raw_status}" | tr -d '\r\n')
+      echo "Waiting for database ${db} to become accessible (status: ${status:-unknown}; raw=\"${raw_display}\")..."
     elif (( i % 5 == 0 )); then
       echo "Still waiting for database ${db} (status: ${status:-unknown})"
+    fi
+
+    # Fallback: If status empty but direct connect to db works, proceed
+    if [[ -z "${status}" || "${status}" == "MISSING" ]]; then
+      if /opt/mssql-tools/bin/sqlcmd -S localhost -d "${db}" -U sa -P "${MSSQL_SA_PASSWORD}" -C -Q "SELECT 1" >/dev/null 2>&1; then
+        echo "Database ${db} appears accessible despite status='${status:-empty}'. Continuing."; return 0; fi
     fi
     sleep 1
   done
