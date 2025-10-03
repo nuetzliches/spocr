@@ -58,7 +58,16 @@ public class SchemaManager(
         var fingerprintRaw = $"{projectId}|{schemaListString}|{storedProcedures.Count}";
         var fingerprint = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(fingerprintRaw))).Substring(0, 16);
 
+        var loadStart = DateTime.UtcNow;
         var cache = localCacheService?.Load(fingerprint);
+        if (cache != null)
+        {
+            consoleService.Verbose($"[cache] Loaded snapshot {fingerprint} with {cache.Procedures.Count} entries in {(DateTime.UtcNow - loadStart).TotalMilliseconds:F1} ms");
+        }
+        else
+        {
+            consoleService.Verbose($"[cache] No existing snapshot for {fingerprint}");
+        }
         var updatedSnapshot = new ProcedureCacheSnapshot { Fingerprint = fingerprint };
         var tableTypes = await dbContext.TableTypeListAsync(schemaListString, cancellationToken);
 
@@ -98,6 +107,18 @@ public class SchemaManager(
                 var currentModifiedTicks = storedProcedure.Modified.Ticks;
                 var previousModifiedTicks = cache?.GetModifiedTicks(storedProcedure.SchemaName, storedProcedure.Name);
                 var canSkipDetails = previousModifiedTicks.HasValue && previousModifiedTicks.Value == currentModifiedTicks;
+                if (canSkipDetails)
+                {
+                    consoleService.Verbose($"[proc-skip] {storedProcedure.SchemaName}.{storedProcedure.Name} unchanged (ticks={currentModifiedTicks})");
+                }
+                else if (previousModifiedTicks.HasValue)
+                {
+                    consoleService.Verbose($"[proc-loaded] {storedProcedure.SchemaName}.{storedProcedure.Name} updated {previousModifiedTicks.Value} -> {currentModifiedTicks}");
+                }
+                else
+                {
+                    consoleService.Verbose($"[proc-loaded] {storedProcedure.SchemaName}.{storedProcedure.Name} initial load (ticks={currentModifiedTicks})");
+                }
 
                 string definition = null;
                 if (!canSkipDetails)
@@ -105,22 +126,53 @@ public class SchemaManager(
                     var def = await dbContext.StoredProcedureDefinitionAsync(storedProcedure.SchemaName, storedProcedure.Name, cancellationToken);
                     definition = def?.Definition;
                     storedProcedure.Content = StoredProcedureContentModel.Parse(definition, storedProcedure.SchemaName);
+                    if (storedProcedure.Content?.UsedFallbackParser == true)
+                    {
+                        consoleService.Verbose($"[proc-parse-fallback] {storedProcedure.SchemaName}.{storedProcedure.Name} parse errors={storedProcedure.Content.ParseErrorCount} first='{storedProcedure.Content.FirstParseError}'");
+                    }
+                    else if (storedProcedure.Content?.JsonResultSets?.Count > 1)
+                    {
+                        consoleService.Verbose($"[proc-json-multi] {storedProcedure.SchemaName}.{storedProcedure.Name} sets={storedProcedure.Content.JsonResultSets.Count}");
+                    }
                 }
                 storedProcedure.ModifiedTicks = currentModifiedTicks;
 
                 // Heuristic: If parser did not detect JSON but name ends with AsJson treat it as JSON returning (string payload)
-                if (!canSkipDetails && !storedProcedure.ReturnsJson && storedProcedure.Name.EndsWith("AsJson", StringComparison.OrdinalIgnoreCase))
+                var existingPrimaryJson = storedProcedure.Content?.JsonResultSets?.FirstOrDefault();
+                var hasJson = existingPrimaryJson?.ReturnsJson == true;
+                if (!canSkipDetails && !hasJson && storedProcedure.Name.EndsWith("AsJson", StringComparison.OrdinalIgnoreCase))
                 {
-                    // Rebuild a minimal content model marking it as JSON (array unknown -> assume array)
+                    // Synthetische JSON ResultSet hinzufügen (Array angenommen)
+                    var newSet = new StoredProcedureContentModel.JsonResultSet
+                    {
+                        Index = 0,
+                        ReturnsJson = true,
+                        ReturnsJsonArray = true,
+                        ReturnsJsonWithoutArrayWrapper = false,
+                        JsonRootProperty = null,
+                        JsonColumns = Array.Empty<StoredProcedureContentModel.JsonColumn>()
+                    };
+                    var existingSets = storedProcedure.Content?.JsonResultSets ?? Array.Empty<StoredProcedureContentModel.JsonResultSet>();
                     storedProcedure.Content = new StoredProcedureContentModel
                     {
                         Definition = storedProcedure.Content?.Definition ?? definition,
-                        ReturnsJson = true,
-                        ReturnsJsonWithoutArrayWrapper = false,
-                        // treat as array (deserializer can handle single item array) – we don't know actual wrapper reliably
-                        ReturnsJsonArray = true,
-                        JsonColumns = Array.Empty<StoredProcedureContentModel.JsonColumn>()
+                        // only keep flags still present
+                        ContainsSelect = storedProcedure.Content?.ContainsSelect ?? false,
+                        ContainsInsert = storedProcedure.Content?.ContainsInsert ?? false,
+                        ContainsUpdate = storedProcedure.Content?.ContainsUpdate ?? false,
+                        ContainsDelete = storedProcedure.Content?.ContainsDelete ?? false,
+                        ContainsMerge = storedProcedure.Content?.ContainsMerge ?? false,
+                        ContainsOpenJson = storedProcedure.Content?.ContainsOpenJson ?? false,
+                        JsonResultSets = existingSets.Any() ? existingSets : new[] { newSet },
+                        UsedFallbackParser = storedProcedure.Content?.UsedFallbackParser ?? false,
+                        ParseErrorCount = storedProcedure.Content?.ParseErrorCount,
+                        FirstParseError = storedProcedure.Content?.FirstParseError
                     };
+                    consoleService.Verbose($"[proc-json-heuristic] {storedProcedure.SchemaName}.{storedProcedure.Name} name heuristic applied (no FOR JSON detected)");
+                }
+                else if (!canSkipDetails && storedProcedure.Name.EndsWith("AsJson", StringComparison.OrdinalIgnoreCase) && !hasJson)
+                {
+                    consoleService.Verbose($"[warn] {storedProcedure.SchemaName}.{storedProcedure.Name} ends with AsJson but no JSON detected");
                 }
 
                 if (!canSkipDetails)
@@ -131,8 +183,9 @@ public class SchemaManager(
                     var output = await dbContext.StoredProcedureOutputListAsync(storedProcedure.SchemaName, storedProcedure.Name, cancellationToken);
                     var outputModels = output?.Select(i => new StoredProcedureOutputModel(i)).ToList() ?? new List<StoredProcedureOutputModel>();
 
-                    var jsonColumns = storedProcedure.Content?.JsonColumns;
-                    if (storedProcedure.ReturnsJson && jsonColumns?.Any() == true)
+                    var primaryJson = storedProcedure.Content?.JsonResultSets?.FirstOrDefault();
+                    var jsonColumns = primaryJson?.JsonColumns;
+                    if (primaryJson?.ReturnsJson == true && jsonColumns?.Any() == true)
                     {
                         var jsonOutputs = new List<StoredProcedureOutputModel>();
                         foreach (var jsonColumn in jsonColumns)
@@ -191,7 +244,11 @@ public class SchemaManager(
         }
 
         // Persist updated cache (best-effort)
+        var saveStart = DateTime.UtcNow;
         localCacheService?.Save(fingerprint, updatedSnapshot);
+        consoleService.Verbose($"[cache] Saved snapshot {fingerprint} with {updatedSnapshot.Procedures.Count} entries in {(DateTime.UtcNow - saveStart).TotalMilliseconds:F1} ms");
+
+        consoleService.Verbose($"[timing] Total schema load duration {(DateTime.UtcNow - loadStart).TotalMilliseconds:F1} ms");
 
         return schemas;
     }

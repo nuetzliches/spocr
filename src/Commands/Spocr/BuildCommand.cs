@@ -61,6 +61,7 @@ public class BuildCommand(
         }
 
         await base.OnExecuteAsync();
-        return (int)await spocrManager.BuildAsync(this);
+        var result = await spocrManager.BuildAsync(this);
+        return CommandResultMapper.Map(result); // unified exit code mapping
     }
 }

@@ -20,36 +20,46 @@ public interface ILocalCacheService
 
 public class LocalCacheService : ILocalCacheService
 {
-    private readonly string _rootDir;
+    private string _rootDir; // lazily resolved based on working directory
+    private string _lastWorkingDir;
     private readonly JsonSerializerOptions _jsonOptions = new()
     {
         WriteIndented = true,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
-    public LocalCacheService()
+    public LocalCacheService() { }
+
+    private void EnsureRoot()
     {
-        // New standard location: projectRoot/.spocr/cache (ignored from VCS)
-        var dotDir = Path.Combine(Environment.CurrentDirectory, ".spocr");
-        _rootDir = Path.Combine(dotDir, "cache");
-        Directory.CreateDirectory(_rootDir);
+        var working = Utils.DirectoryUtils.GetWorkingDirectory();
+        if (string.IsNullOrEmpty(working)) return; // nothing we can do yet
+        if (_rootDir == null || !string.Equals(_lastWorkingDir, working, StringComparison.OrdinalIgnoreCase))
+        {
+            var dotDir = Path.Combine(working, ".spocr");
+            var candidate = Path.Combine(dotDir, "cache");
+            try { Directory.CreateDirectory(candidate); } catch { /* ignore */ }
+            _rootDir = candidate;
+            _lastWorkingDir = working;
+        }
     }
 
-    private string GetPath(string fingerprint) => Path.Combine(_rootDir, $"{fingerprint}.json");
+    private string GetPath(string fingerprint)
+    {
+        EnsureRoot();
+        return _rootDir == null ? null : Path.Combine(_rootDir, $"{fingerprint}.json");
+    }
 
     public ProcedureCacheSnapshot Load(string fingerprint)
     {
         try
         {
             var path = GetPath(fingerprint);
-            if (!File.Exists(path)) return null;
+            if (string.IsNullOrEmpty(path) || !File.Exists(path)) return null;
             var json = File.ReadAllText(path);
             return JsonSerializer.Deserialize<ProcedureCacheSnapshot>(json, _jsonOptions);
         }
-        catch
-        {
-            return null; // fail silent, act like no cache
-        }
+        catch { return null; }
     }
 
     public void Save(string fingerprint, ProcedureCacheSnapshot snapshot)
@@ -57,13 +67,11 @@ public class LocalCacheService : ILocalCacheService
         try
         {
             var path = GetPath(fingerprint);
+            if (string.IsNullOrEmpty(path)) return; // not initialized
             var json = JsonSerializer.Serialize(snapshot, _jsonOptions);
             File.WriteAllText(path, json);
         }
-        catch
-        {
-            // ignore persistence errors
-        }
+        catch { /* ignore */ }
     }
 }
 

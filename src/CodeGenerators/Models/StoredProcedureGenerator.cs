@@ -278,7 +278,8 @@ public class StoredProcedureGenerator(
         var returnModel = "CrudResult";
 
         var isJson = storedProcedure.ReturnsJson;
-        var isJsonArray = storedProcedure.ReturnsJson && storedProcedure.ReturnsJsonArray;
+        var primaryJson = storedProcedure.PrimaryJson; // now exposed on Definition.StoredProcedure
+        var isJsonArray = (primaryJson?.ReturnsJson ?? false) && (primaryJson?.ReturnsJsonArray ?? false);
 
         var rawJson = false;
         if (isJson && kind == StoredProcedureMethodKind.Raw)
@@ -365,11 +366,11 @@ public class StoredProcedureGenerator(
             {
                 xmlSummary =
                     $"/// <summary>Executes stored procedure '{storedProcedure.SqlObjectName}' and returns the raw JSON string.</summary>\r\n" +
-                    $"/// <remarks>Use <see cref=\"{storedProcedure.Name}DeserializeAsync\"/> to obtain a typed {(storedProcedure.ReturnsJsonArray ? "list" : "model")}.</remarks>\r\n";
+                    $"/// <remarks>Use <see cref=\"{storedProcedure.Name}DeserializeAsync\"/> to obtain a typed {(isJsonArray ? "list" : "model")}.</remarks>\r\n";
             }
             else if (kind == StoredProcedureMethodKind.Deserialize)
             {
-                var target = storedProcedure.ReturnsJsonArray ? $"List<{storedProcedure.Name}>" : storedProcedure.Name;
+                var target = isJsonArray ? $"List<{storedProcedure.Name}>" : storedProcedure.Name;
                 xmlSummary =
                     $"/// <summary>Executes stored procedure '{storedProcedure.SqlObjectName}' and deserializes the JSON response into {target}.</summary>\r\n" +
                     $"/// <remarks>Underlying raw JSON method: <see cref=\"{storedProcedure.Name}Async\"/>.</remarks>\r\n";

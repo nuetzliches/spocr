@@ -123,6 +123,8 @@ public class SpocrManager(
         consoleService.PrintTitle("Pulling database schema from database");
 
         var configSchemas = config?.Schema ?? [];
+        // Keep a reference to previous schema metadata so we can merge Input/Output for skipped procedures
+        var previousSchemas = configSchemas?.ToDictionary(s => s.Name, s => s, StringComparer.OrdinalIgnoreCase) ?? new Dictionary<string, SchemaModel>(StringComparer.OrdinalIgnoreCase);
 
         var stopwatch = new Stopwatch();
         stopwatch.Start();
@@ -147,6 +149,31 @@ public class SpocrManager(
                     schema.Status = currentSchema != null
                         ? currentSchema.Status
                         : config.Project.DefaultSchemaStatus;
+                }
+            }
+            // Merge Input/Output/Content for procedures we skipped loading (cache hit) so they persist in spocr.json
+            foreach (var schema in schemas)
+            {
+                if (!previousSchemas.TryGetValue(schema.Name, out var oldSchema) || oldSchema?.StoredProcedures == null)
+                {
+                    continue;
+                }
+                var oldSpMap = oldSchema.StoredProcedures.ToDictionary(sp => sp.Name, sp => sp, StringComparer.OrdinalIgnoreCase);
+                if (schema.StoredProcedures == null) continue;
+                foreach (var sp in schema.StoredProcedures)
+                {
+                    if (sp.Input != null || sp.Output != null)
+                    {
+                        // Already populated (was reloaded)
+                        continue;
+                    }
+                    if (oldSpMap.TryGetValue(sp.Name, out var oldSp))
+                    {
+                        // Shallow copy existing metadata (do not deep clone; serialization will handle objects)
+                        if (sp.Input == null) sp.Input = oldSp.Input?.Select(i => i).ToList();
+                        if (sp.Output == null) sp.Output = oldSp.Output?.Select(o => o).ToList();
+                        if (sp.Content == null) sp.Content = oldSp.Content; // for future JSON set usage
+                    }
                 }
             }
             configSchemas = schemas;
@@ -182,10 +209,8 @@ public class SpocrManager(
                 StoredProcedures = x.StoredProcedures?.ToList()
             }).ToList();
 
-        pulledSchemasWithStoredProcedures.ForEach(schema =>
-        {
-            schema.StoredProcedures?.ForEach(sp => consoleService.Verbose($"PULL: [{schema.Schema.Name}].[{sp.Name}]"));
-        });
+        // Removed per new logging scheme (proc-loaded / proc-skip now emitted in SchemaManager)
+        consoleService.Verbose("[info] Stored procedure enumeration complete (detailed load logs shown earlier)");
         consoleService.Output("");
 
         var ignoreSchemasCount = ignoreSchemas.Count();

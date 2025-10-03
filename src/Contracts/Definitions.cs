@@ -117,16 +117,17 @@ public static class Definition
                         : ReadWriteKindEnum.Write;
         public ResultKindEnum ResultKind => _resultKind != ResultKindEnum.Undefined
             ? _resultKind
-            : (_resultKind = storedProcedure.ReturnsJson
-                ? (storedProcedure.ReturnsJsonArray ? ResultKindEnum.List : ResultKindEnum.Single)
+            : (_resultKind = (storedProcedure.PrimaryJson?.ReturnsJson ?? false)
+                ? ((storedProcedure.PrimaryJson?.ReturnsJsonArray ?? false) ? ResultKindEnum.List : ResultKindEnum.Single)
                 : (OperationKind == OperationKindEnum.List || Name.Contains("WithChildren")
                     ? ResultKindEnum.List
                     : ResultKindEnum.Single));
 
-        public bool ReturnsJson => storedProcedure.ReturnsJson;
-        public bool ReturnsJsonArray => storedProcedure.ReturnsJsonArray;
-        public string JsonRootProperty => storedProcedure.Content?.JsonRootProperty;
-        public IReadOnlyList<StoredProcedureContentModel.JsonColumn> JsonColumns => storedProcedure.JsonColumns ?? Array.Empty<StoredProcedureContentModel.JsonColumn>();
+        public bool ReturnsJson => storedProcedure.PrimaryJson?.ReturnsJson ?? false;
+        public bool ReturnsJsonArray => storedProcedure.PrimaryJson?.ReturnsJsonArray ?? false;
+        public string JsonRootProperty => storedProcedure.PrimaryJson?.JsonRootProperty;
+        public IReadOnlyList<StoredProcedureContentModel.JsonColumn> JsonColumns => storedProcedure.PrimaryJson?.JsonColumns ?? Array.Empty<StoredProcedureContentModel.JsonColumn>();
+        public StoredProcedureContentModel.JsonResultSet PrimaryJson => storedProcedure.PrimaryJson; // expose for generators
 
         public IEnumerable<StoredProcedureInputModel> Input => storedProcedure.Input ?? [];
         public IEnumerable<StoredProcedureOutputModel> Output => storedProcedure.Output ?? [];

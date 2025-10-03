@@ -66,17 +66,10 @@ public class StoredProcedureModel : IEquatable<StoredProcedureModel>
         set => _content = value;
     }
 
+    // Expose JSON result sets directly (first entry = primary set)
+    public IReadOnlyList<StoredProcedureContentModel.JsonResultSet> JsonResultSets => Content?.JsonResultSets ?? Array.Empty<StoredProcedureContentModel.JsonResultSet>();
     [JsonIgnore]
-    public bool ReturnsJson => Content?.ReturnsJson ?? false;
-
-    [JsonIgnore]
-    public bool ReturnsJsonArray => Content?.ReturnsJsonArray ?? false;
-
-    [JsonIgnore]
-    public IReadOnlyList<StoredProcedureContentModel.JsonColumn> JsonColumns => Content?.JsonColumns;
-
-    [JsonIgnore]
-    public bool ReturnsJsonWithoutArrayWrapper => Content?.ReturnsJsonWithoutArrayWrapper ?? false;
+    public StoredProcedureContentModel.JsonResultSet PrimaryJson => JsonResultSets.FirstOrDefault();
 
     // public IEnumerable<StoredProcedureInputModel> Input { get; set; }
     // public IEnumerable<StoredProcedureOutputModel> Output { get; set; }
