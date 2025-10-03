@@ -113,9 +113,9 @@ public class StoredProcedureGenerator(
             nsNode = (NamespaceDeclarationSyntax)root.Members[0];
             classNode = (ClassDeclarationSyntax)nsNode.Members[0];
 
-            // Extension for IAppDbContextPipe
+            // Base method (Raw or non-JSON typed behavior)
             var originMethodNode = (MethodDeclarationSyntax)classNode.Members[0];
-            originMethodNode = GenerateStoredProcedureMethodText(originMethodNode, storedProcedure);
+            originMethodNode = GenerateStoredProcedureMethodText(originMethodNode, storedProcedure, StoredProcedureMethodKind.Raw, false);
             root = root.AddMethod(ref classNode, originMethodNode);
 
             nsNode = (NamespaceDeclarationSyntax)root.Members[0];
@@ -123,8 +123,25 @@ public class StoredProcedureGenerator(
 
             // Overloaded extension with IAppDbContext
             var overloadOptionsMethodNode = (MethodDeclarationSyntax)classNode.Members[1];
-            overloadOptionsMethodNode = GenerateStoredProcedureMethodText(overloadOptionsMethodNode, storedProcedure, true);
+            overloadOptionsMethodNode = GenerateStoredProcedureMethodText(overloadOptionsMethodNode, storedProcedure, StoredProcedureMethodKind.Raw, true);
             root = root.AddMethod(ref classNode, overloadOptionsMethodNode);
+
+            // Add Deserialize variants for JSON returning procedures
+            if (storedProcedure.ReturnsJson)
+            {
+                nsNode = (NamespaceDeclarationSyntax)root.Members[0];
+                classNode = (ClassDeclarationSyntax)nsNode.Members[0];
+                var deserializePipeTemplate = (MethodDeclarationSyntax)classNode.Members[0];
+                var deserializeContextTemplate = (MethodDeclarationSyntax)classNode.Members[1];
+
+                var deserializePipe = GenerateStoredProcedureMethodText(deserializePipeTemplate, storedProcedure, StoredProcedureMethodKind.Deserialize, false);
+                root = root.AddMethod(ref classNode, deserializePipe);
+
+                nsNode = (NamespaceDeclarationSyntax)root.Members[0];
+                classNode = (ClassDeclarationSyntax)nsNode.Members[0];
+                var deserializeContext = GenerateStoredProcedureMethodText(deserializeContextTemplate, storedProcedure, StoredProcedureMethodKind.Deserialize, true);
+                root = root.AddMethod(ref classNode, deserializeContext);
+            }
         }
 
         // Remove template Method
@@ -132,14 +149,32 @@ public class StoredProcedureGenerator(
         classNode = (ClassDeclarationSyntax)nsNode.Members[0];
         root = root.ReplaceNode(classNode, classNode.WithMembers([.. classNode.Members.Cast<MethodDeclarationSyntax>().Skip(2)]));
 
+        // Ensure JSON deserialization namespace is present if any SP returns JSON
+        if (storedProcedures.Any(sp => sp.ReturnsJson) && !root.Usings.Any(u => u.Name.ToString() == "System.Text.Json"))
+        {
+            root = root.AddUsings(SyntaxFactory.UsingDirective(SyntaxFactory.ParseName("System.Text.Json"))).NormalizeWhitespace();
+        }
+
         return TemplateManager.GenerateSourceText(root);
     }
 
-    private MethodDeclarationSyntax GenerateStoredProcedureMethodText(MethodDeclarationSyntax methodNode, Definition.StoredProcedure storedProcedure, bool isOverload = false)
+    private enum StoredProcedureMethodKind { Raw, Deserialize }
+
+    private MethodDeclarationSyntax GenerateStoredProcedureMethodText(MethodDeclarationSyntax methodNode, Definition.StoredProcedure storedProcedure, StoredProcedureMethodKind kind, bool isOverload)
     {
-        // Replace MethodName
-        var methodName = $"{storedProcedure.Name}Async";
-        var methodIdentifier = SyntaxFactory.ParseToken(methodName);
+        // Method name
+        var baseName = $"{storedProcedure.Name}Async";
+        if (kind == StoredProcedureMethodKind.Deserialize)
+        {
+            var desired = $"{storedProcedure.Name}DeserializeAsync";
+            // basic collision safeguard
+            if (methodNode.Identifier.Text.Equals(desired, StringComparison.OrdinalIgnoreCase))
+            {
+                desired = $"{storedProcedure.Name}ToModelAsync";
+            }
+            baseName = desired;
+        }
+        var methodIdentifier = SyntaxFactory.ParseToken(baseName);
         methodNode = methodNode.WithIdentifier(methodIdentifier);
 
         var parameters = new[] { SyntaxFactory.Parameter(SyntaxFactory.Identifier("input"))
@@ -166,7 +201,7 @@ public class StoredProcedureGenerator(
 
         if (isOverload)
         {
-            returnExpression = returnExpression.Replace("CrudActionAsync", methodName);
+            returnExpression = returnExpression.Replace("CrudActionAsync", baseName);
             if (!hasInputs)
             {
                 returnExpression = returnExpression.Replace("(input, ", "(");
@@ -242,28 +277,44 @@ public class StoredProcedureGenerator(
         var returnType = "Task<CrudResult>";
         var returnModel = "CrudResult";
 
-        if (storedProcedure.ReturnsJson)
+        var isJson = storedProcedure.ReturnsJson;
+        var isJsonArray = storedProcedure.ReturnsJson && storedProcedure.ReturnsJsonArray;
+
+        var rawJson = false;
+        if (isJson && kind == StoredProcedureMethodKind.Raw)
+        {
+            rawJson = true;
+            // Raw JSON keeps Task<string> and we call ReadJsonAsync
+            returnType = "Task<string>";
+            returnExpression = returnExpression
+                .Replace("ExecuteSingleAsync<CrudResult>", "ReadJsonAsync")
+                .Replace("ExecuteListAsync<CrudResult>", "ReadJsonAsync");
+        }
+        else if (isJson && kind == StoredProcedureMethodKind.Deserialize)
         {
             returnModel = storedProcedure.Name;
-            if (storedProcedure.ReturnsJsonArray)
+            if (isJsonArray)
             {
                 returnType = $"Task<List<{returnModel}>>";
-                returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", $"ReadJsonAsync<List<{returnModel}>>");
+                // Call raw method (which returns JSON string) then deserialize to list; fallback to empty list if null
+                var rawCall = $"{storedProcedure.Name}Async({(storedProcedure.HasInputs() ? "input, " : string.Empty)}cancellationToken)";
+                returnExpression = $"System.Text.Json.JsonSerializer.Deserialize<List<{returnModel}>>(await {rawCall}) ?? new List<{returnModel}>()";
             }
             else
             {
                 returnType = $"Task<{returnModel}>";
-                returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", $"ReadJsonAsync<{returnModel}>");
+                var rawCall = $"{storedProcedure.Name}Async({(storedProcedure.HasInputs() ? "input, " : string.Empty)}cancellationToken)";
+                returnExpression = $"System.Text.Json.JsonSerializer.Deserialize<{returnModel}>(await {rawCall})";
             }
         }
-        else if (!storedProcedure.HasResult() && storedProcedure.HasOutputs())
+        else if (!rawJson && !storedProcedure.HasResult() && storedProcedure.HasOutputs())
         {
             var outputType = storedProcedure.GetOutputTypeName();
 
             returnType = $"Task<{outputType}>";
             returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", $"ExecuteAsync<{outputType}>");
         }
-        else if (storedProcedure.IsScalarResult())
+        else if (!rawJson && storedProcedure.IsScalarResult())
         {
             var output = storedProcedure.Output.FirstOrDefault();
             returnModel = ParseTypeFromSqlDbTypeName(output.SqlTypeName, output.IsNullable ?? false).ToString();
@@ -271,7 +322,7 @@ public class StoredProcedureGenerator(
             returnType = $"Task<{returnModel}>";
             returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", "ReadJsonAsync");
         }
-        else
+        else if (!rawJson)
         {
             switch (storedProcedure.OperationKind)
             {
@@ -305,6 +356,33 @@ public class StoredProcedureGenerator(
 
         methodBody = methodBody.WithStatements([.. statements]);
         methodNode = methodNode.WithBody(methodBody);
+
+        // Add XML documentation for JSON methods
+        if (storedProcedure.ReturnsJson)
+        {
+            var xmlSummary = string.Empty;
+            if (kind == StoredProcedureMethodKind.Raw)
+            {
+                xmlSummary =
+                    $"/// <summary>Executes stored procedure '{storedProcedure.SqlObjectName}' and returns the raw JSON string.</summary>\r\n" +
+                    $"/// <remarks>Use <see cref=\"{storedProcedure.Name}DeserializeAsync\"/> to obtain a typed {(storedProcedure.ReturnsJsonArray ? "list" : "model")}.</remarks>\r\n";
+            }
+            else if (kind == StoredProcedureMethodKind.Deserialize)
+            {
+                var target = storedProcedure.ReturnsJsonArray ? $"List<{storedProcedure.Name}>" : storedProcedure.Name;
+                xmlSummary =
+                    $"/// <summary>Executes stored procedure '{storedProcedure.SqlObjectName}' and deserializes the JSON response into {target}.</summary>\r\n" +
+                    $"/// <remarks>Underlying raw JSON method: <see cref=\"{storedProcedure.Name}Async\"/>.</remarks>\r\n";
+            }
+
+            if (!string.IsNullOrWhiteSpace(xmlSummary))
+            {
+                // Prepend documentation, preserving existing leading trivia
+                var leading = methodNode.GetLeadingTrivia();
+                var docTrivia = SyntaxFactory.ParseLeadingTrivia(xmlSummary);
+                methodNode = methodNode.WithLeadingTrivia(docTrivia.AddRange(leading));
+            }
+        }
 
         return methodNode.NormalizeWhitespace();
     }

@@ -20,24 +20,22 @@ description: Structure and meaning of fields in spocr.json.
   },
   "generation": {
     "outputDir": "Output",
-    "namespaceRoot": "Demo.Data.Generated",
-    "includeJsonProcedures": true
+    "namespaceRoot": "Demo.Data.Generated"
   }
 }
 ```
 
 ## Key Fields
 
-| Field                              | Type   | Description                       |
-| ---------------------------------- | ------ | --------------------------------- |
-| `version`                          | string | Schema version                    |
-| `project.name`                     | string | Target project name               |
-| `project.targetFramework`          | string | Target .NET TF                    |
-| `database.connection`              | string | Database connection string        |
-| `database.schema`                  | string | Default schema                    |
-| `generation.outputDir`             | string | Output directory                  |
-| `generation.namespaceRoot`         | string | Root namespace for generated code |
-| `generation.includeJsonProcedures` | bool   | Include JSON procedures           |
+| Field                      | Type   | Description                       |
+| -------------------------- | ------ | --------------------------------- |
+| `version`                  | string | Schema version                    |
+| `project.name`             | string | Target project name               |
+| `project.targetFramework`  | string | Target .NET TF                    |
+| `database.connection`      | string | Database connection string        |
+| `database.schema`          | string | Default schema                    |
+| `generation.outputDir`     | string | Output directory                  |
+| `generation.namespaceRoot` | string | Root namespace for generated code |
 
 ## TODO
 

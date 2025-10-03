@@ -36,6 +36,11 @@ Format loosely inspired by Keep a Changelog. Dates use ISO 8601 (UTC).
 
 - Introduced structured spaced exit code map (0,10,20,30,40,50,60,70,80,99) to allow future specialization; no public scripts depended on prior provisional values.
 
+### Deprecated
+
+- `Project.Json.Enabled`, `Project.Json.InferColumnTypes`, `Project.Json.FlattenNestedPaths` (always-on JSON model & type inference; properties ignored and slated for removal in a future minor release)
+- Generation may emit empty JSON models with an XML documentation note when column discovery is impossible (dynamic SQL, wildcard `*`, variable payload). Consider rewriting procedures with explicit SELECT lists to enable property inference.
+
 ## [4.1.x] - 2025-10-01
 
 ### Added
