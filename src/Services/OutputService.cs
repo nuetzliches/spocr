@@ -17,26 +17,45 @@ public class OutputService(
 {
     public DirectoryInfo GetOutputRootDir()
     {
-        if (string.IsNullOrEmpty(configFile.Config.TargetFramework))
-        {
-            return new DirectoryInfo(Path.Combine(DirectoryUtils.GetApplicationRoot(), "Output"));
-        }
-
+        // Determine desired versioned output folder name based on target framework.
         var targetFramework = configFile.Config.TargetFramework;
-        _ = int.TryParse(targetFramework?.Replace("net", "")[0].ToString(), out var versionNumber);
+        string desiredFolder;
 
-        if (targetFramework.StartsWith("net8") || targetFramework.StartsWith("net9"))
+        if (string.IsNullOrWhiteSpace(targetFramework))
         {
-            return new DirectoryInfo(Path.Combine(DirectoryUtils.GetApplicationRoot(), "Output-v9-0"));
+            desiredFolder = "Output";
         }
-        else if (versionNumber >= 5)
+        else if (targetFramework.StartsWith("net9"))
         {
-            return new DirectoryInfo(Path.Combine(DirectoryUtils.GetApplicationRoot(), "Output-v5-0"));
+            desiredFolder = "Output-v9-0";
+        }
+        else if (targetFramework.StartsWith("net8"))
+        {
+            desiredFolder = "Output-v9-0"; // net8 shares the v9 templates currently
+        }
+        else if (int.TryParse(targetFramework.Replace("net", "").Split('.')[0], out var versionNumber) && versionNumber >= 5)
+        {
+            desiredFolder = "Output-v5-0";
         }
         else
         {
-            return new DirectoryInfo(Path.Combine(DirectoryUtils.GetApplicationRoot(), "Output"));
+            desiredFolder = "Output";
         }
+
+        // Prefer template folders that live under src/ (repository layout) when present.
+        var appRoot = DirectoryUtils.GetApplicationRoot();
+        var candidateInSrc = Path.Combine(appRoot, "src", desiredFolder);
+        var candidateAtRoot = Path.Combine(appRoot, desiredFolder);
+
+        string resolvedPath = Directory.Exists(candidateInSrc) ? candidateInSrc : candidateAtRoot;
+
+        // If the directory does not exist yet (e.g. fresh clone or new TF), create it so subsequent copy calls don't fail.
+        if (!Directory.Exists(resolvedPath))
+        {
+            Directory.CreateDirectory(resolvedPath);
+        }
+
+        return new DirectoryInfo(resolvedPath);
     }
 
     public void GenerateCodeBase(OutputModel output, bool dryrun)
@@ -44,7 +63,14 @@ public class OutputService(
         var dir = GetOutputRootDir();
 
         var targetDir = DirectoryUtils.GetWorkingDirectory(output.DataContext.Path);
-        CopyAllFiles(Path.Combine(dir.FullName, "DataContext"), targetDir, output.Namespace, dryrun);
+        // Ensure the versioned DataContext template source exists; if not, emit a warning instead of throwing.
+        var templateDataContextDir = Path.Combine(dir.FullName, "DataContext");
+        if (!Directory.Exists(templateDataContextDir))
+        {
+            consoleService.Warn($"Template source directory '{templateDataContextDir}' not found. Skipping base code copy.");
+            return; // Without templates we cannot proceed copying base files.
+        }
+        CopyAllFiles(templateDataContextDir, targetDir, output.Namespace, dryrun);
 
         // var inputTargetDir = DirectoryUtils.GetWorkingDirectory(targetDir, output.DataContext.Inputs.Path);
         // CopyAllFiles(Path.Combine(dir.FullName, "DataContext/Inputs"), inputTargetDir, output.Namespace, dryrun);

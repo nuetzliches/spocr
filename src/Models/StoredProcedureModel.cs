@@ -26,6 +26,16 @@ public class StoredProcedureModel : IEquatable<StoredProcedureModel>
         set => _item.Name = value;
     }
 
+    // Exposes database modify_date from sys.objects
+    public DateTime Modified
+    {
+        get => _item.Modified;
+        set => _item.Modified = value;
+    }
+
+    // Persisted modification time (ticks) for quick detection of unchanged procedures
+    public long? ModifiedTicks { get; set; }
+
     [JsonIgnore]
     public string SchemaName
     {
