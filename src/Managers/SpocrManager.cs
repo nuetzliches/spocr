@@ -284,9 +284,27 @@ public class SpocrManager(
 
             var elapsed = await GenerateCodeAsync(project, options);
 
-            var summary = elapsed.Select(_ => $"{_.Key} generated in {_.Value} ms.");
+            // Derive generator success/failure/skipped metrics from elapsed dictionary
+            // Convention: If a generator type was enabled but produced 0 ms, treat as skipped.
+            // (Future: we could carry explicit status objects instead of inferring.)
+            var enabledGenerators = elapsed.Keys.ToList();
+            var succeeded = elapsed.Where(kv => kv.Value > 0).Select(kv => kv.Key).ToList();
+            var skipped = elapsed.Where(kv => kv.Value == 0).Select(kv => kv.Key).ToList();
 
-            consoleService.PrintSummary(summary, $"{Constants.Name} v{service.Version.ToVersionString()}");
+            var summaryLines = new List<string>();
+            foreach (var kv in elapsed)
+            {
+                summaryLines.Add($"{kv.Key} generated in {kv.Value} ms.");
+            }
+
+            summaryLines.Add("");
+            summaryLines.Add($"Generators succeeded: {succeeded.Count}/{enabledGenerators.Count} [{string.Join(", ", succeeded)}]");
+            if (skipped.Count > 0)
+            {
+                summaryLines.Add($"Generators skipped (0 changes): {skipped.Count} [{string.Join(", ", skipped)}]");
+            }
+
+            consoleService.PrintSummary(summaryLines, $"{Constants.Name} v{service.Version.ToVersionString()}");
 
             var totalElapsed = elapsed.Values.Sum();
             consoleService.PrintTotal($"Total elapsed time: {totalElapsed} ms.");

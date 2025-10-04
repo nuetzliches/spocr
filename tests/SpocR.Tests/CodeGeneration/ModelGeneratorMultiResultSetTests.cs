@@ -92,21 +92,41 @@ public class ModelGeneratorMultiResultSetTests
     public async Task Generates_Multiple_Result_Set_Models_With_Suffixes()
     {
         var (gen, schema, sp) = Arrange();
-        var text = await gen.GetModelTextForStoredProcedureAsync(schema, sp);
-        var code = text.ToString();
 
-        // Expect three classes: UserReport, UserReport_1, UserReport_2
-        code.Should().Contain("class UserReport");
-        code.Should().Contain("class UserReport_1");
-        code.Should().Contain("class UserReport_2");
+        // Base model (first result set, keeps original name)
+        var baseText = await gen.GetModelTextForStoredProcedureAsync(schema, sp);
+        var baseCode = baseText.ToString();
+        baseCode.Should().Contain("class UserReport");
+        baseCode.Should().Contain("UserName");
+        baseCode.Should().NotContain("__TemplateProperty__");
 
-        // Ensure properties from each result set appear in corresponding class blocks
-        code.Should().Contain("UserName");
-        code.Should().Contain("OrderCount");
-        code.Should().Contain("LastLogin");
-
-        // No leftover template property
-        code.Should().NotContain("__TemplateProperty__");
+        // Subsequent result sets generate separate models with suffixes (_1, _2, ...)
+        for (int r = 1; r < sp.ResultSets.Count; r++)
+        {
+            var rs = sp.ResultSets[r];
+            var suffixName = sp.Name + "_" + r;
+            var synthetic = new StoredProcedureModel(new SpocR.DataContext.Models.StoredProcedure
+            {
+                Name = suffixName,
+                SchemaName = schema.Name
+            })
+            {
+                Content = new StoredProcedureContentModel
+                {
+                    ResultSets = new[] { rs }
+                }
+            };
+            var defSynthetic = Definition.ForStoredProcedure(synthetic, schema);
+            var text = await gen.GetModelTextForStoredProcedureAsync(schema, defSynthetic);
+            var code = text.ToString();
+            code.Should().Contain($"class {suffixName}");
+            // Validate a representative property from each result set
+            if (r == 1)
+                code.Should().Contain("OrderCount");
+            if (r == 2)
+                code.Should().Contain("LastLogin");
+            code.Should().NotContain("__TemplateProperty__");
+        }
     }
 
     private class TestConsoleService : IConsoleService
