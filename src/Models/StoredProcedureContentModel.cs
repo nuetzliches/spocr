@@ -81,9 +81,8 @@ public class StoredProcedureContentModel
             ? visitor.Statements.ToArray()
             : new[] { definition.Trim() };
 
-        var jsonSets = analysis.JsonSets.Select((s, idx) => new JsonResultSet
+        var jsonSets = analysis.JsonSets.Select(s => new JsonResultSet
         {
-            Index = idx,
             ReturnsJson = s.ReturnsJson,
             ReturnsJsonArray = s.ReturnsJsonArray,
             ReturnsJsonWithoutArrayWrapper = s.ReturnsJsonWithoutArrayWrapper,
@@ -119,7 +118,10 @@ public class StoredProcedureContentModel
         bool ContainsWord(string word) => definition.IndexOf(word, StringComparison.OrdinalIgnoreCase) >= 0;
 
         var returnsJson = ContainsWord("FOR JSON");
-        var returnsJsonWithoutArrayWrapper = definition.IndexOf("WITHOUT ARRAY WRAPPER", StringComparison.OrdinalIgnoreCase) >= 0;
+        // Detect both spaced and underscore variants (some tooling may normalize underscores)
+        var returnsJsonWithoutArrayWrapper =
+            definition.IndexOf("WITHOUT ARRAY WRAPPER", StringComparison.OrdinalIgnoreCase) >= 0 ||
+            definition.IndexOf("WITHOUT_ARRAY_WRAPPER", StringComparison.OrdinalIgnoreCase) >= 0;
 
         string root = null;
         if (returnsJson)
@@ -149,7 +151,7 @@ public class StoredProcedureContentModel
             // legacy flags removed
             ContainsOpenJson = ContainsWord("OPENJSON"),
             JsonResultSets = returnsJson
-                ? new[] { new JsonResultSet { Index = 0, ReturnsJson = returnsJson, ReturnsJsonArray = returnsJson && !returnsJsonWithoutArrayWrapper, ReturnsJsonWithoutArrayWrapper = returnsJsonWithoutArrayWrapper, JsonRootProperty = root, JsonColumns = Array.Empty<JsonColumn>() } }
+                ? new[] { new JsonResultSet { ReturnsJson = returnsJson, ReturnsJsonArray = returnsJson && !returnsJsonWithoutArrayWrapper, ReturnsJsonWithoutArrayWrapper = returnsJsonWithoutArrayWrapper, JsonRootProperty = root, JsonColumns = Array.Empty<JsonColumn>() } }
                 : Array.Empty<JsonResultSet>(),
             UsedFallbackParser = true,
             ParseErrorCount = null,
@@ -168,7 +170,6 @@ public class StoredProcedureContentModel
 
     public sealed class JsonResultSet
     {
-        public int Index { get; init; }
         public bool ReturnsJson { get; init; }
         public bool ReturnsJsonArray { get; init; }
         public bool ReturnsJsonWithoutArrayWrapper { get; init; }
@@ -427,7 +428,6 @@ public class StoredProcedureContentModel
 
             public JsonResultSet ToResultSet() => new()
             {
-                Index = 0,
                 ReturnsJson = ReturnsJson,
                 ReturnsJsonArray = JsonWithArrayWrapper && !JsonWithoutArrayWrapper,
                 ReturnsJsonWithoutArrayWrapper = JsonWithoutArrayWrapper,

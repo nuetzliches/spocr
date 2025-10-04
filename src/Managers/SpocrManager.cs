@@ -131,7 +131,7 @@ public class SpocrManager(
 
         try
         {
-            var schemas = await schemaManager.ListAsync(config);
+            var schemas = await schemaManager.ListAsync(config, options.NoCache);
 
             if (schemas == null || schemas.Count == 0)
             {

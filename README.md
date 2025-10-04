@@ -16,6 +16,8 @@
 - **🔧 Extensible**: Customize naming conventions, output structure, and generation behavior
 - **📊 JSON Support**: Handle complex JSON return types with optional deserialization strategies
 - **🏗️ CI/CD Ready**: Seamlessly integrate into build pipelines and automated workflows
+- **🧮 Smart JSON Heuristics**: Automatically infers JSON result shape (array vs single object, WITHOUT ARRAY WRAPPER, ROOT names) even for manually authored `*AsJson` procedures
+- **🧠 Cache Control**: Opt-in pull cache speeds up repeated executions while `--no-cache` forces a guaranteed full re-parse when validating parser / heuristic changes
 
 ## 🚀 Quick Start
 
@@ -93,6 +95,22 @@ spocr test --ci --only unit,validation
 
 # Skip validation phase
 spocr test --ci --no-validation
+
+### Pull Caching & Forcing a Fresh Parse
+
+`spocr pull` maintains an internal cache keyed by last modification ticks of each stored procedure to skip unchanged definitions. This keeps repeat pulls fast on large databases.
+
+Use the flag:
+
+```
+
+spocr pull --no-cache
+
+```
+
+to deliberately bypass both loading and saving the cache. This ensures every stored procedure is fully re-fetched and re-parsed (useful directly after changing parsing heuristics or when validating JSON metadata like `WITHOUT ARRAY WRAPPER`).
+
+Verbose output with `--verbose` will show `[proc-loaded]` lines for every procedure when `--no-cache` is active (no `[proc-skip]` entries appear) and a `[cache] Disabled (--no-cache)` banner.
 ```
 
 ### JSON Summary Artifact

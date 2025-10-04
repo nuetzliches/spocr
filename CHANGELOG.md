@@ -18,11 +18,14 @@ Format loosely inspired by Keep a Changelog. Dates use ISO 8601 (UTC).
 - Granular test exit subcodes 41 (unit), 42 (integration), 43 (validation) with precedence logic
 - Console failure summary (top failing tests, truncated to 10)
 - Process cleanup script `eng/kill-testhosts.ps1` for lingering `testhost` processes
+- `spocr pull --no-cache` flag to bypass stored procedure definition cache (forces full re-parse; helpful after parser / heuristic changes)
+- Enhanced JSON heuristics for `*AsJson` procedures (detects `WITHOUT ARRAY WRAPPER` including underscore variant, ROOT name extraction, multi-set inference)
 
 ### Changed
 
 - Test orchestration made sequential to ensure deterministic TRX parsing (removed race conditions)
 - JSON schema for test summary expanded (nested `tests.unit` / `tests.integration`, timestamps, per-phase durations)
+- `JsonResultSets` model no longer includes an `Index` property (ordering is implicit by array position)
 
 ### Fixed
 

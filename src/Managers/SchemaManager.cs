@@ -17,7 +17,7 @@ public class SchemaManager(
     ILocalCacheService localCacheService = null
 )
 {
-    public async Task<List<SchemaModel>> ListAsync(ConfigurationModel config, CancellationToken cancellationToken = default)
+    public async Task<List<SchemaModel>> ListAsync(ConfigurationModel config, bool noCache = false, CancellationToken cancellationToken = default)
     {
         var dbSchemas = await dbContext.SchemaListAsync(cancellationToken);
         if (dbSchemas == null)
@@ -59,14 +59,24 @@ public class SchemaManager(
         var fingerprint = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(fingerprintRaw))).Substring(0, 16);
 
         var loadStart = DateTime.UtcNow;
-        var cache = localCacheService?.Load(fingerprint);
-        if (cache != null)
+        var disableCache = noCache;
+
+        ProcedureCacheSnapshot cache = null;
+        if (!disableCache && localCacheService != null)
         {
-            consoleService.Verbose($"[cache] Loaded snapshot {fingerprint} with {cache.Procedures.Count} entries in {(DateTime.UtcNow - loadStart).TotalMilliseconds:F1} ms");
+            cache = localCacheService.Load(fingerprint);
+            if (cache != null)
+            {
+                consoleService.Verbose($"[cache] Loaded snapshot {fingerprint} with {cache.Procedures.Count} entries in {(DateTime.UtcNow - loadStart).TotalMilliseconds:F1} ms");
+            }
+            else
+            {
+                consoleService.Verbose($"[cache] No existing snapshot for {fingerprint}");
+            }
         }
-        else
+        else if (disableCache)
         {
-            consoleService.Verbose($"[cache] No existing snapshot for {fingerprint}");
+            consoleService.Verbose("[cache] Disabled (--no-cache)");
         }
         var updatedSnapshot = new ProcedureCacheSnapshot { Fingerprint = fingerprint };
         var tableTypes = await dbContext.TableTypeListAsync(schemaListString, cancellationToken);
@@ -106,7 +116,7 @@ public class SchemaManager(
                 // Current modify_date from DB list (DateTime) -> ticks
                 var currentModifiedTicks = storedProcedure.Modified.Ticks;
                 var previousModifiedTicks = cache?.GetModifiedTicks(storedProcedure.SchemaName, storedProcedure.Name);
-                var canSkipDetails = previousModifiedTicks.HasValue && previousModifiedTicks.Value == currentModifiedTicks;
+                var canSkipDetails = !disableCache && previousModifiedTicks.HasValue && previousModifiedTicks.Value == currentModifiedTicks;
                 if (canSkipDetails)
                 {
                     consoleService.Verbose($"[proc-skip] {storedProcedure.SchemaName}.{storedProcedure.Name} unchanged (ticks={currentModifiedTicks})");
@@ -142,14 +152,29 @@ public class SchemaManager(
                 var hasJson = existingPrimaryJson?.ReturnsJson == true;
                 if (!canSkipDetails && !hasJson && storedProcedure.Name.EndsWith("AsJson", StringComparison.OrdinalIgnoreCase))
                 {
-                    // Synthetische JSON ResultSet hinzufügen (Array angenommen)
+                    // Synthetische JSON ResultSet hinzufügen
+                    var defForHeuristic = storedProcedure.Content?.Definition ?? definition ?? string.Empty;
+                    var withoutArray = defForHeuristic.IndexOf("WITHOUT ARRAY WRAPPER", StringComparison.OrdinalIgnoreCase) >= 0
+                        || defForHeuristic.IndexOf("WITHOUT_ARRAY_WRAPPER", StringComparison.OrdinalIgnoreCase) >= 0;
+                    string rootProp = null;
+                    // naive ROOT('name') extraction
+                    const string rootToken = "ROOT(";
+                    var rootIx = defForHeuristic.IndexOf(rootToken, StringComparison.OrdinalIgnoreCase);
+                    if (rootIx >= 0)
+                    {
+                        var startQuote = defForHeuristic.IndexOf('\'', rootIx);
+                        var endQuote = startQuote >= 0 ? defForHeuristic.IndexOf('\'', startQuote + 1) : -1;
+                        if (startQuote >= 0 && endQuote > startQuote)
+                        {
+                            rootProp = defForHeuristic.Substring(startQuote + 1, endQuote - startQuote - 1);
+                        }
+                    }
                     var newSet = new StoredProcedureContentModel.JsonResultSet
                     {
-                        Index = 0,
                         ReturnsJson = true,
-                        ReturnsJsonArray = true,
-                        ReturnsJsonWithoutArrayWrapper = false,
-                        JsonRootProperty = null,
+                        ReturnsJsonArray = !withoutArray,
+                        ReturnsJsonWithoutArrayWrapper = withoutArray,
+                        JsonRootProperty = rootProp,
                         JsonColumns = Array.Empty<StoredProcedureContentModel.JsonColumn>()
                     };
                     var existingSets = storedProcedure.Content?.JsonResultSets ?? Array.Empty<StoredProcedureContentModel.JsonResultSet>();
@@ -216,6 +241,113 @@ public class SchemaManager(
                         storedProcedure.Output = outputModels;
                     }
                 }
+                else if (canSkipDetails && (storedProcedure.Input == null || storedProcedure.Output == null))
+                {
+                    // Procedure body unchanged but we never persisted inputs/outputs previously – hydrate minimally for persistence.
+                    var inputs = await dbContext.StoredProcedureInputListAsync(storedProcedure.SchemaName, storedProcedure.Name, cancellationToken);
+                    storedProcedure.Input = inputs?.Select(i => new StoredProcedureInputModel(i)).ToList();
+
+                    var output = await dbContext.StoredProcedureOutputListAsync(storedProcedure.SchemaName, storedProcedure.Name, cancellationToken);
+                    storedProcedure.Output = output?.Select(i => new StoredProcedureOutputModel(i)).ToList() ?? new List<StoredProcedureOutputModel>();
+                    consoleService.Verbose($"[proc-skip-hydrate] {storedProcedure.SchemaName}.{storedProcedure.Name} inputs/outputs loaded (cache metadata backfill)");
+
+                    // Apply the same AsJson heuristic also on skip path if no JSON sets exist yet
+                    if (storedProcedure.Name.EndsWith("AsJson", StringComparison.OrdinalIgnoreCase) && (storedProcedure.Content?.JsonResultSets == null || !storedProcedure.Content.JsonResultSets.Any()))
+                    {
+                        storedProcedure.Content ??= new StoredProcedureContentModel();
+                        var defForHeuristic = storedProcedure.Content?.Definition ?? string.Empty;
+                        var withoutArray = defForHeuristic.IndexOf("WITHOUT ARRAY WRAPPER", StringComparison.OrdinalIgnoreCase) >= 0
+                            || defForHeuristic.IndexOf("WITHOUT_ARRAY_WRAPPER", StringComparison.OrdinalIgnoreCase) >= 0;
+                        string rootProp = null;
+                        const string rootToken = "ROOT(";
+                        var rootIx = defForHeuristic.IndexOf(rootToken, StringComparison.OrdinalIgnoreCase);
+                        if (rootIx >= 0)
+                        {
+                            var startQuote = defForHeuristic.IndexOf('\'', rootIx);
+                            var endQuote = startQuote >= 0 ? defForHeuristic.IndexOf('\'', startQuote + 1) : -1;
+                            if (startQuote >= 0 && endQuote > startQuote)
+                            {
+                                rootProp = defForHeuristic.Substring(startQuote + 1, endQuote - startQuote - 1);
+                            }
+                        }
+                        storedProcedure.Content = new StoredProcedureContentModel
+                        {
+                            Definition = storedProcedure.Content.Definition,
+                            ContainsSelect = storedProcedure.Content.ContainsSelect,
+                            ContainsInsert = storedProcedure.Content.ContainsInsert,
+                            ContainsUpdate = storedProcedure.Content.ContainsUpdate,
+                            ContainsDelete = storedProcedure.Content.ContainsDelete,
+                            ContainsMerge = storedProcedure.Content.ContainsMerge,
+                            ContainsOpenJson = storedProcedure.Content.ContainsOpenJson,
+                            JsonResultSets = new[]
+                            {
+                                new StoredProcedureContentModel.JsonResultSet
+                                {
+                                    ReturnsJson = true,
+                                    ReturnsJsonArray = !withoutArray,
+                                    ReturnsJsonWithoutArrayWrapper = withoutArray,
+                                    JsonRootProperty = rootProp,
+                                    JsonColumns = Array.Empty<StoredProcedureContentModel.JsonColumn>()
+                                }
+                            },
+                            UsedFallbackParser = storedProcedure.Content.UsedFallbackParser,
+                            ParseErrorCount = storedProcedure.Content.ParseErrorCount,
+                            FirstParseError = storedProcedure.Content.FirstParseError
+                        };
+                        consoleService.Verbose($"[proc-json-heuristic] {storedProcedure.SchemaName}.{storedProcedure.Name} heuristic applied on skip path");
+                    }
+                    else if (storedProcedure.Name.EndsWith("AsJson", StringComparison.OrdinalIgnoreCase) && storedProcedure.Content?.JsonResultSets?.Any() == true)
+                    {
+                        // Adjust existing heuristic set if definition indicates WITHOUT_ARRAY_WRAPPER but flags differ
+                        var set = storedProcedure.Content.JsonResultSets.First();
+                        var def = storedProcedure.Content.Definition;
+                        if (string.IsNullOrEmpty(def))
+                        {
+                            // fetch definition lazily on skip path to refine JSON flags
+                            var defResult = await dbContext.StoredProcedureDefinitionAsync(storedProcedure.SchemaName, storedProcedure.Name, cancellationToken);
+                            def = defResult?.Definition ?? string.Empty;
+                        }
+                        var withoutArrayNow = def.IndexOf("WITHOUT ARRAY WRAPPER", StringComparison.OrdinalIgnoreCase) >= 0 || def.IndexOf("WITHOUT_ARRAY_WRAPPER", StringComparison.OrdinalIgnoreCase) >= 0;
+                        if (withoutArrayNow && !set.ReturnsJsonWithoutArrayWrapper)
+                        {
+                            storedProcedure.Content = new StoredProcedureContentModel
+                            {
+                                Definition = storedProcedure.Content.Definition,
+                                ContainsSelect = storedProcedure.Content.ContainsSelect,
+                                ContainsInsert = storedProcedure.Content.ContainsInsert,
+                                ContainsUpdate = storedProcedure.Content.ContainsUpdate,
+                                ContainsDelete = storedProcedure.Content.ContainsDelete,
+                                ContainsMerge = storedProcedure.Content.ContainsMerge,
+                                ContainsOpenJson = storedProcedure.Content.ContainsOpenJson,
+                                JsonResultSets = new[] {
+                                    new StoredProcedureContentModel.JsonResultSet
+                                    {
+                                        ReturnsJson = true,
+                                        ReturnsJsonArray = false,
+                                        ReturnsJsonWithoutArrayWrapper = true,
+                                        JsonRootProperty = set.JsonRootProperty,
+                                        JsonColumns = set.JsonColumns
+                                    }
+                                },
+                                UsedFallbackParser = storedProcedure.Content.UsedFallbackParser,
+                                ParseErrorCount = storedProcedure.Content.ParseErrorCount,
+                                FirstParseError = storedProcedure.Content.FirstParseError
+                            };
+                            consoleService.Verbose($"[proc-json-adjust] {storedProcedure.SchemaName}.{storedProcedure.Name} set WITHOUT_ARRAY_WRAPPER after skip");
+                        }
+                    }
+
+                    // If heuristic JSON applied (or existing) and output is only the generic FOR JSON root column -> remove it (metadata expresses JSON via JsonResultSets)
+                    if (storedProcedure.Content?.JsonResultSets?.Any(r => r.ReturnsJson) == true && storedProcedure.Output != null && storedProcedure.Output.Count() == 1)
+                    {
+                        var firstOut = storedProcedure.Output.First();
+                        if (firstOut.Name.StartsWith("JSON_", StringComparison.OrdinalIgnoreCase))
+                        {
+                            storedProcedure.Output = null; // drop placeholder
+                            consoleService.Verbose($"[proc-json-cleanup] {storedProcedure.SchemaName}.{storedProcedure.Name} removed generic JSON output column");
+                        }
+                    }
+                }
 
                 // record cache entry
                 updatedSnapshot.Procedures.Add(new ProcedureCacheEntry
@@ -245,8 +377,15 @@ public class SchemaManager(
 
         // Persist updated cache (best-effort)
         var saveStart = DateTime.UtcNow;
-        localCacheService?.Save(fingerprint, updatedSnapshot);
-        consoleService.Verbose($"[cache] Saved snapshot {fingerprint} with {updatedSnapshot.Procedures.Count} entries in {(DateTime.UtcNow - saveStart).TotalMilliseconds:F1} ms");
+        if (!disableCache)
+        {
+            localCacheService?.Save(fingerprint, updatedSnapshot);
+            consoleService.Verbose($"[cache] Saved snapshot {fingerprint} with {updatedSnapshot.Procedures.Count} entries in {(DateTime.UtcNow - saveStart).TotalMilliseconds:F1} ms");
+        }
+        else
+        {
+            consoleService.Verbose("[cache] Not saved (--no-cache)");
+        }
 
         consoleService.Verbose($"[timing] Total schema load duration {(DateTime.UtcNow - loadStart).TotalMilliseconds:F1} ms");
 

@@ -66,10 +66,11 @@ public class StoredProcedureModel : IEquatable<StoredProcedureModel>
         set => _content = value;
     }
 
-    // Expose JSON result sets directly (first entry = primary set)
-    public IReadOnlyList<StoredProcedureContentModel.JsonResultSet> JsonResultSets => Content?.JsonResultSets ?? Array.Empty<StoredProcedureContentModel.JsonResultSet>();
+    // Expose JSON result sets directly (first entry = primary set). Return null when empty to omit from JSON.
+    public IReadOnlyList<StoredProcedureContentModel.JsonResultSet> JsonResultSets
+        => (Content?.JsonResultSets != null && Content.JsonResultSets.Any()) ? Content.JsonResultSets : null;
     [JsonIgnore]
-    public StoredProcedureContentModel.JsonResultSet PrimaryJson => JsonResultSets.FirstOrDefault();
+    public StoredProcedureContentModel.JsonResultSet PrimaryJson => JsonResultSets?.FirstOrDefault();
 
     // public IEnumerable<StoredProcedureInputModel> Input { get; set; }
     // public IEnumerable<StoredProcedureOutputModel> Output { get; set; }
