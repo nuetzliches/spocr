@@ -139,7 +139,6 @@ public class SnapshotResultColumn
 public class SnapshotSchema
 {
     public string Name { get; set; }
-    public string Status { get; set; }
     public List<string> TableTypeRefs { get; set; } = new(); // schema.name
 }
 

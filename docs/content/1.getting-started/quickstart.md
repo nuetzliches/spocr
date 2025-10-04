@@ -19,7 +19,10 @@ dotnet new classlib -n Demo.Data
 spocr create --project Demo.Data
 ```
 
-This creates a `spocr.json` among other files.
+This creates a `spocr.json` among other files. Key fields you may want to adjust early:
+
+- `ignoredSchemas` / `ignoredProcedures` to trim noise
+- `jsonTypeLogLevel` (default `Detailed`; consider `SummaryOnly` once things look correct)
 
 ## 3. Pull Stored Procedures from Database
 

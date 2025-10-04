@@ -201,7 +201,7 @@ public class SpocrManager(
                 // Build UDTT lookup by (schema,name)
                 var udttLookup = udttModels.ToDictionary(k => ($"{k.Schema}.{k.Name}").ToLowerInvariant(), v => v, StringComparer.OrdinalIgnoreCase);
 
-                // Enrich JSON result set columns ONLY with SqlTypeName derived from referenced UDTTs (heuristics removed)
+                // Enrich JSON result set columns ONLY with SqlTypeName derived from referenced UDTTs (first stage)
                 foreach (var schema in schemas)
                 {
                     if (schema?.StoredProcedures == null) continue;
@@ -229,6 +229,7 @@ public class SpocrManager(
 
                         var modified = false;
                         var newSets = new List<StoredProcedureContentModel.ResultSet>();
+                        // Stage1: no per-procedure summary (handled in stage2); keep parsing lean
                         foreach (var set in sets)
                         {
                             if (!set.ReturnsJson || set.Columns == null || set.Columns.Count == 0)
@@ -308,6 +309,18 @@ public class SpocrManager(
                     }
                 }
 
+                var jsonTypeLogLevel = config.Project?.JsonTypeLogLevel ?? JsonTypeLogLevel.Detailed;
+                var enrichmentStats = new JsonTypeEnrichmentStats();
+                var enricher = new JsonResultTypeEnricher(dbContext, consoleService);
+                foreach (var schema in schemas)
+                {
+                    if (schema?.StoredProcedures == null) continue;
+                    foreach (var sp in schema.StoredProcedures)
+                    {
+                        await enricher.EnrichAsync(sp, options.Verbose, jsonTypeLogLevel, enrichmentStats, System.Threading.CancellationToken.None);
+                    }
+                }
+
                 // Build snapshot
                 var procedures = schemas.SelectMany(sc => sc.StoredProcedures ?? Enumerable.Empty<StoredProcedureModel>())
                     .Select(sp =>
@@ -340,7 +353,9 @@ public class SpocrManager(
                                 Columns = rs.Columns.Select(c => new SnapshotResultColumn
                                 {
                                     Name = c.Name,
-                                    SqlTypeName = c.SqlTypeName,
+                                    // Fallback: Ensure JSON result columns always have a SqlTypeName so generators can rely on presence.
+                                    // If parser/enrichment couldn't resolve a concrete type, we default to nvarchar(max).
+                                    SqlTypeName = string.IsNullOrWhiteSpace(c.SqlTypeName) && rs.ReturnsJson ? "nvarchar(max)" : c.SqlTypeName,
                                     IsNullable = c.IsNullable ?? false,
                                     MaxLength = c.MaxLength ?? 0
                                 }).ToList()
@@ -379,7 +394,6 @@ public class SpocrManager(
                 var schemaSnapshots = schemas.Select(sc => new SnapshotSchema
                 {
                     Name = sc.Name,
-                    Status = sc.Status.ToString(),
                     TableTypeRefs = udtts.Where(u => u.Schema.Equals(sc.Name, StringComparison.OrdinalIgnoreCase)).Select(u => $"{u.Schema}.{u.Name}").OrderBy(x => x).ToList()
                 }).ToList();
 
@@ -403,7 +417,7 @@ public class SpocrManager(
                     Procedures = procedures,
                     Schemas = schemaSnapshots,
                     UserDefinedTableTypes = udtts,
-                    Parser = new SnapshotParserInfo { ToolVersion = config.TargetFramework, ResultSetParserVersion = 2 },
+                    Parser = new SnapshotParserInfo { ToolVersion = config.TargetFramework, ResultSetParserVersion = 4 },
                     Stats = new SnapshotStats
                     {
                         ProcedureTotal = procedures.Count,
@@ -417,6 +431,12 @@ public class SpocrManager(
                 consoleService.Verbose($"[snapshot] saved fingerprint={fingerprint} procs={procedures.Count} udtts={udtts.Count}");
                 // Informational migration note (legacy schema node removed)
                 consoleService.Verbose("[migration] Legacy 'schema' node removed; snapshot + IgnoredSchemas are now authoritative.");
+                // Always show run-level JSON enrichment summary (even if zero) unless logging is Off
+                if (jsonTypeLogLevel != JsonTypeLogLevel.Off)
+                {
+                    var summaryLine = $"[json-type-run-summary] procedures={procedures.Count(p => p.ResultSets.Any(rs => rs.Columns.Any()))} resolvedColumns={enrichmentStats.ResolvedColumns} new={enrichmentStats.NewConcrete} upgrades={enrichmentStats.Upgrades}";
+                    if (options.Verbose) consoleService.Verbose(summaryLine); else consoleService.Output(summaryLine);
+                }
             }
             catch (Exception sx)
             {

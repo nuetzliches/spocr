@@ -82,6 +82,21 @@ public class SchemaManager(
 
         var storedProcedures = await dbContext.StoredProcedureListAsync(schemaListString, cancellationToken);
 
+        // Apply IgnoredProcedures filter (schema.name) early
+        var ignoredProcedures = config?.Project?.IgnoredProcedures ?? new List<string>();
+        var jsonTypeLogLevel = config?.Project?.JsonTypeLogLevel ?? JsonTypeLogLevel.Detailed;
+        if (ignoredProcedures.Count > 0)
+        {
+            var ignoredSet = new HashSet<string>(ignoredProcedures, StringComparer.OrdinalIgnoreCase);
+            var beforeCount = storedProcedures.Count;
+            storedProcedures = storedProcedures.Where(sp => !ignoredSet.Contains($"{sp.SchemaName}.{sp.Name}"))?.ToList();
+            var removed = beforeCount - storedProcedures.Count;
+            if (removed > 0)
+            {
+                consoleService.Verbose($"[ignore-proc] Filtered {removed} procedure(s) via IgnoredProcedures list");
+            }
+        }
+
         // Build a simple fingerprint (avoid secrets): use output namespace or role kind + schemas + SP count
         var projectId = config?.Project?.Output?.Namespace ?? config?.Project?.Role?.Kind.ToString() ?? "UnknownProject";
         var fingerprintRaw = $"{projectId}|{schemaListString}|{storedProcedures.Count}";
@@ -223,11 +238,11 @@ public class SchemaManager(
                         }
                     }
                 }
-                else if (previousModifiedTicks.HasValue)
+                else if (jsonTypeLogLevel == JsonTypeLogLevel.Detailed && previousModifiedTicks.HasValue)
                 {
                     consoleService.Verbose($"[proc-loaded] {storedProcedure.SchemaName}.{storedProcedure.Name} updated {previousModifiedTicks.Value} -> {currentModifiedTicks}");
                 }
-                else
+                else if (jsonTypeLogLevel == JsonTypeLogLevel.Detailed)
                 {
                     consoleService.Verbose($"[proc-loaded] {storedProcedure.SchemaName}.{storedProcedure.Name} initial load (ticks={currentModifiedTicks})");
                 }
@@ -238,13 +253,16 @@ public class SchemaManager(
                     var def = await dbContext.StoredProcedureDefinitionAsync(storedProcedure.SchemaName, storedProcedure.Name, cancellationToken);
                     definition = def?.Definition;
                     storedProcedure.Content = StoredProcedureContentModel.Parse(definition, storedProcedure.SchemaName);
-                    if (storedProcedure.Content?.UsedFallbackParser == true)
+                    if (jsonTypeLogLevel == JsonTypeLogLevel.Detailed)
                     {
-                        consoleService.Verbose($"[proc-parse-fallback] {storedProcedure.SchemaName}.{storedProcedure.Name} parse errors={storedProcedure.Content.ParseErrorCount} first='{storedProcedure.Content.FirstParseError}'");
-                    }
-                    else if (storedProcedure.Content?.ResultSets?.Count > 1)
-                    {
-                        consoleService.Verbose($"[proc-json-multi] {storedProcedure.SchemaName}.{storedProcedure.Name} sets={storedProcedure.Content.ResultSets.Count}");
+                        if (storedProcedure.Content?.UsedFallbackParser == true)
+                        {
+                            consoleService.Verbose($"[proc-parse-fallback] {storedProcedure.SchemaName}.{storedProcedure.Name} parse errors={storedProcedure.Content.ParseErrorCount} first='{storedProcedure.Content.FirstParseError}'");
+                        }
+                        else if (storedProcedure.Content?.ResultSets?.Count > 1)
+                        {
+                            consoleService.Verbose($"[proc-json-multi] {storedProcedure.SchemaName}.{storedProcedure.Name} sets={storedProcedure.Content.ResultSets.Count}");
+                        }
                     }
                 }
                 storedProcedure.ModifiedTicks = currentModifiedTicks;
@@ -295,11 +313,13 @@ public class SchemaManager(
                         ParseErrorCount = storedProcedure.Content?.ParseErrorCount,
                         FirstParseError = storedProcedure.Content?.FirstParseError
                     };
-                    consoleService.Verbose($"[proc-json-heuristic] {storedProcedure.SchemaName}.{storedProcedure.Name} name heuristic applied (no FOR JSON detected)");
+                    if (jsonTypeLogLevel == JsonTypeLogLevel.Detailed)
+                        consoleService.Verbose($"[proc-json-heuristic] {storedProcedure.SchemaName}.{storedProcedure.Name} name heuristic applied (no FOR JSON detected)");
                 }
                 else if (!canSkipDetails && storedProcedure.Name.EndsWith("AsJson", StringComparison.OrdinalIgnoreCase) && !hasJson)
                 {
-                    consoleService.Verbose($"[warn] {storedProcedure.SchemaName}.{storedProcedure.Name} ends with AsJson but no JSON detected");
+                    if (jsonTypeLogLevel == JsonTypeLogLevel.Detailed)
+                        consoleService.Verbose($"[warn] {storedProcedure.SchemaName}.{storedProcedure.Name} ends with AsJson but no JSON detected");
                 }
 
                 if (!canSkipDetails)
@@ -356,7 +376,8 @@ public class SchemaManager(
                                 ParseErrorCount = storedProcedure.Content?.ParseErrorCount,
                                 FirstParseError = storedProcedure.Content?.FirstParseError
                             };
-                            consoleService.Verbose($"[proc-resultset-synth] {storedProcedure.SchemaName}.{storedProcedure.Name} classic output mapped to ResultSets");
+                            if (jsonTypeLogLevel == JsonTypeLogLevel.Detailed)
+                                consoleService.Verbose($"[proc-resultset-synth] {storedProcedure.SchemaName}.{storedProcedure.Name} classic output mapped to ResultSets");
                         }
                     }
                 }
@@ -369,7 +390,8 @@ public class SchemaManager(
                     var output = await dbContext.StoredProcedureOutputListAsync(storedProcedure.SchemaName, storedProcedure.Name, cancellationToken);
                     var skipOutputModels = output?.Select(i => new StoredProcedureOutputModel(i)).ToList() ?? new List<StoredProcedureOutputModel>();
                     var anyJson = storedProcedure.Content?.ResultSets?.Any(r => r.ReturnsJson) == true;
-                    consoleService.Verbose($"[proc-skip-hydrate] {storedProcedure.SchemaName}.{storedProcedure.Name} inputs/outputs loaded (cache metadata backfill)");
+                    if (jsonTypeLogLevel == JsonTypeLogLevel.Detailed)
+                        consoleService.Verbose($"[proc-skip-hydrate] {storedProcedure.SchemaName}.{storedProcedure.Name} inputs/outputs loaded (cache metadata backfill)");
 
                     // Also synthesize ResultSets for non-JSON procedures on skip path if not yet present
                     if (!anyJson)
@@ -407,7 +429,8 @@ public class SchemaManager(
                                 ParseErrorCount = storedProcedure.Content?.ParseErrorCount,
                                 FirstParseError = storedProcedure.Content?.FirstParseError
                             };
-                            consoleService.Verbose($"[proc-resultset-synth] {storedProcedure.SchemaName}.{storedProcedure.Name} classic output mapped to ResultSets (skip path)");
+                            if (jsonTypeLogLevel == JsonTypeLogLevel.Detailed)
+                                consoleService.Verbose($"[proc-resultset-synth] {storedProcedure.SchemaName}.{storedProcedure.Name} classic output mapped to ResultSets (skip path)");
                         }
                     }
 
@@ -454,7 +477,8 @@ public class SchemaManager(
                             ParseErrorCount = storedProcedure.Content.ParseErrorCount,
                             FirstParseError = storedProcedure.Content.FirstParseError
                         };
-                        consoleService.Verbose($"[proc-json-heuristic] {storedProcedure.SchemaName}.{storedProcedure.Name} heuristic applied on skip path");
+                        if (jsonTypeLogLevel == JsonTypeLogLevel.Detailed)
+                            consoleService.Verbose($"[proc-json-heuristic] {storedProcedure.SchemaName}.{storedProcedure.Name} heuristic applied on skip path");
                     }
                     else if (storedProcedure.Name.EndsWith("AsJson", StringComparison.OrdinalIgnoreCase) && storedProcedure.Content?.ResultSets?.Any() == true)
                     {
@@ -493,7 +517,8 @@ public class SchemaManager(
                                 ParseErrorCount = storedProcedure.Content.ParseErrorCount,
                                 FirstParseError = storedProcedure.Content.FirstParseError
                             };
-                            consoleService.Verbose($"[proc-json-adjust] {storedProcedure.SchemaName}.{storedProcedure.Name} set WITHOUT_ARRAY_WRAPPER after skip");
+                            if (jsonTypeLogLevel == JsonTypeLogLevel.Detailed)
+                                consoleService.Verbose($"[proc-json-adjust] {storedProcedure.SchemaName}.{storedProcedure.Name} set WITHOUT_ARRAY_WRAPPER after skip");
                         }
                     }
 

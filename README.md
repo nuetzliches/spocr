@@ -33,27 +33,16 @@ dotnet tool install --global SpocR
 
 ### Basic Usage
 
-```bash
+````bash
 # Initialize project
 spocr create --project MyProject
-
-# Connect to database and pull stored procedures
-spocr pull --connection "Server=.;Database=AppDb;Trusted_Connection=True;"
-
-# Generate strongly typed C# classes
-spocr build
-```
-
-### Example Generated Code
-
-**Before SpocR** (manual, error-prone):
 
 ```csharp
 var command = new SqlCommand("EXEC GetUserById", connection);
 command.Parameters.AddWithValue("@UserId", 123);
 var reader = await command.ExecuteReaderAsync();
 // ... manual mapping code
-```
+````
 
 **With SpocR** (generated, type-safe):
 

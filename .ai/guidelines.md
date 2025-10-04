@@ -258,6 +258,27 @@ Replace any lingering `npm run dev` references when updating docs contributions.
 
 ---
 
-**Last Updated:** October 2, 2025  
-**Guideline Version:** 1.1  
+## Snapshot & Cache Model (Project-Specific)
+
+| Aspect             | Rule                                                                                                              |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| Snapshot Content   | Procedures, inputs, result sets, UDTT definitions (with column signatures) – no schema status persisted           |
+| Cache Scope        | Only stored procedure definition & parse skip (per procedure ModifiedTicks); type metadata always refreshed       |
+| Ignore Lists       | `ignoredSchemas` (whole schema), `ignoredProcedures` (single procedure) – do not suppress type metadata refresh   |
+| Typing Pipeline    | Parser builds JSON column provenance → Stage1 UDTT columns → Stage2 base table columns → fallback `nvarchar(max)` |
+| Parser Versioning  | Bump when snapshot structure or enrichment semantics materially change (affects fingerprint)                      |
+| Cross-Schema Types | Always load all UDTT + table column metadata irrespective of ignore lists                                         |
+
+### Fallback Upgrade (Planned v4)
+
+Implement opportunistic replacement of fallback `nvarchar(max)` JSON column types when concrete types become determinable without forcing a full `--no-cache` pull.
+
+### Contribution Implications
+
+- Never reintroduce schema status persistence into snapshots.
+- New enrichment stages must be idempotent and safe to run on hydrated (skipped) procedures if migration is required.
+- Fingerprint changes must remain stable (only parser version and core counts should affect it beyond server/db/schema set).
+
+**Last Updated:** October 5, 2025  
+**Guideline Version:** 1.2  
 **Applies to:** SpocR v4.1.x and later

@@ -42,6 +42,22 @@ JsonSerializer.Deserialize<List<UserList>>(await UserListAsync(ct)) ?? new List<
 
 When `ResultSets[0].ReturnsJson` is true a model type with the same base name as the procedure is generated (e.g. `UserList` / `UserFind`). If property inference is impossible (dynamic SQL, wildcard selection) an empty model is still emitted with an explanatory XML doc comment. This allows consistent referencing in API annotations.
 
+### Column Typing (Parser v3 / v4)
+
+JSON result set column SQL types are assigned via a two-stage enrichment pipeline during `spocr pull`:
+
+1. UDTT Stage: Columns matched against table-type input parameters (first match wins; avoids ambiguity).
+2. Base Table Stage: Remaining unresolved columns matched via provenance fields (`SourceSchema`, `SourceTable`, `SourceColumn`).
+
+If both stages (v3) fail to determine a concrete type, a fallback `nvarchar(max)` is assigned so downstream generators can rely on presence of `SqlTypeName`.
+
+Parser v4 adds an opportunistic upgrade step: previously persisted fallback `nvarchar(max)` JSON columns are re-checked and replaced with a concrete type if resolvable via updated metadata. Log tags:
+
+- `[json-type-table]` detailed per-column resolutions (Detailed mode only)
+- `[json-type-upgrade]` fallback -> concrete upgrade events
+- `[json-type-summary]` per-procedure aggregate (new vs upgrades)
+- `[json-type-run-summary]` run-level aggregate (always shown unless `jsonTypeLogLevel=Off`)
+
 ## Null & Fallback Semantics
 
 - Array JSON: `null` literal ⇒ empty list (`[]` equivalent at call site)
@@ -49,16 +65,18 @@ When `ResultSets[0].ReturnsJson` is true a model type with the same base name as
 
 ## Limitations (Current)
 
-- Only the first JSON result set is surfaced in method generation (multi-result groundwork exists internally via `ResultSets` but not yet user-facing)
+- Only the first JSON result set is surfaced in method generation (multi-result support is internal only for now)
 - No overloads yet for passing custom `JsonSerializerOptions`
+- Advanced inference for nested `JSON_QUERY` and left join nullability is planned (see roadmap)
 
 ## Troubleshooting
 
-| Symptom                                  | Cause                   | Mitigation                                               |
-| ---------------------------------------- | ----------------------- | -------------------------------------------------------- |
-| Empty generated model                    | Columns not inferable   | Provide explicit column list or accept empty type        |
-| Deserialize returns null (single object) | JSON literal was `null` | Add null-check or fallback in caller                     |
-| Missing `System.Text.Json` using         | No JSON SPs detected    | Confirm `ResultSets[0].ReturnsJson` flag in `spocr.json` |
+| Symptom                                  | Cause                   | Mitigation                                                                           |
+| ---------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------ |
+| Empty generated model                    | Columns not inferable   | Provide explicit column list or accept empty type                                    |
+| Deserialize returns null (single object) | JSON literal was `null` | Add null-check or fallback in caller                                                 |
+| Missing `System.Text.Json` using         | No JSON SPs detected    | Confirm `ResultSets[0].ReturnsJson` in snapshot JSON                                 |
+| Fallback `nvarchar(max)` persists        | Source metadata absent  | Ensure base table / UDTT accessible; run with `--no-cache --verbose` to inspect logs |
 
 ---
 
