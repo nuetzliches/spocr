@@ -32,28 +32,32 @@ public class ModelGenerator(
         var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
         var classNode = (ClassDeclarationSyntax)nsNode.Members[0];
         var propertyNode = (PropertyDeclarationSyntax)classNode.Members[0];
-        // 1) Classic (declarative) outputs
-        var outputs = storedProcedure.Output?.ToList() ?? [];
-        var hasClassicOutputs = outputs.Any();
-        if (hasClassicOutputs)
+        // Unified model: Prefer ResultSet columns (non-JSON) or JSON result columns. Classic outputs kept as fallback until fully removed.
+        var resultColumns = storedProcedure.Columns?.ToList() ?? [];
+        var hasResultColumns = resultColumns.Any();
+
+        if (hasResultColumns && !storedProcedure.ReturnsJson)
         {
-            foreach (var item in outputs)
+            foreach (var col in resultColumns)
             {
+                if (string.IsNullOrWhiteSpace(col.Name)) continue;
                 nsNode = (NamespaceDeclarationSyntax)root.Members[0];
                 classNode = (ClassDeclarationSyntax)nsNode.Members[0];
-
-                var propertyIdentifier = SyntaxFactory.ParseToken($" {item.Name.FirstCharToUpper()} ");
-                propertyNode = propertyNode
-                    .WithType(ParseTypeFromSqlDbTypeName(item.SqlTypeName, item.IsNullable ?? false))
+                var propertyIdentifier = SyntaxFactory.ParseToken($" {col.Name.FirstCharToUpper()} ");
+                // Use SqlTypeName metadata if available
+                var inferredType = !string.IsNullOrWhiteSpace(col.SqlTypeName)
+                    ? ParseTypeFromSqlDbTypeName(col.SqlTypeName, col.IsNullable ?? true).ToString()
+                    : "string";
+                var nonJsonProperty = propertyNode
+                    .WithType(SyntaxFactory.ParseTypeName(inferredType))
                     .WithIdentifier(propertyIdentifier);
-
-                root = root.AddProperty(ref classNode, propertyNode);
+                root = root.AddProperty(ref classNode, nonJsonProperty);
             }
         }
-        // 2) JSON result without classic outputs -> generate properties from JsonColumns (string MVP)
-        else if (storedProcedure.ReturnsJson && (storedProcedure.JsonColumns?.Any() ?? false))
+        // JSON result -> generate properties from JSON Columns (string MVP)
+        else if (storedProcedure.ReturnsJson && (storedProcedure.Columns?.Any() ?? false))
         {
-            foreach (var col in storedProcedure.JsonColumns)
+            foreach (var col in storedProcedure.Columns)
             {
                 if (string.IsNullOrWhiteSpace(col.Name))
                 {
@@ -64,18 +68,10 @@ public class ModelGenerator(
                 classNode = (ClassDeclarationSyntax)nsNode.Members[0];
                 var propertyIdentifier = SyntaxFactory.ParseToken($" {col.Name.FirstCharToUpper()} ");
 
-                // Type inference: currently SchemaManager already mapped Outputs for JSON to StoredProcedure.Output when present.
-                // Here we attempt a naive inference only when classic outputs were NOT produced.
                 var inferredType = "string"; // default fallback
-                // Type inference attempt based on enriched outputs (always on)
-                if (storedProcedure.Output?.Any() == true)
+                if (!string.IsNullOrWhiteSpace(col.SqlTypeName))
                 {
-                    // If SchemaManager enriched outputs, try to match by name
-                    var match = storedProcedure.Output.FirstOrDefault(o => o.Name.Equals(col.Name, System.StringComparison.OrdinalIgnoreCase));
-                    if (match != null)
-                    {
-                        inferredType = ParseTypeFromSqlDbTypeName(match.SqlTypeName, match.IsNullable ?? true).ToString();
-                    }
+                    inferredType = ParseTypeFromSqlDbTypeName(col.SqlTypeName, col.IsNullable ?? true).ToString();
                 }
 
                 var jsonProperty = propertyNode
@@ -89,7 +85,7 @@ public class ModelGenerator(
         root = TemplateManager.RemoveTemplateProperty(root);
 
         // 3) JSON result but no columns extracted -> empty model + warning (keeps method signature valid)
-        if (!hasClassicOutputs && !(storedProcedure.JsonColumns?.Any() ?? false) && storedProcedure.ReturnsJson)
+        if (!hasResultColumns && !(storedProcedure.Columns?.Any() ?? false) && storedProcedure.ReturnsJson)
         {
             consoleService.Warn($"No JSON columns extracted for stored procedure '{storedProcedure.Name}'. Generated empty model.");
             nsNode = (NamespaceDeclarationSyntax)root.Members[0];
@@ -132,14 +128,12 @@ public class ModelGenerator(
 
             foreach (var storedProcedure in storedProcedures)
             {
-                var hasClassicOutputs = storedProcedure.Output?.Any() ?? false;
-                var isScalarClassic = hasClassicOutputs && storedProcedure.Output!.Count() == 1;
+                var hasResultCols = storedProcedure.Columns?.Any() ?? false;
+                var isScalarResultCols = hasResultCols && !storedProcedure.ReturnsJson && storedProcedure.Columns.Count == 1;
 
-                // Classic scalar output without JSON -> no model required
-                if (isScalarClassic && !storedProcedure.ReturnsJson)
-                {
+                // Skip model if scalar non-JSON
+                if (!storedProcedure.ReturnsJson && isScalarResultCols)
                     continue;
-                }
 
                 var fileName = $"{storedProcedure.Name}.cs";
                 var fileNameWithPath = Path.Combine(path, fileName);

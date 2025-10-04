@@ -50,12 +50,6 @@ public class StoredProcedureModel : IEquatable<StoredProcedureModel>
         set => _input = value;
     }
 
-    private IEnumerable<StoredProcedureOutputModel> _output;
-    public IEnumerable<StoredProcedureOutputModel> Output
-    {
-        get => _output?.Any() ?? false ? _output : null;
-        set => _output = value;
-    }
 
     private StoredProcedureContentModel _content;
 
@@ -66,11 +60,9 @@ public class StoredProcedureModel : IEquatable<StoredProcedureModel>
         set => _content = value;
     }
 
-    // Expose JSON result sets directly (first entry = primary set). Return null when empty to omit from JSON.
-    public IReadOnlyList<StoredProcedureContentModel.JsonResultSet> JsonResultSets
-        => (Content?.JsonResultSets != null && Content.JsonResultSets.Any()) ? Content.JsonResultSets : null;
-    [JsonIgnore]
-    public StoredProcedureContentModel.JsonResultSet PrimaryJson => JsonResultSets?.FirstOrDefault();
+    // Expose unified result sets (JSON aware). Return null when empty to omit from serialized model.
+    public IReadOnlyList<StoredProcedureContentModel.ResultSet> ResultSets
+        => (Content?.ResultSets != null && Content.ResultSets.Any()) ? Content.ResultSets : null;
 
     // public IEnumerable<StoredProcedureInputModel> Input { get; set; }
     // public IEnumerable<StoredProcedureOutputModel> Output { get; set; }

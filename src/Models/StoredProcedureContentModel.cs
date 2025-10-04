@@ -25,15 +25,15 @@ public class StoredProcedureContentModel
 
     public bool ContainsOpenJson { get; init; }
 
-    // Multi JSON result support: list of JSON sets encountered (first one mirrors legacy top-level flags for backward compatibility)
-    public IReadOnlyList<JsonResultSet> JsonResultSets { get; init; } = Array.Empty<JsonResultSet>();
+    // Unified result set collection (formerly JsonResultSets)
+    public IReadOnlyList<ResultSet> ResultSets { get; init; } = Array.Empty<ResultSet>();
 
     // Parse diagnostics
     public bool UsedFallbackParser { get; init; }
     public int? ParseErrorCount { get; init; }
     public string FirstParseError { get; init; }
 
-    // Removed legacy mirrored JsonColumns; access columns via JsonResultSets[0].JsonColumns if needed
+    // Removed legacy mirrored columns; access via ResultSets[0].Columns if needed
 
     public static StoredProcedureContentModel Parse(string definition, string defaultSchema = "dbo")
     {
@@ -65,7 +65,7 @@ public class StoredProcedureContentModel
                 ContainsDelete = fallback.ContainsDelete,
                 ContainsMerge = fallback.ContainsMerge,
                 ContainsOpenJson = fallback.ContainsOpenJson,
-                JsonResultSets = fallback.JsonResultSets,
+                ResultSets = fallback.ResultSets,
                 UsedFallbackParser = true,
                 ParseErrorCount = parseErrors?.Count,
                 FirstParseError = parseErrors?.FirstOrDefault()?.Message
@@ -81,14 +81,7 @@ public class StoredProcedureContentModel
             ? visitor.Statements.ToArray()
             : new[] { definition.Trim() };
 
-        var jsonSets = analysis.JsonSets.Select(s => new JsonResultSet
-        {
-            ReturnsJson = s.ReturnsJson,
-            ReturnsJsonArray = s.ReturnsJsonArray,
-            ReturnsJsonWithoutArrayWrapper = s.ReturnsJsonWithoutArrayWrapper,
-            JsonRootProperty = s.JsonRootProperty,
-            JsonColumns = s.JsonColumns.ToArray()
-        }).ToArray();
+        var jsonSets = analysis.JsonSets.ToArray();
 
         return new StoredProcedureContentModel
         {
@@ -100,7 +93,7 @@ public class StoredProcedureContentModel
             ContainsDelete = analysis.ContainsDelete,
             ContainsMerge = analysis.ContainsMerge,
             ContainsOpenJson = analysis.ContainsOpenJson,
-            JsonResultSets = jsonSets,
+            ResultSets = jsonSets,
             UsedFallbackParser = false,
             ParseErrorCount = 0,
             FirstParseError = null
@@ -150,31 +143,34 @@ public class StoredProcedureContentModel
             ContainsMerge = ContainsWord("MERGE"),
             // legacy flags removed
             ContainsOpenJson = ContainsWord("OPENJSON"),
-            JsonResultSets = returnsJson
-                ? new[] { new JsonResultSet { ReturnsJson = returnsJson, ReturnsJsonArray = returnsJson && !returnsJsonWithoutArrayWrapper, ReturnsJsonWithoutArrayWrapper = returnsJsonWithoutArrayWrapper, JsonRootProperty = root, JsonColumns = Array.Empty<JsonColumn>() } }
-                : Array.Empty<JsonResultSet>(),
+            ResultSets = returnsJson
+                ? new[] { new ResultSet { ReturnsJson = returnsJson, ReturnsJsonArray = returnsJson && !returnsJsonWithoutArrayWrapper, ReturnsJsonWithoutArrayWrapper = returnsJsonWithoutArrayWrapper, JsonRootProperty = root, Columns = Array.Empty<ResultColumn>() } }
+                : Array.Empty<ResultSet>(),
             UsedFallbackParser = true,
             ParseErrorCount = null,
             FirstParseError = null
         };
     }
 
-    public class JsonColumn
+    public class ResultColumn
     {
         public string JsonPath { get; set; }
         public string Name { get; set; }
         public string SourceSchema { get; set; }
         public string SourceTable { get; set; }
         public string SourceColumn { get; set; }
+        // Added for unified non-JSON result typing (formerly from StoredProcedureOutputModel)
+        public string SqlTypeName { get; set; }
+        public bool? IsNullable { get; set; }
     }
 
-    public sealed class JsonResultSet
+    public sealed class ResultSet
     {
         public bool ReturnsJson { get; init; }
         public bool ReturnsJsonArray { get; init; }
         public bool ReturnsJsonWithoutArrayWrapper { get; init; }
         public string JsonRootProperty { get; init; }
-        public IReadOnlyList<JsonColumn> JsonColumns { get; init; } = Array.Empty<JsonColumn>();
+        public IReadOnlyList<ResultColumn> Columns { get; init; } = Array.Empty<ResultColumn>();
     }
 
     private sealed class ProcedureContentAnalysis
@@ -185,7 +181,7 @@ public class StoredProcedureContentModel
         }
 
         public string DefaultSchema { get; }
-        public List<JsonColumn> JsonColumns { get; } = new();
+        public List<ResultColumn> JsonColumns { get; } = new(); // internal builder list retained
         public bool ContainsSelect { get; set; }
         public bool ContainsInsert { get; set; }
         public bool ContainsUpdate { get; set; }
@@ -199,7 +195,7 @@ public class StoredProcedureContentModel
         public bool ContainsOpenJson { get; set; }
         public bool JsonWithArrayWrapper { get; set; }
         public bool JsonWithoutArrayWrapper { get; set; }
-        public List<JsonResultSet> JsonSets { get; } = new();
+        public List<ResultSet> JsonSets { get; } = new();
 
         public void FinalizeJson()
         {
@@ -355,9 +351,9 @@ public class StoredProcedureContentModel
             base.ExplicitVisit(node);
         }
 
-        private List<JsonColumn> CollectJsonColumnsForSet(QuerySpecification node)
+        private List<ResultColumn> CollectJsonColumnsForSet(QuerySpecification node)
         {
-            var collected = new List<JsonColumn>();
+            var collected = new List<ResultColumn>();
             var aliasMap = new Dictionary<string, (string Schema, string Table)>(StringComparer.OrdinalIgnoreCase);
             if (node.FromClause?.TableReferences != null)
             {
@@ -375,7 +371,7 @@ public class StoredProcedureContentModel
                     continue;
                 }
 
-                var jsonColumn = new JsonColumn
+                var jsonColumn = new ResultColumn
                 {
                     JsonPath = path,
                     Name = GetSafePropertyName(path)
@@ -419,20 +415,20 @@ public class StoredProcedureContentModel
             public bool JsonWithArrayWrapper { get; set; }
             public bool JsonWithoutArrayWrapper { get; set; }
             public string JsonRootProperty { get; set; }
-            public List<JsonColumn> JsonColumns { get; } = new();
+            public List<ResultColumn> JsonColumns { get; } = new();
 
             public void Complete()
             {
                 // nothing additional yet
             }
 
-            public JsonResultSet ToResultSet() => new()
+            public ResultSet ToResultSet() => new()
             {
                 ReturnsJson = ReturnsJson,
                 ReturnsJsonArray = JsonWithArrayWrapper && !JsonWithoutArrayWrapper,
                 ReturnsJsonWithoutArrayWrapper = JsonWithoutArrayWrapper,
                 JsonRootProperty = JsonRootProperty,
-                JsonColumns = JsonColumns.ToArray()
+                Columns = JsonColumns.ToArray()
             };
         }
 

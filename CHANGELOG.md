@@ -25,7 +25,10 @@ Format loosely inspired by Keep a Changelog. Dates use ISO 8601 (UTC).
 
 - Test orchestration made sequential to ensure deterministic TRX parsing (removed race conditions)
 - JSON schema for test summary expanded (nested `tests.unit` / `tests.integration`, timestamps, per-phase durations)
-- `JsonResultSets` model no longer includes an `Index` property (ordering is implicit by array position)
+- `spocr.json` serialization: For JSON-returning stored procedures (`ResultSets[0].ReturnsJson == true`), the legacy `Output` array is now omitted entirely (previously still emitted). Non-JSON procedures continue to emit `Output` until they are migrated to unified `ResultSets` modeling.
+- `spocr.json` serialization: All stored procedures now use unified `ResultSets`. Classic non-JSON procedures have a synthesized first `ResultSet` (with `ReturnsJson=false`) reflecting former tabular columns. The legacy root-level `Output` array has been fully removed (property deleted) – BREAKING only if external tooling still parsed `Output`; migrate to `ResultSets[0].Columns`.
+- `ResultSets[].Columns` now include `SqlTypeName` + `IsNullable` for non-JSON procedures (migrated from former `Output` metadata) enabling proper scalar type generation.
+- Internal: Removed `PrimaryResultSet` helper property and root-level JSON flag serialization (`ReturnsJson*`) from `spocr.json` (flags remain within `ResultSets`). This is treated as non-breaking because consumer tooling should already read `ResultSets[0]`.
 
 ### Fixed
 

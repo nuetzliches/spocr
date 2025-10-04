@@ -151,7 +151,7 @@ public class SpocrManager(
                         : config.Project.DefaultSchemaStatus;
                 }
             }
-            // Merge Input/Output/Content for procedures we skipped loading (cache hit) so they persist in spocr.json
+            // Merge Input/Content for procedures we skipped loading (cache hit) so they persist in spocr.json
             foreach (var schema in schemas)
             {
                 if (!previousSchemas.TryGetValue(schema.Name, out var oldSchema) || oldSchema?.StoredProcedures == null)
@@ -162,7 +162,7 @@ public class SpocrManager(
                 if (schema.StoredProcedures == null) continue;
                 foreach (var sp in schema.StoredProcedures)
                 {
-                    if (sp.Input != null || sp.Output != null)
+                    if (sp.Input != null)
                     {
                         // Already populated (was reloaded)
                         continue;
@@ -171,8 +171,7 @@ public class SpocrManager(
                     {
                         // Shallow copy existing metadata (do not deep clone; serialization will handle objects)
                         if (sp.Input == null) sp.Input = oldSp.Input?.Select(i => i).ToList();
-                        if (sp.Output == null) sp.Output = oldSp.Output?.Select(o => o).ToList();
-                        if (sp.Content == null) sp.Content = oldSp.Content; // for future JSON set usage
+                        if (sp.Content == null) sp.Content = oldSp.Content; // JSON & result sets metadata
                     }
                 }
             }

@@ -115,22 +115,20 @@ public static class Definition
             : _readWriteKind = new[] { OperationKindEnum.Find, OperationKindEnum.List }.Contains(OperationKind)
                         ? ReadWriteKindEnum.Read
                         : ReadWriteKindEnum.Write;
+        private StoredProcedureContentModel.ResultSet FirstResultSet => storedProcedure.ResultSets?.FirstOrDefault();
         public ResultKindEnum ResultKind => _resultKind != ResultKindEnum.Undefined
             ? _resultKind
-            : (_resultKind = (storedProcedure.PrimaryJson?.ReturnsJson ?? false)
-                ? ((storedProcedure.PrimaryJson?.ReturnsJsonArray ?? false) ? ResultKindEnum.List : ResultKindEnum.Single)
+            : (_resultKind = (FirstResultSet?.ReturnsJson ?? false)
+                ? ((FirstResultSet?.ReturnsJsonArray ?? false) ? ResultKindEnum.List : ResultKindEnum.Single)
                 : (OperationKind == OperationKindEnum.List || Name.Contains("WithChildren")
                     ? ResultKindEnum.List
                     : ResultKindEnum.Single));
-
-        public bool ReturnsJson => storedProcedure.PrimaryJson?.ReturnsJson ?? false;
-        public bool ReturnsJsonArray => storedProcedure.PrimaryJson?.ReturnsJsonArray ?? false;
-        public string JsonRootProperty => storedProcedure.PrimaryJson?.JsonRootProperty;
-        public IReadOnlyList<StoredProcedureContentModel.JsonColumn> JsonColumns => storedProcedure.PrimaryJson?.JsonColumns ?? Array.Empty<StoredProcedureContentModel.JsonColumn>();
-        public StoredProcedureContentModel.JsonResultSet PrimaryJson => storedProcedure.PrimaryJson; // expose for generators
+        public bool ReturnsJson => FirstResultSet?.ReturnsJson ?? false;
+        public bool ReturnsJsonArray => FirstResultSet?.ReturnsJsonArray ?? false;
+        public string JsonRootProperty => FirstResultSet?.JsonRootProperty;
+        public IReadOnlyList<StoredProcedureContentModel.ResultColumn> Columns => FirstResultSet?.Columns ?? Array.Empty<StoredProcedureContentModel.ResultColumn>();
 
         public IEnumerable<StoredProcedureInputModel> Input => storedProcedure.Input ?? [];
-        public IEnumerable<StoredProcedureOutputModel> Output => storedProcedure.Output ?? [];
     }
 
     public class TableType(TableTypeModel tableType, Schema schema)

@@ -63,7 +63,7 @@ public class StoredProcedureGenerator(
         }
 
         // Add Using for Models
-        if (storedProcedures.Any(i => i.ReadWriteKind == Definition.ReadWriteKindEnum.Read && i.Output?.Count() > 1))
+        if (storedProcedures.Any(i => i.ReadWriteKind == Definition.ReadWriteKindEnum.Read && !i.ReturnsJson && (i.Columns?.Count ?? 0) > 1))
         {
             var modelUsingDirective = ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib
                 ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.Models.{schema.Name}"))
@@ -81,13 +81,8 @@ public class StoredProcedureGenerator(
         }
 
         // Add Usings for Outputs
-        if (storedProcedures.Any(s => s.HasOutputs() && !s.IsDefaultOutput()))
-        {
-            var inputUsingDirective = ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib
-                ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.Outputs.{schema.Name}"))
-                : SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.DataContext.Outputs.{schema.Name}"));
-            root = root.AddUsings(inputUsingDirective.NormalizeWhitespace().WithLeadingTrivia(SyntaxFactory.CarriageReturnLineFeed)).WithTrailingTrivia(SyntaxFactory.CarriageReturnLineFeed);
-        }
+        // Outputs namespace no longer needed after Output removal
+        // (Removed) legacy Outputs namespace imports
 
         // Add Usings for TableTypes
         // If Inputs contains a TableType, add using for TableTypes
@@ -278,8 +273,7 @@ public class StoredProcedureGenerator(
         var returnModel = "CrudResult";
 
         var isJson = storedProcedure.ReturnsJson;
-        var primaryJson = storedProcedure.PrimaryJson; // now exposed on Definition.StoredProcedure
-        var isJsonArray = (primaryJson?.ReturnsJson ?? false) && (primaryJson?.ReturnsJsonArray ?? false);
+        var isJsonArray = isJson && storedProcedure.ReturnsJsonArray;
 
         var rawJson = false;
         if (isJson && kind == StoredProcedureMethodKind.Raw)
@@ -308,20 +302,20 @@ public class StoredProcedureGenerator(
                 returnExpression = $"System.Text.Json.JsonSerializer.Deserialize<{returnModel}>(await {rawCall})";
             }
         }
-        else if (!rawJson && !storedProcedure.HasResult() && storedProcedure.HasOutputs())
-        {
-            var outputType = storedProcedure.GetOutputTypeName();
-
-            returnType = $"Task<{outputType}>";
-            returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", $"ExecuteAsync<{outputType}>");
-        }
         else if (!rawJson && storedProcedure.IsScalarResult())
         {
-            var output = storedProcedure.Output.FirstOrDefault();
-            returnModel = ParseTypeFromSqlDbTypeName(output.SqlTypeName, output.IsNullable ?? false).ToString();
-
+            // Scalar non-JSON: derive type from first column metadata if available
+            var firstCol = storedProcedure.Columns?.FirstOrDefault();
+            if (firstCol != null && !string.IsNullOrWhiteSpace(firstCol.SqlTypeName))
+            {
+                returnModel = ParseTypeFromSqlDbTypeName(firstCol.SqlTypeName, firstCol.IsNullable ?? true).ToString();
+            }
+            else
+            {
+                returnModel = "string"; // conservative fallback
+            }
             returnType = $"Task<{returnModel}>";
-            returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", "ReadJsonAsync");
+            returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", $"ExecuteScalarAsync<{returnModel}>");
         }
         else if (!rawJson)
         {

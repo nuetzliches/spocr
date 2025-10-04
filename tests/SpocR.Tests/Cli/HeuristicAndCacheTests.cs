@@ -102,7 +102,7 @@ public class HeuristicAndCacheTests
 
         var schemas = await manager.ListAsync(cfg);
         var proc = schemas.SelectMany(s => s.StoredProcedures).Single();
-        proc.ReturnsJson.Should().BeTrue("name ends with AsJson and definition lacks explicit FOR JSON but heuristic should trigger");
+        proc.ResultSets.Any(rs => rs.ReturnsJson).Should().BeTrue("name ends with AsJson and definition lacks explicit FOR JSON but heuristic should trigger");
     }
 
     [Fact]

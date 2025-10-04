@@ -17,6 +17,16 @@ Reads metadata (stored procedures, parameters, optionally tables) from a SQL Ser
 spocr pull --connection "<connection-string>" [Optionen]
 ```
 
+### Important Options
+
+| Option            | Description                                                                   |
+| ----------------- | ----------------------------------------------------------------------------- |
+| `--schema <name>` | Limit to a single schema (repeatable).                                        |
+| `--verbose`       | Emit detailed per-procedure load / heuristic logs.                            |
+| `--no-cache`      | Force a full re-parse of every stored procedure (ignore & don't write cache). |
+
+When `--no-cache` is specified you will only see `[proc-loaded]` entries (no `[proc-skip]`) and a banner `[cache] Disabled (--no-cache)`. Use this after modifying parsing/JSON heuristics or when validating metadata changes.
+
 ## Behavior Contract (Draft)
 
 ```json
@@ -44,6 +54,7 @@ spocr pull --connection "<connection-string>" [Optionen]
 ```bash
 spocr pull --connection "Server=.;Database=AppDb;Trusted_Connection=True;"
 spocr pull --connection "Server=.;Database=AppDb;Trusted_Connection=True;" --schema custom
+spocr pull --connection "Server=.;Database=AppDb;Trusted_Connection=True;" --no-cache --verbose
 
 ---
 Note: This document was translated from German on 2025-10-02 to comply with the English-only language policy.

@@ -140,15 +140,15 @@ public class SchemaManager(
                     {
                         consoleService.Verbose($"[proc-parse-fallback] {storedProcedure.SchemaName}.{storedProcedure.Name} parse errors={storedProcedure.Content.ParseErrorCount} first='{storedProcedure.Content.FirstParseError}'");
                     }
-                    else if (storedProcedure.Content?.JsonResultSets?.Count > 1)
+                    else if (storedProcedure.Content?.ResultSets?.Count > 1)
                     {
-                        consoleService.Verbose($"[proc-json-multi] {storedProcedure.SchemaName}.{storedProcedure.Name} sets={storedProcedure.Content.JsonResultSets.Count}");
+                        consoleService.Verbose($"[proc-json-multi] {storedProcedure.SchemaName}.{storedProcedure.Name} sets={storedProcedure.Content.ResultSets.Count}");
                     }
                 }
                 storedProcedure.ModifiedTicks = currentModifiedTicks;
 
                 // Heuristic: If parser did not detect JSON but name ends with AsJson treat it as JSON returning (string payload)
-                var existingPrimaryJson = storedProcedure.Content?.JsonResultSets?.FirstOrDefault();
+                var existingPrimaryJson = storedProcedure.Content?.ResultSets?.FirstOrDefault();
                 var hasJson = existingPrimaryJson?.ReturnsJson == true;
                 if (!canSkipDetails && !hasJson && storedProcedure.Name.EndsWith("AsJson", StringComparison.OrdinalIgnoreCase))
                 {
@@ -169,15 +169,15 @@ public class SchemaManager(
                             rootProp = defForHeuristic.Substring(startQuote + 1, endQuote - startQuote - 1);
                         }
                     }
-                    var newSet = new StoredProcedureContentModel.JsonResultSet
+                    var newSet = new StoredProcedureContentModel.ResultSet
                     {
                         ReturnsJson = true,
                         ReturnsJsonArray = !withoutArray,
                         ReturnsJsonWithoutArrayWrapper = withoutArray,
                         JsonRootProperty = rootProp,
-                        JsonColumns = Array.Empty<StoredProcedureContentModel.JsonColumn>()
+                        Columns = Array.Empty<StoredProcedureContentModel.ResultColumn>()
                     };
-                    var existingSets = storedProcedure.Content?.JsonResultSets ?? Array.Empty<StoredProcedureContentModel.JsonResultSet>();
+                    var existingSets = storedProcedure.Content?.ResultSets ?? Array.Empty<StoredProcedureContentModel.ResultSet>();
                     storedProcedure.Content = new StoredProcedureContentModel
                     {
                         Definition = storedProcedure.Content?.Definition ?? definition,
@@ -188,7 +188,7 @@ public class SchemaManager(
                         ContainsDelete = storedProcedure.Content?.ContainsDelete ?? false,
                         ContainsMerge = storedProcedure.Content?.ContainsMerge ?? false,
                         ContainsOpenJson = storedProcedure.Content?.ContainsOpenJson ?? false,
-                        JsonResultSets = existingSets.Any() ? existingSets : new[] { newSet },
+                        ResultSets = existingSets.Any() ? existingSets : new[] { newSet },
                         UsedFallbackParser = storedProcedure.Content?.UsedFallbackParser ?? false,
                         ParseErrorCount = storedProcedure.Content?.ParseErrorCount,
                         FirstParseError = storedProcedure.Content?.FirstParseError
@@ -208,51 +208,107 @@ public class SchemaManager(
                     var output = await dbContext.StoredProcedureOutputListAsync(storedProcedure.SchemaName, storedProcedure.Name, cancellationToken);
                     var outputModels = output?.Select(i => new StoredProcedureOutputModel(i)).ToList() ?? new List<StoredProcedureOutputModel>();
 
-                    var primaryJson = storedProcedure.Content?.JsonResultSets?.FirstOrDefault();
-                    var jsonColumns = primaryJson?.JsonColumns;
-                    if (primaryJson?.ReturnsJson == true && jsonColumns?.Any() == true)
+                    // Unified rule: Never persist legacy Output anymore; rely solely on synthesized ResultSets
+                    var anyJson = storedProcedure.Content?.ResultSets?.Any(r => r.ReturnsJson) == true;
+
+                    // Synthesize ResultSets for non-JSON procedures so that every procedure has at least one ResultSet entry.
+                    if (!anyJson)
                     {
-                        var jsonOutputs = new List<StoredProcedureOutputModel>();
-                        foreach (var jsonColumn in jsonColumns)
+                        var existingSets = storedProcedure.Content?.ResultSets ?? Array.Empty<StoredProcedureContentModel.ResultSet>();
+                        if (!existingSets.Any())
                         {
-                            Column columnInfo = null;
-                            if (!string.IsNullOrEmpty(jsonColumn.SourceTable) && !string.IsNullOrEmpty(jsonColumn.SourceColumn))
+                            // Map classic output columns to a synthetic ResultSet (ReturnsJson = false)
+                            var syntheticColumns = outputModels
+                                .Select(o => new StoredProcedureContentModel.ResultColumn
+                                {
+                                    Name = o.Name,
+                                    JsonPath = null,
+                                    SourceSchema = null,
+                                    SourceTable = null,
+                                    SourceColumn = null,
+                                    SqlTypeName = o.SqlTypeName,
+                                    IsNullable = o.IsNullable
+                                }).ToArray();
+                            var syntheticSet = new StoredProcedureContentModel.ResultSet
                             {
-                                columnInfo = await dbContext.TableColumnAsync(jsonColumn.SourceSchema ?? storedProcedure.SchemaName, jsonColumn.SourceTable, jsonColumn.SourceColumn, cancellationToken);
-                            }
-
-                            var outputName = jsonColumn.Name ?? jsonColumn.SourceColumn ?? "Value";
-
-                            var column = new StoredProcedureOutput
-                            {
-                                Name = outputName,
-                                IsNullable = columnInfo?.IsNullable ?? true,
-                                SqlTypeName = columnInfo?.SqlTypeName ?? "nvarchar(max)",
-                                MaxLength = columnInfo?.MaxLength ?? 0
+                                ReturnsJson = false,
+                                ReturnsJsonArray = false,
+                                ReturnsJsonWithoutArrayWrapper = false,
+                                JsonRootProperty = null,
+                                Columns = syntheticColumns
                             };
-
-                            jsonOutputs.Add(new StoredProcedureOutputModel(column));
+                            // Reconstruct content object preserving existing parse flags
+                            storedProcedure.Content = new StoredProcedureContentModel
+                            {
+                                Definition = storedProcedure.Content?.Definition ?? definition,
+                                Statements = storedProcedure.Content?.Statements ?? Array.Empty<string>(),
+                                ContainsSelect = storedProcedure.Content?.ContainsSelect ?? false,
+                                ContainsInsert = storedProcedure.Content?.ContainsInsert ?? false,
+                                ContainsUpdate = storedProcedure.Content?.ContainsUpdate ?? false,
+                                ContainsDelete = storedProcedure.Content?.ContainsDelete ?? false,
+                                ContainsMerge = storedProcedure.Content?.ContainsMerge ?? false,
+                                ContainsOpenJson = storedProcedure.Content?.ContainsOpenJson ?? false,
+                                ResultSets = new[] { syntheticSet },
+                                UsedFallbackParser = storedProcedure.Content?.UsedFallbackParser ?? false,
+                                ParseErrorCount = storedProcedure.Content?.ParseErrorCount,
+                                FirstParseError = storedProcedure.Content?.FirstParseError
+                            };
+                            consoleService.Verbose($"[proc-resultset-synth] {storedProcedure.SchemaName}.{storedProcedure.Name} classic output mapped to ResultSets");
                         }
-
-                        storedProcedure.Output = jsonOutputs.Any() ? jsonOutputs : outputModels;
-                    }
-                    else
-                    {
-                        storedProcedure.Output = outputModels;
                     }
                 }
-                else if (canSkipDetails && (storedProcedure.Input == null || storedProcedure.Output == null))
+                else if (canSkipDetails && (storedProcedure.Input == null))
                 {
                     // Procedure body unchanged but we never persisted inputs/outputs previously – hydrate minimally for persistence.
                     var inputs = await dbContext.StoredProcedureInputListAsync(storedProcedure.SchemaName, storedProcedure.Name, cancellationToken);
                     storedProcedure.Input = inputs?.Select(i => new StoredProcedureInputModel(i)).ToList();
 
                     var output = await dbContext.StoredProcedureOutputListAsync(storedProcedure.SchemaName, storedProcedure.Name, cancellationToken);
-                    storedProcedure.Output = output?.Select(i => new StoredProcedureOutputModel(i)).ToList() ?? new List<StoredProcedureOutputModel>();
+                    var skipOutputModels = output?.Select(i => new StoredProcedureOutputModel(i)).ToList() ?? new List<StoredProcedureOutputModel>();
+                    var anyJson = storedProcedure.Content?.ResultSets?.Any(r => r.ReturnsJson) == true;
                     consoleService.Verbose($"[proc-skip-hydrate] {storedProcedure.SchemaName}.{storedProcedure.Name} inputs/outputs loaded (cache metadata backfill)");
 
+                    // Also synthesize ResultSets for non-JSON procedures on skip path if not yet present
+                    if (!anyJson)
+                    {
+                        var existingSets = storedProcedure.Content?.ResultSets ?? Array.Empty<StoredProcedureContentModel.ResultSet>();
+                        if (!existingSets.Any() && skipOutputModels.Any())
+                        {
+                            var syntheticColumns = skipOutputModels.Select(o => new StoredProcedureContentModel.ResultColumn
+                            {
+                                Name = o.Name,
+                                SqlTypeName = o.SqlTypeName,
+                                IsNullable = o.IsNullable
+                            }).ToArray();
+                            var syntheticSet = new StoredProcedureContentModel.ResultSet
+                            {
+                                ReturnsJson = false,
+                                ReturnsJsonArray = false,
+                                ReturnsJsonWithoutArrayWrapper = false,
+                                JsonRootProperty = null,
+                                Columns = syntheticColumns
+                            };
+                            storedProcedure.Content = new StoredProcedureContentModel
+                            {
+                                Definition = storedProcedure.Content?.Definition,
+                                Statements = storedProcedure.Content?.Statements ?? Array.Empty<string>(),
+                                ContainsSelect = storedProcedure.Content?.ContainsSelect ?? false,
+                                ContainsInsert = storedProcedure.Content?.ContainsInsert ?? false,
+                                ContainsUpdate = storedProcedure.Content?.ContainsUpdate ?? false,
+                                ContainsDelete = storedProcedure.Content?.ContainsDelete ?? false,
+                                ContainsMerge = storedProcedure.Content?.ContainsMerge ?? false,
+                                ContainsOpenJson = storedProcedure.Content?.ContainsOpenJson ?? false,
+                                ResultSets = new[] { syntheticSet },
+                                UsedFallbackParser = storedProcedure.Content?.UsedFallbackParser ?? false,
+                                ParseErrorCount = storedProcedure.Content?.ParseErrorCount,
+                                FirstParseError = storedProcedure.Content?.FirstParseError
+                            };
+                            consoleService.Verbose($"[proc-resultset-synth] {storedProcedure.SchemaName}.{storedProcedure.Name} classic output mapped to ResultSets (skip path)");
+                        }
+                    }
+
                     // Apply the same AsJson heuristic also on skip path if no JSON sets exist yet
-                    if (storedProcedure.Name.EndsWith("AsJson", StringComparison.OrdinalIgnoreCase) && (storedProcedure.Content?.JsonResultSets == null || !storedProcedure.Content.JsonResultSets.Any()))
+                    if (storedProcedure.Name.EndsWith("AsJson", StringComparison.OrdinalIgnoreCase) && (storedProcedure.Content?.ResultSets == null || !storedProcedure.Content.ResultSets.Any()))
                     {
                         storedProcedure.Content ??= new StoredProcedureContentModel();
                         var defForHeuristic = storedProcedure.Content?.Definition ?? string.Empty;
@@ -279,15 +335,15 @@ public class SchemaManager(
                             ContainsDelete = storedProcedure.Content.ContainsDelete,
                             ContainsMerge = storedProcedure.Content.ContainsMerge,
                             ContainsOpenJson = storedProcedure.Content.ContainsOpenJson,
-                            JsonResultSets = new[]
+                            ResultSets = new[]
                             {
-                                new StoredProcedureContentModel.JsonResultSet
+                                new StoredProcedureContentModel.ResultSet
                                 {
                                     ReturnsJson = true,
                                     ReturnsJsonArray = !withoutArray,
                                     ReturnsJsonWithoutArrayWrapper = withoutArray,
                                     JsonRootProperty = rootProp,
-                                    JsonColumns = Array.Empty<StoredProcedureContentModel.JsonColumn>()
+                                    Columns = Array.Empty<StoredProcedureContentModel.ResultColumn>()
                                 }
                             },
                             UsedFallbackParser = storedProcedure.Content.UsedFallbackParser,
@@ -296,10 +352,10 @@ public class SchemaManager(
                         };
                         consoleService.Verbose($"[proc-json-heuristic] {storedProcedure.SchemaName}.{storedProcedure.Name} heuristic applied on skip path");
                     }
-                    else if (storedProcedure.Name.EndsWith("AsJson", StringComparison.OrdinalIgnoreCase) && storedProcedure.Content?.JsonResultSets?.Any() == true)
+                    else if (storedProcedure.Name.EndsWith("AsJson", StringComparison.OrdinalIgnoreCase) && storedProcedure.Content?.ResultSets?.Any() == true)
                     {
                         // Adjust existing heuristic set if definition indicates WITHOUT_ARRAY_WRAPPER but flags differ
-                        var set = storedProcedure.Content.JsonResultSets.First();
+                        var set = storedProcedure.Content.ResultSets.First();
                         var def = storedProcedure.Content.Definition;
                         if (string.IsNullOrEmpty(def))
                         {
@@ -319,14 +375,14 @@ public class SchemaManager(
                                 ContainsDelete = storedProcedure.Content.ContainsDelete,
                                 ContainsMerge = storedProcedure.Content.ContainsMerge,
                                 ContainsOpenJson = storedProcedure.Content.ContainsOpenJson,
-                                JsonResultSets = new[] {
-                                    new StoredProcedureContentModel.JsonResultSet
+                                ResultSets = new[] {
+                                    new StoredProcedureContentModel.ResultSet
                                     {
                                         ReturnsJson = true,
                                         ReturnsJsonArray = false,
                                         ReturnsJsonWithoutArrayWrapper = true,
                                         JsonRootProperty = set.JsonRootProperty,
-                                        JsonColumns = set.JsonColumns
+                                        Columns = set.Columns
                                     }
                                 },
                                 UsedFallbackParser = storedProcedure.Content.UsedFallbackParser,
@@ -337,16 +393,8 @@ public class SchemaManager(
                         }
                     }
 
-                    // If heuristic JSON applied (or existing) and output is only the generic FOR JSON root column -> remove it (metadata expresses JSON via JsonResultSets)
-                    if (storedProcedure.Content?.JsonResultSets?.Any(r => r.ReturnsJson) == true && storedProcedure.Output != null && storedProcedure.Output.Count() == 1)
-                    {
-                        var firstOut = storedProcedure.Output.First();
-                        if (firstOut.Name.StartsWith("JSON_", StringComparison.OrdinalIgnoreCase))
-                        {
-                            storedProcedure.Output = null; // drop placeholder
-                            consoleService.Verbose($"[proc-json-cleanup] {storedProcedure.SchemaName}.{storedProcedure.Name} removed generic JSON output column");
-                        }
-                    }
+                    // If heuristic JSON applied (or existing) and output is only the generic FOR JSON root column -> remove it (metadata expresses JSON via ResultSets)
+                    // Cleanup logic no longer needed since JSON outputs are fully suppressed.
                 }
 
                 // record cache entry
