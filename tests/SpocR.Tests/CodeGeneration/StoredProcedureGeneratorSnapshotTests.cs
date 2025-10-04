@@ -64,14 +64,36 @@ public class StoredProcedureGeneratorSnapshotTests
         var spModel = new StoredProcedureModel(new SpocR.DataContext.Models.StoredProcedure { Name = name, SchemaName = "dbo" })
         {
             Input = new List<StoredProcedureInputModel>(),
-            Output = new List<StoredProcedureOutputModel>()
         };
         spModel.Content = new StoredProcedureContentModel
         {
-            ReturnsJson = returnsJson,
-            ReturnsJsonArray = returnsJsonArray,
-            ReturnsJsonWithoutArrayWrapper = returnsJson && !returnsJsonArray,
-            JsonColumns = new List<StoredProcedureContentModel.JsonColumn>()
+            ResultSets = new[]
+            {
+                new StoredProcedureContentModel.ResultSet
+                {
+                    ReturnsJson = returnsJson,
+                    ReturnsJsonArray = returnsJson && returnsJsonArray,
+                    ReturnsJsonWithoutArrayWrapper = returnsJson && !returnsJsonArray,
+                    Columns = returnsJson
+                        ? new[]
+                        {
+                            new StoredProcedureContentModel.ResultColumn
+                            {
+                                JsonPath = "id",
+                                Name = "Id"
+                            }
+                        }
+                        : new[]
+                        {
+                            new StoredProcedureContentModel.ResultColumn
+                            {
+                                Name = "UserName",
+                                SqlTypeName = "nvarchar",
+                                IsNullable = false
+                            }
+                        }
+                }
+            }
         };
         return spModel;
     }

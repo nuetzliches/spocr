@@ -88,6 +88,12 @@ public class DbContext(
         cancellationToken.ThrowIfCancellationRequested();
         var result = new List<T>();
 
+        var intercepted = await OnListAsync<T>(queryString, parameters, cancellationToken, transaction);
+        if (intercepted != null)
+        {
+            return intercepted;
+        }
+
         try
         {
             if (_connection.State != ConnectionState.Open) await _connection.OpenAsync(cancellationToken);
@@ -115,6 +121,11 @@ public class DbContext(
         }
 
         return result;
+    }
+
+    protected virtual Task<List<T>> OnListAsync<T>(string queryString, List<SqlParameter> parameters, CancellationToken cancellationToken, AppSqlTransaction transaction) where T : class, new()
+    {
+        return Task.FromResult<List<T>>(null);
     }
 
     public async Task<T> SingleAsync<T>(string queryString, List<SqlParameter> parameters,

@@ -46,18 +46,43 @@ public class StoredProcedureGeneratorJsonTests
 
     private static (Definition.Schema schema, Definition.StoredProcedure sp) CreateStoredProcedure(string name, bool returnsJson, bool returnsJsonArray)
     {
+        var resultColumns = returnsJson
+            ? new[]
+            {
+                new StoredProcedureContentModel.ResultColumn
+                {
+                    JsonPath = "id",
+                    Name = "Id"
+                }
+            }
+            : new[]
+            {
+                new StoredProcedureContentModel.ResultColumn
+                {
+                    Name = "UserName",
+                    SqlTypeName = "nvarchar",
+                    IsNullable = false
+                }
+            };
+
         var content = new StoredProcedureContentModel
         {
-            ReturnsJson = returnsJson,
-            ReturnsJsonArray = returnsJsonArray,
-            ReturnsJsonWithoutArrayWrapper = returnsJson && !returnsJsonArray
+            ResultSets = new[]
+            {
+                new StoredProcedureContentModel.ResultSet
+                {
+                    ReturnsJson = returnsJson,
+                    ReturnsJsonArray = returnsJson && returnsJsonArray,
+                    ReturnsJsonWithoutArrayWrapper = returnsJson && !returnsJsonArray,
+                    Columns = resultColumns
+                }
+            }
         };
 
         // manually set private backing via constructor then attach content
         var spModel = new StoredProcedureModel(new SpocR.DataContext.Models.StoredProcedure { Name = name, SchemaName = "dbo" })
         {
             Input = new List<StoredProcedureInputModel>(),
-            Output = new List<StoredProcedureOutputModel>()
         };
         spModel.Content = content;
 

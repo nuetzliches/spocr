@@ -22,7 +22,7 @@ public class SkipUpdateTests
 
         var globalConfig = new GlobalConfigurationModel
         {
-            AutoUpdate = new GlobalConfigurationAutoUpdateModel
+            AutoUpdate = new GlobalAutoUpdateConfigurationModel
             {
                 Enabled = true,
                 NextCheckTicks = DateTime.UtcNow.AddMinutes(-5).Ticks,
@@ -31,12 +31,12 @@ public class SkipUpdateTests
             }
         };
 
-        var fileManager = new FileManager<GlobalConfigurationModel>("global.config.test.json")
+        var spocrService = new SpocrService();
+        var fileManager = new FileManager<GlobalConfigurationModel>(spocrService, "global.config.test.json", globalConfig)
         {
             Config = globalConfig
         };
 
-        var spocrService = new SpocrService();
         var updater = new AutoUpdaterService(spocrService, pkgManager.Object, fileManager, consoleMock.Object);
 
         await updater.RunAsync();

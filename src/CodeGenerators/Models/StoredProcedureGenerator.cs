@@ -275,6 +275,8 @@ public class StoredProcedureGenerator(
         var isJson = storedProcedure.ReturnsJson;
         var isJsonArray = isJson && storedProcedure.ReturnsJsonArray;
 
+        var requiresAsync = isJson && kind == StoredProcedureMethodKind.Deserialize && !isOverload;
+
         var rawJson = false;
         if (isJson && kind == StoredProcedureMethodKind.Raw)
         {
@@ -293,13 +295,13 @@ public class StoredProcedureGenerator(
                 returnType = $"Task<List<{returnModel}>>";
                 // Call raw method (which returns JSON string) then deserialize to list; fallback to empty list if null
                 var rawCall = $"{storedProcedure.Name}Async({(storedProcedure.HasInputs() ? "input, " : string.Empty)}cancellationToken)";
-                returnExpression = $"System.Text.Json.JsonSerializer.Deserialize<List<{returnModel}>>(await {rawCall}) ?? new List<{returnModel}>()";
+                returnExpression = $"System.Text.Json.JsonSerializer.Deserialize<List<{returnModel}>>(await {rawCall}, new System.Text.Json.JsonSerializerOptions {{ PropertyNameCaseInsensitive = true }}) ?? new List<{returnModel}>()";
             }
             else
             {
                 returnType = $"Task<{returnModel}>";
                 var rawCall = $"{storedProcedure.Name}Async({(storedProcedure.HasInputs() ? "input, " : string.Empty)}cancellationToken)";
-                returnExpression = $"System.Text.Json.JsonSerializer.Deserialize<{returnModel}>(await {rawCall})";
+                returnExpression = $"System.Text.Json.JsonSerializer.Deserialize<{returnModel}>(await {rawCall}, new System.Text.Json.JsonSerializerOptions {{ PropertyNameCaseInsensitive = true }})";
             }
         }
         else if (!rawJson && storedProcedure.IsScalarResult())
@@ -341,6 +343,11 @@ public class StoredProcedureGenerator(
         }
 
         methodNode = methodNode.WithReturnType(SyntaxFactory.ParseTypeName(returnType).WithTrailingTrivia(SyntaxFactory.Space));
+
+        if (requiresAsync && !methodNode.Modifiers.Any(m => m.IsKind(SyntaxKind.AsyncKeyword)))
+        {
+            methodNode = methodNode.WithModifiers(methodNode.Modifiers.Add(SyntaxFactory.Token(SyntaxKind.AsyncKeyword)));
+        }
 
         var returnStatementSyntax = statements.Single(i => i is ReturnStatementSyntax);
         var returnStatementSyntaxIndex = statements.IndexOf(returnStatementSyntax);

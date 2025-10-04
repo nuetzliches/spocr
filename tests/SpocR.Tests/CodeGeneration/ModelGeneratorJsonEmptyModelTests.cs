@@ -37,19 +37,25 @@ public class ModelGeneratorJsonEmptyModelTests
             dict["Models/Model.cs"] = root;
         }
 
-        // Create StoredProcedureModel with ReturnsJson but without JsonColumns and Outputs
+        // Create StoredProcedureModel with ReturnsJson but without JSON columns and Outputs
         var spModel = new StoredProcedureModel(new SpocR.DataContext.Models.StoredProcedure { Name = spName, SchemaName = "dbo" })
         {
             Input = new List<StoredProcedureInputModel>(),
-            Output = new List<StoredProcedureOutputModel>()
         };
         spModel.Content = new StoredProcedureContentModel
         {
-            ReturnsJson = true,
-            ReturnsJsonArray = true,
-            ReturnsJsonWithoutArrayWrapper = false,
-            JsonColumns = new List<StoredProcedureContentModel.JsonColumn>() // empty -> triggers empty model path
+            ResultSets = new[]
+            {
+                new StoredProcedureContentModel.ResultSet
+                {
+                    ReturnsJson = true,
+                    ReturnsJsonArray = true,
+                    ReturnsJsonWithoutArrayWrapper = false,
+                    Columns = System.Array.Empty<StoredProcedureContentModel.ResultColumn>()
+                }
+            }
         };
+
 
         var schemaModel = new SchemaModel
         {
