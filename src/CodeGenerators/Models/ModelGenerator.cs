@@ -114,7 +114,7 @@ public class ModelGenerator(
             var storedProcedures = schema.StoredProcedures
                 .Where(i => i.ReadWriteKind == Definition.ReadWriteKindEnum.Read).ToList();
 
-            if (!(storedProcedures.Count != 0))
+            if (storedProcedures.Count == 0)
             {
                 continue;
             }
@@ -128,19 +128,59 @@ public class ModelGenerator(
 
             foreach (var storedProcedure in storedProcedures)
             {
-                var hasResultCols = storedProcedure.Columns?.Any() ?? false;
-                var isScalarResultCols = hasResultCols && !storedProcedure.ReturnsJson && storedProcedure.Columns.Count == 1;
-
-                // Skip model if scalar non-JSON
-                if (!storedProcedure.ReturnsJson && isScalarResultCols)
+                // Multi-ResultSet strategy:
+                // - First result set keeps existing base model name (storedProcedure.Name)
+                // - Additional result sets (index >=1) get suffix _1, _2, ...
+                //   Suffix number = resultSetIndex (0-based) to keep it predictable.
+                var resultSets = storedProcedure.ResultSets;
+                // Fallback: treat existing Columns/Flags as single primary (backward compatibility through Definition wrapper)
+                if (resultSets == null || resultSets.Count == 0)
+                {
+                    await WriteSingleModelAsync(schema, storedProcedure, path, isDryRun);
                     continue;
+                }
 
-                var fileName = $"{storedProcedure.Name}.cs";
-                var fileNameWithPath = Path.Combine(path, fileName);
-                var sourceText = await GetModelTextForStoredProcedureAsync(schema, storedProcedure);
+                for (var rIndex = 0; rIndex < resultSets.Count; rIndex++)
+                {
+                    var modelSp = storedProcedure;
+                    // We need a lightweight clone to override column exposure via Definition wrapper semantics.
+                    // Instead of altering Definition we temporarily project a synthetic StoredProcedureModel when index>0.
+                    // NOTE: Minimal invasive: reuse GetModelTextForStoredProcedureAsync which relies on Definition.StoredProcedure.Columns/ReturnsJson.
+                    if (rIndex > 0)
+                    {
+                        // Build synthetic model object replicating name with suffix and mapping only the target result set as primary.
+                        var suffixName = storedProcedure.Name + "_" + rIndex; // _1, _2, ...
+                        var spModel = new SpocR.Models.StoredProcedureModel(new SpocR.DataContext.Models.StoredProcedure
+                        {
+                            Name = suffixName,
+                            SchemaName = schema.Name
+                        })
+                        {
+                            Content = new StoredProcedureContentModel
+                            {
+                                ResultSets = new[] { resultSets[rIndex] }
+                            }
+                        };
+                        // Wrap again into Definition to leverage existing logic
+                        modelSp = Definition.ForStoredProcedure(spModel, schema);
+                    }
 
-                await Output.WriteAsync(fileNameWithPath, sourceText, isDryRun);
+                    await WriteSingleModelAsync(schema, modelSp, path, isDryRun);
+                }
             }
         }
+    }
+
+    private async Task WriteSingleModelAsync(Definition.Schema schema, Definition.StoredProcedure storedProcedure, string path, bool isDryRun)
+    {
+        var hasResultCols = storedProcedure.Columns?.Any() ?? false;
+        var isScalarResultCols = hasResultCols && !storedProcedure.ReturnsJson && storedProcedure.Columns.Count == 1;
+        if (!storedProcedure.ReturnsJson && isScalarResultCols)
+            return; // skip scalar tabular model
+
+        var fileName = $"{storedProcedure.Name}.cs";
+        var fileNameWithPath = Path.Combine(path, fileName);
+        var sourceText = await GetModelTextForStoredProcedureAsync(schema, storedProcedure);
+        await Output.WriteAsync(fileNameWithPath, sourceText, isDryRun);
     }
 }

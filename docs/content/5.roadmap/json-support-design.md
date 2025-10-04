@@ -5,8 +5,8 @@ Target Version: Next Minor
 
 ## 1. Current State
 
-- Stored procedures with `FOR JSON` are detected via parser flags (`ReturnsJson`, `ReturnsJsonArray`, `ReturnsJsonWithoutArrayWrapper`).
-- On master the generated method for JSON returning procedures currently returns `Task<string>` (raw JSON) e.g. `Task<string> FooListAsJsonAsync(...)`.
+- Stored procedures with a JSON first result set are detected via parser flags (`ResultSets[0].ReturnsJson`, plus shape flags `ReturnsJsonArray`, `ReturnsJsonWithoutArrayWrapper`).
+- The generated method for JSON returning procedures keeps returning `Task<string>` (raw JSON) e.g. `Task<string> FooListAsync(...)`.
 - JSON model generation was recently added. Models are generated when a procedure returns JSON and we inferred columns or produce an empty class as fallback.
 - Runtime JSON access happens via `ReadJsonAsync` / `ReadJsonAsync<T>` in `AppDbContextExtensions.base.cs`.
 - Potential breaking behavior: Existing JSON-returning procedures now yield typed return values where previously a raw string may have been expected.
@@ -22,22 +22,22 @@ Target Version: Next Minor
 
 ### 3.1 StoredProcedureExtensions Overloads (Raw + Deserialize)
 
-Current (to keep):
+Current (raw JSON method to keep):
 
 ```csharp
-Task<string> FooListAsJsonAsync(...)
+Task<string> FooListAsync(...)
 ```
 
-Add typed deserialize overload (array case):
+Added typed deserialize overload (array case):
 
 ```csharp
-Task<List<FooListAsJson>> FooListAsJsonDeserializeAsync(...)
+Task<List<FooList>> FooListDeserializeAsync(...)
 ```
 
 Single-object JSON (WITHOUT ARRAY WRAPPER):
 
 ```csharp
-Task<FooFindAsJson> FooFindAsJsonDeserializeAsync(...)
+Task<FooFind> FooFindDeserializeAsync(...)
 ```
 
 Implementation notes:
@@ -46,7 +46,7 @@ Implementation notes:
 - Add `DeserializeAsync` suffix for the typed variant.
 - Internally call raw method then `JsonSerializer.Deserialize<T>`.
 - Generate both pipe-based and context-based overloads consistent with existing pattern.
-- Collision handling: If `FooListAsJsonDeserializeAsync` already exists, fall back to `FooListAsJsonToModelAsync`.
+- Collision handling: If `FooListDeserializeAsync` already exists, fall back to `FooListToModelAsync`.
 
 ### 3.2 Always Generate Models
 
@@ -80,12 +80,12 @@ Mapping / semantics (future intent):
 
 ### 3.4 Migration & Versioning
 
-| Aspect                 | Strategy                                                   |
-| ---------------------- | ---------------------------------------------------------- |
-| Raw JSON method naming | Keep existing `<Name>AsJsonAsync` returning `Task<string>` |
-| Typed JSON overload    | Add `<Name>AsJsonDeserializeAsync` (array/single)          |
-| JSON models            | Always generated (no config flag)                          |
-| Multi-result (future)  | Internal evolution, no external deprecation                |
+| Aspect                 | Strategy                                             |
+| ---------------------- | ---------------------------------------------------- |
+| Raw JSON method naming | Keep existing `<Name>Async` returning `Task<string>` |
+| Typed JSON overload    | Add `<Name>DeserializeAsync` (array/single)          |
+| JSON models            | Always generated (no config flag)                    |
+| Multi-result (future)  | Internal evolution, no external deprecation          |
 
 ## 4. Implementation Plan (Phased)
 

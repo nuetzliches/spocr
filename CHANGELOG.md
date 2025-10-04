@@ -5,6 +5,10 @@ Format loosely inspired by Keep a Changelog. Dates use ISO 8601 (UTC).
 
 ## [Unreleased]
 
+### Added
+
+- Reference documentation page `3.reference/json-procedures.md` detailing raw vs typed (`DeserializeAsync`) JSON stored procedure method generation and model fallback behavior.
+
 - (planned) Reactivate integration tests (LocalDB)
 - (planned) Multi-suite JUnit/XML output (separate unit/integration suites)
 - (planned) Rollback mechanism for AI‑agent workflows

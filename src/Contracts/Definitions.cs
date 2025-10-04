@@ -127,6 +127,8 @@ public static class Definition
         public bool ReturnsJsonArray => FirstResultSet?.ReturnsJsonArray ?? false;
         public string JsonRootProperty => FirstResultSet?.JsonRootProperty;
         public IReadOnlyList<StoredProcedureContentModel.ResultColumn> Columns => FirstResultSet?.Columns ?? Array.Empty<StoredProcedureContentModel.ResultColumn>();
+        // Expose raw ResultSets for advanced generators (multi-set naming)
+        public IReadOnlyList<StoredProcedureContentModel.ResultSet> ResultSets => storedProcedure.ResultSets;
 
         public IEnumerable<StoredProcedureInputModel> Input => storedProcedure.Input ?? [];
     }
