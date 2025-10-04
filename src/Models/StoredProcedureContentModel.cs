@@ -162,6 +162,8 @@ public class StoredProcedureContentModel
         // Added for unified non-JSON result typing (formerly from StoredProcedureOutputModel)
         public string SqlTypeName { get; set; }
         public bool? IsNullable { get; set; }
+        // Preserve original length metadata (was present on legacy output model & inputs)
+        public int? MaxLength { get; set; }
     }
 
     public sealed class ResultSet

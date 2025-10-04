@@ -227,7 +227,8 @@ public class SchemaManager(
                                     SourceTable = null,
                                     SourceColumn = null,
                                     SqlTypeName = o.SqlTypeName,
-                                    IsNullable = o.IsNullable
+                                    IsNullable = o.IsNullable,
+                                    MaxLength = o.MaxLength
                                 }).ToArray();
                             var syntheticSet = new StoredProcedureContentModel.ResultSet
                             {
@@ -278,7 +279,8 @@ public class SchemaManager(
                             {
                                 Name = o.Name,
                                 SqlTypeName = o.SqlTypeName,
-                                IsNullable = o.IsNullable
+                                IsNullable = o.IsNullable,
+                                MaxLength = o.MaxLength
                             }).ToArray();
                             var syntheticSet = new StoredProcedureContentModel.ResultSet
                             {
