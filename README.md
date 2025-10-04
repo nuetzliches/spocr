@@ -6,7 +6,7 @@
 [![Build Status](https://img.shields.io/github/actions/workflow/status/nuetzliches/spocr/test.yml?branch=main)](https://github.com/nuetzliches/spocr/actions)
 [![Code Coverage](https://img.shields.io/badge/coverage-check%20actions-blue)](https://github.com/nuetzliches/spocr/actions)
 
-**SpocR** is a powerful code generator for SQL Server stored procedures that creates strongly typed C# classes for inputs, outputs, and execution. Eliminate boilerplate data access code and increase type safety in your .NET applications.
+**SpocR** is a powerful code generator for SQL Server stored procedures that creates strongly typed C# classes for inputs, models, and execution. Eliminate boilerplate data access code and increase type safety in your .NET applications.
 
 ## ✨ Features
 
@@ -16,8 +16,10 @@
 - **🔧 Extensible**: Customize naming conventions, output structure, and generation behavior
 - **📊 JSON Support**: Handle complex JSON return types with optional deserialization strategies
 - **🏗️ CI/CD Ready**: Seamlessly integrate into build pipelines and automated workflows
-- **🧮 Smart JSON Heuristics**: Automatically infers JSON result shape (array vs single object, WITHOUT ARRAY WRAPPER, ROOT names) even for manually authored `*AsJson` procedures
+- **🧮 JSON UDTT Mapping**: JSON result columns typed via matching User Defined Table Type; legacy heuristic inference removed for determinism
 - **🧠 Cache Control**: Opt-in pull cache speeds up repeated executions while `--no-cache` forces a guaranteed full re-parse when validating parser / heuristic changes
+- **🔍 Snapshot-Only Architecture**: Generation uses fingerprinted schema snapshots (`.spocr/schema/*.json`) decoupled from config persistence
+- **🚫 Ignored Schemas Simplified**: Replace legacy per-schema status list with a concise `Project.IgnoredSchemas` string array
 
 ## 🚀 Quick Start
 
@@ -111,6 +113,60 @@ spocr pull --no-cache
 to deliberately bypass both loading and saving the cache. This ensures every stored procedure is fully re-fetched and re-parsed (useful directly after changing parsing heuristics or when validating JSON metadata like `WITHOUT ARRAY WRAPPER`).
 
 Verbose output with `--verbose` will show `[proc-loaded]` lines for every procedure when `--no-cache` is active (no `[proc-skip]` entries appear) and a `[cache] Disabled (--no-cache)` banner.
+
+### Snapshot Maintenance
+
+Schema metadata used for generation is persisted as fingerprinted snapshot files under `.spocr/schema/`. Over time older snapshots can accumulate (each pull that detects changes writes a new file). Use:
+
+```
+
+spocr snapshot clean # keep latest 5 (default retention)
+spocr snapshot clean --keep 10 # keep latest 10
+spocr snapshot clean --all # delete all snapshot files
+spocr snapshot clean -d # dry-run: show what would be deleted
+
+```
+
+Snapshots are small JSON documents (procedures, result sets, UDTTs, stats). Retaining a short history can help diffing parser outcomes; prune aggressively in CI.
+
+### Ignoring Schemas (Snapshot-Only Mode)
+
+Older SpocR versions persisted a full `schema` array inside `spocr.json` with per-schema status values (Build / Ignore). This has been replaced by:
+
+```
+
+{
+"project": {
+"defaultSchemaStatus": "Build",
+"ignoredSchemas": [ "audit", "hangfire" ]
+}
+}
+
+```
+
+Rules:
+
+1. Every discovered DB schema defaults to `defaultSchemaStatus`.
+2. Any name present (case-insensitive) in `ignoredSchemas` is skipped entirely.
+3. The legacy `schema` node is migrated automatically on the first `spocr pull` after upgrading (ignored entries become `ignoredSchemas`; others are discarded). The node is then removed.
+4. Subsequent pulls never write the legacy node again; snapshots + `ignoredSchemas` are authoritative.
+
+Rationale:
+
+- Smaller, stable configuration surface
+- Deterministic generator inputs (snapshot + explicit ignores)
+- Faster config diffs and fewer merge conflicts
+
+Migration Output Example (`--verbose`):
+
+```
+
+[migration] Collected 2 ignored schema name(s) into Project.IgnoredSchemas
+[migration] Legacy 'schema' node removed; snapshot + IgnoredSchemas are now authoritative.
+
+```
+
+If you need to newly ignore a schema later, append it to the `ignoredSchemas` list and re-run `spocr pull` (a new snapshot fingerprint will be generated if affected procedures change).
 ```
 
 ### JSON Summary Artifact

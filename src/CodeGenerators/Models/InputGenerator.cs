@@ -21,7 +21,8 @@ public class InputGenerator(
     FileManager<ConfigurationModel> configFile,
     OutputService output,
     IConsoleService consoleService,
-    TemplateManager templateManager
+    TemplateManager templateManager,
+    ISchemaMetadataProvider metadataProvider
 ) : GeneratorBase(configFile, output, consoleService)
 {
     public async Task<SourceText> GetInputTextForStoredProcedureAsync(Definition.Schema schema, Definition.StoredProcedure storedProcedure)
@@ -35,9 +36,10 @@ public class InputGenerator(
             .GroupBy(t => t.TableTypeSchemaName, (key, group) => key)
             .ToList();
 
+        var providerSchemas = metadataProvider.GetSchemas();
         foreach (var tableTypeSchema in tableTypeSchemas)
         {
-            var tableTypeSchemaConfig = ConfigFile.Config.Schema.Find(s => s.Name.Equals(tableTypeSchema));
+            var tableTypeSchemaConfig = providerSchemas.FirstOrDefault(s => s.Name.Equals(tableTypeSchema, System.StringComparison.OrdinalIgnoreCase));
             var usingDirective = templateManager.CreateTableTypeImport(tableTypeSchema, tableTypeSchemaConfig);
             root = root.AddUsings(usingDirective);
         }
@@ -112,7 +114,7 @@ public class InputGenerator(
             ConfigFile.Config.Project.Output.DataContext.Inputs = defaultConfig.Project.Output.DataContext.Inputs;
         }
 
-        var schemas = ConfigFile.Config.Schema
+        var schemas = metadataProvider.GetSchemas()
             .Where(i => i.Status == SchemaStatusEnum.Build && (i.StoredProcedures?.Any() ?? false))
             .Select(Definition.ForSchema);
 

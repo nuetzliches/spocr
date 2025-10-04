@@ -6,7 +6,38 @@ Thank you for your interest in SpocR! This project welcomes issues and pull requ
 
 - Small, focused changes are easier to review.
 - Before starting a major feature: open an issue and discuss it first.
-- No direct commits to `master` – work through branches.
+- No direct commits to `main` – work through branches.
+- A protected `develop` branch aggregates all feature and fix work prior to release stabilization.
+
+## Branch / Workflow Model
+
+The repository follows a lightweight trunk+integration flow:
+
+Branches:
+
+| Branch                 | Purpose                                                                                                        |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `main`                 | Always releasable. Only fast‑forward merges from `develop` (release readiness) and hotfix PRs.                 |
+| `develop`              | Integration branch for completed feature / fix PRs. May be occasionally rebased / cleaned before release cut.  |
+| `feature/*`            | New features or sizeable refactors. PR -> `develop`.                                                           |
+| `fix/*`                | Bug fixes. PR -> `develop` (or hotfix -> `main` if urgent).                                                    |
+| `docs/*`               | Documentation only changes. PR -> `develop` (or `main` if purely editorial).                                   |
+| `release/*` (optional) | Short‑lived stabilization branch if a larger batch needs hardening; merges back to `main` then into `develop`. |
+
+Rules:
+
+1. Open an issue (or link an existing one) for any non‑trivial feature.
+2. Branch from `develop` for normal work; branch from `main` only for emergency hotfixes.
+3. Keep PRs small & focused; rebase onto latest `develop` before requesting review.
+4. CI must be green (build + tests + quality gates) before merge.
+5. Squash merge to keep history tidy (unless a release branch merge – then use merge commit to preserve context).
+6. After a release: tag on `main`, then fast‑forward `develop` if diverged.
+
+Protection Suggestions (configure in repository settings):
+
+- `main`: require PR, status checks, linear history (optional), signed commits (optional).
+- `develop`: require PR + status checks; allow fast‑forward only or squash merges.
+- Disallow force pushes except for administrators (avoid rewriting public history).
 
 ## Branch Naming Convention
 
@@ -153,3 +184,39 @@ No credentials in commits. For local tests: use `.env` or User Secrets (not in r
 Use GitHub Issues or Discussions. For major architectural changes, please create an RFC issue.
 
 Thanks for your contribution! 🙌
+
+## Local Procedure Metadata Cache
+
+The schema load step maintains a lightweight local cache under `.spocr/cache/<fingerprint>.json` to avoid re-querying stored procedure definitions when they haven't changed.
+
+What is cached:
+
+- Procedure name, schema, last `ModifiedTicks`
+- Input parameters (including table types & output flags)
+- Parsed / synthesized result sets (JSON flags, columns)
+
+Skip Conditions:
+
+- If `ModifiedTicks` in SQL (`sys.objects.modify_date`) is unchanged, definition + inputs + result set shape are hydrated from cache (no definition / input queries executed).
+
+When it does NOT skip:
+
+- Procedure altered (ticks differ)
+- `--no-cache` flag supplied
+- Cache fingerprint changed (schema selection, project id, procedure count)
+
+Force re-parse:
+
+```
+spocr build --path <config> --no-cache
+```
+
+Troubleshooting:
+
+- Use `--verbose` to see `[proc-skip]` vs `[proc-loaded]` lines.
+- Delete `.spocr/cache` if fingerprint collisions are suspected.
+
+Planned Improvements:
+
+- Incorporate database name/connection hash into fingerprint
+- Optional size/time metrics per skip vs load cycle

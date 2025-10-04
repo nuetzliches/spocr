@@ -14,6 +14,7 @@ namespace SpocR.Managers;
 public class SchemaManager(
     DbContext dbContext,
     IConsoleService consoleService,
+    ISchemaSnapshotService schemaSnapshotService,
     ILocalCacheService localCacheService = null
 )
 {
@@ -27,18 +28,46 @@ public class SchemaManager(
 
         var schemas = dbSchemas?.Select(i => new SchemaModel(i)).ToList();
 
-        // overwrite with current config
+        // Legacy schema list (config.Schema) still present -> use its statuses first
         if (config?.Schema != null)
         {
             foreach (var schema in schemas)
             {
-                // ! Do not compare with Id. The Id is different for each SQL-Server Instance
                 var currentSchema = config.Schema.SingleOrDefault(i => i.Name == schema.Name);
-                // TODO define a global and local Property "onNewSchemaFound" (IGNORE, BUILD, WARN, PROMPT) to set the default Status
                 schema.Status = (currentSchema != null)
                     ? currentSchema.Status
                     : config.Project.DefaultSchemaStatus;
             }
+        }
+        else if (config?.Project != null)
+        {
+            // Snapshot-only mode (legacy schema node removed). Apply default + IgnoredSchemas list.
+            var ignored = config.Project.IgnoredSchemas ?? new List<string>();
+            foreach (var schema in schemas)
+            {
+                schema.Status = config.Project.DefaultSchemaStatus;
+                if (ignored.Contains(schema.Name, StringComparer.OrdinalIgnoreCase))
+                {
+                    schema.Status = SchemaStatusEnum.Ignore;
+                }
+            }
+            if (ignored.Count > 0)
+            {
+                consoleService.Verbose($"[ignore] Applied IgnoredSchemas list ({ignored.Count})");
+            }
+        }
+
+        // If both legacy and IgnoredSchemas exist (edge case during migration), let IgnoredSchemas override
+        if (config?.Schema != null && config.Project?.IgnoredSchemas?.Any() == true)
+        {
+            foreach (var schema in schemas)
+            {
+                if (config.Project.IgnoredSchemas.Contains(schema.Name, StringComparer.OrdinalIgnoreCase))
+                {
+                    schema.Status = SchemaStatusEnum.Ignore;
+                }
+            }
+            consoleService.Verbose($"[ignore] IgnoredSchemas override applied ({config.Project.IgnoredSchemas.Count})");
         }
 
         // reorder schemas, ignored at top
@@ -93,6 +122,36 @@ public class SchemaManager(
 
         // NOTE: Current Modified Ticks werden aus dem sys.objects modify_date geladen (siehe StoredProcedure.Modified)
 
+        // Build snapshot procedure lookup (latest snapshot) for hydration of skipped procedures
+        Dictionary<string, Dictionary<string, SnapshotProcedure>> snapshotProcMap = null;
+        try
+        {
+            if (!disableCache) // only attempt if not a forced full refresh
+            {
+                var working = Utils.DirectoryUtils.GetWorkingDirectory();
+                var schemaDir = System.IO.Path.Combine(working, ".spocr", "schema");
+                if (System.IO.Directory.Exists(schemaDir))
+                {
+                    var latest = System.IO.Directory.GetFiles(schemaDir, "*.json")
+                        .Select(f => new System.IO.FileInfo(f))
+                        .OrderByDescending(fi => fi.LastWriteTimeUtc)
+                        .FirstOrDefault();
+                    if (latest != null)
+                    {
+                        var snap = schemaSnapshotService.Load(System.IO.Path.GetFileNameWithoutExtension(latest.Name));
+                        if (snap?.Procedures?.Any() == true)
+                        {
+                            snapshotProcMap = snap.Procedures
+                                .GroupBy(p => p.Schema, StringComparer.OrdinalIgnoreCase)
+                                .ToDictionary(g => g.Key, g => g.ToDictionary(p => p.Name, p => p, StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase);
+                            consoleService.Verbose($"[snapshot-hydrate] Loaded previous snapshot for hydration (fingerprint={snap.Fingerprint})");
+                        }
+                    }
+                }
+            }
+        }
+        catch { /* best effort, ignore */ }
+
         foreach (var schema in schemas)
         {
             schema.StoredProcedures = storedProcedures.Where(i => i.SchemaName.Equals(schema.Name))?.Select(i => new StoredProcedureModel(i))?.ToList();
@@ -115,11 +174,54 @@ public class SchemaManager(
 
                 // Current modify_date from DB list (DateTime) -> ticks
                 var currentModifiedTicks = storedProcedure.Modified.Ticks;
-                var previousModifiedTicks = cache?.GetModifiedTicks(storedProcedure.SchemaName, storedProcedure.Name);
+                var cacheEntry = cache?.Procedures.FirstOrDefault(p => p.Schema == storedProcedure.SchemaName && p.Name == storedProcedure.Name);
+                var previousModifiedTicks = cacheEntry?.ModifiedTicks;
                 var canSkipDetails = !disableCache && previousModifiedTicks.HasValue && previousModifiedTicks.Value == currentModifiedTicks;
                 if (canSkipDetails)
                 {
                     consoleService.Verbose($"[proc-skip] {storedProcedure.SchemaName}.{storedProcedure.Name} unchanged (ticks={currentModifiedTicks})");
+                    // Hydrate minimal metadata from last snapshot (faster & canonical) instead of cache extended metadata
+                    if (snapshotProcMap != null && snapshotProcMap.TryGetValue(storedProcedure.SchemaName, out var spMap) && spMap.TryGetValue(storedProcedure.Name, out var snapProc))
+                    {
+                        if (snapProc.Inputs?.Any() == true && (storedProcedure.Input == null || !storedProcedure.Input.Any()))
+                        {
+                            storedProcedure.Input = snapProc.Inputs.Select(i => new StoredProcedureInputModel(new DataContext.Models.StoredProcedureInput
+                            {
+                                Name = i.Name,
+                                SqlTypeName = i.SqlTypeName,
+                                IsNullable = i.IsNullable,
+                                MaxLength = i.MaxLength,
+                                IsOutput = i.IsOutput,
+                                IsTableType = i.IsTableType,
+                                UserTypeName = i.TableTypeName,
+                                UserTypeSchemaName = i.TableTypeSchema
+                            })).ToList();
+                        }
+                        if (snapProc.ResultSets?.Any() == true && (storedProcedure.Content?.ResultSets == null || !storedProcedure.Content.ResultSets.Any()))
+                        {
+                            var rsModels = snapProc.ResultSets.Select(rs => new StoredProcedureContentModel.ResultSet
+                            {
+                                ReturnsJson = rs.ReturnsJson,
+                                ReturnsJsonArray = rs.ReturnsJsonArray,
+                                ReturnsJsonWithoutArrayWrapper = rs.ReturnsJsonWithoutArrayWrapper,
+                                JsonRootProperty = rs.JsonRootProperty,
+                                Columns = rs.Columns.Select(c => new StoredProcedureContentModel.ResultColumn
+                                {
+                                    Name = c.Name,
+                                    SqlTypeName = c.SqlTypeName,
+                                    IsNullable = c.IsNullable,
+                                    MaxLength = c.MaxLength
+                                }).ToArray()
+                            }).ToArray();
+                            storedProcedure.Content = new StoredProcedureContentModel
+                            {
+                                Definition = null,
+                                Statements = Array.Empty<string>(),
+                                ContainsSelect = true,
+                                ResultSets = rsModels
+                            };
+                        }
+                    }
                 }
                 else if (previousModifiedTicks.HasValue)
                 {

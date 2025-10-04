@@ -121,7 +121,7 @@ Goal: Make documentation machine-consumable to:
 7. "Behavior Contracts" section per command including:
 
 - Inputs (parameters + type + required)
-- Outputs (files / console / exit codes)
+  # (Legacy 'Outputs' generator removed) Console output reporting & exit codes
 - Error cases & exit codes
 
 ### Beispiel Behavior Contract (Build Command)

@@ -4,24 +4,26 @@ description: Code generator for SQL Server stored procedures that creates strong
 layout: landing
 ---
 
-::hero
----
+## ::hero
+
 title: 'SpocR'
-description: 'Code generator for SQL Server stored procedures that creates strongly typed C# classes for inputs, outputs, and execution.'
+description: 'Code generator for SQL Server stored procedures that creates strongly typed C# classes for inputs, models, and execution.'
 headline: 'SQL to C# Code Generation'
 links:
-  - label: 'Get Started'
-    to: '/getting-started/installation'
-    size: 'lg'
-    color: 'black'
-    icon: 'i-heroicons-rocket-launch'
-  - label: 'View on GitHub'
-    to: 'https://github.com/nuetzliches/spocr'
-    size: 'lg'
-    color: 'white'
-    variant: 'outline'
-    icon: 'i-simple-icons-github'
-    target: '_blank'
+
+- label: 'Get Started'
+  to: '/getting-started/installation'
+  size: 'lg'
+  color: 'black'
+  icon: 'i-heroicons-rocket-launch'
+- label: 'View on GitHub'
+  to: 'https://github.com/nuetzliches/spocr'
+  size: 'lg'
+  color: 'white'
+  variant: 'outline'
+  icon: 'i-simple-icons-github'
+  target: '\_blank'
+
 ---
 
 #title
@@ -32,42 +34,51 @@ Generate strongly typed C# classes from SQL Server stored procedures with minima
 
 ::
 
-::section
----
-title: 'Why SpocR?'
----
+## ::section
+
+## title: 'Why SpocR?'
 
 ::u-container
 :::card-group
 :::card
+
 ---
+
 title: 'Type Safety'
 icon: 'i-heroicons-shield-check'
+
 ---
+
 Generate strongly typed C# classes that catch errors at compile time instead of runtime.
 :::
 
-:::card
----
+## :::card
+
 title: 'Zero Boilerplate'
 icon: 'i-heroicons-bolt'
+
 ---
+
 Eliminate manual mapping code. SpocR handles the tedious data access layer for you.
 :::
 
-:::card
----
+## :::card
+
 title: 'Fast Integration'
 icon: 'i-heroicons-bolt'
+
 ---
+
 Integrate into existing .NET solutions within minutes, not hours.
 :::
 
-:::card
----
+## :::card
+
 title: 'Extensible'
 icon: 'i-heroicons-puzzle-piece'
+
 ---
+
 Customize naming conventions, output structure, and generation behavior.
 :::
 :::
@@ -75,15 +86,15 @@ Customize naming conventions, output structure, and generation behavior.
 
 ::
 
-::section
----
-title: 'Quick Start'
----
+## ::section
+
+## title: 'Quick Start'
 
 ::u-container
 Get up and running with SpocR in under 5 minutes:
 
 :::code-group
+
 ```bash [Install]
 dotnet tool install --global SpocR
 ```
@@ -99,6 +110,7 @@ spocr pull --connection "Server=.;Database=AppDb;Trusted_Connection=True;"
 ```bash [Generate]
 spocr build
 ```
+
 :::
 
 :::callout
@@ -109,15 +121,15 @@ spocr build
 
 ::
 
-<!-- ::section
----
-title: 'Example Usage'
----
+## <!-- ::section
+
+## title: 'Example Usage'
 
 ::u-container
 See how clean your data access becomes:
 
 :::code-group
+
 ```csharp [Before SpocR]
 // Manual, error-prone approach
 var command = new SqlCommand("EXEC GetUserById", connection);
@@ -138,8 +150,8 @@ while (await reader.ReadAsync()) {
 ```csharp [With SpocR]
 // Generated, type-safe approach
 var context = new GeneratedDbContext(connectionString);
-var result = await context.GetUserByIdAsync(new GetUserByIdInput { 
-    UserId = 123 
+var result = await context.GetUserByIdAsync(new GetUserByIdInput {
+    UserId = 123
 });
 
 // Strongly typed, no manual mapping needed!
@@ -147,24 +159,27 @@ foreach (var user in result) {
     Console.WriteLine($"{user.Name} - {user.Email}");
 }
 ```
+
 :::
 ::
 
 :: -->
 
-::section
----
+## ::section
+
 title: 'Ready to get started?'
 links:
-  - label: 'Installation Guide'
-    to: '/getting-started/installation'
-    color: 'black'
-    size: 'lg'
-  - label: 'CLI Reference'
-    to: '/cli'
-    variant: 'outline'
-    color: 'black'
-    size: 'lg'
+
+- label: 'Installation Guide'
+  to: '/getting-started/installation'
+  color: 'black'
+  size: 'lg'
+- label: 'CLI Reference'
+  to: '/cli'
+  variant: 'outline'
+  color: 'black'
+  size: 'lg'
+
 ---
 
 ::u-container
@@ -173,42 +188,51 @@ Join developers who've eliminated thousands of lines of boilerplate code with Sp
 
 ::
 
-::section
----
-title: 'Features'
----
+## ::section
+
+## title: 'Features'
 
 ::u-container
 :::card-group
 :::card
+
 ---
+
 title: 'Multiple Output Formats'
 icon: 'i-heroicons-document-duplicate'
+
 ---
+
 Generate models, data contexts, and extensions with flexible output options.
 :::
 
-:::card
----
+## :::card
+
 title: 'JSON Support'
 icon: 'i-heroicons-code-bracket'
+
 ---
+
 Handle complex JSON return types with optional deserialization strategies.
 :::
 
-:::card
----
+## :::card
+
 title: 'Custom Types'
 icon: 'i-heroicons-variable'
+
 ---
+
 Support for custom scalar types, table types, and complex parameter structures.
 :::
 
-:::card
----
+## :::card
+
 title: 'CI/CD Ready'
 icon: 'i-heroicons-cog-6-tooth'
+
 ---
+
 Integrate seamlessly into build pipelines and automated deployment workflows.
 :::
 :::

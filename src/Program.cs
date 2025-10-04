@@ -7,6 +7,7 @@ using SpocR.Commands.Project;
 using SpocR.Commands.Schema;
 using SpocR.Commands.Spocr;
 using SpocR.Commands.StoredProcdure;
+using SpocR.Commands.Snapshot;
 using SpocR.DataContext;
 using SpocR.Extensions;
 using SpocR.AutoUpdater;
@@ -27,6 +28,7 @@ namespace SpocR;
 [Subcommand(typeof(ProjectCommand))]
 [Subcommand(typeof(SchemaCommand))]
 [Subcommand(typeof(StoredProcdureCommand))]
+[Subcommand(typeof(SnapshotCommand))]
 [Subcommand(typeof(SpocR.Commands.Test.TestCommand))]
 [HelpOption("-?|-h|--help")]
 public class Program

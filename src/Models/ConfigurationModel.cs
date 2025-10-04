@@ -54,6 +54,8 @@ public class ProjectModel
     public DataBaseModel DataBase { get; set; } = new DataBaseModel();
     public OutputModel Output { get; set; } = new OutputModel();
     public SchemaStatusEnum DefaultSchemaStatus { get; set; } = SchemaStatusEnum.Build;
+    // New: list of schema names that are explicitly ignored (migration target replacing legacy Schema list)
+    public List<string> IgnoredSchemas { get; set; } = new();
 }
 
 public class RoleModel

@@ -71,6 +71,9 @@ namespace SpocR.Extensions
             services.AddSingleton<SpocrConfigManager>();
             // Local metadata cache (stored procedure modify_date snapshot)
             services.AddSingleton<ILocalCacheService, LocalCacheService>();
+            services.AddSingleton<ISchemaSnapshotService, SchemaSnapshotService>();
+            services.AddSingleton<ISchemaMetadataProvider, SnapshotSchemaMetadataProvider>();
+            services.AddSingleton<SnapshotMaintenanceManager>();
         }
 
         /// <summary>
@@ -107,7 +110,6 @@ namespace SpocR.Extensions
             // Template and generator services
             services.AddSingleton<TemplateManager>();
             services.AddSingleton<InputGenerator>();
-            services.AddSingleton<OutputGenerator>();
             services.AddSingleton<ModelGenerator>();
             services.AddSingleton<TableTypeGenerator>();
             services.AddSingleton<StoredProcedureGenerator>();

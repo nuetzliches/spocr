@@ -23,7 +23,8 @@ public class StoredProcedureGenerator(
     FileManager<ConfigurationModel> configFile,
     OutputService output,
     IConsoleService consoleService,
-    TemplateManager templateManager
+    TemplateManager templateManager,
+    ISchemaMetadataProvider metadataProvider
 ) : GeneratorBase(configFile, output, consoleService)
 {
     public async Task<SourceText> GetStoredProcedureExtensionsCodeAsync(Definition.Schema schema, List<Definition.StoredProcedure> storedProcedures)
@@ -91,7 +92,6 @@ public class StoredProcedureGenerator(
 
         foreach (var tableTypeSchema in tableTypeSchemas)
         {
-            var tableTypeSchemaConfig = ConfigFile.Config.Schema.Find(s => s.Name.Equals(tableTypeSchema));
             root = AddTableTypeImport(root, tableTypeSchema);
         }
 
@@ -391,7 +391,7 @@ public class StoredProcedureGenerator(
 
     public async Task GenerateDataContextStoredProceduresAsync(bool isDryRun)
     {
-        var schemas = ConfigFile.Config.Schema
+        var schemas = metadataProvider.GetSchemas()
             .Where(i => i.Status == SchemaStatusEnum.Build && (i.StoredProcedures?.Any() ?? false))
             .Select(Definition.ForSchema);
 

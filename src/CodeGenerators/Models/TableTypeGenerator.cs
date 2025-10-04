@@ -23,7 +23,8 @@ public class TableTypeGenerator(
     FileManager<ConfigurationModel> configFile,
     OutputService output,
     IConsoleService consoleService,
-    TemplateManager templateManager
+    TemplateManager templateManager,
+    ISchemaMetadataProvider metadataProvider
 ) : GeneratorBase(configFile, output, consoleService)
 {
     public async Task<SourceText> GetTableTypeTextAsync(Definition.Schema schema, Definition.TableType tableType)
@@ -82,7 +83,7 @@ public class TableTypeGenerator(
 
     public async Task GenerateDataContextTableTypesAsync(bool isDryRun)
     {
-        var schemas = ConfigFile.Config.Schema
+        var schemas = metadataProvider.GetSchemas()
             .Where(i => i.TableTypes?.Any() ?? false)
             .Select(Definition.ForSchema);
 

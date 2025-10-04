@@ -9,7 +9,7 @@ aiTags: [cli, build, generation]
 
 # build
 
-The `build` command generates all configured artifacts (input/output models, DbContext parts, mappings, etc.).
+The `build` command generates all configured artifacts (table types, inputs, models, stored procedure extensions, base context files).
 
 ## Usage
 
@@ -19,12 +19,12 @@ spocr build [Optionen]
 
 ## Options (Excerpt)
 
-| Option                | Type   | Description                                       |
-| --------------------- | ------ | ------------------------------------------------- |
-| `--project <name>`    | string | Override target project                           |
-| `--force`             | flag   | Overwrite existing files if necessary             |
-| `--generators <list>` | string | Comma-separated list to limit specific generators |
-| `--verbose`           | flag   | More verbose logging                              |
+| Option                | Type   | Description                                                       |
+| --------------------- | ------ | ----------------------------------------------------------------- |
+| `--project <name>`    | string | Override target project                                           |
+| `--force`             | flag   | Overwrite existing files if necessary                             |
+| `--generators <list>` | string | Comma-separated subset: TableTypes,Inputs,Models,StoredProcedures |
+| `--verbose`           | flag   | More verbose logging                                              |
 
 ## Behavior Contract (Draft)
 
@@ -58,7 +58,7 @@ spocr build [Optionen]
 ```bash
 spocr build
 spocr build --verbose
-spocr build --generators Inputs,Outputs
+spocr build --generators Inputs,Models
 
 ---
 Note: This document was translated from German on 2025-10-02 to comply with the English-only language policy.

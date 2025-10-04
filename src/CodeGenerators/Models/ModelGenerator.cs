@@ -20,7 +20,8 @@ public class ModelGenerator(
     FileManager<ConfigurationModel> configFile,
     OutputService output,
     IConsoleService consoleService,
-    TemplateManager templateManager
+    TemplateManager templateManager,
+    ISchemaMetadataProvider metadataProvider
 ) : GeneratorBase(configFile, output, consoleService)
 {
     public async Task<SourceText> GetModelTextForStoredProcedureAsync(Definition.Schema schema, Definition.StoredProcedure storedProcedure)
@@ -105,7 +106,7 @@ public class ModelGenerator(
 
     public async Task GenerateDataContextModels(bool isDryRun)
     {
-        var schemas = ConfigFile.Config.Schema
+        var schemas = metadataProvider.GetSchemas()
             .Where(i => i.Status == SchemaStatusEnum.Build && (i.StoredProcedures?.Any() ?? false))
             .Select(Definition.ForSchema);
 
