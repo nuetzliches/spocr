@@ -350,6 +350,8 @@ public class SpocrManager(
                                 ReturnsJsonArray = rs.ReturnsJsonArray,
                                 ReturnsJsonWithoutArrayWrapper = rs.ReturnsJsonWithoutArrayWrapper,
                                 JsonRootProperty = rs.JsonRootProperty,
+                                ExecSourceSchemaName = rs.ExecSourceSchemaName,
+                                ExecSourceProcedureName = rs.ExecSourceProcedureName,
                                 Columns = rs.Columns.Select(c => new SnapshotResultColumn
                                 {
                                     Name = c.Name,

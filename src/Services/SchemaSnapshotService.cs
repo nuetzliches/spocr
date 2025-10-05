@@ -126,6 +126,8 @@ public class SnapshotResultSet
     public bool ReturnsJsonWithoutArrayWrapper { get; set; }
     public string JsonRootProperty { get; set; }
     public List<SnapshotResultColumn> Columns { get; set; } = new();
+    public string ExecSourceSchemaName { get; set; }
+    public string ExecSourceProcedureName { get; set; }
 }
 
 public class SnapshotResultColumn

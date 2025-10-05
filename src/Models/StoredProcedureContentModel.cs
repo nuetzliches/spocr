@@ -211,6 +211,9 @@ public class StoredProcedureContentModel
         public bool ReturnsJsonWithoutArrayWrapper { get; init; }
         public string JsonRootProperty { get; init; }
         public IReadOnlyList<ResultColumn> Columns { get; init; } = Array.Empty<ResultColumn>();
+        // Forwarding metadata: when this ResultSet originated from an executed procedure (wrapper cloning)
+        public string ExecSourceSchemaName { get; init; }
+        public string ExecSourceProcedureName { get; init; }
     }
 
     public sealed class ExecutedProcedureCall

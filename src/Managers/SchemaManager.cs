@@ -439,13 +439,25 @@ public class SchemaManager(
                 if (content == null) continue;
                 var hasSets = content.ResultSets != null && content.ResultSets.Any();
                 bool onlyEmptyJsonSets = hasSets && content.ResultSets.All(rs => rs.ReturnsJson && (rs.Columns == null || rs.Columns.Count == 0));
-                if (hasSets && !onlyEmptyJsonSets) continue; // has meaningful sets -> skip
-                if (content.ExecutedProcedures == null || content.ExecutedProcedures.Count != 1) continue; // only single EXEC wrapper
+                if (hasSets && !onlyEmptyJsonSets)
+                {
+                    consoleService.Verbose($"[proc-forward-skip] {proc.SchemaName}.{proc.Name} has concrete result sets (hasSets && !onlyEmptyJsonSets)");
+                    continue; // has meaningful sets -> skip
+                }
+                if (content.ExecutedProcedures == null || content.ExecutedProcedures.Count != 1)
+                {
+                    if (content.ExecutedProcedures == null || content.ExecutedProcedures.Count == 0)
+                        consoleService.Verbose($"[proc-forward-skip] {proc.SchemaName}.{proc.Name} no executed procedures captured");
+                    else
+                        consoleService.Verbose($"[proc-forward-skip] {proc.SchemaName}.{proc.Name} multiple executed procedures ({content.ExecutedProcedures.Count})");
+                    continue; // only single EXEC wrapper
+                }
                 if (content.ContainsSelect || content.ContainsInsert || content.ContainsUpdate || content.ContainsDelete || content.ContainsMerge)
                 {
                     // If it has its own SELECT but only produced empty JSON sets, allow upgrade; otherwise skip
                     if (!onlyEmptyJsonSets)
                     {
+                        consoleService.Verbose($"[proc-forward-skip] {proc.SchemaName}.{proc.Name} contains its own DML/SELECT and sets not only empty json");
                         continue;
                     }
                 }
@@ -462,6 +474,8 @@ public class SchemaManager(
                     ReturnsJsonArray = rs.ReturnsJsonArray,
                     ReturnsJsonWithoutArrayWrapper = rs.ReturnsJsonWithoutArrayWrapper,
                     JsonRootProperty = rs.JsonRootProperty,
+                    ExecSourceSchemaName = target.Schema,
+                    ExecSourceProcedureName = target.Name,
                     Columns = rs.Columns.Select(c => new StoredProcedureContentModel.ResultColumn
                     {
                         Name = c.Name,
