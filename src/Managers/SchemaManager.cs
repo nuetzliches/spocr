@@ -73,12 +73,15 @@ public class SchemaManager(
         // reorder schemas, ignored at top
         schemas = schemas.OrderByDescending(schema => schema.Status).ToList();
 
-        var schemaListString = string.Join(',', schemas.Where(i => i.Status != SchemaStatusEnum.Ignore).Select(i => $"'{i.Name}'"));
-        if (string.IsNullOrEmpty(schemaListString))
+        var activeSchemas = schemas.Where(i => i.Status != SchemaStatusEnum.Ignore).ToList();
+        if (!activeSchemas.Any())
         {
+            // Fallback: if there are stored procedures later that reference schemas we ignored entirely due to config, we would miss them.
+            // To keep behavior stable for tests and migration, emit warning and return early.
             consoleService.Warn("No schemas found or all schemas ignored!");
             return schemas;
         }
+        var schemaListString = string.Join(',', activeSchemas.Select(i => $"'{i.Name}'"));
 
         var storedProcedures = await dbContext.StoredProcedureListAsync(schemaListString, cancellationToken);
 
@@ -267,60 +270,7 @@ public class SchemaManager(
                 }
                 storedProcedure.ModifiedTicks = currentModifiedTicks;
 
-                // Heuristic: If parser did not detect JSON but name ends with AsJson treat it as JSON returning (string payload)
-                var existingPrimaryJson = storedProcedure.Content?.ResultSets?.FirstOrDefault();
-                var hasJson = existingPrimaryJson?.ReturnsJson == true;
-                if (!canSkipDetails && !hasJson && storedProcedure.Name.EndsWith("AsJson", StringComparison.OrdinalIgnoreCase))
-                {
-                    // Synthetische JSON ResultSet hinzufügen
-                    var defForHeuristic = storedProcedure.Content?.Definition ?? definition ?? string.Empty;
-                    var withoutArray = defForHeuristic.IndexOf("WITHOUT ARRAY WRAPPER", StringComparison.OrdinalIgnoreCase) >= 0
-                        || defForHeuristic.IndexOf("WITHOUT_ARRAY_WRAPPER", StringComparison.OrdinalIgnoreCase) >= 0;
-                    string rootProp = null;
-                    // naive ROOT('name') extraction
-                    const string rootToken = "ROOT(";
-                    var rootIx = defForHeuristic.IndexOf(rootToken, StringComparison.OrdinalIgnoreCase);
-                    if (rootIx >= 0)
-                    {
-                        var startQuote = defForHeuristic.IndexOf('\'', rootIx);
-                        var endQuote = startQuote >= 0 ? defForHeuristic.IndexOf('\'', startQuote + 1) : -1;
-                        if (startQuote >= 0 && endQuote > startQuote)
-                        {
-                            rootProp = defForHeuristic.Substring(startQuote + 1, endQuote - startQuote - 1);
-                        }
-                    }
-                    var newSet = new StoredProcedureContentModel.ResultSet
-                    {
-                        ReturnsJson = true,
-                        ReturnsJsonArray = !withoutArray,
-                        ReturnsJsonWithoutArrayWrapper = withoutArray,
-                        JsonRootProperty = rootProp,
-                        Columns = Array.Empty<StoredProcedureContentModel.ResultColumn>()
-                    };
-                    var existingSets = storedProcedure.Content?.ResultSets ?? Array.Empty<StoredProcedureContentModel.ResultSet>();
-                    storedProcedure.Content = new StoredProcedureContentModel
-                    {
-                        Definition = storedProcedure.Content?.Definition ?? definition,
-                        // only keep flags still present
-                        ContainsSelect = storedProcedure.Content?.ContainsSelect ?? false,
-                        ContainsInsert = storedProcedure.Content?.ContainsInsert ?? false,
-                        ContainsUpdate = storedProcedure.Content?.ContainsUpdate ?? false,
-                        ContainsDelete = storedProcedure.Content?.ContainsDelete ?? false,
-                        ContainsMerge = storedProcedure.Content?.ContainsMerge ?? false,
-                        ContainsOpenJson = storedProcedure.Content?.ContainsOpenJson ?? false,
-                        ResultSets = existingSets.Any() ? existingSets : new[] { newSet },
-                        UsedFallbackParser = storedProcedure.Content?.UsedFallbackParser ?? false,
-                        ParseErrorCount = storedProcedure.Content?.ParseErrorCount,
-                        FirstParseError = storedProcedure.Content?.FirstParseError
-                    };
-                    if (jsonTypeLogLevel == JsonTypeLogLevel.Detailed)
-                        consoleService.Verbose($"[proc-json-heuristic] {storedProcedure.SchemaName}.{storedProcedure.Name} name heuristic applied (no FOR JSON detected)");
-                }
-                else if (!canSkipDetails && storedProcedure.Name.EndsWith("AsJson", StringComparison.OrdinalIgnoreCase) && !hasJson)
-                {
-                    if (jsonTypeLogLevel == JsonTypeLogLevel.Detailed)
-                        consoleService.Verbose($"[warn] {storedProcedure.SchemaName}.{storedProcedure.Name} ends with AsJson but no JSON detected");
-                }
+                // Removed legacy AsJson suffix heuristic: JSON detection now relies solely on content analysis (FOR JSON ...)
 
                 if (!canSkipDetails)
                 {
@@ -434,93 +384,7 @@ public class SchemaManager(
                         }
                     }
 
-                    // Apply the same AsJson heuristic also on skip path if no JSON sets exist yet
-                    if (storedProcedure.Name.EndsWith("AsJson", StringComparison.OrdinalIgnoreCase) && (storedProcedure.Content?.ResultSets == null || !storedProcedure.Content.ResultSets.Any()))
-                    {
-                        storedProcedure.Content ??= new StoredProcedureContentModel();
-                        var defForHeuristic = storedProcedure.Content?.Definition ?? string.Empty;
-                        var withoutArray = defForHeuristic.IndexOf("WITHOUT ARRAY WRAPPER", StringComparison.OrdinalIgnoreCase) >= 0
-                            || defForHeuristic.IndexOf("WITHOUT_ARRAY_WRAPPER", StringComparison.OrdinalIgnoreCase) >= 0;
-                        string rootProp = null;
-                        const string rootToken = "ROOT(";
-                        var rootIx = defForHeuristic.IndexOf(rootToken, StringComparison.OrdinalIgnoreCase);
-                        if (rootIx >= 0)
-                        {
-                            var startQuote = defForHeuristic.IndexOf('\'', rootIx);
-                            var endQuote = startQuote >= 0 ? defForHeuristic.IndexOf('\'', startQuote + 1) : -1;
-                            if (startQuote >= 0 && endQuote > startQuote)
-                            {
-                                rootProp = defForHeuristic.Substring(startQuote + 1, endQuote - startQuote - 1);
-                            }
-                        }
-                        storedProcedure.Content = new StoredProcedureContentModel
-                        {
-                            Definition = storedProcedure.Content.Definition,
-                            ContainsSelect = storedProcedure.Content.ContainsSelect,
-                            ContainsInsert = storedProcedure.Content.ContainsInsert,
-                            ContainsUpdate = storedProcedure.Content.ContainsUpdate,
-                            ContainsDelete = storedProcedure.Content.ContainsDelete,
-                            ContainsMerge = storedProcedure.Content.ContainsMerge,
-                            ContainsOpenJson = storedProcedure.Content.ContainsOpenJson,
-                            ResultSets = new[]
-                            {
-                                new StoredProcedureContentModel.ResultSet
-                                {
-                                    ReturnsJson = true,
-                                    ReturnsJsonArray = !withoutArray,
-                                    ReturnsJsonWithoutArrayWrapper = withoutArray,
-                                    JsonRootProperty = rootProp,
-                                    Columns = Array.Empty<StoredProcedureContentModel.ResultColumn>()
-                                }
-                            },
-                            UsedFallbackParser = storedProcedure.Content.UsedFallbackParser,
-                            ParseErrorCount = storedProcedure.Content.ParseErrorCount,
-                            FirstParseError = storedProcedure.Content.FirstParseError
-                        };
-                        if (jsonTypeLogLevel == JsonTypeLogLevel.Detailed)
-                            consoleService.Verbose($"[proc-json-heuristic] {storedProcedure.SchemaName}.{storedProcedure.Name} heuristic applied on skip path");
-                    }
-                    else if (storedProcedure.Name.EndsWith("AsJson", StringComparison.OrdinalIgnoreCase) && storedProcedure.Content?.ResultSets?.Any() == true)
-                    {
-                        // Adjust existing heuristic set if definition indicates WITHOUT_ARRAY_WRAPPER but flags differ
-                        var set = storedProcedure.Content.ResultSets.First();
-                        var def = storedProcedure.Content.Definition;
-                        if (string.IsNullOrEmpty(def))
-                        {
-                            // fetch definition lazily on skip path to refine JSON flags
-                            var defResult = await dbContext.StoredProcedureDefinitionAsync(storedProcedure.SchemaName, storedProcedure.Name, cancellationToken);
-                            def = defResult?.Definition ?? string.Empty;
-                        }
-                        var withoutArrayNow = def.IndexOf("WITHOUT ARRAY WRAPPER", StringComparison.OrdinalIgnoreCase) >= 0 || def.IndexOf("WITHOUT_ARRAY_WRAPPER", StringComparison.OrdinalIgnoreCase) >= 0;
-                        if (withoutArrayNow && !set.ReturnsJsonWithoutArrayWrapper)
-                        {
-                            storedProcedure.Content = new StoredProcedureContentModel
-                            {
-                                Definition = storedProcedure.Content.Definition,
-                                ContainsSelect = storedProcedure.Content.ContainsSelect,
-                                ContainsInsert = storedProcedure.Content.ContainsInsert,
-                                ContainsUpdate = storedProcedure.Content.ContainsUpdate,
-                                ContainsDelete = storedProcedure.Content.ContainsDelete,
-                                ContainsMerge = storedProcedure.Content.ContainsMerge,
-                                ContainsOpenJson = storedProcedure.Content.ContainsOpenJson,
-                                ResultSets = new[] {
-                                    new StoredProcedureContentModel.ResultSet
-                                    {
-                                        ReturnsJson = true,
-                                        ReturnsJsonArray = false,
-                                        ReturnsJsonWithoutArrayWrapper = true,
-                                        JsonRootProperty = set.JsonRootProperty,
-                                        Columns = set.Columns
-                                    }
-                                },
-                                UsedFallbackParser = storedProcedure.Content.UsedFallbackParser,
-                                ParseErrorCount = storedProcedure.Content.ParseErrorCount,
-                                FirstParseError = storedProcedure.Content.FirstParseError
-                            };
-                            if (jsonTypeLogLevel == JsonTypeLogLevel.Detailed)
-                                consoleService.Verbose($"[proc-json-adjust] {storedProcedure.SchemaName}.{storedProcedure.Name} set WITHOUT_ARRAY_WRAPPER after skip");
-                        }
-                    }
+                    // Removed legacy AsJson skip-path heuristic and adjustments
 
                     // If heuristic JSON applied (or existing) and output is only the generic FOR JSON root column -> remove it (metadata expresses JSON via ResultSets)
                     // Cleanup logic no longer needed since JSON outputs are fully suppressed.

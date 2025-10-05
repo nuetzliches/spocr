@@ -8,6 +8,7 @@ using Xunit;
 
 namespace SpocR.Tests.Cli;
 
+[Collection("CliSerial")]
 public class TestCommandSummaryTests
 {
     [Fact]

@@ -8,6 +8,7 @@ using Xunit;
 
 namespace SpocR.Tests.Cli;
 
+[Collection("CliSerial")]
 public class FullSuiteJsonSummaryTests
 {
     [Trait("Category", "Meta")]

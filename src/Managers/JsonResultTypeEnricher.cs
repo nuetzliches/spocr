@@ -58,6 +58,37 @@ public sealed class JsonResultTypeEnricher
             var modifiedLocal = false;
             foreach (var col in set.Columns)
             {
+                // v5: Apply JSON_QUERY default typing & join nullability adjustment before main resolution logic
+                if (col.ExpressionKind == StoredProcedureContentModel.ResultColumnExpressionKind.JsonQuery && string.IsNullOrWhiteSpace(col.SqlTypeName))
+                {
+                    col.SqlTypeName = "nvarchar(max)"; // JSON_QUERY always returns NVARCHAR(MAX)
+                    if (col.IsNullable == null) col.IsNullable = true; // JSON_QUERY may yield NULL
+                    modifiedLocal = true;
+                    if (verbose && level == JsonTypeLogLevel.Detailed)
+                    {
+                        _console.Verbose($"[json-type-jsonquery] {sp.SchemaName}.{sp.Name} {col.Name} -> nvarchar(max)");
+                    }
+                }
+                if (col.ForcedNullable == true && (col.IsNullable == false || col.IsNullable == null))
+                {
+                    col.IsNullable = true;
+                    modifiedLocal = true;
+                    if (verbose && level == JsonTypeLogLevel.Detailed)
+                    {
+                        _console.Verbose($"[json-type-nullable-adjust] {sp.SchemaName}.{sp.Name} {col.Name} forced nullable (outer join)");
+                    }
+                }
+                // v5: CAST/CONVERT heuristic – if we parsed a CastTargetType and still no concrete sql type
+                if (col.ExpressionKind == StoredProcedureContentModel.ResultColumnExpressionKind.Cast && string.IsNullOrWhiteSpace(col.SqlTypeName) && !string.IsNullOrWhiteSpace(col.CastTargetType))
+                {
+                    col.SqlTypeName = col.CastTargetType;
+                    // Nullability not changed; size already embedded if present
+                    modifiedLocal = true;
+                    if (verbose && level == JsonTypeLogLevel.Detailed)
+                    {
+                        _console.Verbose($"[json-type-cast] {sp.SchemaName}.{sp.Name} {col.Name} -> {col.SqlTypeName}");
+                    }
+                }
                 bool hadFallback = string.Equals(col.SqlTypeName, "nvarchar(max)", StringComparison.OrdinalIgnoreCase) && set.ReturnsJson;
                 bool hasConcrete = !string.IsNullOrWhiteSpace(col.SqlTypeName) && !hadFallback;
                 if (hasConcrete) { newCols.Add(col); continue; }
@@ -91,7 +122,12 @@ public sealed class JsonResultTypeEnricher
                             SourceColumn = col.SourceColumn,
                             SqlTypeName = match.SqlTypeName,
                             IsNullable = match.IsNullable,
-                            MaxLength = match.MaxLength
+                            MaxLength = match.MaxLength,
+                            SourceAlias = col.SourceAlias,
+                            ExpressionKind = col.ExpressionKind,
+                            IsNestedJson = col.IsNestedJson,
+                            ForcedNullable = col.ForcedNullable,
+                            IsAmbiguous = col.IsAmbiguous
                         });
                         continue;
                     }
@@ -133,6 +169,11 @@ public sealed class JsonResultTypeEnricher
         if (verbose && loggedColumnResolutions.Count > 0 && level != JsonTypeLogLevel.Off)
         {
             _console.Verbose($"[json-type-summary] {sp.SchemaName}.{sp.Name} resolved {loggedColumnResolutions.Count} columns (new={loggedNewConcrete}, upgrades={loggedUpgrades})");
+        }
+        else if (verbose && level == JsonTypeLogLevel.Detailed)
+        {
+            // still emit a summary line even if no resolutions, to show nullable adjustments / jsonquery activity
+            _console.Verbose($"[json-type-summary] {sp.SchemaName}.{sp.Name} no new resolutions");
         }
         stats?.Accumulate(loggedColumnResolutions.Count, loggedNewConcrete, loggedUpgrades);
     }

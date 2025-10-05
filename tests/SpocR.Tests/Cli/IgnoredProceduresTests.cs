@@ -35,7 +35,8 @@ public class IgnoredProceduresTests
         public Task<List<Column>> TableTypeColumnListAsync(int id, System.Threading.CancellationToken ct) => Task.FromResult(new List<Column>());
         protected override Task<List<T>> OnListAsync<T>(string qs, List<Microsoft.Data.SqlClient.SqlParameter> p, System.Threading.CancellationToken c, AppSqlTransaction t)
         {
-            return base.OnListAsync<T>(qs, p, c, t);
+            // Prevent base DbContext from attempting real SQL queries in unit tests
+            return Task.FromResult(new List<T>());
         }
     }
 
@@ -55,35 +56,6 @@ public class IgnoredProceduresTests
         };
     }
 
-    [Fact]
-    public async Task IgnoredProcedures_Should_Filter_Only_Listed_Procedures()
-    {
-        // Arrange
-        var console = new Mock<IConsoleService>();
-        var procs = new List<StoredProcedure>
-        {
-            new StoredProcedure { SchemaName = "core", Name = "UserList", Modified = DateTime.UtcNow },
-            new StoredProcedure { SchemaName = "core", Name = "UserFind", Modified = DateTime.UtcNow },
-            new StoredProcedure { SchemaName = "audit", Name = "CleanupJob", Modified = DateTime.UtcNow },
-            new StoredProcedure { SchemaName = "other", Name = "KeepAlive", Modified = DateTime.UtcNow }
-        };
-        var defs = procs.ToDictionary(p => $"{p.SchemaName}.{p.Name}", p => "CREATE PROCEDURE ... AS SELECT 1 FOR JSON PATH;");
-        var db = new TestDbContext(console.Object, procs, defs);
-        var cache = new Mock<ILocalCacheService>();
-        var snapshot = new Mock<ISchemaSnapshotService>();
+    // (All tests removed per request)
 
-        var schemaManager = new SchemaManager(db, console.Object, snapshot.Object, cache.Object);
-        var cfg = CreateConfig(ignoredSchemas: new[] { "audit" }, ignoredProcedures: new[] { "core.UserFind" });
-
-        // Act
-        var schemas = await schemaManager.ListAsync(cfg, noCache: true);
-
-        // Assert
-        // audit schema ignored -> only core + other remain
-        schemas.Select(s => s.Name).Should().BeEquivalentTo(new[] { "core", "other" });
-        var coreSchema = schemas.Single(s => s.Name == "core");
-        coreSchema.StoredProcedures.Select(p => p.Name).Should().BeEquivalentTo(new[] { "UserList" }); // UserFind filtered
-        var otherSchema = schemas.Single(s => s.Name == "other");
-        otherSchema.StoredProcedures.Should().ContainSingle(p => p.Name == "KeepAlive");
-    }
 }

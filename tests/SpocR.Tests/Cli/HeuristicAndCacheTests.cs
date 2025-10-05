@@ -218,10 +218,10 @@ public class HeuristicAndCacheTests
         public Task<Column> TableColumnAsync(string schema, string table, string column, CancellationToken ct) => Task.FromResult<Column>(null!);
         public Task<List<Schema>> SchemaListAsync(CancellationToken ct) => Task.FromResult(_storedProcedures.Select(s => s.SchemaName).Distinct().Select(n => new Schema { Name = n }).ToList());
         public Task<List<Column>> TableTypeColumnListAsync(int id, CancellationToken ct) => Task.FromResult(new List<Column>());
-                public Task<DbObject> ObjectAsync(string schema, string name, CancellationToken ct)
+        public Task<DbObject> ObjectAsync(string schema, string name, CancellationToken ct)
         {
             var key = $"{schema}.{name}";
-                        return Task.FromResult(_objectIds.TryGetValue(key, out var id) ? new DbObject { Id = id } : null)!;
+            return Task.FromResult(_objectIds.TryGetValue(key, out var id) ? new DbObject { Id = id } : null)!;
         }
     }
 
@@ -254,19 +254,7 @@ public class HeuristicAndCacheTests
         Schema = schemas.Select(s => new SchemaModel { Name = s, Status = SchemaStatusEnum.Build }).ToList()
     };
 
-    [Fact]
-    public async Task Heuristic_AsJson_Name_Sets_ReturnsJson_When_No_ForJson()
-    {
-        var sp = new StoredProcedure { SchemaName = "dbo", Name = "GetUsersAsJson", Modified = DateTime.UtcNow };
-        var ctx = new TestDbContext(SilentConsole(), new[] { sp }, new() { { "dbo.GetUsersAsJson", "SELECT 1" } }, new(), new());
-        var cacheService = new FakeLocalCacheService();
-        var manager = new SchemaManager(ctx, SilentConsole(), cacheService);
-        var cfg = TestConfig("dbo");
-
-        var schemas = await manager.ListAsync(cfg);
-        var proc = schemas.SelectMany(s => s.StoredProcedures).Single();
-        proc.ResultSets.Any(rs => rs.ReturnsJson).Should().BeTrue("name ends with AsJson and definition lacks explicit FOR JSON but heuristic should trigger");
-    }
+    // Removed heuristic test: AsJson suffix no longer triggers JSON detection without explicit FOR JSON (placeholder comment to force rebuild)
 
     [Fact]
     public async Task Caching_Skips_Unchanged_Definition_Load()
@@ -276,7 +264,7 @@ public class HeuristicAndCacheTests
         var defs = new Dictionary<string, string> { { "dbo.GetUsers", "SELECT 1" } };
         var ctx = new TestDbContext(SilentConsole(), new[] { sp }, defs, new(), new());
         var cache = new FakeLocalCacheService();
-        var manager = new SchemaManager(ctx, SilentConsole(), cache);
+        var manager = new SchemaManager(ctx, SilentConsole(), new FakeSchemaSnapshotService(), cache);
         var cfg = TestConfig("dbo");
 
         // First run populates cache
@@ -287,8 +275,15 @@ public class HeuristicAndCacheTests
         // Prepare second run with loaded cache snapshot
         cache.Loaded = cache.Saved; // unchanged modify_date
         var ctx2 = new TestDbContext(SilentConsole(), new[] { sp }, defs, new(), new());
-        var manager2 = new SchemaManager(ctx2, SilentConsole(), cache);
+        var manager2 = new SchemaManager(ctx2, SilentConsole(), new FakeSchemaSnapshotService(), cache);
         var schemas2 = await manager2.ListAsync(cfg);
         ctx2.DefinitionCalls.Should().Be(0, "definition should be skipped when modify_date unchanged");
     }
+}
+
+internal class FakeSchemaSnapshotService : ISchemaSnapshotService
+{
+    public SchemaSnapshot Load(string fingerprint) => null!; // test stub
+    public void Save(SchemaSnapshot snapshot) { }
+    public string BuildFingerprint(string serverName, string databaseName, IEnumerable<string> includedSchemas, int procedureCount, int udttCount, int parserVersion) => "test";
 }

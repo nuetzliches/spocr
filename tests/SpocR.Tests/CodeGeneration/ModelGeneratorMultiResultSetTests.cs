@@ -19,7 +19,13 @@ namespace SpocR.Tests.CodeGeneration;
 /// </summary>
 public class ModelGeneratorMultiResultSetTests
 {
-    private static (ModelGenerator gen, Definition.Schema schema, Definition.StoredProcedure sp) Arrange()
+    private sealed class FakeMetadataProvider : ISchemaMetadataProvider
+    {
+        public IReadOnlyList<SchemaModel> Schemas { get; set; } = new List<SchemaModel>();
+        public IReadOnlyList<SchemaModel> GetSchemas() => Schemas;
+    }
+
+    private static (ModelGenerator gen, Definition.Schema schema, Definition.StoredProcedure sp, FakeMetadataProvider meta) Arrange()
     {
         var spocr = new SpocrService();
         var config = spocr.GetDefaultConfiguration(appNamespace: "Test.App");
@@ -84,14 +90,15 @@ public class ModelGeneratorMultiResultSetTests
         var defSchema = Definition.ForSchema(schemaModel);
         var defSp = Definition.ForStoredProcedure(spModel, defSchema);
 
-        var gen = new ModelGenerator(fileManager, output, new TestConsoleService(), templateManager);
-        return (gen, defSchema, defSp);
+        var meta = new FakeMetadataProvider { Schemas = new[] { schemaModel } };
+        var gen = new ModelGenerator(fileManager, output, new TestConsoleService(), templateManager, meta);
+        return (gen, defSchema, defSp, meta);
     }
 
     [Fact]
     public async Task Generates_Multiple_Result_Set_Models_With_Suffixes()
     {
-        var (gen, schema, sp) = Arrange();
+        var (gen, schema, sp, _) = Arrange();
 
         // Base model (first result set, keeps original name)
         var baseText = await gen.GetModelTextForStoredProcedureAsync(schema, sp);

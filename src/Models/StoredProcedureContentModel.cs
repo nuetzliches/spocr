@@ -164,6 +164,23 @@ public class StoredProcedureContentModel
         public bool? IsNullable { get; set; }
         // Preserve original length metadata (was present on legacy output model & inputs)
         public int? MaxLength { get; set; }
+        // Advanced inference (parser v5)
+        public string SourceAlias { get; set; }           // Table/CTE/UDTT alias origin when available
+        public ResultColumnExpressionKind? ExpressionKind { get; set; } // Nature of the SELECT expression
+        public bool? IsNestedJson { get; set; }           // JSON_QUERY or nested FOR JSON projection
+        public bool? ForcedNullable { get; set; }         // True if nullability elevated due to OUTER join semantics
+        public bool? IsAmbiguous { get; set; }            // True if multiple possible origins prevented concrete typing
+        public string CastTargetType { get; set; }        // Raw CAST/CONVERT target type text (parser v5 heuristic)
+    }
+
+    public enum ResultColumnExpressionKind
+    {
+        ColumnRef,
+        Cast,
+        FunctionCall,
+        JsonQuery,
+        Computed,
+        Unknown
     }
 
     public sealed class ResultSet
@@ -184,6 +201,8 @@ public class StoredProcedureContentModel
 
         public string DefaultSchema { get; }
         public List<ResultColumn> JsonColumns { get; } = new(); // internal builder list retained
+        public Dictionary<string, (string Schema, string Table)> AliasMap { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public HashSet<string> OuterJoinNullableAliases { get; } = new(StringComparer.OrdinalIgnoreCase); // aliases that come from an OUTER side
         public bool ContainsSelect { get; set; }
         public bool ContainsInsert { get; set; }
         public bool ContainsUpdate { get; set; }
@@ -356,12 +375,14 @@ public class StoredProcedureContentModel
         private List<ResultColumn> CollectJsonColumnsForSet(QuerySpecification node)
         {
             var collected = new List<ResultColumn>();
-            var aliasMap = new Dictionary<string, (string Schema, string Table)>(StringComparer.OrdinalIgnoreCase);
+            // Build / extend alias map & join metadata
+            _analysis.AliasMap.Clear();
+            _analysis.OuterJoinNullableAliases.Clear();
             if (node.FromClause?.TableReferences != null)
             {
                 foreach (var tableReference in node.FromClause.TableReferences)
                 {
-                    CollectTableReference(tableReference, aliasMap);
+                    CollectTableReference(tableReference, _analysis.AliasMap, parentJoin: null, isFirstSide: false);
                 }
             }
 
@@ -372,29 +393,57 @@ public class StoredProcedureContentModel
                 {
                     continue;
                 }
+                var expr = element.Expression;
+                var jsonColumn = new ResultColumn { JsonPath = path, Name = GetSafePropertyName(path) };
 
-                var jsonColumn = new ResultColumn
+                // Expression kind detection
+                switch (expr)
                 {
-                    JsonPath = path,
-                    Name = GetSafePropertyName(path)
-                };
-
-                if (element.Expression is ColumnReferenceExpression columnRef)
-                {
-                    var identifiers = columnRef.MultiPartIdentifier?.Identifiers;
-                    if (identifiers != null && identifiers.Count > 0)
-                    {
-                        jsonColumn.SourceColumn = identifiers[^1].Value;
-                        if (identifiers.Count > 1)
+                    case ColumnReferenceExpression columnRef:
+                        jsonColumn.ExpressionKind = ResultColumnExpressionKind.ColumnRef;
+                        var identifiers = columnRef.MultiPartIdentifier?.Identifiers;
+                        if (identifiers != null && identifiers.Count > 0)
                         {
-                            var qualifier = identifiers[^2].Value;
-                            if (aliasMap.TryGetValue(qualifier, out var tableInfo))
+                            jsonColumn.SourceColumn = identifiers[^1].Value;
+                            if (identifiers.Count > 1)
                             {
-                                jsonColumn.SourceSchema = tableInfo.Schema;
-                                jsonColumn.SourceTable = tableInfo.Table;
+                                var qualifier = identifiers[^2].Value;
+                                jsonColumn.SourceAlias = qualifier;
+                                if (_analysis.AliasMap.TryGetValue(qualifier, out var tableInfo))
+                                {
+                                    jsonColumn.SourceSchema = tableInfo.Schema;
+                                    jsonColumn.SourceTable = tableInfo.Table;
+                                    if (_analysis.OuterJoinNullableAliases.Contains(qualifier))
+                                    {
+                                        jsonColumn.ForcedNullable = true; // mark for later enrichment override
+                                    }
+                                }
                             }
                         }
-                    }
+                        break;
+                    case FunctionCall fc:
+                        var fname = fc.FunctionName?.Value;
+                        if (!string.IsNullOrEmpty(fname) && fname.Equals("JSON_QUERY", StringComparison.OrdinalIgnoreCase))
+                        {
+                            jsonColumn.ExpressionKind = ResultColumnExpressionKind.JsonQuery;
+                            jsonColumn.IsNestedJson = true;
+                        }
+                        else
+                        {
+                            jsonColumn.ExpressionKind = ResultColumnExpressionKind.FunctionCall;
+                        }
+                        break;
+                    case CastCall castCall:
+                        jsonColumn.ExpressionKind = ResultColumnExpressionKind.Cast;
+                        jsonColumn.CastTargetType = RenderDataType(castCall.DataType);
+                        break;
+                    case ConvertCall convertCall:
+                        jsonColumn.ExpressionKind = ResultColumnExpressionKind.Cast;
+                        jsonColumn.CastTargetType = RenderDataType(convertCall.DataType);
+                        break;
+                    default:
+                        jsonColumn.ExpressionKind = ResultColumnExpressionKind.Computed;
+                        break;
                 }
 
                 if (string.IsNullOrEmpty(jsonColumn.Name))
@@ -497,7 +546,7 @@ public class StoredProcedureContentModel
             return builder.ToString();
         }
 
-        private void CollectTableReference(TableReference tableReference, Dictionary<string, (string Schema, string Table)> aliasMap)
+        private void CollectTableReference(TableReference tableReference, Dictionary<string, (string Schema, string Table)> aliasMap, QualifiedJoinType? parentJoin, bool isFirstSide)
         {
             switch (tableReference)
             {
@@ -508,14 +557,31 @@ public class StoredProcedureContentModel
                     if (!string.IsNullOrEmpty(alias) && !string.IsNullOrEmpty(table))
                     {
                         aliasMap[alias] = (schema, table);
+                        // Mark nullable if this table is on the outer side of a LEFT/RIGHT/FULL join.
+                        if (parentJoin.HasValue)
+                        {
+                            switch (parentJoin.Value)
+                            {
+                                case QualifiedJoinType.LeftOuter:
+                                    if (!isFirstSide) _analysis.OuterJoinNullableAliases.Add(alias); // second side
+                                    break;
+                                case QualifiedJoinType.RightOuter:
+                                    if (isFirstSide) _analysis.OuterJoinNullableAliases.Add(alias); // first side is right side's nullable side
+                                    break;
+                                case QualifiedJoinType.FullOuter:
+                                    _analysis.OuterJoinNullableAliases.Add(alias);
+                                    break;
+                            }
+                        }
                     }
                     break;
                 case QualifiedJoin join:
-                    CollectTableReference(join.FirstTableReference, aliasMap);
-                    CollectTableReference(join.SecondTableReference, aliasMap);
+                    // Recurse with join type context
+                    CollectTableReference(join.FirstTableReference, aliasMap, join.QualifiedJoinType, true);
+                    CollectTableReference(join.SecondTableReference, aliasMap, join.QualifiedJoinType, false);
                     break;
                 case JoinParenthesisTableReference parenthesis when parenthesis.Join != null:
-                    CollectTableReference(parenthesis.Join, aliasMap);
+                    CollectTableReference(parenthesis.Join, aliasMap, parentJoin, isFirstSide);
                     break;
             }
         }
@@ -532,6 +598,58 @@ public class StoredProcedureContentModel
                         _statements.Add(text);
                     }
                 }
+            }
+        }
+
+        private static string RenderDataType(DataTypeReference dataType)
+        {
+            if (dataType == null) return null;
+            switch (dataType)
+            {
+                case SqlDataTypeReference sqlRef:
+                    var baseName = sqlRef.SqlDataTypeOption.ToString();
+                    string Map(string v) => v switch
+                    {
+                        nameof(SqlDataTypeOption.NVarChar) => "nvarchar",
+                        nameof(SqlDataTypeOption.VarChar) => "varchar",
+                        nameof(SqlDataTypeOption.VarBinary) => "varbinary",
+                        nameof(SqlDataTypeOption.NChar) => "nchar",
+                        nameof(SqlDataTypeOption.Char) => "char",
+                        nameof(SqlDataTypeOption.NText) => "ntext",
+                        nameof(SqlDataTypeOption.Text) => "text",
+                        nameof(SqlDataTypeOption.Int) => "int",
+                        nameof(SqlDataTypeOption.BigInt) => "bigint",
+                        nameof(SqlDataTypeOption.SmallInt) => "smallint",
+                        nameof(SqlDataTypeOption.TinyInt) => "tinyint",
+                        nameof(SqlDataTypeOption.Bit) => "bit",
+                        nameof(SqlDataTypeOption.DateTime) => "datetime",
+                        nameof(SqlDataTypeOption.Date) => "date",
+                        nameof(SqlDataTypeOption.UniqueIdentifier) => "uniqueidentifier",
+                        nameof(SqlDataTypeOption.Decimal) => "decimal",
+                        nameof(SqlDataTypeOption.Numeric) => "numeric",
+                        nameof(SqlDataTypeOption.Money) => "money",
+                        _ => baseName.ToLowerInvariant()
+                    };
+                    var typeName = Map(baseName);
+                    if (sqlRef.Parameters != null && sqlRef.Parameters.Count > 0)
+                    {
+                        var parts = new List<string>();
+                        foreach (var p in sqlRef.Parameters)
+                        {
+                            if (p is MaxLiteral) { parts.Add("max"); }
+                            else if (p is IntegerLiteral il) { parts.Add(il.Value); }
+                            else if (p is Literal l && !string.IsNullOrWhiteSpace(l.Value)) { parts.Add(l.Value); }
+                        }
+                        if (parts.Count > 0)
+                        {
+                            typeName += "(" + string.Join(",", parts) + ")";
+                        }
+                    }
+                    return typeName;
+                case UserDataTypeReference userRef:
+                    return userRef.Name?.BaseIdentifier?.Value;
+                default:
+                    return null;
             }
         }
 

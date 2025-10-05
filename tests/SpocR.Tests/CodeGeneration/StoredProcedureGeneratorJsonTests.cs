@@ -29,7 +29,13 @@ public class StoredProcedureGeneratorJsonTests
         }
     }
 
-    private static (StoredProcedureGenerator gen, FileManager<ConfigurationModel> fileManager) CreateGenerator(ConfigurationModel config)
+    private sealed class FakeMetadataProvider : ISchemaMetadataProvider
+    {
+        public IReadOnlyList<SchemaModel> Schemas { get; set; } = new List<SchemaModel>();
+        public IReadOnlyList<SchemaModel> GetSchemas() => Schemas;
+    }
+
+    private static (StoredProcedureGenerator gen, FileManager<ConfigurationModel> fileManager, FakeMetadataProvider meta) CreateGenerator(ConfigurationModel config)
     {
         var spocr = new SpocrService();
         var fileManager = new FileManager<ConfigurationModel>(spocr, "spocr.json", config);
@@ -40,11 +46,12 @@ public class StoredProcedureGeneratorJsonTests
         const string storedProcTemplate = "using System;\nusing System.Collections.Generic;\nusing Microsoft.Data.SqlClient;\nusing System.Threading;\nusing System.Threading.Tasks;\nusing Source.DataContext.Models;\nusing Source.DataContext.Outputs;\nnamespace Source.DataContext.StoredProcedures.Schema { public static class StoredProcedureExtensions { public static Task<CrudResult> CrudActionAsync(this IAppDbContextPipe context, Input input, CancellationToken cancellationToken){ if(context==null){ throw new ArgumentNullException(\"context\"); } var parameters = new List<SqlParameter>(); return context.ExecuteSingleAsync<CrudResult>(\"schema.CrudAction\", parameters, cancellationToken); } public static Task<CrudResult> CrudActionAsync(this IAppDbContext context, Input input, CancellationToken cancellationToken){ return context.CreatePipe().CrudActionAsync(input, cancellationToken); } } }";
         var templateManager = new TemplateManager(output, fileManager);
         InjectStoredProcedureTemplate(templateManager, storedProcTemplate);
-        var generator = new StoredProcedureGenerator(fileManager, output, new TestConsoleService(), templateManager);
-        return (generator, fileManager);
+        var meta = new FakeMetadataProvider();
+        var generator = new StoredProcedureGenerator(fileManager, output, new TestConsoleService(), templateManager, meta);
+        return (generator, fileManager, meta);
     }
 
-    private static (Definition.Schema schema, Definition.StoredProcedure sp) CreateStoredProcedure(string name, bool returnsJson, bool returnsJsonArray)
+    private static (Definition.Schema schema, Definition.StoredProcedure sp, SchemaModel schemaModel, StoredProcedureModel spModel) CreateStoredProcedure(string name, bool returnsJson, bool returnsJsonArray)
     {
         var resultColumns = returnsJson
             ? new[]
@@ -80,7 +87,7 @@ public class StoredProcedureGeneratorJsonTests
         };
 
         // manually set private backing via constructor then attach content
-        var spModel = new StoredProcedureModel(new SpocR.DataContext.Models.StoredProcedure { Name = name, SchemaName = "dbo" })
+        var spModel = new StoredProcedureModel(new SpocR.DataContext.Models.StoredProcedure { Name = name, SchemaName = "dbo", Modified = DateTime.UtcNow })
         {
             Input = new List<StoredProcedureInputModel>(),
         };
@@ -94,7 +101,7 @@ public class StoredProcedureGeneratorJsonTests
 
         var defSchema = Definition.ForSchema(schemaModel);
         var defSp = Definition.ForStoredProcedure(spModel, defSchema);
-        return (defSchema, defSp);
+        return (defSchema, defSp, schemaModel, spModel);
     }
 
     [Fact]
@@ -103,8 +110,9 @@ public class StoredProcedureGeneratorJsonTests
         var config = new SpocrService().GetDefaultConfiguration(appNamespace: "Test.App");
         config.Project.Output.Namespace = "Test.App";
 
-        var (gen, _) = CreateGenerator(config);
-        var (schema, sp) = CreateStoredProcedure("UserListAsJson", returnsJson: true, returnsJsonArray: true);
+        var (gen, _, meta) = CreateGenerator(config);
+        var (schema, sp, schemaModel, spModel) = CreateStoredProcedure("UserListAsJson", returnsJson: true, returnsJsonArray: true);
+        meta.Schemas = new[] { schemaModel };
 
         var source = await gen.GetStoredProcedureExtensionsCodeAsync(schema, new List<Definition.StoredProcedure> { sp });
         var code = source.ToString();
@@ -120,8 +128,9 @@ public class StoredProcedureGeneratorJsonTests
         var config = new SpocrService().GetDefaultConfiguration(appNamespace: "Test.App");
         config.Project.Output.Namespace = "Test.App";
 
-        var (gen, _) = CreateGenerator(config);
-        var (schema, sp) = CreateStoredProcedure("UserFindAsJson", returnsJson: true, returnsJsonArray: false);
+        var (gen, _, meta) = CreateGenerator(config);
+        var (schema, sp, schemaModel, spModel) = CreateStoredProcedure("UserFindAsJson", returnsJson: true, returnsJsonArray: false);
+        meta.Schemas = new[] { schemaModel };
 
         var source = await gen.GetStoredProcedureExtensionsCodeAsync(schema, new List<Definition.StoredProcedure> { sp });
         var code = source.ToString();
@@ -137,8 +146,9 @@ public class StoredProcedureGeneratorJsonTests
         var config = new SpocrService().GetDefaultConfiguration(appNamespace: "Test.App");
         config.Project.Output.Namespace = "Test.App";
 
-        var (gen, _) = CreateGenerator(config);
-        var (schema, sp) = CreateStoredProcedure("UserList", returnsJson: false, returnsJsonArray: false);
+        var (gen, _, meta) = CreateGenerator(config);
+        var (schema, sp, schemaModel, spModel) = CreateStoredProcedure("UserList", returnsJson: false, returnsJsonArray: false);
+        meta.Schemas = new[] { schemaModel };
 
         var source = await gen.GetStoredProcedureExtensionsCodeAsync(schema, new List<Definition.StoredProcedure> { sp });
         var code = source.ToString();

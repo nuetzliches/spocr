@@ -15,7 +15,13 @@ namespace SpocR.Tests.CodeGeneration;
 
 public class ModelGeneratorJsonEmptyModelTests
 {
-    private static (ModelGenerator gen, Definition.Schema schema, Definition.StoredProcedure sp) Arrange(string spName)
+    private sealed class FakeMetadataProvider : ISchemaMetadataProvider
+    {
+        public IReadOnlyList<SchemaModel> Schemas { get; set; } = new List<SchemaModel>();
+        public IReadOnlyList<SchemaModel> GetSchemas() => Schemas;
+    }
+
+    private static (ModelGenerator gen, Definition.Schema schema, Definition.StoredProcedure sp, FakeMetadataProvider meta) Arrange(string spName)
     {
         var spocr = new SpocrService();
         var config = spocr.GetDefaultConfiguration(appNamespace: "Test.App");
@@ -65,14 +71,15 @@ public class ModelGeneratorJsonEmptyModelTests
         var defSchema = Definition.ForSchema(schemaModel);
         var defSp = Definition.ForStoredProcedure(spModel, defSchema);
 
-        var gen = new ModelGenerator(fileManager, output, new TestConsoleService(), templateManager);
-        return (gen, defSchema, defSp);
+        var meta = new FakeMetadataProvider { Schemas = new[] { schemaModel } };
+        var gen = new ModelGenerator(fileManager, output, new TestConsoleService(), templateManager, meta);
+        return (gen, defSchema, defSp, meta);
     }
 
     [Fact]
     public async Task Generates_Xml_Doc_For_Empty_Json_Model()
     {
-        var (gen, schema, sp) = Arrange("UserListAsJson");
+        var (gen, schema, sp, _) = Arrange("UserListAsJson");
         var text = await gen.GetModelTextForStoredProcedureAsync(schema, sp);
         var code = text.ToString();
 

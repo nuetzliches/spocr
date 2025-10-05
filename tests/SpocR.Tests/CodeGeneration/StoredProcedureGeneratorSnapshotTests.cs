@@ -21,7 +21,13 @@ namespace SpocR.Tests.CodeGeneration;
 /// </summary>
 public class StoredProcedureGeneratorSnapshotTests
 {
-    private static (StoredProcedureGenerator gen, Definition.Schema schema, List<Definition.StoredProcedure> sps) Arrange()
+    private sealed class FakeMetadataProvider : ISchemaMetadataProvider
+    {
+        public IReadOnlyList<SchemaModel> Schemas { get; set; } = new List<SchemaModel>();
+        public IReadOnlyList<SchemaModel> GetSchemas() => Schemas;
+    }
+
+    private static (StoredProcedureGenerator gen, Definition.Schema schema, List<Definition.StoredProcedure> sps, FakeMetadataProvider meta) Arrange()
     {
         var spocr = new SpocrService();
         var config = spocr.GetDefaultConfiguration(appNamespace: "Test.App");
@@ -55,8 +61,9 @@ public class StoredProcedureGeneratorSnapshotTests
         var defFind = Definition.ForStoredProcedure(findSp, defSchema);
         var defPlain = Definition.ForStoredProcedure(plainSp, defSchema);
 
-        var gen = new StoredProcedureGenerator(fileManager, output, new TestConsoleService(), templateManager);
-        return (gen, defSchema, new List<Definition.StoredProcedure> { defList, defFind, defPlain });
+        var meta = new FakeMetadataProvider { Schemas = new[] { schemaModel } };
+        var gen = new StoredProcedureGenerator(fileManager, output, new TestConsoleService(), templateManager, meta);
+        return (gen, defSchema, new List<Definition.StoredProcedure> { defList, defFind, defPlain }, meta);
     }
 
     private static StoredProcedureModel CreateSp(string name, bool returnsJson, bool returnsJsonArray)
@@ -101,7 +108,7 @@ public class StoredProcedureGeneratorSnapshotTests
     [Fact]
     public async Task Snapshot_Raw_And_Deserialize_Pattern()
     {
-        var (gen, schema, sps) = Arrange();
+        var (gen, schema, sps, _) = Arrange();
         var src = await gen.GetStoredProcedureExtensionsCodeAsync(schema, sps);
         var code = Normalize(src.ToString());
 

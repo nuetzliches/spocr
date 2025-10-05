@@ -407,7 +407,7 @@ public class SpocrManager(
                 }
                 catch { }
 
-                var fingerprint = schemaSnapshotService.BuildFingerprint(serverName, databaseName, buildSchemas, procedures.Count, udtts.Count, parserVersion: 1);
+                var fingerprint = schemaSnapshotService.BuildFingerprint(serverName, databaseName, buildSchemas, procedures.Count, udtts.Count, parserVersion: 5);
                 var serverHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(serverName ?? "?"))).Substring(0, 16);
 
                 var snapshot = new SchemaSnapshot
@@ -417,7 +417,7 @@ public class SpocrManager(
                     Procedures = procedures,
                     Schemas = schemaSnapshots,
                     UserDefinedTableTypes = udtts,
-                    Parser = new SnapshotParserInfo { ToolVersion = config.TargetFramework, ResultSetParserVersion = 4 },
+                    Parser = new SnapshotParserInfo { ToolVersion = config.TargetFramework, ResultSetParserVersion = 5 },
                     Stats = new SnapshotStats
                     {
                         ProcedureTotal = procedures.Count,

@@ -7,6 +7,7 @@ using Xunit;
 namespace SpocR.Tests.Versioning;
 
 [Trait("Category", "Slow")]
+[Collection("CliSerial")]
 public class VersionStabilityTests
 {
     [Fact]
