@@ -405,13 +405,49 @@ public class StoredProcedureGenerator(
                 {
                     var multiColumn = columnCount > 1;
                     returnModel = storedProcedure.Name;
-                    if (multiColumn)
+
+                    // Heuristik: Viele frühere "Find"-Prozeduren liefern genau einen Datensatz (auch wenn mehrere Spalten) –
+                    // nach Entfernen der Naming Convention würden sie aktuell als List<T> generiert (Breaking Change).
+                    // Wir erkennen einen Single-Row-Fall, wenn:
+                    // 1) Es genau einen nicht-Output Parameter gibt, der auf eine Id hindeutet (@Id oder *@...Id)
+                    // 2) ODER (Name enthält "Find" UND nicht "List") UND höchstens zwei nicht-Output Parameter vorhanden sind, die Id-orientiert sind.
+                    // (Konservativ, um Mehrfach-Result-Fälle wie *FindForAssignment* mit vielen Parametern nicht irrtümlich zu erzwingen.)
+                    var nonOutputParams = storedProcedure.Input.Where(p => !p.IsOutput && !(p.IsTableType ?? false)).ToList();
+                    bool IsIdName(string n) => n.Equals("@Id", StringComparison.OrdinalIgnoreCase) || n.EndsWith("Id", StringComparison.OrdinalIgnoreCase);
+                    var idParams = nonOutputParams.Where(p => IsIdName(p.Name)).ToList();
+                    bool singleIdParam = idParams.Count == 1 && nonOutputParams.Count == 1;
+                    var nameLower = storedProcedure.Name.ToLowerInvariant();
+                    bool nameSuggestsFind = nameLower.Contains("find") && !nameLower.Contains("list");
+                    bool fewParams = nonOutputParams.Count <= 2;
+                    bool forceSingle = singleIdParam || (nameSuggestsFind && fewParams && idParams.Count >= 1);
+
+                    if (multiColumn && !forceSingle)
                     {
-                        returnType = $"Task<List<{returnModel}>>";
-                        returnExpression = ReplacePlaceholder(returnExpression, $"ExecuteListAsync<{returnModel}>");
+                        // Echte Liste
+                        var nameLower2 = storedProcedure.Name.ToLowerInvariant();
+                        var indicatesList = nameLower2.Contains("list");
+                        if (indicatesList)
+                        {
+                            // Für *List* Prozeduren geben wir IEnumerable<T> zurück, um Implementierungen flexibler zu halten
+                            returnType = $"Task<IEnumerable<{returnModel}>>";
+                            // Force async so wir das List<T> Ergebnis awaited zurückgeben können (implizite List->IEnumerable Konvertierung)
+                            if (!methodNode.Modifiers.Any(m => m.IsKind(SyntaxKind.AsyncKeyword)))
+                            {
+                                methodNode = methodNode.WithModifiers(methodNode.Modifiers.Add(SyntaxFactory.Token(SyntaxKind.AsyncKeyword)));
+                            }
+                            // Ersetze Platzhalter und wrap mit await
+                            var callExpr = ReplacePlaceholder(returnExpression, $"ExecuteListAsync<{returnModel}>");
+                            returnExpression = callExpr.StartsWith("await ") ? callExpr : $"await {callExpr}";
+                        }
+                        else
+                        {
+                            returnType = $"Task<List<{returnModel}>>";
+                            returnExpression = ReplacePlaceholder(returnExpression, $"ExecuteListAsync<{returnModel}>");
+                        }
                     }
                     else
                     {
+                        // Einzelnes Modell (entweder single-column, oder multi-column aber heuristisch als Single erkannt)
                         returnType = $"Task<{returnModel}>";
                         returnExpression = ReplacePlaceholder(returnExpression, $"ExecuteSingleAsync<{returnModel}>");
                     }
