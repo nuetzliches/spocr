@@ -33,6 +33,9 @@ public class StoredProcedureContentModel
     public int? ParseErrorCount { get; init; }
     public string FirstParseError { get; init; }
 
+    // Procedures executed directly via EXEC inside this procedure (schema + name)
+    public IReadOnlyList<ExecutedProcedureCall> ExecutedProcedures { get; init; } = Array.Empty<ExecutedProcedureCall>();
+
     // Removed legacy mirrored columns; access via ResultSets[0].Columns if needed
 
     public static StoredProcedureContentModel Parse(string definition, string defaultSchema = "dbo")
@@ -82,6 +85,9 @@ public class StoredProcedureContentModel
             : new[] { definition.Trim() };
 
         var jsonSets = analysis.JsonSets.ToArray();
+        var execs = analysis.ExecutedProcedures
+            .Select(e => new ExecutedProcedureCall { Schema = e.Schema, Name = e.Name })
+            .ToArray();
 
         return new StoredProcedureContentModel
         {
@@ -94,6 +100,7 @@ public class StoredProcedureContentModel
             ContainsMerge = analysis.ContainsMerge,
             ContainsOpenJson = analysis.ContainsOpenJson,
             ResultSets = jsonSets,
+            ExecutedProcedures = execs,
             UsedFallbackParser = false,
             ParseErrorCount = 0,
             FirstParseError = null
@@ -206,6 +213,12 @@ public class StoredProcedureContentModel
         public IReadOnlyList<ResultColumn> Columns { get; init; } = Array.Empty<ResultColumn>();
     }
 
+    public sealed class ExecutedProcedureCall
+    {
+        public string Schema { get; init; }
+        public string Name { get; init; }
+    }
+
     private sealed class ProcedureContentAnalysis
     {
         public ProcedureContentAnalysis(string defaultSchema)
@@ -231,6 +244,7 @@ public class StoredProcedureContentModel
         public bool JsonWithArrayWrapper { get; set; }
         public bool JsonWithoutArrayWrapper { get; set; }
         public List<ResultSet> JsonSets { get; } = new();
+        public List<(string Schema, string Name)> ExecutedProcedures { get; } = new();
 
         public void FinalizeJson()
         {
@@ -250,6 +264,8 @@ public class StoredProcedureContentModel
         private readonly HashSet<int> _statementOffsets = new();
         private int _procedureDepth;
         private int _scalarSubqueryDepth; // verschachtelte Subselects (SELECT ... FOR JSON PATH) als Skalar in äußerem SELECT
+        // Track parent select element count to detect pass-through scalar subquery JSON (only one projection at outer level)
+        private int _parentSelectElementCount = -1;
 
         public ProcedureContentVisitor(string definition, ProcedureContentAnalysis analysis)
         {
@@ -331,14 +347,19 @@ public class StoredProcedureContentModel
 
         public override void ExplicitVisit(QuerySpecification node)
         {
+            var parentSelectCount = _parentSelectElementCount;
+            // set current as new parent for nested QuerySpecifications
+            _parentSelectElementCount = node.SelectElements?.Count ?? 0;
             if (node.ForClause is JsonForClause jsonClause)
             {
                 // Wenn wir uns innerhalb eines ScalarSubquery befinden, dann handelt es sich um ein verschachteltes JSON Fragment
                 // das als einzelnes NVARCHAR(MAX) Feld (Alias im äußeren Select) zurückgegeben wird. In diesem Fall KEIN eigenes ResultSet anlegen.
-                if (_scalarSubqueryDepth > 0)
+                // Ausnahme: Pass-through Fall (Eltern-Select hat genau 1 Projektion, die nur dieses ScalarSubquery enthält) => als top-level JSON behandeln
+                if (_scalarSubqueryDepth > 0 && !(parentSelectCount == 1))
                 {
                     // Markiere im äußersten aktuellen Set später die entsprechende Column als Nested (erfolgt in CollectJsonColumnsForSet über Expression-Typ Erkennung)
                     base.ExplicitVisit(node);
+                    _parentSelectElementCount = parentSelectCount; // restore before return
                     return;
                 }
                 // Create per-query JSON set context
@@ -392,6 +413,46 @@ public class StoredProcedureContentModel
                 // no legacy mirroring any more
             }
 
+            base.ExplicitVisit(node);
+            // restore parent context when unwinding
+            _parentSelectElementCount = parentSelectCount;
+        }
+
+        public override void ExplicitVisit(ExecuteSpecification node)
+        {
+            try
+            {
+                if (node.ExecutableEntity is ExecutableProcedureReference epr)
+                {
+                    var procRef = epr.ProcedureReference?.ProcedureReference;
+                    var name = procRef?.Name;
+                    if (name != null)
+                    {
+                        string schemaName = null;
+                        string procName = null;
+                        var ids = name.Identifiers;
+                        if (ids != null && ids.Count > 0)
+                        {
+                            // Support 1-part (Proc), 2-part (Schema.Proc), 3-part (Db.Schema.Proc)
+                            if (ids.Count == 1)
+                            {
+                                procName = ids[^1].Value;
+                                schemaName = _analysis.DefaultSchema;
+                            }
+                            else if (ids.Count >= 2)
+                            {
+                                procName = ids[^1].Value;
+                                schemaName = ids[^2].Value; // second last is schema in 2- or 3-part name
+                            }
+                        }
+                        if (!string.IsNullOrWhiteSpace(procName))
+                        {
+                            _analysis.ExecutedProcedures.Add((schemaName ?? _analysis.DefaultSchema, procName));
+                        }
+                    }
+                }
+            }
+            catch { /* best effort */ }
             base.ExplicitVisit(node);
         }
 

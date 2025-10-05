@@ -33,8 +33,20 @@ public class ModelGenerator(
         var classNode = nsBase.Members.OfType<ClassDeclarationSyntax>().First();
         var templateProperty = classNode.Members.OfType<PropertyDeclarationSyntax>().First();
 
-        var resultColumns = storedProcedure.Columns?.ToList() ?? [];
+        // Enforce: every storedProcedure here must represent EXACTLY one ResultSet.
+        if (storedProcedure.ResultSets == null || storedProcedure.ResultSets.Count != 1)
+        {
+            throw new System.InvalidOperationException($"Model generation expects exactly one ResultSet (got {storedProcedure.ResultSets?.Count ?? 0}) for '{storedProcedure.Name}'.");
+        }
+        var currentSet = storedProcedure.ResultSets[0];
+        var resultColumns = currentSet?.Columns?.ToList() ?? [];
         var hasResultColumns = resultColumns.Any();
+
+        // Heuristic: Legacy FOR JSON output (single synthetic column) -> treat as raw JSON
+        // Detection: exactly one column, name = JSON_F52E2B61-18A1-11d1-B105-00805F49916B (case-insensitive), nvarchar(max)
+        var currentSetReturnsJson = currentSet?.ReturnsJson ?? false;
+        // Legacy single-column FOR JSON heuristic removed. Rely solely on parser FOR JSON detection.
+        var treatAsJson = currentSetReturnsJson;
 
         // Local helpers
         string InferType(string sqlType, bool? nullable)
@@ -45,35 +57,23 @@ public class ModelGenerator(
 
         ClassDeclarationSyntax AddProperty(ClassDeclarationSyntax cls, string name, string typeName)
         {
-            var prop = templateProperty
-                .WithType(SyntaxFactory.ParseTypeName(typeName))
-                .WithIdentifier(SyntaxFactory.ParseToken($" {name.FirstCharToUpper()} "));
+            // Build a fresh auto-property instead of cloning the template placeholder (its marker triggers removal)
+            var identifier = SyntaxFactory.Identifier(name.FirstCharToUpper());
+            var typeSyntax = SyntaxFactory.ParseTypeName(typeName);
+            var prop = SyntaxFactory.PropertyDeclaration(typeSyntax, identifier)
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddAccessorListAccessors(
+                    SyntaxFactory.AccessorDeclaration(SyntaxKind.GetAccessorDeclaration)
+                        .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken)),
+                    SyntaxFactory.AccessorDeclaration(SyntaxKind.SetAccessorDeclaration)
+                        .WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken))
+                );
             return cls.AddMembers(prop);
         }
 
-        ClassDeclarationSyntax BuildNestedClass(string className, StoredProcedureContentModel.JsonResultModel jsonModel)
-        {
-            var nested = SyntaxFactory.ClassDeclaration(className)
-                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword));
-            if (jsonModel?.Columns != null)
-            {
-                foreach (var c in jsonModel.Columns)
-                {
-                    if (string.IsNullOrWhiteSpace(c.Name)) continue;
-                    var nType = InferType(c.SqlTypeName, c.IsNullable);
-                    var nProp = SyntaxFactory.PropertyDeclaration(SyntaxFactory.ParseTypeName(nType), SyntaxFactory.Identifier(c.Name.FirstCharToUpper()))
-                        .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
-                        .AddAccessorListAccessors(
-                            SyntaxFactory.AccessorDeclaration(SyntaxKind.GetAccessorDeclaration).WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken)),
-                            SyntaxFactory.AccessorDeclaration(SyntaxKind.SetAccessorDeclaration).WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken))
-                        );
-                    nested = nested.AddMembers(nProp);
-                }
-            }
-            return nested;
-        }
+        // Removed legacy BuildNestedClass (replaced by JsonPath tree generation)
 
-        if (hasResultColumns && !storedProcedure.ReturnsJson)
+        if (hasResultColumns && !treatAsJson)
         {
             foreach (var col in resultColumns)
             {
@@ -81,57 +81,138 @@ public class ModelGenerator(
                 classNode = AddProperty(classNode, col.Name, InferType(col.SqlTypeName, col.IsNullable));
             }
         }
-        else if (storedProcedure.ReturnsJson && (storedProcedure.Columns?.Any() ?? false))
+        else if (treatAsJson && resultColumns.Any())
         {
-            foreach (var col in storedProcedure.Columns)
+            // Build a tree structure from JsonPath segments so we can generate nested classes
+            var rootNode = new JsonPathNode("__root__");
+            foreach (var col in resultColumns)
             {
-                if (string.IsNullOrWhiteSpace(col.Name)) continue;
-                if (col.JsonResult != null && (col.JsonResult.Columns?.Any() ?? false))
+                var path = string.IsNullOrWhiteSpace(col.JsonPath) ? col.Name : col.JsonPath;
+                if (string.IsNullOrWhiteSpace(path)) continue;
+                var segments = path.Split('.', System.StringSplitOptions.RemoveEmptyEntries);
+                if (segments.Length == 0) continue;
+                var node = rootNode;
+                for (int i = 0; i < segments.Length; i++)
                 {
-                    var nestedClassName = col.Name.FirstCharToUpper().Trim();
-                    if (nestedClassName.EndsWith("s") && col.JsonResult.ReturnsJsonArray)
-                        nestedClassName = nestedClassName.TrimEnd('s');
-
-                    if (!classNode.Members.OfType<ClassDeclarationSyntax>().Any(c => c.Identifier.Text == nestedClassName))
+                    var seg = segments[i];
+                    var isLeaf = i == segments.Length - 1;
+                    node = node.GetOrAdd(seg);
+                    if (isLeaf)
                     {
-                        var nested = BuildNestedClass(nestedClassName, col.JsonResult);
-                        classNode = classNode.AddMembers(nested);
+                        node.Columns.Add(col); // attach column at leaf
                     }
-                    var propertyType = col.JsonResult.ReturnsJsonArray
-                        ? $"System.Collections.Generic.List<{nestedClassName}>"
-                        : nestedClassName;
-                    classNode = AddProperty(classNode, col.Name, propertyType);
-                }
-                else
-                {
-                    classNode = AddProperty(classNode, col.Name, InferType(col.SqlTypeName, col.IsNullable));
                 }
             }
 
-            // Ensure fallback properties added (defensive)
-            var existing = classNode.Members.OfType<PropertyDeclarationSyntax>().Select(p => p.Identifier.Text).ToHashSet();
-            foreach (var col in storedProcedure.Columns.Where(c => c.JsonResult != null && (c.JsonResult.Columns?.Any() ?? false)))
+            // Generate nested classes recursively; collect top-level segment names for root properties.
+            var generatedClasses = new System.Collections.Generic.Dictionary<string, ClassDeclarationSyntax>(System.StringComparer.OrdinalIgnoreCase);
+
+            ClassDeclarationSyntax GenerateClass(JsonPathNode node)
             {
-                var propName = col.Name.FirstCharToUpper();
-                if (existing.Contains(propName)) continue;
-                var elementName = propName;
-                if (elementName.EndsWith("s") && col.JsonResult.ReturnsJsonArray)
-                    elementName = elementName.TrimEnd('s');
-                if (!classNode.Members.OfType<ClassDeclarationSyntax>().Any(c => c.Identifier.Text == elementName))
+                var className = node.Name.FirstCharToUpper();
+                if (generatedClasses.TryGetValue(className, out var existing)) return existing;
+                var cls = SyntaxFactory.ClassDeclaration(className).AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword));
+                // Child classes first
+                foreach (var child in node.Children.Values)
                 {
-                    classNode = classNode.AddMembers(SyntaxFactory.ClassDeclaration(elementName).AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword)));
+                    // Flatten rule: if child has exactly one column, no grandchildren, and column name == child name -> emit property only
+                    if (!child.HasChildren && child.Columns.Count == 1 && string.Equals(child.Columns[0].Name, child.Name, System.StringComparison.OrdinalIgnoreCase))
+                    {
+                        var col = child.Columns[0];
+                        var propName = col.Name.FirstCharToUpper();
+                        if (!cls.Members.OfType<PropertyDeclarationSyntax>().Any(p => p.Identifier.Text == propName))
+                        {
+                            var typeName = InferType(col.SqlTypeName, col.IsNullable);
+                            var prop = SyntaxFactory.PropertyDeclaration(SyntaxFactory.ParseTypeName(typeName), SyntaxFactory.Identifier(propName))
+                                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                                .AddAccessorListAccessors(
+                                    SyntaxFactory.AccessorDeclaration(SyntaxKind.GetAccessorDeclaration).WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken)),
+                                    SyntaxFactory.AccessorDeclaration(SyntaxKind.SetAccessorDeclaration).WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken))
+                                );
+                            cls = cls.AddMembers(prop);
+                        }
+                        continue; // don't generate child class wrapper
+                    }
+
+                    var childCls = GenerateClass(child);
+                    if (!cls.Members.OfType<ClassDeclarationSyntax>().Any(c => c.Identifier.Text == childCls.Identifier.Text))
+                    {
+                        cls = cls.AddMembers(childCls);
+                    }
                 }
-                var typeName = col.JsonResult.ReturnsJsonArray ? $"System.Collections.Generic.List<{elementName}>" : elementName;
-                classNode = AddProperty(classNode, propName, typeName);
+                // Leaf columns -> properties
+                foreach (var c in node.Columns)
+                {
+                    var propName = c.Name.FirstCharToUpper();
+                    if (!cls.Members.OfType<PropertyDeclarationSyntax>().Any(p => p.Identifier.Text == propName))
+                    {
+                        var typeName = InferType(c.SqlTypeName, c.IsNullable);
+                        var prop = SyntaxFactory.PropertyDeclaration(SyntaxFactory.ParseTypeName(typeName), SyntaxFactory.Identifier(propName))
+                            .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                            .AddAccessorListAccessors(
+                                SyntaxFactory.AccessorDeclaration(SyntaxKind.GetAccessorDeclaration).WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken)),
+                                SyntaxFactory.AccessorDeclaration(SyntaxKind.SetAccessorDeclaration).WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken))
+                            );
+                        cls = cls.AddMembers(prop);
+                    }
+                }
+                generatedClasses[className] = cls;
+                return cls;
+            }
+
+            // Add nested classes + root properties with flattening rule:
+            // If a top-level segment has exactly one leaf column and no children AND that column's JsonPath has no dot => direct property (flatten)
+            // Else generate nested class tree.
+            foreach (var top in rootNode.Children.Values)
+            {
+                var singleLeafNoChildren = !top.HasChildren && top.Columns.Count == 1 && !(top.Columns[0].JsonPath?.Contains('.') ?? false);
+                if (singleLeafNoChildren)
+                {
+                    var col = top.Columns[0];
+                    classNode = AddProperty(classNode, col.Name, InferType(col.SqlTypeName, col.IsNullable));
+                    continue;
+                }
+
+                // For deeper or grouped nodes generate classes.
+                var cls = GenerateClass(top);
+                // Remove redundant self-wrapping pattern: class Currency { class Code { string Code; } } -> flatten inner if it mirrors parent name only
+                cls = SimplifySingleSelfWrapping(cls);
+                if (!classNode.Members.OfType<ClassDeclarationSyntax>().Any(c => c.Identifier.Text == cls.Identifier.Text))
+                {
+                    classNode = classNode.AddMembers(cls);
+                }
+                if (!classNode.Members.OfType<PropertyDeclarationSyntax>().Any(p => p.Identifier.Text == top.Name.FirstCharToUpper()))
+                {
+                    classNode = AddProperty(classNode, top.Name, cls.Identifier.Text);
+                }
             }
         }
 
         // Remove template placeholder property
         root = TemplateManager.RemoveTemplateProperty(root.ReplaceNode(nsBase, nsBase.WithMembers(SyntaxFactory.SingletonList<MemberDeclarationSyntax>(classNode))));
 
-        if (!hasResultColumns && !(storedProcedure.Columns?.Any() ?? false) && storedProcedure.ReturnsJson)
+        // Insert standardized auto-generated header on class
+        var autoHeader = "/// <summary>Auto-generated by SpocR. DO NOT EDIT. Changes will be overwritten on rebuild.</summary>" + System.Environment.NewLine +
+                         "/// <remarks>Generated at " + System.DateTime.UtcNow.ToString("u") + "</remarks>" + System.Environment.NewLine;
+        var nsAfter = (BaseNamespaceDeclarationSyntax)root.Members[0];
+        var clsAfter = nsAfter.Members.OfType<ClassDeclarationSyntax>().First();
+        if (!clsAfter.GetLeadingTrivia().ToFullString().Contains("Auto-generated"))
         {
-            consoleService.Warn($"No JSON columns extracted for stored procedure '{storedProcedure.Name}'. Generated empty model.");
+            var updated = clsAfter.WithLeadingTrivia(SyntaxFactory.ParseLeadingTrivia(autoHeader).AddRange(clsAfter.GetLeadingTrivia()));
+            root = root.ReplaceNode(clsAfter, updated);
+        }
+
+        if (!hasResultColumns && currentSetReturnsJson)
+        {
+            consoleService.Warn($"No JSON columns extracted for stored procedure '{storedProcedure.Name}'. Generated empty model (RawJson fallback).");
+            // Add RawJson fallback property to surface payload
+            classNode = AddProperty(classNode, "RawJson", "string");
+            // Replace class in root to persist new property
+            var nsAfterRemoval = root.Members.OfType<BaseNamespaceDeclarationSyntax>().First();
+            var existingClass = nsAfterRemoval.Members.OfType<ClassDeclarationSyntax>().First();
+            root = root.ReplaceNode(existingClass, classNode);
+            // Ensure placeholder property removed if template left it in during replacement
+            root = TemplateManager.RemoveTemplateProperty(root);
             // Add doc comment if still empty
             classNode = root.Members.OfType<BaseNamespaceDeclarationSyntax>().First().Members.OfType<ClassDeclarationSyntax>().First();
             if (!classNode.Members.OfType<PropertyDeclarationSyntax>().Any())
@@ -145,6 +226,116 @@ public class ModelGenerator(
         }
 
         return TemplateManager.GenerateSourceText(root);
+    }
+
+    private sealed class JsonPathNode
+    {
+        public string Name { get; }
+        public System.Collections.Generic.Dictionary<string, JsonPathNode> Children { get; } = new(System.StringComparer.OrdinalIgnoreCase);
+        public System.Collections.Generic.List<StoredProcedureContentModel.ResultColumn> Columns { get; } = new();
+        public bool HasChildren => Children.Count > 0;
+        public JsonPathNode(string name) { Name = name; }
+        public JsonPathNode GetOrAdd(string name)
+        {
+            if (!Children.TryGetValue(name, out var node))
+            {
+                node = new JsonPathNode(name);
+                Children[name] = node;
+            }
+            return node;
+        }
+    }
+
+    private static ClassDeclarationSyntax SimplifySingleSelfWrapping(ClassDeclarationSyntax cls)
+    {
+        // Pattern: class Currency { class Code { string Code; } } produced from path Currency.Code.Code (name duplication)
+        // Or more generally: child class with same single property name as itself - keep as-is unless it only wraps one property identical to parent logic.
+        // For now keep logic minimal: if a nested class has EXACTLY one property and NO further nested classes, and the property name equals the class name, promote property to parent level
+        var updated = cls;
+        var childClasses = cls.Members.OfType<ClassDeclarationSyntax>().ToList();
+        foreach (var child in childClasses)
+        {
+            var grandChildren = child.Members.OfType<ClassDeclarationSyntax>();
+            if (grandChildren.Any()) continue; // skip deeper structures
+            var props = child.Members.OfType<PropertyDeclarationSyntax>().ToList();
+            if (props.Count == 1 && string.Equals(props[0].Identifier.Text, child.Identifier.Text, System.StringComparison.Ordinal))
+            {
+                // Flatten: add property to parent with child name and remove child class
+                if (!updated.Members.OfType<PropertyDeclarationSyntax>().Any(p => p.Identifier.Text == props[0].Identifier.Text))
+                {
+                    updated = updated.AddMembers(props[0]);
+                }
+                updated = updated.RemoveNode(child, SyntaxRemoveOptions.KeepNoTrivia);
+            }
+        }
+        return updated;
+    }
+
+    private static ClassDeclarationSyntax EnsureClassPath(ClassDeclarationSyntax root, string[] pathSegments)
+    {
+        if (pathSegments.Length == 0) return root;
+        ClassDeclarationSyntax updatedRoot = root;
+        ClassDeclarationSyntax currentRoot = root;
+        for (int i = 0; i < pathSegments.Length; i++)
+        {
+            var seg = pathSegments[i].FirstCharToUpper();
+            var existing = currentRoot.Members.OfType<ClassDeclarationSyntax>().FirstOrDefault(c => c.Identifier.Text == seg);
+            if (existing == null)
+            {
+                existing = SyntaxFactory.ClassDeclaration(seg).AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword));
+                currentRoot = currentRoot.AddMembers(existing);
+                // replace in parent tree
+                updatedRoot = (ClassDeclarationSyntax)new SimpleNestedReplaceRewriter(seg, currentRoot).Visit(updatedRoot) ?? currentRoot;
+            }
+            currentRoot = existing;
+        }
+        return updatedRoot;
+    }
+
+    private static ClassDeclarationSyntax AddLeafProperty(ClassDeclarationSyntax root, string[] fullSegments, string typeName)
+    {
+        var leafName = fullSegments.Last().FirstCharToUpper();
+        var containerPath = fullSegments.Take(fullSegments.Length - 1).Select(s => s.FirstCharToUpper()).ToArray();
+        var container = FindClass(root, containerPath);
+        if (container == null) return root;
+        if (!container.Members.OfType<PropertyDeclarationSyntax>().Any(p => p.Identifier.Text == leafName))
+        {
+            var prop = SyntaxFactory.PropertyDeclaration(SyntaxFactory.ParseTypeName(typeName), SyntaxFactory.Identifier(leafName))
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                .AddAccessorListAccessors(
+                    SyntaxFactory.AccessorDeclaration(SyntaxKind.GetAccessorDeclaration).WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken)),
+                    SyntaxFactory.AccessorDeclaration(SyntaxKind.SetAccessorDeclaration).WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken)));
+            var replaced = container.AddMembers(prop);
+            root = (ClassDeclarationSyntax)new SimpleNestedReplaceRewriter(container.Identifier.Text, replaced).Visit(root) ?? root;
+        }
+        return root;
+    }
+
+    private static ClassDeclarationSyntax FindClass(ClassDeclarationSyntax root, string[] path)
+    {
+        if (path.Length == 0) return root;
+        var current = root;
+        foreach (var seg in path)
+        {
+            var next = current.Members.OfType<ClassDeclarationSyntax>().FirstOrDefault(c => c.Identifier.Text == seg);
+            if (next == null) return null;
+            current = next;
+        }
+        return current;
+    }
+
+    private sealed class SimpleNestedReplaceRewriter : CSharpSyntaxRewriter
+    {
+        private readonly string _target;
+        private readonly ClassDeclarationSyntax _replacement;
+        public SimpleNestedReplaceRewriter(string target, ClassDeclarationSyntax replacement)
+        { _target = target; _replacement = replacement; }
+        public override SyntaxNode VisitClassDeclaration(ClassDeclarationSyntax node)
+        {
+            if (node.Identifier.Text == _target)
+                return _replacement;
+            return base.VisitClassDeclaration(node);
+        }
     }
 
     public async Task GenerateDataContextModels(bool isDryRun)
@@ -172,12 +363,7 @@ public class ModelGenerator(
 
             foreach (var storedProcedure in storedProcedures)
             {
-                // Multi-ResultSet strategy:
-                // - First result set keeps existing base model name (storedProcedure.Name)
-                // - Additional result sets (index >=1) get suffix _1, _2, ...
-                //   Suffix number = resultSetIndex (0-based) to keep it predictable.
                 var resultSets = storedProcedure.ResultSets;
-                // Fallback: treat existing Columns/Flags as single primary (backward compatibility through Definition wrapper)
                 if (resultSets == null || resultSets.Count == 0)
                 {
                     await WriteSingleModelAsync(schema, storedProcedure, path, isDryRun);
@@ -186,29 +372,20 @@ public class ModelGenerator(
 
                 for (var rIndex = 0; rIndex < resultSets.Count; rIndex++)
                 {
-                    var modelSp = storedProcedure;
-                    // We need a lightweight clone to override column exposure via Definition wrapper semantics.
-                    // Instead of altering Definition we temporarily project a synthetic StoredProcedureModel when index>0.
-                    // NOTE: Minimal invasive: reuse GetModelTextForStoredProcedureAsync which relies on Definition.StoredProcedure.Columns/ReturnsJson.
-                    if (rIndex > 0)
+                    var modelName = rIndex == 0 ? storedProcedure.Name : storedProcedure.Name + "_" + rIndex;
+                    // Always build a synthetic single-set StoredProcedureModel for clarity & symmetry
+                    var spModel = new SpocR.Models.StoredProcedureModel(new SpocR.DataContext.Models.StoredProcedure
                     {
-                        // Build synthetic model object replicating name with suffix and mapping only the target result set as primary.
-                        var suffixName = storedProcedure.Name + "_" + rIndex; // _1, _2, ...
-                        var spModel = new SpocR.Models.StoredProcedureModel(new SpocR.DataContext.Models.StoredProcedure
+                        Name = modelName,
+                        SchemaName = schema.Name
+                    })
+                    {
+                        Content = new StoredProcedureContentModel
                         {
-                            Name = suffixName,
-                            SchemaName = schema.Name
-                        })
-                        {
-                            Content = new StoredProcedureContentModel
-                            {
-                                ResultSets = new[] { resultSets[rIndex] }
-                            }
-                        };
-                        // Wrap again into Definition to leverage existing logic
-                        modelSp = Definition.ForStoredProcedure(spModel, schema);
-                    }
-
+                            ResultSets = new[] { resultSets[rIndex] }
+                        }
+                    };
+                    var modelSp = Definition.ForStoredProcedure(spModel, schema);
                     await WriteSingleModelAsync(schema, modelSp, path, isDryRun);
                 }
             }
@@ -217,10 +394,16 @@ public class ModelGenerator(
 
     private async Task WriteSingleModelAsync(Definition.Schema schema, Definition.StoredProcedure storedProcedure, string path, bool isDryRun)
     {
-        var hasResultCols = storedProcedure.Columns?.Any() ?? false;
-        var isScalarResultCols = hasResultCols && !storedProcedure.ReturnsJson && storedProcedure.Columns.Count == 1;
-        if (!storedProcedure.ReturnsJson && isScalarResultCols)
-            return; // skip scalar tabular model
+        if (storedProcedure.ResultSets == null || storedProcedure.ResultSets.Count != 1)
+        {
+            throw new System.InvalidOperationException($"Model generation expects exactly one ResultSet (got {storedProcedure.ResultSets?.Count ?? 0}) for '{storedProcedure.Name}'.");
+        }
+        var currentSet = storedProcedure.ResultSets[0];
+        var currentSetReturnsJson = currentSet.ReturnsJson;
+        var hasResultCols = (currentSet.Columns?.Any() ?? false);
+        var isScalarResultCols = hasResultCols && !currentSetReturnsJson && currentSet.Columns.Count == 1;
+        if (!currentSetReturnsJson && isScalarResultCols)
+            return; // skip scalar tabular model (true single-value), but not legacy FOR JSON payload
 
         var fileName = $"{storedProcedure.Name}.cs";
         var fileNameWithPath = Path.Combine(path, fileName);

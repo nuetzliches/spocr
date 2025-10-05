@@ -310,6 +310,22 @@ public class SchemaManager(
                                 JsonRootProperty = null,
                                 Columns = syntheticColumns
                             };
+                            // Legacy FOR JSON (single synthetic column) upgrade: detect nvarchar(max) JSON_F52E... column and mark as JSON
+                            if (syntheticSet.Columns.Count == 1 &&
+                                string.Equals(syntheticSet.Columns[0].Name, "JSON_F52E2B61-18A1-11d1-B105-00805F49916B", StringComparison.OrdinalIgnoreCase) &&
+                                (syntheticSet.Columns[0].SqlTypeName?.StartsWith("nvarchar", StringComparison.OrdinalIgnoreCase) ?? false))
+                            {
+                                syntheticSet = new StoredProcedureContentModel.ResultSet
+                                {
+                                    ReturnsJson = true,
+                                    ReturnsJsonArray = true,
+                                    ReturnsJsonWithoutArrayWrapper = false,
+                                    JsonRootProperty = null,
+                                    Columns = Array.Empty<StoredProcedureContentModel.ResultColumn>()
+                                };
+                                if (jsonTypeLogLevel == JsonTypeLogLevel.Detailed)
+                                    consoleService.Verbose($"[proc-json-legacy-upgrade] {storedProcedure.SchemaName}.{storedProcedure.Name} single synthetic FOR JSON column upgraded to JSON.");
+                            }
                             // Reconstruct content object preserving existing parse flags
                             storedProcedure.Content = new StoredProcedureContentModel
                             {
@@ -409,6 +425,92 @@ public class SchemaManager(
 
             schema.TableTypes = tableTypeModels;
         }
+
+        // Forwarding normalization: clone ResultSets from executed procedure for wrapper procs
+        try
+        {
+            var allProcedures = schemas.SelectMany(s => s.StoredProcedures ?? Enumerable.Empty<StoredProcedureModel>()).ToList();
+            var procLookup = allProcedures
+                .ToDictionary(p => ($"{p.SchemaName}.{p.Name}"), p => p, StringComparer.OrdinalIgnoreCase);
+
+            foreach (var proc in allProcedures)
+            {
+                var content = proc.Content;
+                if (content == null) continue;
+                var hasSets = content.ResultSets != null && content.ResultSets.Any();
+                bool onlyEmptyJsonSets = hasSets && content.ResultSets.All(rs => rs.ReturnsJson && (rs.Columns == null || rs.Columns.Count == 0));
+                if (hasSets && !onlyEmptyJsonSets) continue; // has meaningful sets -> skip
+                if (content.ExecutedProcedures == null || content.ExecutedProcedures.Count != 1) continue; // only single EXEC wrapper
+                if (content.ContainsSelect || content.ContainsInsert || content.ContainsUpdate || content.ContainsDelete || content.ContainsMerge)
+                {
+                    // If it has its own SELECT but only produced empty JSON sets, allow upgrade; otherwise skip
+                    if (!onlyEmptyJsonSets)
+                    {
+                        continue;
+                    }
+                }
+                var target = content.ExecutedProcedures[0];
+                if (target == null) continue;
+                if (!procLookup.TryGetValue($"{target.Schema}.{target.Name}", out var targetProc)) continue;
+                var targetSets = targetProc.Content?.ResultSets;
+                if (targetSets == null || !targetSets.Any()) continue;
+
+                // Clone target sets
+                var clonedSets = targetSets.Select(rs => new StoredProcedureContentModel.ResultSet
+                {
+                    ReturnsJson = rs.ReturnsJson,
+                    ReturnsJsonArray = rs.ReturnsJsonArray,
+                    ReturnsJsonWithoutArrayWrapper = rs.ReturnsJsonWithoutArrayWrapper,
+                    JsonRootProperty = rs.JsonRootProperty,
+                    Columns = rs.Columns.Select(c => new StoredProcedureContentModel.ResultColumn
+                    {
+                        Name = c.Name,
+                        JsonPath = c.JsonPath,
+                        SourceSchema = c.SourceSchema,
+                        SourceTable = c.SourceTable,
+                        SourceColumn = c.SourceColumn,
+                        SqlTypeName = c.SqlTypeName,
+                        IsNullable = c.IsNullable,
+                        MaxLength = c.MaxLength,
+                        SourceAlias = c.SourceAlias,
+                        ExpressionKind = c.ExpressionKind,
+                        IsNestedJson = c.IsNestedJson,
+                        ForcedNullable = c.ForcedNullable,
+                        IsAmbiguous = c.IsAmbiguous,
+                        CastTargetType = c.CastTargetType,
+                        UserTypeName = c.UserTypeName,
+                        UserTypeSchemaName = c.UserTypeSchemaName,
+                        JsonResult = c.JsonResult == null ? null : new StoredProcedureContentModel.JsonResultModel
+                        {
+                            ReturnsJson = c.JsonResult.ReturnsJson,
+                            ReturnsJsonArray = c.JsonResult.ReturnsJsonArray,
+                            ReturnsJsonWithoutArrayWrapper = c.JsonResult.ReturnsJsonWithoutArrayWrapper,
+                            JsonRootProperty = c.JsonResult.JsonRootProperty,
+                            Columns = c.JsonResult.Columns.ToArray()
+                        }
+                    }).ToArray()
+                }).ToArray();
+
+                proc.Content = new StoredProcedureContentModel
+                {
+                    Definition = proc.Content.Definition,
+                    Statements = proc.Content.Statements,
+                    ContainsSelect = proc.Content.ContainsSelect,
+                    ContainsInsert = proc.Content.ContainsInsert,
+                    ContainsUpdate = proc.Content.ContainsUpdate,
+                    ContainsDelete = proc.Content.ContainsDelete,
+                    ContainsMerge = proc.Content.ContainsMerge,
+                    ContainsOpenJson = proc.Content.ContainsOpenJson,
+                    ResultSets = clonedSets,
+                    UsedFallbackParser = proc.Content.UsedFallbackParser,
+                    ParseErrorCount = proc.Content.ParseErrorCount,
+                    FirstParseError = proc.Content.FirstParseError,
+                    ExecutedProcedures = proc.Content.ExecutedProcedures
+                };
+                consoleService.Verbose($"[proc-forward{(onlyEmptyJsonSets ? "-upgrade" : string.Empty)}] {proc.SchemaName}.{proc.Name} forwarded {clonedSets.Length} result set(s) from {target.Schema}.{target.Name}");
+            }
+        }
+        catch { /* best effort */ }
 
         if (totalSpCount > 0)
         {

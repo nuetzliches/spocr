@@ -75,101 +75,129 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
         if (hasIgnored) _console.Verbose($"[snapshot-provider] deriving schema statuses via IgnoredSchemas ({ignored.Count})");
 
         var schemas = snapshot.Schemas.Select(s =>
-        {
-            // Status no longer persisted in snapshot; derive solely via IgnoredSchemas/default
-            var status = ignored.Contains(s.Name, StringComparer.OrdinalIgnoreCase) ? SchemaStatusEnum.Ignore : defaultStatus;
-            var spList = snapshot.Procedures
-                .Where(p => p.Schema.Equals(s.Name, StringComparison.OrdinalIgnoreCase))
-                .Select(p => new StoredProcedureModel(new DataContext.Models.StoredProcedure
-                {
-                    SchemaName = p.Schema,
-                    Name = p.Name,
-                    Modified = new DateTime(p.ModifiedTicks, DateTimeKind.Utc)
-                })
-                {
-                    ModifiedTicks = p.ModifiedTicks,
-                    Input = p.Inputs.Select(i => new StoredProcedureInputModel(new DataContext.Models.StoredProcedureInput
+            {
+                // Status no longer persisted in snapshot; derive solely via IgnoredSchemas/default
+                var status = ignored.Contains(s.Name, StringComparer.OrdinalIgnoreCase) ? SchemaStatusEnum.Ignore : defaultStatus;
+                var spList = snapshot.Procedures
+                    .Where(p => p.Schema.Equals(s.Name, StringComparison.OrdinalIgnoreCase))
+                    .Select(p => new StoredProcedureModel(new DataContext.Models.StoredProcedure
                     {
-                        Name = i.Name,
-                        SqlTypeName = i.SqlTypeName,
-                        IsNullable = i.IsNullable,
-                        MaxLength = i.MaxLength,
-                        IsOutput = i.IsOutput,
-                        IsTableType = i.IsTableType,
-                        UserTypeName = i.TableTypeName,
-                        UserTypeSchemaName = i.TableTypeSchema
-                    })).ToList(),
-                    Content = new StoredProcedureContentModel
+                        SchemaName = p.Schema,
+                        Name = p.Name,
+                        Modified = new DateTime(p.ModifiedTicks, DateTimeKind.Utc)
+                    })
                     {
-                        Definition = null,
-                        ContainsSelect = true,
-                        ResultSets = p.ResultSets.Select(rs => new StoredProcedureContentModel.ResultSet
+                        ModifiedTicks = p.ModifiedTicks,
+                        Input = p.Inputs.Select(i => new StoredProcedureInputModel(new DataContext.Models.StoredProcedureInput
                         {
-                            ReturnsJson = rs.ReturnsJson,
-                            ReturnsJsonArray = rs.ReturnsJsonArray,
-                            ReturnsJsonWithoutArrayWrapper = rs.ReturnsJsonWithoutArrayWrapper,
-                            JsonRootProperty = rs.JsonRootProperty,
-                            Columns = rs.Columns.Select(c => new StoredProcedureContentModel.ResultColumn
-                            {
-                                JsonPath = c.JsonPath,
-                                Name = c.Name,
-                                SqlTypeName = c.SqlTypeName,
-                                IsNullable = c.IsNullable,
-                                MaxLength = c.MaxLength,
-                                UserTypeSchemaName = c.UserTypeSchemaName,
-                                UserTypeName = c.UserTypeName,
-                                JsonResult = c.JsonResult == null ? null : new StoredProcedureContentModel.JsonResultModel
-                                {
-                                    ReturnsJson = c.JsonResult.ReturnsJson,
-                                    ReturnsJsonArray = c.JsonResult.ReturnsJsonArray,
-                                    ReturnsJsonWithoutArrayWrapper = c.JsonResult.ReturnsJsonWithoutArrayWrapper,
-                                    JsonRootProperty = c.JsonResult.JsonRootProperty,
-                                    Columns = c.JsonResult.Columns?.Select(n => new StoredProcedureContentModel.ResultColumn
-                                    {
-                                        JsonPath = n.JsonPath,
-                                        Name = n.Name,
-                                        SqlTypeName = n.SqlTypeName,
-                                        IsNullable = n.IsNullable,
-                                        MaxLength = n.MaxLength,
-                                        UserTypeSchemaName = n.UserTypeSchemaName,
-                                        UserTypeName = n.UserTypeName
-                                    }).ToArray() ?? Array.Empty<StoredProcedureContentModel.ResultColumn>()
-                                }
-                            }).ToArray()
-                        }).ToArray()
-                    }
-                }).ToList();
-            var ttList = snapshot.UserDefinedTableTypes
-                .Where(u => u.Schema.Equals(s.Name, StringComparison.OrdinalIgnoreCase))
-                .Select(u => new TableTypeModel(new DataContext.Models.TableType
-                {
-                    Name = u.Name,
-                    SchemaName = u.Schema,
-                    UserTypeId = u.UserTypeId,
-                    Columns = u.Columns.Select(c => new DataContext.Models.Column
+                            Name = i.Name,
+                            SqlTypeName = i.SqlTypeName,
+                            IsNullable = i.IsNullable,
+                            MaxLength = i.MaxLength,
+                            IsOutput = i.IsOutput,
+                            IsTableType = i.IsTableType,
+                            UserTypeName = i.TableTypeName,
+                            UserTypeSchemaName = i.TableTypeSchema
+                        })).ToList(),
+                        Content = new StoredProcedureContentModel
+                        {
+                            Definition = null,
+                            ContainsSelect = true,
+                            ResultSets = PostProcessResultSets(p)
+                        }
+                    }).ToList();
+                var ttList = snapshot.UserDefinedTableTypes
+                    .Where(u => u.Schema.Equals(s.Name, StringComparison.OrdinalIgnoreCase))
+                    .Select(u => new TableTypeModel(new DataContext.Models.TableType
+                    {
+                        Name = u.Name,
+                        SchemaName = u.Schema,
+                        UserTypeId = u.UserTypeId,
+                        Columns = u.Columns.Select(c => new DataContext.Models.Column
+                        {
+                            Name = c.Name,
+                            SqlTypeName = c.SqlTypeName,
+                            IsNullable = c.IsNullable,
+                            MaxLength = c.MaxLength
+                        }).ToList()
+                    }, u.Columns.Select(c => new DataContext.Models.Column
                     {
                         Name = c.Name,
                         SqlTypeName = c.SqlTypeName,
                         IsNullable = c.IsNullable,
                         MaxLength = c.MaxLength
-                    }).ToList()
-                }, u.Columns.Select(c => new DataContext.Models.Column
+                    }).ToList())).ToList();
+                return new SchemaModel
                 {
-                    Name = c.Name,
-                    SqlTypeName = c.SqlTypeName,
-                    IsNullable = c.IsNullable,
-                    MaxLength = c.MaxLength
-                }).ToList())).ToList();
-            return new SchemaModel
-            {
-                Name = s.Name,
-                Status = status,
-                StoredProcedures = spList,
-                TableTypes = ttList
-            };
-        }).ToList();
+                    Name = s.Name,
+                    Status = status,
+                    StoredProcedures = spList,
+                    TableTypes = ttList
+                };
+            }).ToList();
 
         _schemas = schemas;
         return _schemas;
+    }
+
+    private static IReadOnlyList<StoredProcedureContentModel.ResultSet> PostProcessResultSets(SnapshotProcedure p)
+    {
+        var sets = p.ResultSets.Select(rs => new StoredProcedureContentModel.ResultSet
+        {
+            ReturnsJson = rs.ReturnsJson,
+            ReturnsJsonArray = rs.ReturnsJsonArray,
+            ReturnsJsonWithoutArrayWrapper = rs.ReturnsJsonWithoutArrayWrapper,
+            JsonRootProperty = rs.JsonRootProperty,
+            Columns = rs.Columns.Select(c => new StoredProcedureContentModel.ResultColumn
+            {
+                JsonPath = c.JsonPath,
+                Name = c.Name,
+                SqlTypeName = c.SqlTypeName,
+                IsNullable = c.IsNullable,
+                MaxLength = c.MaxLength,
+                UserTypeSchemaName = c.UserTypeSchemaName,
+                UserTypeName = c.UserTypeName,
+                JsonResult = c.JsonResult == null ? null : new StoredProcedureContentModel.JsonResultModel
+                {
+                    ReturnsJson = c.JsonResult.ReturnsJson,
+                    ReturnsJsonArray = c.JsonResult.ReturnsJsonArray,
+                    ReturnsJsonWithoutArrayWrapper = c.JsonResult.ReturnsJsonWithoutArrayWrapper,
+                    JsonRootProperty = c.JsonResult.JsonRootProperty,
+                    Columns = c.JsonResult.Columns?.Select(n => new StoredProcedureContentModel.ResultColumn
+                    {
+                        JsonPath = n.JsonPath,
+                        Name = n.Name,
+                        SqlTypeName = n.SqlTypeName,
+                        IsNullable = n.IsNullable,
+                        MaxLength = n.MaxLength,
+                        UserTypeSchemaName = n.UserTypeSchemaName,
+                        UserTypeName = n.UserTypeName
+                    }).ToArray() ?? Array.Empty<StoredProcedureContentModel.ResultColumn>()
+                }
+            }).ToArray()
+        }).ToList();
+
+        // Heuristik: Einzelnes Set, Einzelne Legacy JSON Column -> Markiere als JSON
+        if (sets.Count == 1)
+        {
+            var s = sets[0];
+            if (!s.ReturnsJson && (s.Columns?.Count == 1))
+            {
+                var col = s.Columns[0];
+                if (col.Name != null && col.Name.Equals("JSON_F52E2B61-18A1-11d1-B105-00805F49916B", StringComparison.OrdinalIgnoreCase)
+                    && (col.SqlTypeName?.StartsWith("nvarchar", StringComparison.OrdinalIgnoreCase) ?? false))
+                {
+                    sets[0] = new StoredProcedureContentModel.ResultSet
+                    {
+                        ReturnsJson = true,
+                        ReturnsJsonArray = true, // konservativ: FOR JSON PATH ohne WITHOUT_ARRAY_WRAPPER -> Array
+                        ReturnsJsonWithoutArrayWrapper = false,
+                        JsonRootProperty = null,
+                        Columns = Array.Empty<StoredProcedureContentModel.ResultColumn>() // Struktur unbekannt
+                    };
+                }
+            }
+        }
+        return sets.ToArray();
     }
 }

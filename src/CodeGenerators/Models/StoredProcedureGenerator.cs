@@ -63,8 +63,10 @@ public class StoredProcedureGenerator(
             }
         }
 
-        // Add Using for Models
-        if (storedProcedures.Any(i => i.ReadWriteKind == Definition.ReadWriteKindEnum.Read && !i.ReturnsJson && (i.Columns?.Count ?? 0) > 1))
+        // Add Using for Models (non-JSON, multi-column READ procedures)
+        if (storedProcedures.Any(sp => sp.ReadWriteKind == Definition.ReadWriteKindEnum.Read
+                           && !(sp.ResultSets?.FirstOrDefault()?.ReturnsJson ?? false)
+                           && ((sp.ResultSets?.FirstOrDefault()?.Columns?.Count) ?? 0) > 1))
         {
             var modelUsingDirective = ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib
                 ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.Models.{schema.Name}"))
@@ -121,8 +123,9 @@ public class StoredProcedureGenerator(
             overloadOptionsMethodNode = GenerateStoredProcedureMethodText(overloadOptionsMethodNode, storedProcedure, StoredProcedureMethodKind.Raw, true);
             root = root.AddMethod(ref classNode, overloadOptionsMethodNode);
 
-            // Add Deserialize variants for JSON returning procedures
-            if (storedProcedure.ReturnsJson)
+            // Add Deserialize variants for JSON returning procedures (inspect first result set)
+            var firstSet = storedProcedure.ResultSets?.FirstOrDefault();
+            if (firstSet?.ReturnsJson ?? false)
             {
                 nsNode = (NamespaceDeclarationSyntax)root.Members[0];
                 classNode = (ClassDeclarationSyntax)nsNode.Members[0];
@@ -145,7 +148,8 @@ public class StoredProcedureGenerator(
         root = root.ReplaceNode(classNode, classNode.WithMembers([.. classNode.Members.Cast<MethodDeclarationSyntax>().Skip(2)]));
 
         // Ensure JSON deserialization namespace is present if any SP returns JSON
-        if (storedProcedures.Any(sp => sp.ReturnsJson) && !root.Usings.Any(u => u.Name.ToString() == "System.Text.Json"))
+        if (storedProcedures.Any(sp => sp.ResultSets?.FirstOrDefault()?.ReturnsJson ?? false)
+            && !root.Usings.Any(u => u.Name.ToString() == "System.Text.Json"))
         {
             root = root.AddUsings(SyntaxFactory.UsingDirective(SyntaxFactory.ParseName("System.Text.Json"))).NormalizeWhitespace();
         }
@@ -272,8 +276,9 @@ public class StoredProcedureGenerator(
         var returnType = "Task<CrudResult>";
         var returnModel = "CrudResult";
 
-        var isJson = storedProcedure.ReturnsJson;
-        var isJsonArray = isJson && storedProcedure.ReturnsJsonArray;
+        var firstSet = storedProcedure.ResultSets?.FirstOrDefault();
+        var isJson = firstSet?.ReturnsJson ?? false;
+        var isJsonArray = isJson && (firstSet?.ReturnsJsonArray ?? false);
 
         var requiresAsync = isJson && kind == StoredProcedureMethodKind.Deserialize && !isOverload;
 
@@ -307,7 +312,7 @@ public class StoredProcedureGenerator(
         else if (!rawJson && storedProcedure.IsScalarResult())
         {
             // Scalar non-JSON: derive type from first column metadata if available
-            var firstCol = storedProcedure.Columns?.FirstOrDefault();
+            var firstCol = firstSet?.Columns?.FirstOrDefault();
             if (firstCol != null && !string.IsNullOrWhiteSpace(firstCol.SqlTypeName))
             {
                 returnModel = ParseTypeFromSqlDbTypeName(firstCol.SqlTypeName, firstCol.IsNullable ?? true).ToString();
@@ -360,7 +365,7 @@ public class StoredProcedureGenerator(
         methodNode = methodNode.WithBody(methodBody);
 
         // Add XML documentation for JSON methods
-        if (storedProcedure.ReturnsJson)
+        if (isJson)
         {
             var xmlSummary = string.Empty;
             if (kind == StoredProcedureMethodKind.Raw)

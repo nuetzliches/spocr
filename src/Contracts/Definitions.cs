@@ -103,6 +103,7 @@ public static class Definition
                 : Name
 ;
         public string Suffix => _suffix ??= Name[(Name.IndexOf(OperationKind.ToString()) + OperationKind.ToString().Length)..];
+        [Obsolete("Will be removed in v5: Name-based OperationKind inference will be dropped. Rely on external conventions or ResultSets.")]
         public OperationKindEnum OperationKind => _operationKind != OperationKindEnum.Undefined
             ? _operationKind
             : (_operationKind = Enum.GetValues<OperationKindEnum>()
@@ -110,24 +111,23 @@ public static class Definition
                 .Where(x => x.Index >= 0)
                 .OrderBy(x => x.Index)
                 .FirstOrDefault()?.Kind ?? OperationKindEnum.Undefined);
+
+        [Obsolete("Will be removed in v5: Read/Write derivation from OperationKind will be removed.")]
         public ReadWriteKindEnum ReadWriteKind => _readWriteKind != ReadWriteKindEnum.Undefined
             ? _readWriteKind
-            : _readWriteKind = new[] { OperationKindEnum.Find, OperationKindEnum.List }.Contains(OperationKind)
+            : (_readWriteKind = new[] { OperationKindEnum.Find, OperationKindEnum.List }.Contains(OperationKind)
                         ? ReadWriteKindEnum.Read
-                        : ReadWriteKindEnum.Write;
-        private StoredProcedureContentModel.ResultSet FirstResultSet => storedProcedure.ResultSets?.FirstOrDefault();
+                        : ReadWriteKindEnum.Write);
+
+        [Obsolete("Will be removed in v5: ResultKind should be inferred by consumer from ResultSets (count, ReturnsJson flags).")]
         public ResultKindEnum ResultKind => _resultKind != ResultKindEnum.Undefined
             ? _resultKind
-            : (_resultKind = (FirstResultSet?.ReturnsJson ?? false)
-                ? ((FirstResultSet?.ReturnsJsonArray ?? false) ? ResultKindEnum.List : ResultKindEnum.Single)
-                : (OperationKind == OperationKindEnum.List || Name.Contains("WithChildren")
+            : (_resultKind = (storedProcedure.ResultSets?.FirstOrDefault()?.ReturnsJson ?? false)
+                ? ((storedProcedure.ResultSets?.FirstOrDefault()?.ReturnsJsonArray ?? false) ? ResultKindEnum.List : ResultKindEnum.Single)
+                : ((OperationKind == OperationKindEnum.List || Name.Contains("WithChildren"))
                     ? ResultKindEnum.List
                     : ResultKindEnum.Single));
-        public bool ReturnsJson => FirstResultSet?.ReturnsJson ?? false;
-        public bool ReturnsJsonArray => FirstResultSet?.ReturnsJsonArray ?? false;
-        public string JsonRootProperty => FirstResultSet?.JsonRootProperty;
-        public IReadOnlyList<StoredProcedureContentModel.ResultColumn> Columns => FirstResultSet?.Columns ?? Array.Empty<StoredProcedureContentModel.ResultColumn>();
-        // Expose raw ResultSets for advanced generators (multi-set naming)
+        // Expose only raw ResultSets; callers must inspect sets explicitly (no flattened convenience properties)
         public IReadOnlyList<StoredProcedureContentModel.ResultSet> ResultSets => storedProcedure.ResultSets;
 
         public IEnumerable<StoredProcedureInputModel> Input => storedProcedure.Input ?? [];
