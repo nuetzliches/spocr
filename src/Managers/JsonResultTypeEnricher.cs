@@ -58,6 +58,23 @@ public sealed class JsonResultTypeEnricher
             var modifiedLocal = false;
             foreach (var col in set.Columns)
             {
+                // UDTT Context Mapping Heuristik: 'record' Platzhalter auf vorhandenen Context Input mappen
+                if (string.Equals(col.Name, "record", StringComparison.OrdinalIgnoreCase) &&
+                    (string.IsNullOrWhiteSpace(col.UserTypeName) && string.IsNullOrWhiteSpace(col.UserTypeSchemaName)))
+                {
+                    var contextInput = sp.Input?.FirstOrDefault(i => i.IsTableType == true &&
+                        string.Equals(i.TableTypeName, "Context", StringComparison.OrdinalIgnoreCase));
+                    if (contextInput != null)
+                    {
+                        col.UserTypeSchemaName = contextInput.TableTypeSchemaName ?? "core"; // Default core falls nicht gesetzt
+                        col.UserTypeName = contextInput.TableTypeName;
+                        modifiedLocal = true;
+                        if (verbose && level == JsonTypeLogLevel.Detailed)
+                        {
+                            _console.Verbose($"[json-type-udtt-ref] {sp.SchemaName}.{sp.Name} {col.Name} -> {col.UserTypeSchemaName}.{col.UserTypeName}");
+                        }
+                    }
+                }
                 // v5: Apply JSON_QUERY default typing & join nullability adjustment before main resolution logic
                 if (col.ExpressionKind == StoredProcedureContentModel.ResultColumnExpressionKind.JsonQuery && string.IsNullOrWhiteSpace(col.SqlTypeName))
                 {

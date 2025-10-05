@@ -171,6 +171,20 @@ public class StoredProcedureContentModel
         public bool? ForcedNullable { get; set; }         // True if nullability elevated due to OUTER join semantics
         public bool? IsAmbiguous { get; set; }            // True if multiple possible origins prevented concrete typing
         public string CastTargetType { get; set; }        // Raw CAST/CONVERT target type text (parser v5 heuristic)
+        // UDTT reference (enrichment stage) when column semantically represents a structured Context or similar
+        public string UserTypeSchemaName { get; set; }
+        public string UserTypeName { get; set; }
+        // Nested JSON result (scalar subquery FOR JSON) captured inline instead of separate ResultSet
+        public JsonResultModel JsonResult { get; set; }
+    }
+
+    public class JsonResultModel
+    {
+        public bool ReturnsJson { get; set; }
+        public bool ReturnsJsonArray { get; set; }
+        public bool ReturnsJsonWithoutArrayWrapper { get; set; }
+        public string JsonRootProperty { get; set; }
+        public IReadOnlyList<ResultColumn> Columns { get; set; } = Array.Empty<ResultColumn>();
     }
 
     public enum ResultColumnExpressionKind
@@ -235,6 +249,7 @@ public class StoredProcedureContentModel
         private readonly List<string> _statements = new();
         private readonly HashSet<int> _statementOffsets = new();
         private int _procedureDepth;
+        private int _scalarSubqueryDepth; // verschachtelte Subselects (SELECT ... FOR JSON PATH) als Skalar in äußerem SELECT
 
         public ProcedureContentVisitor(string definition, ProcedureContentAnalysis analysis)
         {
@@ -318,6 +333,14 @@ public class StoredProcedureContentModel
         {
             if (node.ForClause is JsonForClause jsonClause)
             {
+                // Wenn wir uns innerhalb eines ScalarSubquery befinden, dann handelt es sich um ein verschachteltes JSON Fragment
+                // das als einzelnes NVARCHAR(MAX) Feld (Alias im äußeren Select) zurückgegeben wird. In diesem Fall KEIN eigenes ResultSet anlegen.
+                if (_scalarSubqueryDepth > 0)
+                {
+                    // Markiere im äußersten aktuellen Set später die entsprechende Column als Nested (erfolgt in CollectJsonColumnsForSet über Expression-Typ Erkennung)
+                    base.ExplicitVisit(node);
+                    return;
+                }
                 // Create per-query JSON set context
                 var set = new JsonResultSetBuilder();
                 set.ReturnsJson = true;
@@ -370,6 +393,13 @@ public class StoredProcedureContentModel
             }
 
             base.ExplicitVisit(node);
+        }
+
+        public override void ExplicitVisit(ScalarSubquery node)
+        {
+            _scalarSubqueryDepth++;
+            base.ExplicitVisit(node);
+            _scalarSubqueryDepth--;
         }
 
         private List<ResultColumn> CollectJsonColumnsForSet(QuerySpecification node)
@@ -441,6 +471,25 @@ public class StoredProcedureContentModel
                         jsonColumn.ExpressionKind = ResultColumnExpressionKind.Cast;
                         jsonColumn.CastTargetType = RenderDataType(convertCall.DataType);
                         break;
+                    case ScalarSubquery subquery:
+                        // Detect nested FOR JSON PATH inside scalar subquery to attach structured JsonResult
+                        var nested = ExtractNestedJson(subquery);
+                        if (nested != null)
+                        {
+                            jsonColumn.IsNestedJson = true;
+                            jsonColumn.ExpressionKind = ResultColumnExpressionKind.JsonQuery; // treat similarly
+                            jsonColumn.JsonResult = nested;
+                            // Represent the outer scalar as nvarchar(max) container
+                            if (string.IsNullOrEmpty(jsonColumn.SqlTypeName))
+                            {
+                                jsonColumn.SqlTypeName = "nvarchar(max)";
+                            }
+                        }
+                        else
+                        {
+                            jsonColumn.ExpressionKind = ResultColumnExpressionKind.Computed;
+                        }
+                        break;
                     default:
                         jsonColumn.ExpressionKind = ResultColumnExpressionKind.Computed;
                         break;
@@ -457,6 +506,59 @@ public class StoredProcedureContentModel
                 }
             }
             return collected;
+        }
+
+        private static JsonResultModel ExtractNestedJson(ScalarSubquery subquery)
+        {
+            if (subquery?.QueryExpression is QuerySpecification qs && qs.ForClause is JsonForClause jsonClause)
+            {
+                var nestedCols = new List<ResultColumn>();
+                // Collect nested select elements similar to CollectJsonColumnsForSet but simplified (no table provenance mapping here)
+                foreach (var element in qs.SelectElements.OfType<SelectScalarExpression>())
+                {
+                    var alias = element.ColumnName?.Value;
+                    if (string.IsNullOrWhiteSpace(alias) && element.Expression is ColumnReferenceExpression cref && cref.MultiPartIdentifier?.Identifiers?.Count > 0)
+                    {
+                        alias = cref.MultiPartIdentifier.Identifiers[^1].Value;
+                    }
+                    if (string.IsNullOrWhiteSpace(alias)) continue;
+                    var path = NormalizeJsonPath(alias);
+                    var col = new ResultColumn
+                    {
+                        JsonPath = path,
+                        Name = GetSafePropertyName(path)
+                    };
+                    if (!nestedCols.Any(c => c.Name.Equals(col.Name, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        nestedCols.Add(col);
+                    }
+                }
+                bool arrayWrapper = true; bool withoutArray = false; string root = null;
+                var options = jsonClause.Options ?? Array.Empty<JsonForClauseOption>();
+                if (options.Count == 0) arrayWrapper = true;
+                foreach (var option in options)
+                {
+                    switch (option.OptionKind)
+                    {
+                        case JsonForClauseOptions.WithoutArrayWrapper:
+                            withoutArray = true; arrayWrapper = false; break;
+                        case JsonForClauseOptions.Root:
+                            if (option.Value is Literal lit) root = ExtractLiteralValue(lit); break;
+                        default:
+                            arrayWrapper = true; break;
+                    }
+                }
+                if (!withoutArray) arrayWrapper = true;
+                return new JsonResultModel
+                {
+                    ReturnsJson = true,
+                    ReturnsJsonArray = arrayWrapper && !withoutArray,
+                    ReturnsJsonWithoutArrayWrapper = withoutArray,
+                    JsonRootProperty = root,
+                    Columns = nestedCols.ToArray()
+                };
+            }
+            return null;
         }
 
         // Builder to accumulate per JSON result set

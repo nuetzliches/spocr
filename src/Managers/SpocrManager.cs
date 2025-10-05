@@ -357,7 +357,27 @@ public class SpocrManager(
                                     // If parser/enrichment couldn't resolve a concrete type, we default to nvarchar(max).
                                     SqlTypeName = string.IsNullOrWhiteSpace(c.SqlTypeName) && rs.ReturnsJson ? "nvarchar(max)" : c.SqlTypeName,
                                     IsNullable = c.IsNullable ?? false,
-                                    MaxLength = c.MaxLength ?? 0
+                                    MaxLength = c.MaxLength ?? 0,
+                                    UserTypeSchemaName = c.UserTypeSchemaName,
+                                    UserTypeName = c.UserTypeName,
+                                    JsonPath = c.JsonPath,
+                                    JsonResult = c.JsonResult == null ? null : new SnapshotNestedJson
+                                    {
+                                        ReturnsJson = c.JsonResult.ReturnsJson,
+                                        ReturnsJsonArray = c.JsonResult.ReturnsJsonArray,
+                                        ReturnsJsonWithoutArrayWrapper = c.JsonResult.ReturnsJsonWithoutArrayWrapper,
+                                        JsonRootProperty = c.JsonResult.JsonRootProperty,
+                                        Columns = c.JsonResult.Columns?.Select(n => new SnapshotResultColumn
+                                        {
+                                            Name = n.Name,
+                                            SqlTypeName = string.IsNullOrWhiteSpace(n.SqlTypeName) && c.JsonResult.ReturnsJson ? "nvarchar(max)" : n.SqlTypeName,
+                                            IsNullable = n.IsNullable ?? false,
+                                            MaxLength = n.MaxLength ?? 0,
+                                            UserTypeSchemaName = n.UserTypeSchemaName,
+                                            UserTypeName = n.UserTypeName,
+                                            JsonPath = n.JsonPath
+                                        }).ToList() ?? new List<SnapshotResultColumn>()
+                                    }
                                 }).ToList()
                             }).ToList()
                         };

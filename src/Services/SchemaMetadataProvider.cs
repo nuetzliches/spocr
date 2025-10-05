@@ -111,10 +111,30 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
                             JsonRootProperty = rs.JsonRootProperty,
                             Columns = rs.Columns.Select(c => new StoredProcedureContentModel.ResultColumn
                             {
+                                JsonPath = c.JsonPath,
                                 Name = c.Name,
                                 SqlTypeName = c.SqlTypeName,
                                 IsNullable = c.IsNullable,
-                                MaxLength = c.MaxLength
+                                MaxLength = c.MaxLength,
+                                UserTypeSchemaName = c.UserTypeSchemaName,
+                                UserTypeName = c.UserTypeName,
+                                JsonResult = c.JsonResult == null ? null : new StoredProcedureContentModel.JsonResultModel
+                                {
+                                    ReturnsJson = c.JsonResult.ReturnsJson,
+                                    ReturnsJsonArray = c.JsonResult.ReturnsJsonArray,
+                                    ReturnsJsonWithoutArrayWrapper = c.JsonResult.ReturnsJsonWithoutArrayWrapper,
+                                    JsonRootProperty = c.JsonResult.JsonRootProperty,
+                                    Columns = c.JsonResult.Columns?.Select(n => new StoredProcedureContentModel.ResultColumn
+                                    {
+                                        JsonPath = n.JsonPath,
+                                        Name = n.Name,
+                                        SqlTypeName = n.SqlTypeName,
+                                        IsNullable = n.IsNullable,
+                                        MaxLength = n.MaxLength,
+                                        UserTypeSchemaName = n.UserTypeSchemaName,
+                                        UserTypeName = n.UserTypeName
+                                    }).ToArray() ?? Array.Empty<StoredProcedureContentModel.ResultColumn>()
+                                }
                             }).ToArray()
                         }).ToArray()
                     }

@@ -134,6 +134,19 @@ public class SnapshotResultColumn
     public string SqlTypeName { get; set; }
     public bool IsNullable { get; set; }
     public int MaxLength { get; set; }
+    public string UserTypeSchemaName { get; set; }
+    public string UserTypeName { get; set; }
+    public string JsonPath { get; set; }
+    public SnapshotNestedJson JsonResult { get; set; }
+}
+
+public class SnapshotNestedJson
+{
+    public bool ReturnsJson { get; set; }
+    public bool ReturnsJsonArray { get; set; }
+    public bool ReturnsJsonWithoutArrayWrapper { get; set; }
+    public string JsonRootProperty { get; set; }
+    public List<SnapshotResultColumn> Columns { get; set; } = new();
 }
 
 public class SnapshotSchema
