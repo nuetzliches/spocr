@@ -103,11 +103,41 @@ public class TemplateManager
     /// </summary>
     public static CompilationUnitSyntax RemoveTemplateProperty(CompilationUnitSyntax root)
     {
-        var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-        var classNode = (ClassDeclarationSyntax)nsNode.Members[0];
-        var newClassMembers = SyntaxFactory.List(classNode.Members.Skip(1));
-        var newClassNode = classNode.WithMembers(newClassMembers);
-        return root.ReplaceNode(classNode, newClassNode);
+        // Support both file-scoped and block namespaces
+        ClassDeclarationSyntax classNode = null;
+        if (root.Members[0] is FileScopedNamespaceDeclarationSyntax fns)
+        {
+            classNode = fns.Members.OfType<ClassDeclarationSyntax>().FirstOrDefault();
+            if (classNode == null) return root;
+            var filtered = classNode.Members.Where(m =>
+                m is not PropertyDeclarationSyntax p ||
+                !p.GetLeadingTrivia().ToString().Contains("<spocr-placeholder-property>") &&
+                !p.ToFullString().Contains("<spocr-placeholder-property>")
+            ).ToList();
+            if (filtered.Count == classNode.Members.Count) // fallback: remove first property if marker missing
+            {
+                filtered = classNode.Members.Skip(1).ToList();
+            }
+            var newClass = classNode.WithMembers(SyntaxFactory.List(filtered));
+            return root.ReplaceNode(classNode, newClass);
+        }
+        else if (root.Members[0] is NamespaceDeclarationSyntax bns)
+        {
+            classNode = bns.Members.OfType<ClassDeclarationSyntax>().FirstOrDefault();
+            if (classNode == null) return root;
+            var filtered = classNode.Members.Where(m =>
+                m is not PropertyDeclarationSyntax p ||
+                !p.GetLeadingTrivia().ToString().Contains("<spocr-placeholder-property>") &&
+                !p.ToFullString().Contains("<spocr-placeholder-property>")
+            ).ToList();
+            if (filtered.Count == classNode.Members.Count)
+            {
+                filtered = classNode.Members.Skip(1).ToList();
+            }
+            var newClass = classNode.WithMembers(SyntaxFactory.List(filtered));
+            return root.ReplaceNode(classNode, newClass);
+        }
+        return root;
     }
 
     /// <summary>

@@ -26,184 +26,121 @@ public class ModelGenerator(
 {
     public async Task<SourceText> GetModelTextForStoredProcedureAsync(Definition.Schema schema, Definition.StoredProcedure storedProcedure)
     {
-        // Load and process the template with the template manager
+        // Load template
         var root = await templateManager.GetProcessedTemplateAsync("Models/Model.cs", schema.Name, storedProcedure.Name);
+        var nsBase = root.Members[0] as BaseNamespaceDeclarationSyntax;
+        if (nsBase == null) throw new System.InvalidOperationException("Template must contain a namespace.");
+        var classNode = nsBase.Members.OfType<ClassDeclarationSyntax>().First();
+        var templateProperty = classNode.Members.OfType<PropertyDeclarationSyntax>().First();
 
-        // Generate properties
-        var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-        var classNode = (ClassDeclarationSyntax)nsNode.Members[0];
-        var propertyNode = (PropertyDeclarationSyntax)classNode.Members[0];
-        // Unified model: Prefer ResultSet columns (non-JSON) or JSON result columns. Classic outputs kept as fallback until fully removed.
         var resultColumns = storedProcedure.Columns?.ToList() ?? [];
         var hasResultColumns = resultColumns.Any();
+
+        // Local helpers
+        string InferType(string sqlType, bool? nullable)
+        {
+            if (string.IsNullOrWhiteSpace(sqlType)) return "string";
+            return ParseTypeFromSqlDbTypeName(sqlType, nullable ?? true).ToString();
+        }
+
+        ClassDeclarationSyntax AddProperty(ClassDeclarationSyntax cls, string name, string typeName)
+        {
+            var prop = templateProperty
+                .WithType(SyntaxFactory.ParseTypeName(typeName))
+                .WithIdentifier(SyntaxFactory.ParseToken($" {name.FirstCharToUpper()} "));
+            return cls.AddMembers(prop);
+        }
+
+        ClassDeclarationSyntax BuildNestedClass(string className, StoredProcedureContentModel.JsonResultModel jsonModel)
+        {
+            var nested = SyntaxFactory.ClassDeclaration(className)
+                .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword));
+            if (jsonModel?.Columns != null)
+            {
+                foreach (var c in jsonModel.Columns)
+                {
+                    if (string.IsNullOrWhiteSpace(c.Name)) continue;
+                    var nType = InferType(c.SqlTypeName, c.IsNullable);
+                    var nProp = SyntaxFactory.PropertyDeclaration(SyntaxFactory.ParseTypeName(nType), SyntaxFactory.Identifier(c.Name.FirstCharToUpper()))
+                        .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
+                        .AddAccessorListAccessors(
+                            SyntaxFactory.AccessorDeclaration(SyntaxKind.GetAccessorDeclaration).WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken)),
+                            SyntaxFactory.AccessorDeclaration(SyntaxKind.SetAccessorDeclaration).WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken))
+                        );
+                    nested = nested.AddMembers(nProp);
+                }
+            }
+            return nested;
+        }
 
         if (hasResultColumns && !storedProcedure.ReturnsJson)
         {
             foreach (var col in resultColumns)
             {
                 if (string.IsNullOrWhiteSpace(col.Name)) continue;
-                nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-                classNode = (ClassDeclarationSyntax)nsNode.Members[0];
-                var propertyIdentifier = SyntaxFactory.ParseToken($" {col.Name.FirstCharToUpper()} ");
-                // Use SqlTypeName metadata if available
-                var inferredType = !string.IsNullOrWhiteSpace(col.SqlTypeName)
-                    ? ParseTypeFromSqlDbTypeName(col.SqlTypeName, col.IsNullable ?? true).ToString()
-                    : "string";
-                var nonJsonProperty = propertyNode
-                    .WithType(SyntaxFactory.ParseTypeName(inferredType))
-                    .WithIdentifier(propertyIdentifier);
-                root = root.AddProperty(ref classNode, nonJsonProperty);
+                classNode = AddProperty(classNode, col.Name, InferType(col.SqlTypeName, col.IsNullable));
             }
         }
-        // JSON result -> generate properties (with nested structures when JsonResult is present)
         else if (storedProcedure.ReturnsJson && (storedProcedure.Columns?.Any() ?? false))
         {
-            // Helper local function to create a nested POCO class for a JsonResult column
-            ClassDeclarationSyntax BuildNestedClass(string className, StoredProcedureContentModel.JsonResultModel jsonModel)
-            {
-                // Create empty class
-                var nested = SyntaxFactory.ClassDeclaration(className)
-                    .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword));
-
-                if (jsonModel?.Columns != null)
-                {
-                    foreach (var ncol in jsonModel.Columns)
-                    {
-                        if (string.IsNullOrWhiteSpace(ncol.Name)) continue;
-                        var nType = "string";
-                        if (!string.IsNullOrWhiteSpace(ncol.SqlTypeName))
-                        {
-                            nType = ParseTypeFromSqlDbTypeName(ncol.SqlTypeName, ncol.IsNullable ?? true).ToString();
-                        }
-                        var nProp = SyntaxFactory.PropertyDeclaration(SyntaxFactory.ParseTypeName(nType), SyntaxFactory.Identifier(ncol.Name.FirstCharToUpper()))
-                            .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
-                            .AddAccessorListAccessors(
-                                SyntaxFactory.AccessorDeclaration(SyntaxKind.GetAccessorDeclaration).WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken)),
-                                SyntaxFactory.AccessorDeclaration(SyntaxKind.SetAccessorDeclaration).WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken))
-                            );
-                        nested = nested.AddMembers(nProp);
-                    }
-                }
-                return nested;
-            }
-
             foreach (var col in storedProcedure.Columns)
             {
-                if (string.IsNullOrWhiteSpace(col.Name))
-                {
-                    continue;
-                }
-
-                nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-                classNode = (ClassDeclarationSyntax)nsNode.Members[0];
-                var propertyIdentifier = SyntaxFactory.ParseToken($" {col.Name.FirstCharToUpper()} ");
-
-                // If column contains a nested JsonResult -> create nested type
+                if (string.IsNullOrWhiteSpace(col.Name)) continue;
                 if (col.JsonResult != null && (col.JsonResult.Columns?.Any() ?? false))
                 {
                     var nestedClassName = col.Name.FirstCharToUpper().Trim();
                     if (nestedClassName.EndsWith("s") && col.JsonResult.ReturnsJsonArray)
-                    {
-                        // Singularize naive (remove trailing 's') for element class name, keep property plural
                         nestedClassName = nestedClassName.TrimEnd('s');
-                    }
-                    var elementClassName = nestedClassName;
-                    var nestedClass = BuildNestedClass(elementClassName, col.JsonResult);
 
-                    // Ensure we don't duplicate nested class definitions
-                    if (!classNode.Members.OfType<ClassDeclarationSyntax>().Any(c => c.Identifier.Text == elementClassName))
+                    if (!classNode.Members.OfType<ClassDeclarationSyntax>().Any(c => c.Identifier.Text == nestedClassName))
                     {
-                        var updatedWithNested = classNode.AddMembers(nestedClass);
-                        root = root.ReplaceNode(classNode, updatedWithNested);
-                        classNode = updatedWithNested; // refresh reference
+                        var nested = BuildNestedClass(nestedClassName, col.JsonResult);
+                        classNode = classNode.AddMembers(nested);
                     }
-
-                    // Decide property type (array/list vs single nested object)
-                    string propertyType = elementClassName;
-                    if (col.JsonResult.ReturnsJsonArray)
-                    {
-                        propertyType = $"System.Collections.Generic.List<{elementClassName}>";
-                    }
-
-                    var nestedProperty = propertyNode
-                        .WithType(SyntaxFactory.ParseTypeName(propertyType))
-                        .WithIdentifier(propertyIdentifier);
-
-                    // Add property explicitly to class (avoids potential stale reference issues with helper)
-                    var updatedWithProperty = classNode.AddMembers(nestedProperty);
-                    root = root.ReplaceNode(classNode, updatedWithProperty);
-                    classNode = updatedWithProperty;
+                    var propertyType = col.JsonResult.ReturnsJsonArray
+                        ? $"System.Collections.Generic.List<{nestedClassName}>"
+                        : nestedClassName;
+                    classNode = AddProperty(classNode, col.Name, propertyType);
                 }
                 else
                 {
-                    var inferredType = "string"; // default fallback
-                    if (!string.IsNullOrWhiteSpace(col.SqlTypeName))
-                    {
-                        inferredType = ParseTypeFromSqlDbTypeName(col.SqlTypeName, col.IsNullable ?? true).ToString();
-                    }
-
-                    var jsonProperty = propertyNode
-                        .WithType(SyntaxFactory.ParseTypeName(inferredType))
-                        .WithIdentifier(propertyIdentifier);
-
-                    root = root.AddProperty(ref classNode, jsonProperty);
+                    classNode = AddProperty(classNode, col.Name, InferType(col.SqlTypeName, col.IsNullable));
                 }
             }
 
-            // Fallback pass: ensure properties for nested JsonResult columns exist (e.g. List<Transaction> Transactions)
-            nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-            classNode = (ClassDeclarationSyntax)nsNode.Members[0];
-            var existingPropertyNames = classNode.Members.OfType<PropertyDeclarationSyntax>().Select(p => p.Identifier.Text).ToHashSet();
+            // Ensure fallback properties added (defensive)
+            var existing = classNode.Members.OfType<PropertyDeclarationSyntax>().Select(p => p.Identifier.Text).ToHashSet();
             foreach (var col in storedProcedure.Columns.Where(c => c.JsonResult != null && (c.JsonResult.Columns?.Any() ?? false)))
             {
                 var propName = col.Name.FirstCharToUpper();
-                if (existingPropertyNames.Contains(propName)) continue; // already added
-
-                var elementClassName = col.Name.FirstCharToUpper();
-                if (elementClassName.EndsWith("s") && col.JsonResult.ReturnsJsonArray)
+                if (existing.Contains(propName)) continue;
+                var elementName = propName;
+                if (elementName.EndsWith("s") && col.JsonResult.ReturnsJsonArray)
+                    elementName = elementName.TrimEnd('s');
+                if (!classNode.Members.OfType<ClassDeclarationSyntax>().Any(c => c.Identifier.Text == elementName))
                 {
-                    elementClassName = elementClassName.TrimEnd('s');
+                    classNode = classNode.AddMembers(SyntaxFactory.ClassDeclaration(elementName).AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword)));
                 }
-
-                // Ensure nested element class exists
-                if (!classNode.Members.OfType<ClassDeclarationSyntax>().Any(c => c.Identifier.Text == elementClassName))
-                {
-                    var nestedClass = SyntaxFactory.ClassDeclaration(elementClassName)
-                        .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword));
-                    classNode = classNode.AddMembers(nestedClass);
-                }
-
-                string propertyType = elementClassName;
-                if (col.JsonResult.ReturnsJsonArray)
-                {
-                    propertyType = $"System.Collections.Generic.List<{elementClassName}>";
-                }
-                var property = SyntaxFactory.PropertyDeclaration(SyntaxFactory.ParseTypeName(propertyType), SyntaxFactory.Identifier(propName))
-                    .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
-                    .AddAccessorListAccessors(
-                        SyntaxFactory.AccessorDeclaration(SyntaxKind.GetAccessorDeclaration).WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken)),
-                        SyntaxFactory.AccessorDeclaration(SyntaxKind.SetAccessorDeclaration).WithSemicolonToken(SyntaxFactory.Token(SyntaxKind.SemicolonToken))
-                    );
-                classNode = classNode.AddMembers(property);
-                root = root.ReplaceNode(((NamespaceDeclarationSyntax)root.Members[0]).Members[0], classNode);
+                var typeName = col.JsonResult.ReturnsJsonArray ? $"System.Collections.Generic.List<{elementName}>" : elementName;
+                classNode = AddProperty(classNode, propName, typeName);
             }
         }
-        // Remove template placeholder property first
-        root = TemplateManager.RemoveTemplateProperty(root);
 
-        // 3) JSON result but no columns extracted -> empty model + warning (keeps method signature valid)
+        // Remove template placeholder property
+        root = TemplateManager.RemoveTemplateProperty(root.ReplaceNode(nsBase, nsBase.WithMembers(SyntaxFactory.SingletonList<MemberDeclarationSyntax>(classNode))));
+
         if (!hasResultColumns && !(storedProcedure.Columns?.Any() ?? false) && storedProcedure.ReturnsJson)
         {
             consoleService.Warn($"No JSON columns extracted for stored procedure '{storedProcedure.Name}'. Generated empty model.");
-            nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-            classNode = (ClassDeclarationSyntax)nsNode.Members[0];
+            // Add doc comment if still empty
+            classNode = root.Members.OfType<BaseNamespaceDeclarationSyntax>().First().Members.OfType<ClassDeclarationSyntax>().First();
             if (!classNode.Members.OfType<PropertyDeclarationSyntax>().Any())
             {
-                var xml =
-                    "/// <summary>Generated JSON model (no columns detected at generation time). The underlying stored procedure returns JSON, but its column structure couldn't be statically inferred (e.g. wildcard, dynamic SQL, variable JSON payload).</summary>" + System.Environment.NewLine +
-                    "/// <remarks>Consider rewriting the procedure with an explicit SELECT list or stable aliases so properties can be generated.</remarks>" + System.Environment.NewLine;
-                classNode = classNode.WithLeadingTrivia(SyntaxFactory.ParseLeadingTrivia(xml).AddRange(classNode.GetLeadingTrivia()));
-                root = root.ReplaceNode(nsNode, nsNode.WithMembers(SyntaxFactory.SingletonList<MemberDeclarationSyntax>(classNode)));
+                var xml = "/// <summary>Generated JSON model (no columns detected at generation time). The underlying stored procedure returns JSON, but its column structure couldn't be statically inferred.</summary>" + System.Environment.NewLine +
+                          "/// <remarks>Consider rewriting the procedure with an explicit SELECT list or stable aliases so properties can be generated.</remarks>" + System.Environment.NewLine;
+                var updated = classNode.WithLeadingTrivia(SyntaxFactory.ParseLeadingTrivia(xml).AddRange(classNode.GetLeadingTrivia()));
+                var currentNs = (BaseNamespaceDeclarationSyntax)root.Members[0];
+                root = root.ReplaceNode(classNode, updated);
             }
         }
 

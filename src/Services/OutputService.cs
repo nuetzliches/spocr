@@ -108,15 +108,24 @@ public class OutputService(
         var tree = CSharpSyntaxTree.ParseText(fileContent);
         var root = tree.GetCompilationUnitRoot();
 
+        if (string.IsNullOrWhiteSpace(nameSpace))
+        {
+            throw new System.InvalidOperationException("OutputService: Provided namespace is empty – ensure configuration Project.Output.Namespace is set before generation.");
+        }
+
+        // Normalize to avoid double dots
+        string Normalize(string ns) => ns.Replace("..", ".").Trim('.');
+        nameSpace = Normalize(nameSpace);
+
         if (configFile.Config.Project.Role.Kind == RoleKindEnum.Lib)
         {
-            root = root.ReplaceUsings(u => u.Replace("Source.DataContext", $"{nameSpace}"));
+            root = root.ReplaceUsings(u => u.Replace("Source.DataContext", nameSpace));
             root = root.ReplaceNamespace(ns => ns.Replace("Source.DataContext", nameSpace));
         }
         else
         {
-            root = root.ReplaceUsings(u => u.Replace("Source.", $"{nameSpace}."));
-            root = root.ReplaceNamespace(ns => ns.Replace("Source.", $"{nameSpace}."));
+            root = root.ReplaceUsings(u => u.Replace("Source.", nameSpace + "."));
+            root = root.ReplaceNamespace(ns => ns.Replace("Source.", nameSpace + "."));
         }
 
         var targetDir = Path.GetDirectoryName(targetFileName);

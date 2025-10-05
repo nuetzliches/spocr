@@ -1,9 +1,10 @@
 ﻿using System;
 
-namespace Source.DataContext.Models.Schema
+// Template model file used by generator. Schema & class name are replaced.
+namespace Source.DataContext.Models.Schema;
+
+public class Model
 {
-    public class Model
-    {
-        public object Property { get; set; }
-    }
+    // <spocr-placeholder-property>
+    public object Property { get; set; }
 }
