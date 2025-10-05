@@ -214,6 +214,8 @@ public class StoredProcedureContentModel
         // Forwarding metadata: when this ResultSet originated from an executed procedure (wrapper cloning)
         public string ExecSourceSchemaName { get; init; }
         public string ExecSourceProcedureName { get; init; }
+        // Indicates that the underlying FOR JSON SELECT contained one or more STAR projections (SELECT * or a.*)
+        public bool HasSelectStar { get; init; }
     }
 
     public sealed class ExecutedProcedureCall
@@ -407,10 +409,27 @@ public class StoredProcedureContentModel
                 }
                 var collected = CollectJsonColumnsForSet(node);
                 set.JsonColumns.AddRange(collected);
+                // Detect star projections within this FOR JSON select
+                if (node.SelectElements != null)
+                {
+                    foreach (var se in node.SelectElements)
+                    {
+                        if (se is SelectStarExpression)
+                        {
+                            set.HasSelectStar = true;
+                            break;
+                        }
+                        // (Qualified wildcard like alias.* is also represented as SelectStarExpression in ScriptDom for SQL Server parser)
+                    }
+                }
 
                 // finalize set flags
                 set.Complete();
                 _analysis.JsonSets.Add(set.ToResultSet());
+                if (set.HasSelectStar)
+                {
+                    // Currently only flagged; expansion of STAR columns deferred to enrichment stage.
+                }
 
                 // Maintain legacy aggregated flags if first set
                 // no legacy mirroring any more
@@ -633,6 +652,7 @@ public class StoredProcedureContentModel
             public bool JsonWithoutArrayWrapper { get; set; }
             public string JsonRootProperty { get; set; }
             public List<ResultColumn> JsonColumns { get; } = new();
+            public bool HasSelectStar { get; set; }
 
             public void Complete()
             {
@@ -645,7 +665,8 @@ public class StoredProcedureContentModel
                 ReturnsJsonArray = JsonWithArrayWrapper && !JsonWithoutArrayWrapper,
                 ReturnsJsonWithoutArrayWrapper = JsonWithoutArrayWrapper,
                 JsonRootProperty = JsonRootProperty,
-                Columns = JsonColumns.ToArray()
+                Columns = JsonColumns.ToArray(),
+                HasSelectStar = HasSelectStar
             };
         }
 

@@ -526,6 +526,82 @@ public class SchemaManager(
         }
         catch { /* best effort */ }
 
+        // EXEC append (non-wrapper) normalization: append target sets when caller has its own meaningful sets and exactly one EXEC.
+        try
+        {
+            var allProcedures2 = schemas.SelectMany(s => s.StoredProcedures ?? Enumerable.Empty<StoredProcedureModel>()).ToList();
+            var procLookup2 = allProcedures2.ToDictionary(p => ($"{p.SchemaName}.{p.Name}"), p => p, StringComparer.OrdinalIgnoreCase);
+            foreach (var proc in allProcedures2)
+            {
+                var content = proc.Content;
+                if (content?.ExecutedProcedures == null || content.ExecutedProcedures.Count != 1) continue;
+                if (content.ResultSets == null || !content.ResultSets.Any()) continue; // wrapper case handled earlier
+                // skip if any set already has ExecSource (means forwarded) – no double append
+                if (content.ResultSets.Any(r => !string.IsNullOrEmpty(r.ExecSourceProcedureName))) continue;
+                var target = content.ExecutedProcedures[0];
+                if (!procLookup2.TryGetValue($"{target.Schema}.{target.Name}", out var targetProc)) continue;
+                var targetSets = targetProc.Content?.ResultSets;
+                if (targetSets == null || !targetSets.Any()) continue;
+                // Append clones
+                var appended = targetSets.Select(rs => new StoredProcedureContentModel.ResultSet
+                {
+                    ReturnsJson = rs.ReturnsJson,
+                    ReturnsJsonArray = rs.ReturnsJsonArray,
+                    ReturnsJsonWithoutArrayWrapper = rs.ReturnsJsonWithoutArrayWrapper,
+                    JsonRootProperty = rs.JsonRootProperty,
+                    ExecSourceSchemaName = target.Schema,
+                    ExecSourceProcedureName = target.Name,
+                    HasSelectStar = rs.HasSelectStar,
+                    Columns = rs.Columns.Select(c => new StoredProcedureContentModel.ResultColumn
+                    {
+                        Name = c.Name,
+                        JsonPath = c.JsonPath,
+                        SourceSchema = c.SourceSchema,
+                        SourceTable = c.SourceTable,
+                        SourceColumn = c.SourceColumn,
+                        SqlTypeName = c.SqlTypeName,
+                        IsNullable = c.IsNullable,
+                        MaxLength = c.MaxLength,
+                        SourceAlias = c.SourceAlias,
+                        ExpressionKind = c.ExpressionKind,
+                        IsNestedJson = c.IsNestedJson,
+                        ForcedNullable = c.ForcedNullable,
+                        IsAmbiguous = c.IsAmbiguous,
+                        CastTargetType = c.CastTargetType,
+                        UserTypeName = c.UserTypeName,
+                        UserTypeSchemaName = c.UserTypeSchemaName,
+                        JsonResult = c.JsonResult == null ? null : new StoredProcedureContentModel.JsonResultModel
+                        {
+                            ReturnsJson = c.JsonResult.ReturnsJson,
+                            ReturnsJsonArray = c.JsonResult.ReturnsJsonArray,
+                            ReturnsJsonWithoutArrayWrapper = c.JsonResult.ReturnsJsonWithoutArrayWrapper,
+                            JsonRootProperty = c.JsonResult.JsonRootProperty,
+                            Columns = c.JsonResult.Columns.ToArray()
+                        }
+                    }).ToArray()
+                }).ToArray();
+                var combined = content.ResultSets.Concat(appended).ToArray();
+                proc.Content = new StoredProcedureContentModel
+                {
+                    Definition = content.Definition,
+                    Statements = content.Statements,
+                    ContainsSelect = content.ContainsSelect,
+                    ContainsInsert = content.ContainsInsert,
+                    ContainsUpdate = content.ContainsUpdate,
+                    ContainsDelete = content.ContainsDelete,
+                    ContainsMerge = content.ContainsMerge,
+                    ContainsOpenJson = content.ContainsOpenJson,
+                    ResultSets = combined,
+                    UsedFallbackParser = content.UsedFallbackParser,
+                    ParseErrorCount = content.ParseErrorCount,
+                    FirstParseError = content.FirstParseError,
+                    ExecutedProcedures = content.ExecutedProcedures
+                };
+                consoleService.Verbose($"[proc-exec-append] {proc.SchemaName}.{proc.Name} appended {appended.Length} set(s) from {target.Schema}.{target.Name}");
+            }
+        }
+        catch { /* best effort */ }
+
         if (totalSpCount > 0)
         {
             consoleService.DrawProgressBar(100);

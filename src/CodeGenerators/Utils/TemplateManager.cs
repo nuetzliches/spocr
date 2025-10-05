@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -82,9 +83,27 @@ public class TemplateManager
             throw new System.InvalidOperationException("Configuration error: 'Project.Output.Namespace' is missing or empty in spocr.json. Please provide a valid root namespace.");
         }
 
-        string targetNamespace = _configManager.Config.Project.Role.Kind == RoleKindEnum.Lib
-            ? $"{configuredRootNs}.Models.{schemaName}"
-            : $"{configuredRootNs}.DataContext.Models.{schemaName}";
+        // Determine root segment (Models / Inputs / Outputs / TableTypes / StoredProcedures) based on template path
+        string nsSegment = "Models"; // default
+        if (templateType.StartsWith("Inputs/", StringComparison.OrdinalIgnoreCase)) nsSegment = "Inputs";
+        else if (templateType.StartsWith("Outputs/", StringComparison.OrdinalIgnoreCase)) nsSegment = "Outputs";
+        else if (templateType.StartsWith("TableTypes/", StringComparison.OrdinalIgnoreCase)) nsSegment = "TableTypes";
+        else if (templateType.StartsWith("StoredProcedures/", StringComparison.OrdinalIgnoreCase)) nsSegment = "StoredProcedures"; // usually extensions
+
+        // Build namespace; if schemaName is empty (root-level artifacts like Outputs base files) avoid trailing dot
+        string targetNamespace;
+        if (_configManager.Config.Project.Role.Kind == RoleKindEnum.Lib)
+        {
+            targetNamespace = string.IsNullOrWhiteSpace(schemaName)
+                ? $"{configuredRootNs}.{nsSegment}"
+                : $"{configuredRootNs}.{nsSegment}.{schemaName}";
+        }
+        else
+        {
+            targetNamespace = string.IsNullOrWhiteSpace(schemaName)
+                ? $"{configuredRootNs}.DataContext.{nsSegment}"
+                : $"{configuredRootNs}.DataContext.{nsSegment}.{schemaName}";
+        }
 
         // Safety: collapse any accidental duplicate dots (should not happen if config is valid)
         while (targetNamespace.Contains(".."))

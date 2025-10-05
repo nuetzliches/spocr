@@ -128,6 +128,7 @@ public class SnapshotResultSet
     public List<SnapshotResultColumn> Columns { get; set; } = new();
     public string ExecSourceSchemaName { get; set; }
     public string ExecSourceProcedureName { get; set; }
+    public bool HasSelectStar { get; set; }
 }
 
 public class SnapshotResultColumn

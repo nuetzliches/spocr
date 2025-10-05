@@ -18,7 +18,9 @@ namespace SpocR.CodeGenerators;
 public class CodeGenerationOrchestrator(
     InputGenerator inputGenerator,
     ModelGenerator modelGenerator,
+    CrudResultGenerator crudResultGenerator,
     TableTypeGenerator tableTypeGenerator,
+    OutputGenerator outputGenerator,
     StoredProcedureGenerator storedProcedureGenerator,
     IConsoleService consoleService,
     OutputService outputService
@@ -45,8 +47,8 @@ public class CodeGenerationOrchestrator(
     {
         var stopwatch = new Stopwatch();
         var elapsed = new Dictionary<string, long>();
-        // Removed obsolete Outputs step -> reduce total steps by one
-        var totalSteps = roleKind == RoleKindEnum.Extension ? 4 : 5;
+        // Steps: CodeBase (lib only), TableTypes, Inputs, Outputs, Models, StoredProcedures
+        var totalSteps = roleKind == RoleKindEnum.Extension ? 5 : 6;
         var currentStep = 0;
 
         HasErrors = false;
@@ -74,6 +76,12 @@ public class CodeGenerationOrchestrator(
             consoleService.PrintSubTitle($"Generating Inputs (Step {currentStep}/{totalSteps})");
             await GenerateDataContextInputsAsync(isDryRun);
             elapsed.Add("Inputs", stopwatch.ElapsedMilliseconds);
+
+            currentStep++;
+            stopwatch.Restart();
+            consoleService.PrintSubTitle($"Generating Outputs (Step {currentStep}/{totalSteps})");
+            await GenerateDataContextOutputsAsync(isDryRun);
+            elapsed.Add("Outputs", stopwatch.ElapsedMilliseconds);
 
             currentStep++;
             stopwatch.Restart();
@@ -119,6 +127,7 @@ public class CodeGenerationOrchestrator(
 
             await GenerateDataContextTableTypesAsync(isDryRun);
             await GenerateDataContextInputsAsync(isDryRun);
+            await GenerateDataContextOutputsAsync(isDryRun);
             await GenerateDataContextModelsAsync(isDryRun);
             await GenerateDataContextStoredProceduresAsync(isDryRun);
 
@@ -155,6 +164,9 @@ public class CodeGenerationOrchestrator(
             if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.Inputs))
                 await GenerateDataContextInputsAsync(isDryRun);
 
+            if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.Outputs))
+                await GenerateDataContextOutputsAsync(isDryRun);
+
             if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.Models))
                 await GenerateDataContextModelsAsync(isDryRun);
 
@@ -187,13 +199,22 @@ public class CodeGenerationOrchestrator(
         return inputGenerator.GenerateDataContextInputs(isDryRun);
     }
 
+    /// <summary>
+    /// Generates output classes for stored procedure OUTPUT parameters
+    /// </summary>
+    public Task GenerateDataContextOutputsAsync(bool isDryRun)
+    {
+        return outputGenerator.GenerateDataContextOutputsAsync(isDryRun);
+    }
+
 
     /// <summary>
     /// Generates entity model classes
     /// </summary>
-    public Task GenerateDataContextModelsAsync(bool isDryRun)
+    public async Task GenerateDataContextModelsAsync(bool isDryRun)
     {
-        return modelGenerator.GenerateDataContextModels(isDryRun);
+        await modelGenerator.GenerateDataContextModels(isDryRun);
+        await crudResultGenerator.GenerateAsync(isDryRun);
     }
 
     /// <summary>
@@ -214,7 +235,8 @@ public enum GeneratorTypes
     None = 0,
     TableTypes = 1,
     Inputs = 2,
-    Models = 4,
-    StoredProcedures = 8,
-    All = TableTypes | Inputs | Models | StoredProcedures
+    Outputs = 4,
+    Models = 8,
+    StoredProcedures = 16,
+    All = TableTypes | Inputs | Outputs | Models | StoredProcedures
 }

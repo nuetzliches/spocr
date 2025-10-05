@@ -41,7 +41,6 @@ namespace SpocR.Extensions
 
         internal static bool IsScalarResult(this StoredProcedure storedProcedure)
         {
-            if (storedProcedure.ReadWriteKind != ReadWriteKindEnum.Read) return false;
             var first = storedProcedure.ResultSets?.FirstOrDefault();
             if (first == null || first.ReturnsJson) return false;
             var columnCount = first.Columns?.Count ?? 0;

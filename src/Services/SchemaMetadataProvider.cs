@@ -150,6 +150,7 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
             JsonRootProperty = rs.JsonRootProperty,
             ExecSourceSchemaName = rs.ExecSourceSchemaName,
             ExecSourceProcedureName = rs.ExecSourceProcedureName,
+            HasSelectStar = rs.HasSelectStar,
             Columns = rs.Columns.Select(c => new StoredProcedureContentModel.ResultColumn
             {
                 JsonPath = c.JsonPath,

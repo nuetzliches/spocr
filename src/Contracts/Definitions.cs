@@ -8,31 +8,6 @@ namespace SpocR.Contracts;
 
 public static class Definition
 {
-    public enum OperationKindEnum
-    {
-        Undefined,
-        Create,
-        Update,
-        Delete,
-        Merge,
-        Upsert,
-        Find,
-        List
-    }
-
-    public enum ReadWriteKindEnum
-    {
-        Undefined,
-        Read,
-        Write
-    }
-
-    public enum ResultKindEnum
-    {
-        Undefined,
-        Single,
-        List
-    }
 
     public static Schema ForSchema(SchemaModel schema)
     {
@@ -78,11 +53,6 @@ public static class Definition
     {
         private string _sqlObjectName;
         private string _name;
-        private string _entityName;
-        private string _suffix;
-        private OperationKindEnum _operationKind;
-        private ReadWriteKindEnum _readWriteKind;
-        private ResultKindEnum _resultKind;
 
         //
         // Returns:
@@ -98,35 +68,8 @@ public static class Definition
         // Returns:
         //     The part of the Name before the [Operation] starts. 
         //     e.g.: "User" from Name "UserCreate"
-        public string EntityName => _entityName ??= OperationKind != OperationKindEnum.Undefined
-                ? Name[..Name.IndexOf(OperationKind.ToString())]
-                : Name
-;
-        public string Suffix => _suffix ??= Name[(Name.IndexOf(OperationKind.ToString()) + OperationKind.ToString().Length)..];
-        [Obsolete("Will be removed in v5: Name-based OperationKind inference will be dropped. Rely on external conventions or ResultSets.")]
-        public OperationKindEnum OperationKind => _operationKind != OperationKindEnum.Undefined
-            ? _operationKind
-            : (_operationKind = Enum.GetValues<OperationKindEnum>()
-                .Select(kind => new { Kind = kind, Index = Name.IndexOf(kind.ToString()) })
-                .Where(x => x.Index >= 0)
-                .OrderBy(x => x.Index)
-                .FirstOrDefault()?.Kind ?? OperationKindEnum.Undefined);
-
-        [Obsolete("Will be removed in v5: Read/Write derivation from OperationKind will be removed.")]
-        public ReadWriteKindEnum ReadWriteKind => _readWriteKind != ReadWriteKindEnum.Undefined
-            ? _readWriteKind
-            : (_readWriteKind = new[] { OperationKindEnum.Find, OperationKindEnum.List }.Contains(OperationKind)
-                        ? ReadWriteKindEnum.Read
-                        : ReadWriteKindEnum.Write);
-
-        [Obsolete("Will be removed in v5: ResultKind should be inferred by consumer from ResultSets (count, ReturnsJson flags).")]
-        public ResultKindEnum ResultKind => _resultKind != ResultKindEnum.Undefined
-            ? _resultKind
-            : (_resultKind = (storedProcedure.ResultSets?.FirstOrDefault()?.ReturnsJson ?? false)
-                ? ((storedProcedure.ResultSets?.FirstOrDefault()?.ReturnsJsonArray ?? false) ? ResultKindEnum.List : ResultKindEnum.Single)
-                : ((OperationKind == OperationKindEnum.List || Name.Contains("WithChildren"))
-                    ? ResultKindEnum.List
-                    : ResultKindEnum.Single));
+        // Removed obsolete OperationKind/ReadWriteKind/ResultKind logic.
+        // If similar semantics are needed in future, derive externally from ResultSets / parse flags.
         // Expose only raw ResultSets; callers must inspect sets explicitly (no flattened convenience properties)
         public IReadOnlyList<StoredProcedureContentModel.ResultSet> ResultSets => storedProcedure.ResultSets;
 

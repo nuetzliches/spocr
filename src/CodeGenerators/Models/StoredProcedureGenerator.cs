@@ -29,7 +29,8 @@ public class StoredProcedureGenerator(
 {
     public async Task<SourceText> GetStoredProcedureExtensionsCodeAsync(Definition.Schema schema, List<Definition.StoredProcedure> storedProcedures)
     {
-        var entityName = storedProcedures.First().EntityName;
+        // Entity grouping previously relied on OperationKind-derived EntityName. Fallback: use first procedure name as grouping key.
+        var entityName = storedProcedures.First().Name;
 
         // Load and process the template with the template manager
         var root = await templateManager.GetProcessedTemplateAsync("StoredProcedures/StoredProcedureExtensions.cs", schema.Name, $"{entityName}Extensions");
@@ -48,30 +49,36 @@ public class StoredProcedureGenerator(
         }
         else
         {
-            // For libs and default projects
-            // Add Using for common Models (e.g. CrudResult)
-            if (storedProcedures.Any(i => i.ReadWriteKind == Definition.ReadWriteKindEnum.Write))
+            // Previously conditional on Read/Write; now always adjust template usings.
+            for (var i = 0; i < root.Usings.Count; i++)
             {
-                for (var i = 0; i < root.Usings.Count; i++)
-                {
-                    var usingDirective = root.Usings[i];
-                    var newUsingName = ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib
-                        ? SyntaxFactory.ParseName($"{usingDirective.Name.ToString().Replace("Source.DataContext", ConfigFile.Config.Project.Output.Namespace)}")
-                        : SyntaxFactory.ParseName($"{usingDirective.Name.ToString().Replace("Source", ConfigFile.Config.Project.Output.Namespace)}");
-                    root = root.ReplaceNode(usingDirective, usingDirective.WithName(newUsingName));
-                }
+                var usingDirective = root.Usings[i];
+                var newUsingName = ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib
+                    ? SyntaxFactory.ParseName(usingDirective.Name.ToString().Replace("Source.DataContext", ConfigFile.Config.Project.Output.Namespace))
+                    : SyntaxFactory.ParseName(usingDirective.Name.ToString().Replace("Source", ConfigFile.Config.Project.Output.Namespace));
+                root = root.ReplaceNode(usingDirective, usingDirective.WithName(newUsingName));
             }
         }
 
-        // Add Using for Models (non-JSON, multi-column READ procedures)
-        if (storedProcedures.Any(sp => sp.ReadWriteKind == Definition.ReadWriteKindEnum.Read
-                           && !(sp.ResultSets?.FirstOrDefault()?.ReturnsJson ?? false)
-                           && ((sp.ResultSets?.FirstOrDefault()?.Columns?.Count) ?? 0) > 1))
+        // Determine if any stored procedure in this group actually produces a model (skip pure scalar non-JSON procs)
+        bool NeedsModel(Definition.StoredProcedure sp)
         {
-            var modelUsingDirective = ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib
+            var set = sp.ResultSets?.FirstOrDefault();
+            if (set == null) return false; // zero-result => no model
+            var returnsJson = set.ReturnsJson;
+            var hasCols = set.Columns?.Any() ?? false;
+            var scalarNonJson = hasCols && !returnsJson && set.Columns.Count == 1; // skipped by model generator
+            if (!returnsJson && scalarNonJson) return false;
+            return true; // multi-col, json, or other tabular
+        }
+
+        var needsModelUsing = storedProcedures.Any(NeedsModel);
+        if (needsModelUsing)
+        {
+            var modelUsing = ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib
                 ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.Models.{schema.Name}"))
                 : SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.DataContext.Models.{schema.Name}"));
-            root = root.AddUsings(modelUsingDirective).NormalizeWhitespace();
+            root = root.AddUsings(modelUsing).NormalizeWhitespace();
         }
 
         // Add Usings for Inputs
@@ -97,9 +104,32 @@ public class StoredProcedureGenerator(
             root = AddTableTypeImport(root, tableTypeSchema);
         }
 
-        // Remove Template Usings
+        // After table type imports, remove any remaining template Source.* usings
         var usings = root.Usings.Where(_ => !_.Name.ToString().StartsWith("Source."));
         root = root.WithUsings([.. usings]);
+
+        // Conditionally add outputs usings (root + schema) if any proc has OUTPUT parameters
+        var baseOutputSkip = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "@ResultId", "@RecordId", "@RowVersion", "@Result" };
+        bool HasAnyOutputs = storedProcedures.Any(sp => sp.GetOutputs()?.Any() ?? false);
+        bool HasCustomOutputs = storedProcedures.Any(sp => (sp.GetOutputs()?.Count(o => !baseOutputSkip.Contains(o.Name)) ?? 0) > 0);
+        if (HasAnyOutputs)
+        {
+            // Root outputs namespace
+            var outputsRootUsing = ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib
+                ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.Outputs"))
+                : SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.DataContext.Outputs"));
+            if (!root.Usings.Any(u => u.Name.ToString() == outputsRootUsing.Name.ToString()))
+                root = root.AddUsings(outputsRootUsing).NormalizeWhitespace();
+
+            if (HasCustomOutputs)
+            {
+                var outputsSchemaUsing = ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib
+                    ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.Outputs.{schema.Name}"))
+                    : SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.DataContext.Outputs.{schema.Name}"));
+                if (!root.Usings.Any(u => u.Name.ToString() == outputsSchemaUsing.Name.ToString()))
+                    root = root.AddUsings(outputsSchemaUsing).NormalizeWhitespace();
+            }
+        }
 
         var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
         var classNode = (ClassDeclarationSyntax)nsNode.Members[0];
@@ -280,6 +310,7 @@ public class StoredProcedureGenerator(
         var isJson = firstSet?.ReturnsJson ?? false;
         var isJsonArray = isJson && (firstSet?.ReturnsJsonArray ?? false);
 
+        // Only the pipe variant of a JSON Deserialize method performs the awaited deserialization; the context overload delegates.
         var requiresAsync = isJson && kind == StoredProcedureMethodKind.Deserialize && !isOverload;
 
         var rawJson = false;
@@ -298,52 +329,93 @@ public class StoredProcedureGenerator(
             if (isJsonArray)
             {
                 returnType = $"Task<List<{returnModel}>>";
-                // Call raw method (which returns JSON string) then deserialize to list; fallback to empty list if null
-                var rawCall = $"{storedProcedure.Name}Async({(storedProcedure.HasInputs() ? "input, " : string.Empty)}cancellationToken)";
-                returnExpression = $"System.Text.Json.JsonSerializer.Deserialize<List<{returnModel}>>(await {rawCall}, new System.Text.Json.JsonSerializerOptions {{ PropertyNameCaseInsensitive = true }}) ?? new List<{returnModel}>()";
+                if (isOverload)
+                {
+                    // Delegate directly to pipe variant mirroring pattern of raw JSON methods
+                    var call = $"context.CreatePipe().{storedProcedure.Name}DeserializeAsync({(storedProcedure.HasInputs() ? "input, " : string.Empty)}cancellationToken)";
+                    returnExpression = call;
+                }
+                else
+                {
+                    returnExpression = $"await context.ReadJsonDeserializeAsync<List<{returnModel}>>(\"{storedProcedure.SqlObjectName}\", parameters, cancellationToken)";
+                }
             }
             else
             {
                 returnType = $"Task<{returnModel}>";
-                var rawCall = $"{storedProcedure.Name}Async({(storedProcedure.HasInputs() ? "input, " : string.Empty)}cancellationToken)";
-                returnExpression = $"System.Text.Json.JsonSerializer.Deserialize<{returnModel}>(await {rawCall}, new System.Text.Json.JsonSerializerOptions {{ PropertyNameCaseInsensitive = true }})";
+                if (isOverload)
+                {
+                    var call = $"context.CreatePipe().{storedProcedure.Name}DeserializeAsync({(storedProcedure.HasInputs() ? "input, " : string.Empty)}cancellationToken)";
+                    returnExpression = call;
+                }
+                else
+                {
+                    returnExpression = $"await context.ReadJsonDeserializeAsync<{returnModel}>(\"{storedProcedure.SqlObjectName}\", parameters, cancellationToken)";
+                }
             }
-        }
-        else if (!rawJson && storedProcedure.IsScalarResult())
-        {
-            // Scalar non-JSON: derive type from first column metadata if available
-            var firstCol = firstSet?.Columns?.FirstOrDefault();
-            if (firstCol != null && !string.IsNullOrWhiteSpace(firstCol.SqlTypeName))
-            {
-                returnModel = ParseTypeFromSqlDbTypeName(firstCol.SqlTypeName, firstCol.IsNullable ?? true).ToString();
-            }
-            else
-            {
-                returnModel = "string"; // conservative fallback
-            }
-            returnType = $"Task<{returnModel}>";
-            returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", $"ExecuteScalarAsync<{returnModel}>");
         }
         else if (!rawJson)
         {
-            switch (storedProcedure.OperationKind)
+            // Consolidated non-JSON, non-raw cases (scalar, output-based, tabular) for deterministic replacement
+            string ReplacePlaceholder(string expr, string replacement)
             {
-                case Definition.OperationKindEnum.Find:
-                case Definition.OperationKindEnum.List:
-                    returnModel = storedProcedure.Name;
-                    break;
+                // Only one placeholder should exist (ExecuteSingleAsync<CrudResult>). Future-proof: clean any stray list/single variants.
+                return expr
+                    .Replace("ExecuteListAsync<CrudResult>", replacement)
+                    .Replace("ExecuteSingleAsync<CrudResult>", replacement)
+                    .Replace("ExecuteAsync<CrudResult>", replacement);
             }
 
-            switch (storedProcedure.ResultKind)
+            if (storedProcedure.IsScalarResult())
             {
-                case Definition.ResultKindEnum.Single:
+                var firstCol = firstSet?.Columns?.FirstOrDefault();
+                if (firstCol != null && !string.IsNullOrWhiteSpace(firstCol.SqlTypeName))
+                {
+                    returnModel = ParseTypeFromSqlDbTypeName(firstCol.SqlTypeName, firstCol.IsNullable ?? true).ToString();
+                }
+                else
+                {
+                    returnModel = "string"; // conservative fallback
+                }
+                returnType = $"Task<{returnModel}>";
+                returnExpression = ReplacePlaceholder(returnExpression, $"ExecuteScalarAsync<{returnModel}>");
+            }
+            else
+            {
+                var firstSet2 = storedProcedure.ResultSets?.FirstOrDefault();
+                var columnCount = firstSet2?.Columns?.Count ?? 0;
+                var hasTabularResult = columnCount > 0;
+                var hasOutputs = storedProcedure.HasOutputs();
+                var baseOutputPropSkip = new[] { "@ResultId", "@RecordId", "@RowVersion", "@Result" };
+                var customOutputCount = storedProcedure.GetOutputs()?.Count(o => !baseOutputPropSkip.Contains(o.Name, StringComparer.OrdinalIgnoreCase)) ?? 0;
+
+                if (!hasTabularResult && hasOutputs && customOutputCount > 0)
+                {
+                    returnModel = storedProcedure.GetOutputTypeName();
                     returnType = $"Task<{returnModel}>";
-                    returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", $"ExecuteSingleAsync<{returnModel}>");
-                    break;
-                case Definition.ResultKindEnum.List:
-                    returnType = $"Task<List<{returnModel}>>";
-                    returnExpression = returnExpression.Replace("ExecuteSingleAsync<CrudResult>", $"ExecuteListAsync<{returnModel}>");
-                    break;
+                    returnExpression = ReplacePlaceholder(returnExpression, $"ExecuteAsync<{returnModel}>");
+                }
+                else if (!hasTabularResult && (!hasOutputs || customOutputCount == 0))
+                {
+                    returnModel = "Output";
+                    returnType = "Task<Output>";
+                    returnExpression = ReplacePlaceholder(returnExpression, "ExecuteAsync<Output>");
+                }
+                else
+                {
+                    var multiColumn = columnCount > 1;
+                    returnModel = storedProcedure.Name;
+                    if (multiColumn)
+                    {
+                        returnType = $"Task<List<{returnModel}>>";
+                        returnExpression = ReplacePlaceholder(returnExpression, $"ExecuteListAsync<{returnModel}>");
+                    }
+                    else
+                    {
+                        returnType = $"Task<{returnModel}>";
+                        returnExpression = ReplacePlaceholder(returnExpression, $"ExecuteSingleAsync<{returnModel}>");
+                    }
+                }
             }
         }
 
@@ -416,9 +488,9 @@ public class StoredProcedureGenerator(
                 Directory.CreateDirectory(path);
             }
 
-            foreach (var groupedStoredProcedures in storedProcedures.GroupBy(i => i.EntityName, (key, group) => group.ToList()))
+            foreach (var groupedStoredProcedures in storedProcedures.GroupBy(i => i.Name, (key, group) => group.ToList()))
             {
-                var entityName = groupedStoredProcedures.First().EntityName;
+                var entityName = groupedStoredProcedures.First().Name;
 
                 var fileName = $"{entityName}Extensions.cs";
                 var fileNameWithPath = Path.Combine(path, fileName);

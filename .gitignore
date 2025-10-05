@@ -1,9 +1,3 @@
-# SpocR local runtime & sensitive configs
-debug/spocr.json
-debug/.env
-.spocr/
-
-
 *.swp
 *.*~
 project.lock.json
@@ -25,7 +19,6 @@ nupkg/
 *.sln.docstates
 
 # Build results
-[Dd]ebug/
 [Dd]ebugPublic/
 [Rr]elease/
 [Rr]eleases/
@@ -39,10 +32,6 @@ bld/
 msbuild.log
 msbuild.err
 msbuild.wrn
-
-# Re-allow tracked example templates inside debug folder (must come AFTER the directory ignore above)
-!debug/spocr.json.example
-!debug/.env.example
 
 # Visual Studio 2015
 .vs/
@@ -61,3 +50,10 @@ samples/mssql/.env
 .artifacts/*
 !.artifacts/.gitkeep
 
+# Debug artifacts & local configs
+# Keep the root /debug directory (contains reports & example templates) but ignore sensitive/runtime files.
+debug/*
+debug/spocr.json
+debug/.env
+!debug/*.example
+!debug/README.md

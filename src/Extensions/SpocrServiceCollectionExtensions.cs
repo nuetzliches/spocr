@@ -111,8 +111,10 @@ namespace SpocR.Extensions
             services.AddSingleton<TemplateManager>();
             services.AddSingleton<InputGenerator>();
             services.AddSingleton<ModelGenerator>();
+            services.AddSingleton<OutputGenerator>();
             services.AddSingleton<TableTypeGenerator>();
             services.AddSingleton<StoredProcedureGenerator>();
+            services.AddSingleton<CrudResultGenerator>();
 
             // Register the orchestrator as the final component
             services.AddSingleton<CodeGenerationOrchestrator>();

@@ -83,6 +83,37 @@ public class TableTypeGenerator(
 
     public async Task GenerateDataContextTableTypesAsync(bool isDryRun)
     {
+        // Ensure ITableType interface (template: ITableType.base.cs) is materialized once into DataContext/TableTypes root (drop .base)
+        try
+        {
+            var tableTypesRoot = DirectoryUtils.GetWorkingDirectory(ConfigFile.Config.Project.Output.DataContext.Path, ConfigFile.Config.Project.Output.DataContext.TableTypes.Path);
+            if (!Directory.Exists(tableTypesRoot) && !isDryRun)
+            {
+                Directory.CreateDirectory(tableTypesRoot);
+            }
+            var interfaceTemplatePath = Path.Combine(Output.GetOutputRootDir().FullName, "DataContext", "TableTypes", "ITableType.base.cs");
+            var interfaceTargetPath = Path.Combine(tableTypesRoot, "ITableType.cs");
+            if (File.Exists(interfaceTemplatePath))
+            {
+                if (!File.Exists(interfaceTargetPath))
+                {
+                    var raw = await File.ReadAllTextAsync(interfaceTemplatePath);
+                    // Replace Source.DataContext with configured namespace (root, no schema segment)
+                    var configuredRootNs = ConfigFile.Config.Project.Output.Namespace?.Trim();
+                    if (string.IsNullOrWhiteSpace(configuredRootNs)) throw new InvalidOperationException("Missing Project.Output.Namespace");
+                    var targetNs = ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib
+                        ? $"{configuredRootNs}.TableTypes"
+                        : $"{configuredRootNs}.DataContext.TableTypes";
+                    raw = raw.Replace("namespace Source.DataContext.TableTypes", $"namespace {targetNs}");
+                    await Output.WriteAsync(interfaceTargetPath, SourceText.From(raw), isDryRun);
+                }
+            }
+        }
+        catch (Exception itx)
+        {
+            ConsoleService.Verbose($"[tabletypes] Skipped ITableType generation: {itx.Message}");
+        }
+
         var schemas = metadataProvider.GetSchemas()
             .Where(i => i.TableTypes?.Any() ?? false)
             .Select(Definition.ForSchema);

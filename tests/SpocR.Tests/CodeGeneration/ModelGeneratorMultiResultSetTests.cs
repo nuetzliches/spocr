@@ -100,21 +100,20 @@ public class ModelGeneratorMultiResultSetTests
     {
         var (gen, schema, sp, _) = Arrange();
 
-        // Base model (first result set, keeps original name)
-        var baseText = await gen.GetModelTextForStoredProcedureAsync(schema, sp);
-        var baseCode = baseText.ToString();
-        baseCode.Should().Contain("class UserReport");
-        baseCode.Should().Contain("UserName");
-        baseCode.Should().NotContain("__TemplateProperty__");
+        // New behavior: caller must manually split multi-result sets (generator expects exactly one set per call).
+        // Validate that calling with original multi-set SP throws, enforcing explicit splitting.
+        var act = async () => await gen.GetModelTextForStoredProcedureAsync(schema, sp);
+        await act.Should().ThrowAsync<System.InvalidOperationException>()
+            .WithMessage("*expects exactly one ResultSet*");
 
-        // Subsequent result sets generate separate models with suffixes (_1, _2, ...)
-        for (int r = 1; r < sp.ResultSets.Count; r++)
+        // Now simulate explicit per-set splitting (what production code does) and validate outputs
+        for (int r = 0; r < sp.ResultSets.Count; r++)
         {
             var rs = sp.ResultSets[r];
-            var suffixName = sp.Name + "_" + r;
+            var splitName = r == 0 ? sp.Name : sp.Name + "_" + r;
             var synthetic = new StoredProcedureModel(new SpocR.DataContext.Models.StoredProcedure
             {
-                Name = suffixName,
+                Name = splitName,
                 SchemaName = schema.Name
             })
             {
@@ -126,12 +125,10 @@ public class ModelGeneratorMultiResultSetTests
             var defSynthetic = Definition.ForStoredProcedure(synthetic, schema);
             var text = await gen.GetModelTextForStoredProcedureAsync(schema, defSynthetic);
             var code = text.ToString();
-            code.Should().Contain($"class {suffixName}");
-            // Validate a representative property from each result set
-            if (r == 1)
-                code.Should().Contain("OrderCount");
-            if (r == 2)
-                code.Should().Contain("LastLogin");
+            code.Should().Contain($"class {splitName}");
+            if (r == 0) code.Should().Contain("UserName");
+            if (r == 1) code.Should().Contain("OrderCount");
+            if (r == 2) code.Should().Contain("LastLogin");
             code.Should().NotContain("__TemplateProperty__");
         }
     }

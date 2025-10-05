@@ -33,8 +33,10 @@ public class ModelGenerator(
         var classNode = nsBase.Members.OfType<ClassDeclarationSyntax>().First();
         var templateProperty = classNode.Members.OfType<PropertyDeclarationSyntax>().First();
 
-        // Enforce: every storedProcedure here must represent EXACTLY one ResultSet.
-        if (storedProcedure.ResultSets == null || storedProcedure.ResultSets.Count != 1)
+        // If the procedure returns no ResultSets at all we now SKIP generating a model entirely to avoid empty classes.
+        if (storedProcedure.ResultSets == null || storedProcedure.ResultSets.Count == 0)
+            return null;
+        if (storedProcedure.ResultSets.Count != 1)
         {
             throw new System.InvalidOperationException($"Model generation expects exactly one ResultSet (got {storedProcedure.ResultSets?.Count ?? 0}) for '{storedProcedure.Name}'.");
         }
@@ -107,9 +109,11 @@ public class ModelGenerator(
             // Generate nested classes recursively; collect top-level segment names for root properties.
             var generatedClasses = new System.Collections.Generic.Dictionary<string, ClassDeclarationSyntax>(System.StringComparer.OrdinalIgnoreCase);
 
+            const string NestedClassSuffix = "Sub"; // configurable if needed later
             ClassDeclarationSyntax GenerateClass(JsonPathNode node)
             {
-                var className = node.Name.FirstCharToUpper();
+                // For nested nodes (excluding synthetic root) add suffix to minimize collisions with similarly named properties.
+                var className = node.Name == "__root__" ? "Root" : node.Name.FirstCharToUpper() + NestedClassSuffix;
                 if (generatedClasses.TryGetValue(className, out var existing)) return existing;
                 var cls = SyntaxFactory.ClassDeclaration(className).AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword));
                 // Child classes first
@@ -181,9 +185,15 @@ public class ModelGenerator(
                 {
                     classNode = classNode.AddMembers(cls);
                 }
-                if (!classNode.Members.OfType<PropertyDeclarationSyntax>().Any(p => p.Identifier.Text == top.Name.FirstCharToUpper()))
+                var desiredPropName = top.Name.FirstCharToUpper();
+                if (desiredPropName == cls.Identifier.Text)
                 {
-                    classNode = AddProperty(classNode, top.Name, cls.Identifier.Text);
+                    // If class name equals desired property name (rare after suffix) shorten property (remove suffix)
+                    desiredPropName = top.Name.FirstCharToUpper();
+                }
+                if (!classNode.Members.OfType<PropertyDeclarationSyntax>().Any(p => p.Identifier.Text == desiredPropName))
+                {
+                    classNode = AddProperty(classNode, desiredPropName, cls.Identifier.Text);
                 }
             }
         }
@@ -346,8 +356,7 @@ public class ModelGenerator(
 
         foreach (var schema in schemas)
         {
-            var storedProcedures = schema.StoredProcedures
-                .Where(i => i.ReadWriteKind == Definition.ReadWriteKindEnum.Read).ToList();
+            var storedProcedures = schema.StoredProcedures.ToList();
 
             if (storedProcedures.Count == 0)
             {
@@ -390,11 +399,51 @@ public class ModelGenerator(
                 }
             }
         }
+
+        // Post-generation cleanup: remove empty schema folders in Models and Outputs (if any were created but no files written)
+        try
+        {
+            if (!isDryRun)
+            {
+                var baseModelsDir = DirectoryUtils.GetWorkingDirectory(ConfigFile.Config.Project.Output.DataContext.Path, ConfigFile.Config.Project.Output.DataContext.Models.Path);
+                if (Directory.Exists(baseModelsDir))
+                {
+                    foreach (var dir in Directory.GetDirectories(baseModelsDir, "*", SearchOption.TopDirectoryOnly))
+                    {
+                        if (Directory.GetFiles(dir, "*.cs", SearchOption.TopDirectoryOnly).Length == 0)
+                        {
+                            Directory.Delete(dir, true);
+                            consoleService.Verbose($"[cleanup] Removed empty model folder '{new DirectoryInfo(dir).Name}'");
+                        }
+                    }
+                }
+
+                // Outputs directory may still exist from legacy; ensure we also remove accidental empty schema folders there.
+                var outputsDir = DirectoryUtils.GetWorkingDirectory(ConfigFile.Config.Project.Output.DataContext.Path, ConfigFile.Config.Project.Output.DataContext.Outputs.Path);
+                if (Directory.Exists(outputsDir))
+                {
+                    foreach (var dir in Directory.GetDirectories(outputsDir, "*", SearchOption.TopDirectoryOnly))
+                    {
+                        if (Directory.GetFiles(dir, "*.cs", SearchOption.TopDirectoryOnly).Length == 0)
+                        {
+                            Directory.Delete(dir, true);
+                            consoleService.Verbose($"[cleanup] Removed empty outputs folder '{new DirectoryInfo(dir).Name}'");
+                        }
+                    }
+                }
+            }
+        }
+        catch (System.Exception ex)
+        {
+            consoleService.Warn($"[cleanup] Could not remove empty model/output folders: {ex.Message}");
+        }
     }
 
     private async Task WriteSingleModelAsync(Definition.Schema schema, Definition.StoredProcedure storedProcedure, string path, bool isDryRun)
     {
-        if (storedProcedure.ResultSets == null || storedProcedure.ResultSets.Count != 1)
+        if (storedProcedure.ResultSets == null || storedProcedure.ResultSets.Count == 0)
+            return; // skip zero-result procedures completely
+        if (storedProcedure.ResultSets.Count != 1)
         {
             throw new System.InvalidOperationException($"Model generation expects exactly one ResultSet (got {storedProcedure.ResultSets?.Count ?? 0}) for '{storedProcedure.Name}'.");
         }
@@ -408,6 +457,7 @@ public class ModelGenerator(
         var fileName = $"{storedProcedure.Name}.cs";
         var fileNameWithPath = Path.Combine(path, fileName);
         var sourceText = await GetModelTextForStoredProcedureAsync(schema, storedProcedure);
-        await Output.WriteAsync(fileNameWithPath, sourceText, isDryRun);
+        if (sourceText != null)
+            await Output.WriteAsync(fileNameWithPath, sourceText, isDryRun);
     }
 }
