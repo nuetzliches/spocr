@@ -536,29 +536,43 @@ public class SpocrManager(
 
         consoleService.PrintTitle($"Build DataContext from {Constants.ConfigurationFile}");
 
-        var config = configFile.Config;
-        if (config == null)
+        // Reuse unified configuration loading + user overrides
+        var mergedConfig = await LoadAndMergeConfigurationsAsync();
+        if (mergedConfig?.Project == null)
         {
-            consoleService.Error("Configuration is invalid");
+            consoleService.Error("Configuration is invalid (project node missing)");
             return ExecuteResultEnum.Error;
         }
 
-        var project = config.Project;
-        // Legacy config.Schema no longer used during build (snapshot only)
-        var connectionString = project?.DataBase?.ConnectionString;
+        // Propagate merged configuration to shared configFile so generators (TemplateManager, OutputService) see updated values like Project.Output.Namespace
+        try
+        {
+            configFile.OverwriteWithConfig = mergedConfig;
+            // Force refresh of cached Config instance
+            await configFile.ReloadAsync();
+        }
+        catch (Exception ex)
+        {
+            consoleService.Warn($"Could not propagate merged configuration to FileManager: {ex.Message}");
+        }
 
+        var project = mergedConfig.Project;
+        var connectionString = project?.DataBase?.ConnectionString;
         if (string.IsNullOrWhiteSpace(connectionString))
         {
             consoleService.Error("Missing database connection string");
-            consoleService.Output($"\tTo configure database access, run '{Constants.Name} set --cs \"your-connection-string\"'");
+            consoleService.Output($"\tAdd it to {Constants.ConfigurationFile} (Project.DataBase.ConnectionString) or run '{Constants.Name} set --cs \"your-connection-string\"'.");
             return ExecuteResultEnum.Error;
+        }
+        if (options.Verbose)
+        {
+            consoleService.Verbose($"[build] Using connection string (length={connectionString?.Length}) from configuration.");
         }
 
         try
         {
             dbContext.SetConnectionString(connectionString);
-            // Snapshot-only build: Generators will resolve ISchemaMetadataProvider on first access.
-            // We do a light pre-flight check to give a clear error if snapshot missing.
+            // Ensure snapshot presence (required for metadata-driven generation) – but still require connection now (no offline mode)
             try
             {
                 var working = Utils.DirectoryUtils.GetWorkingDirectory();
@@ -577,7 +591,7 @@ public class SpocrManager(
             }
 
             // Optional informational warning if legacy schema section still present (non-empty) – snapshot only build.
-            if (config.Schema != null && config.Schema.Count > 0 && options.Verbose)
+            if (mergedConfig.Schema != null && mergedConfig.Schema.Count > 0 && options.Verbose)
             {
                 consoleService.Verbose("[legacy-schema] config.Schema wird ignoriert (Snapshot-only Build aktiv)");
             }

@@ -75,15 +75,22 @@ public class TemplateManager
         var root = template;
         var templateFileName = Path.GetFileNameWithoutExtension(templateType);
 
-        // Replace Namespace
-        if (_configManager.Config.Project.Role.Kind == RoleKindEnum.Lib)
+        // Replace Namespace (explicit construction to avoid partial replacement edge cases)
+        var configuredRootNs = _configManager.Config.Project.Output.Namespace?.Trim();
+        if (string.IsNullOrWhiteSpace(configuredRootNs))
         {
-            root = root.ReplaceNamespace(ns => ns.Replace("Source.DataContext", _configManager.Config.Project.Output.Namespace).Replace("Schema", schemaName));
+            throw new System.InvalidOperationException("Configuration error: 'Project.Output.Namespace' is missing or empty in spocr.json. Please provide a valid root namespace.");
         }
-        else
-        {
-            root = root.ReplaceNamespace(ns => ns.Replace("Source", _configManager.Config.Project.Output.Namespace).Replace("Schema", schemaName));
-        }
+
+        string targetNamespace = _configManager.Config.Project.Role.Kind == RoleKindEnum.Lib
+            ? $"{configuredRootNs}.Models.{schemaName}"
+            : $"{configuredRootNs}.DataContext.Models.{schemaName}";
+
+        // Safety: collapse any accidental duplicate dots (should not happen if config is valid)
+        while (targetNamespace.Contains(".."))
+            targetNamespace = targetNamespace.Replace("..", ".");
+
+        root = root.ReplaceNamespace(_ => targetNamespace);
 
         // Replace ClassName
         root = root.ReplaceClassName(ci => ci.Replace(templateFileName, className));
