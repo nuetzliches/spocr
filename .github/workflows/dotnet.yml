@@ -65,21 +65,31 @@ jobs:
       - name: Build (Release)
         run: dotnet build $PROJECT_FILE --configuration Release --no-restore -p:ContinuousIntegrationBuild=true -p:Deterministic=true
 
-      - name: Extract Version From csproj / Override
+      - name: Determine Version (git tags / MinVer compatible)
         id: version
         run: |
-          BASE_VERSION=$(grep -oPm1 '(?<=<Version>)([^<]+)' $PROJECT_FILE || true)
-          if [ -z "$BASE_VERSION" ]; then
-            echo "Version not found in project file"; exit 1;
-          fi
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.override-version }}" ]; then
-            VERSION="${{ inputs.override-version }}"
-            echo "Using override version: $VERSION (base was $BASE_VERSION)"
+          EVENT="${{ github.event_name }}"
+          OVERRIDE="${{ inputs.override-version }}"
+          if [ "$EVENT" = "release" ]; then
+            RAW_TAG="${{ github.event.release.tag_name }}"
+            VERSION="${RAW_TAG#v}"
+            echo "Release event: using tag $RAW_TAG -> version $VERSION"
+          elif [ "$EVENT" = "workflow_dispatch" ] && [ -n "$OVERRIDE" ]; then
+            VERSION="$OVERRIDE"
+            echo "Dispatch override provided -> version $VERSION"
           else
-            VERSION="$BASE_VERSION"
+            # Fallback: derive latest tag (SemVer-style starting with v). If none, use 0.0.0-local
+            LATEST_TAG=$(git describe --tags --match "v[0-9]*" --abbrev=0 2>/dev/null || true)
+            if [ -z "$LATEST_TAG" ]; then
+              VERSION="0.0.0-local"
+              echo "No tags found. Using fallback version $VERSION"
+            else
+              VERSION="${LATEST_TAG#v}"
+              echo "Derived version from latest tag $LATEST_TAG -> $VERSION"
+            fi
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          echo "base-version=$BASE_VERSION" >> $GITHUB_OUTPUT
+          echo "base-version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Validate Release Tag matches Version
         if: github.event_name == 'release'
