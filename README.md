@@ -237,6 +237,49 @@ Artifacts (JSON summary, JUnit XML, coverage) live under `.artifacts/` (git-igno
 
 Roadmap reference: see [Testing Framework](/roadmap/testing-framework) for remaining open enhancements.
 
+### Coverage Policy
+
+SpocR enforces a line coverage quality gate in CI. We deliberately start with a modest threshold to allow incremental, sustainable improvement without blocking unrelated contributions.
+
+Current policy:
+
+| Item                       | Value                                         |
+| -------------------------- | --------------------------------------------- |
+| Initial enforced threshold | 30% (line coverage)                           |
+| Target (medium-term)       | 50%                                           |
+| Target (long-term)         | 60%+                                          |
+| Gate location              | GitHub Action `test.yml` (`COVERAGE_MIN` env) |
+
+Rationale:
+
+1. Avoid “big bang” coverage pushes that add low‑value tests.
+2. Encourage focused tests around generators, parsing, and validation logic (highest defect risk).
+3. Provide transparent, reviewable increments (raise `COVERAGE_MIN` only after genuine improvements).
+
+Raising the threshold:
+
+1. Add meaningful tests (prefer logic / edge cases, avoid trivial property getters).
+2. Run the coverage job locally: `dotnet test --collect:"XPlat Code Coverage"` and generate report with ReportGenerator.
+3. Confirm new percentage in the coverage job artifact.
+4. Update `COVERAGE_MIN` (e.g. from 30 to 35) in `.github/workflows/test.yml`.
+
+Exclusions (future): We may introduce targeted exclusions for generated or template scaffolding code if it becomes a drag on achieving the threshold without improving confidence.
+
+If the gate fails:
+
+- Check `.artifacts/coverage/Summary.xml` or fallback Cobertura files in `.artifacts/test-results/`.
+- The workflow step prints the derived coverage rate and which path was used.
+
+To experiment locally without failing CI, you can temporarily export a lower threshold before running the workflow logic:
+
+```bash
+export COVERAGE_MIN=25
+```
+
+(Do not commit a lower threshold unless agreed in review.)
+
+We track incremental increases in the CHANGELOG to make coverage progression transparent.
+
 ## Release & Publishing
 
 Releases are published automatically to NuGet when a GitHub Release is created with a tag matching the pattern:
