@@ -2,9 +2,13 @@ name: SpocR Test Suite
 
 on:
   push:
-    branches: [master, develop, feature/*]
+    branches:
+      - master
+    tags:
+      - "v*"
   pull_request:
-    branches: [master, develop]
+    branches:
+      - master
 
 env:
   DOTNET_VERSION: "8.0.x"
