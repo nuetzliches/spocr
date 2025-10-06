@@ -20,7 +20,7 @@ public class TestCommandSummaryTests
         var summaryPath = Path.Combine(root, ".artifacts", "test-summary.json");
         if (File.Exists(summaryPath)) File.Delete(summaryPath);
 
-    var startInfo = new ProcessStartInfo("dotnet", $"run --framework net8.0 --project \"{project}\" -- test --validate --ci")
+        var startInfo = new ProcessStartInfo("dotnet", $"run --framework net8.0 --project \"{project}\" -- test --validate --ci")
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
