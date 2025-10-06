@@ -90,21 +90,30 @@ jobs:
           reportgenerator \
             -reports:".artifacts/test-results/**/coverage.cobertura.xml" \
             -targetdir:".artifacts/coverage" \
-            -reporttypes:"Html;Badges;Cobertura"
+            -reporttypes:"Html;Badges;Cobertura;XmlSummary" # XmlSummary produces Summary.xml for threshold step
 
       - name: Enforce Minimum Coverage (60%)
         shell: bash
         run: |
           echo "Checking coverage threshold..."
-          SUMMARY_FILE=$(find .artifacts/coverage -name 'Summary.xml' | head -n 1)
-          if [ -z "$SUMMARY_FILE" ]; then echo "Summary.xml not found"; exit 1; fi
-          LINE_RATE=$(grep -o 'line-rate="[0-9.]*"' "$SUMMARY_FILE" | head -n1 | sed -E 's/.*line-rate="([0-9.]+)"/\1/')
-          if [ -z "$LINE_RATE" ]; then echo "Could not read line-rate"; exit 1; fi
+          SUMMARY_FILE=$(find .artifacts/coverage -maxdepth 2 -name 'Summary.xml' | head -n 1)
+          if [ -z "$SUMMARY_FILE" ]; then
+            echo "Summary.xml not found. Falling back to Cobertura parsing..."
+            COBERTURA_FILE=$(find .artifacts/test-results -maxdepth 4 -name 'coverage.cobertura.xml' | head -n 1)
+            if [ -z "$COBERTURA_FILE" ]; then echo "No Cobertura file found"; exit 1; fi
+            # Extract line-rate attribute from Cobertura root element
+            LINE_RATE=$(grep -o 'line-rate="[0-9.]*"' "$COBERTURA_FILE" | head -n1 | sed -E 's/.*line-rate="([0-9.]+)"/\1/')
+          else
+            LINE_RATE=$(grep -o 'line-rate="[0-9.]*"' "$SUMMARY_FILE" | head -n1 | sed -E 's/.*line-rate="([0-9.]+)"/\1/')
+          fi
+          if [ -z "$LINE_RATE" ]; then echo "Could not read line-rate from Summary.xml or Cobertura"; exit 1; fi
           PERCENT=$(awk -v lr=$LINE_RATE 'BEGIN { printf "%.2f", (lr*100) }')
-          echo "Line Coverage: $PERCENT%"
+            echo "Line Coverage: $PERCENT%"
           THRESHOLD=60
-          awk -v p=$PERCENT -v t=$THRESHOLD 'BEGIN { if (p < t) { exit 1 } }'
-          echo "Coverage threshold met."
+          if awk -v p=$PERCENT -v t=$THRESHOLD 'BEGIN { exit (p < t) ? 0 : 1 }'; then
+            echo "Coverage below threshold ($PERCENT% < ${THRESHOLD}%)."; exit 1
+          fi
+          echo "Coverage threshold met (>= ${THRESHOLD}%)."
 
       - name: Upload Coverage Report
         uses: actions/upload-artifact@v4
