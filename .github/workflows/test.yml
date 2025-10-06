@@ -130,6 +130,20 @@ jobs:
             if [ -n "$LINES_COVERED" ] && [ -n "$LINES_VALID" ] && [ "$LINES_VALID" -gt 0 ]; then
               LINE_RATE=$(awk -v c="$LINES_COVERED" -v v="$LINES_VALID" 'BEGIN { printf "%.6f", (c/v) }')
               echo "Derived line-rate: $LINE_RATE (covered=$LINES_COVERED valid=$LINES_VALID)"
+            else
+              # Try ReportGenerator XML summary elements
+              RG_PCT=$(grep -i -o '<Linecoverage>[0-9.]*</Linecoverage>' "$SOURCE_FILE" | head -n1 | sed -E 's/.*<Linecoverage>([0-9.]+)<\/Linecoverage>.*/\1/' || true)
+              if [ -n "$RG_PCT" ]; then
+                LINE_RATE=$(awk -v p="$RG_PCT" 'BEGIN { printf "%.6f", (p/100) }')
+                echo "Derived line-rate from <Linecoverage>: $LINE_RATE (percent=$RG_PCT)"
+              else
+                RG_COVERED=$(grep -i -o '<Coveredlines>[0-9]*</Coveredlines>' "$SOURCE_FILE" | head -n1 | sed -E 's/.*<Coveredlines>([0-9]+)<\/Coveredlines>.*/\1/' || true)
+                RG_COVERABLE=$(grep -i -o '<Coverablelines>[0-9]*</Coverablelines>' "$SOURCE_FILE" | head -n1 | sed -E 's/.*<Coverablelines>([0-9]+)<\/Coverablelines>.*/\1/' || true)
+                if [ -n "$RG_COVERED" ] && [ -n "$RG_COVERABLE" ] && [ "$RG_COVERABLE" -gt 0 ]; then
+                  LINE_RATE=$(awk -v c="$RG_COVERED" -v v="$RG_COVERABLE" 'BEGIN { printf "%.6f", (c/v) }')
+                  echo "Derived line-rate from <Coveredlines>/<Coverablelines>: $LINE_RATE (covered=$RG_COVERED coverable=$RG_COVERABLE)"
+                fi
+              fi
             fi
           fi
 
