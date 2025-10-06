@@ -80,6 +80,23 @@ public class TestCommand : CommandBase
             {
                 _consoleService.Error($"Details: {ex}");
             }
+            else
+            {
+                // Attempt to emit a minimal failure summary so CI consumers have structured output
+                try
+                {
+                    var minimal = new TestResults
+                    {
+                        TotalTests = 0,
+                        PassedTests = 0,
+                        FailedTests = 1,
+                        ValidationTests = 0,
+                        ValidationPassed = 0
+                    };
+                    await WriteJsonSummaryAsync(minimal, ValidateOnly ? "validation-only" : "full-suite");
+                }
+                catch { /* swallow secondary errors */ }
+            }
             return ExitCodes.InternalError; // Unexpected execution failure
         }
     }
@@ -128,6 +145,30 @@ public class TestCommand : CommandBase
         var overallSw = Stopwatch.StartNew();
         var exitCodes = new List<int>();
         var phases = ParseOnlyPhases();
+
+        // Proactively emit a placeholder summary early in CI so downstream tooling/tests
+        // can observe the file even if a later unexpected failure terminates execution
+        if (CiMode)
+        {
+            try
+            {
+                await WriteJsonSummaryAsync(new TestResults
+                {
+                    TotalTests = 0,
+                    PassedTests = 0,
+                    FailedTests = 0,
+                    SkippedTests = 0,
+                    ValidationTests = 0,
+                    ValidationPassed = 0,
+                    TotalDurationMs = 0
+                }, ValidateOnly ? "validation-only" : "full-suite");
+                _consoleService.Info("       [debug] Early placeholder test-summary.json written (pre phases)");
+            }
+            catch (Exception ex)
+            {
+                _consoleService.Warn($"       [debug] Failed to write early placeholder summary: {ex.Message}");
+            }
+        }
 
         bool runUnit = phases.unit;
         bool runIntegration = phases.integration;
@@ -224,10 +265,12 @@ public class TestCommand : CommandBase
             StartInfo = new ProcessStartInfo
             {
                 FileName = "dotnet",
-                Arguments = $"test tests/SpocR.Tests/SpocR.Tests.csproj -c Release {trxArg} --filter Category!=Meta --verbosity minimal",
+                Arguments = $"test tests/SpocR.Tests/SpocR.Tests.csproj -c Release --no-build {trxArg} --filter Category!=Meta --verbosity minimal",
                 UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
+                // NOTE: Do NOT redirect stdout/stderr unless we actively drain them.
+                // Leaving them redirected without consumption risks deadlocks if buffers fill (observed long hangs in CI).
+                RedirectStandardOutput = false,
+                RedirectStandardError = false
             }
         };
         // Mark inner test run to allow recursion guard inside test assembly
@@ -275,10 +318,10 @@ public class TestCommand : CommandBase
             StartInfo = new ProcessStartInfo
             {
                 FileName = "dotnet",
-                Arguments = $"test tests/SpocR.IntegrationTests/SpocR.IntegrationTests.csproj -c Release {trxArg} --verbosity minimal",
+                Arguments = $"test tests/SpocR.IntegrationTests/SpocR.IntegrationTests.csproj -c Release --no-build {trxArg} --verbosity minimal",
                 UseShellExecute = false,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
+                RedirectStandardOutput = false,
+                RedirectStandardError = false
             }
         };
         process.StartInfo.Environment["SPOCR_INNER_TEST_RUN"] = "1";
