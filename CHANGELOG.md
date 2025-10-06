@@ -5,59 +5,48 @@ Format loosely inspired by Keep a Changelog. Dates use ISO 8601 (UTC).
 
 ## [Unreleased]
 
-### Added
+### Planned
+- Reactivate integration tests (LocalDB)
+- Multi-suite JUnit/XML output (separate unit/integration suites)
+- Rollback mechanism for AI‑agent workflows
 
-- `spocr sp ls --json` Option für maschinenlesbare Ausgabe aller Stored Procedures eines Schemas (immer valides JSON Array)
-- Neue Dokumentationsseite `2.cli/commands/sp.md` für Stored Procedure Befehle
-- JSON Stored Procedure Parser (Alpha): Basis-Erkennung erster JSON ResultSets mit Typ-Try/Upgrade Heuristiken (künftige Verbesserungen vorbehalten)
-
-- Reference documentation page `3.reference/json-procedures.md` detailing raw vs typed (`DeserializeAsync`) JSON stored procedure method generation and model fallback behavior.
-
-- (planned) Reactivate integration tests (LocalDB)
-- (planned) Multi-suite JUnit/XML output (separate unit/integration suites)
-- (planned) Rollback mechanism for AI‑agent workflows
+## [4.5.0-alpha] - 2025-10-06
 
 ### Added
-
-- CI test summary artifact (`--ci`) writing `.artifacts/test-summary.json` with per-suite statistics
-- Per-suite metrics (unit/integration) including durations, skipped counts, failure details
-- JUnit single-suite XML export via `--junit` (aggregate suite)
-- CLI flags: `--only <phases>`, `--no-validation`, `--junit`, `--output <file>` for test artifacts
-- Granular test exit subcodes 41 (unit), 42 (integration), 43 (validation) with precedence logic
-- Console failure summary (top failing tests, truncated to 10)
-- Process cleanup script `eng/kill-testhosts.ps1` for lingering `testhost` processes
-- `spocr pull --no-cache` flag to bypass stored procedure definition cache (forces full re-parse; helpful after parser / heuristic changes)
-- Enhanced JSON heuristics for `*AsJson` procedures (detects `WITHOUT ARRAY WRAPPER` including underscore variant, ROOT name extraction, multi-set inference)
+- `spocr sp ls --json` option for machine-readable listing of stored procedures in a schema (always valid JSON array)
+- Documentation page `2.cli/commands/sp.md` (stored procedure commands)
+- JSON Stored Procedure Parser (alpha): baseline detection of first JSON result set with type inference heuristics
+- Reference page `3.reference/json-procedures.md` (raw vs typed `DeserializeAsync` generation, model fallback behavior)
+- CI test summary artifact (`--ci`) writing `.artifacts/test-summary.json`
+- Per-suite metrics (unit / integration) with durations, skipped counts, failures
+- JUnit single-suite XML export via `--junit` (aggregate)
+- CLI flags: `--only <phases>`, `--no-validation`, `--junit`, `--output <file>`
+- Granular exit codes (41 unit, 42 integration, 43 validation precedence)
+- Console failure summary (top failing tests)
+- Script `eng/kill-testhosts.ps1` for lingering testhost cleanup
+- `spocr pull --no-cache` flag (force definition re-parse)
+- Enhanced JSON heuristics (`WITHOUT ARRAY WRAPPER`, ROOT name extraction, multi-set inference)
 
 ### Changed
-
-- Schreibweise intern vereinheitlicht: `StoredProcdure` -> `StoredProcedure` (Namespaces, Klassen, DI Registration). Alte Namen wurden entfernt (Breaking nur für Embedding von internen Typen – CLI Aufruf `sp` unverändert)
-
-- Test orchestration made sequential to ensure deterministic TRX parsing (removed race conditions)
-- JSON schema for test summary expanded (nested `tests.unit` / `tests.integration`, timestamps, per-phase durations)
-- `spocr.json` serialization: For JSON-returning stored procedures (`ResultSets[0].ReturnsJson == true`), the legacy `Output` array is now omitted entirely (previously still emitted). Non-JSON procedures continue to emit `Output` until they are migrated to unified `ResultSets` modeling.
-- `spocr.json` serialization: All stored procedures now use unified `ResultSets`. Classic non-JSON procedures have a synthesized first `ResultSet` (with `ReturnsJson=false`) reflecting former tabular columns. The legacy root-level `Output` array has been fully removed (property deleted) – BREAKING only if external tooling still parsed `Output`; migrate to `ResultSets[0].Columns`.
-- `ResultSets[].Columns` now include `SqlTypeName` + `IsNullable` for non-JSON procedures (migrated from former `Output` metadata) enabling proper scalar type generation.
-- Internal: Removed `PrimaryResultSet` helper property and root-level JSON flag serialization (`ReturnsJson*`) from `spocr.json` (flags remain within `ResultSets`). This is treated as non-breaking because consumer tooling should already read `ResultSets[0]`.
+- Internal naming unified: `StoredProcdure` → `StoredProcedure` (BREAKING only for consumers referencing internal types; CLI surface unchanged)
+- Test orchestration sequential for deterministic TRX parsing
+- Test summary JSON schema expanded (nested suites + timestamps + phase durations)
+- `spocr.json`: JSON-returning procedures no longer emit legacy `Output` array
+- `spocr.json`: All procedures now expose unified `ResultSets`; root-level `Output` removed (BREAKING if tooling depended on it)
+- `ResultSets[].Columns` enriched with `SqlTypeName` + `IsNullable` for non-JSON procedures
+- Removed internal `PrimaryResultSet` property & root-level JSON flags (now only inside `ResultSets`)
 
 ### Fixed
-
-- Ungültige JSON-Ausgabe von `sp ls` korrigiert (vorher fehlerhafte manuelle Verkettung) – liefert jetzt immer valides `[]` bzw. `[{"name":"..."}]`
-
-- Intermittent zero-count test parsing due to premature TRX access (retry & readiness checks)
-
-### Notes
-
-- Multi-suite JUnit output, `--require-tests` guard, stack trace enrichment, and trait-based suite classification are deferred (see roadmap Testing Framework remaining items)
-
-### Added / Internal
-
-- Introduced structured spaced exit code map (0,10,20,30,40,50,60,70,80,99) to allow future specialization; no public scripts depended on prior provisional values.
+- Invalid JSON output for `sp ls` (replaced manual concatenation with serializer; always returns `[]` or objects)
+- Intermittent zero-count test parsing race (improved readiness checks)
 
 ### Deprecated
+- `Project.Json.Enabled`, `Project.Json.InferColumnTypes`, `Project.Json.FlattenNestedPaths` (ignored; slated for removal)
+- Legacy generation that emitted empty JSON models now includes XML doc note; encourage explicit SELECT lists to enable inference
 
-- `Project.Json.Enabled`, `Project.Json.InferColumnTypes`, `Project.Json.FlattenNestedPaths` (always-on JSON model & type inference; properties ignored and slated for removal in a future minor release)
-- Generation may emit empty JSON models with an XML documentation note when column discovery is impossible (dynamic SQL, wildcard `*`, variable payload). Consider rewriting procedures with explicit SELECT lists to enable property inference.
+### Notes
+- Alpha: Helper-based deserialization (`ReadJsonDeserializeAsync<T>`) may evolve prior to beta
+- Exit code map standardized (0,10,20,30,40,50,60,70,80,99) for future specialization
 
 ## [4.1.x] - 2025-10-01
 

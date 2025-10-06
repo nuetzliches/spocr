@@ -40,7 +40,7 @@ public class IgnoredProceduresTests
         }
     }
 
-    private static ConfigurationModel CreateConfig(IEnumerable<string> ignoredSchemas = null, IEnumerable<string> ignoredProcedures = null)
+    private static ConfigurationModel CreateConfig(IEnumerable<string>? ignoredSchemas = null, IEnumerable<string>? ignoredProcedures = null)
     {
         return new ConfigurationModel
         {

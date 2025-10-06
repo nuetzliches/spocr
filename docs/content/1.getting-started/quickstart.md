@@ -75,7 +75,8 @@ Notes:
 
 - `dotnet tool update` acts as install if the tool was removed.
 - Repeat the pack & update steps whenever you change the source.
-- To force a specific version (e.g. during testing): `dotnet pack -c Release -o ./nupkg /p:Version=4.1.35-local`
+- To force a specific version (e.g. during testing): `dotnet pack -c Release -o ./nupkg /p:Version=4.5.0-local`
+	- Alternatively supply a custom version placeholder: `dotnet pack -c Release -o ./nupkg /p:Version=<version>-local`
 
 ## Further Reading
 

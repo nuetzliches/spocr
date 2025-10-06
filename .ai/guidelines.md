@@ -21,6 +21,34 @@ This document provides standardized guidelines for AI agents working on the Spoc
 
 ## 🛠️ Development Standards
 
+## 🌐 Language Policy
+
+All newly added or modified source code comments, documentation, commit messages, issue descriptions and AI assistant outputs MUST be in English only.
+
+Prohibited (must be avoided going forward):
+- German (or mixed-language) inline comments (e.g. // Keine Config ...)
+- German section headings in docs
+- Mixed English/German bullet lists
+
+Migration Guidance (Revised – ALWAYS translate):
+1. Immediately translate any German (or mixed) comment or doc string you encounter to concise English in the same commit (do not postpone; translation churn risk accepted for consistency).
+2. Remove the original German text entirely after translating (no bilingual duplication).
+3. Prefer imperative mood and short sentences ("Return empty JSON array when configuration file is missing.").
+4. Avoid redundant restatements of method names in comments.
+5. If meaning is uncertain, add a TODO clarification in English rather than leaving German.
+
+Enforcement Hints:
+- Simple grep patterns to audit: ä|ö|ü|ß| Keine | Übersi|Konfig|Verzeich|Schema gefunden
+- Run periodic check scripts (future improvement: lightweight Roslyn analyzer or CI grep step).
+
+Rationale:
+- Consistent project language lowers barrier for external contributors.
+- Enables automated reasoning (LLMs) without translation ambiguity.
+- Reduces future maintenance churn when refactoring.
+
+If a contributor must include a non-English term (e.g. official SQL Server object name), keep it inline but explain context in English if ambiguous.
+
+
 ### Code Quality Requirements
 
 ```csharp

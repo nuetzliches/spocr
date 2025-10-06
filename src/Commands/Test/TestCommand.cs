@@ -408,6 +408,8 @@ public class TestCommand : CommandBase
                         results.Unit.Passed = passed;
                         results.Unit.Failed = failed;
                         results.Unit.Skipped = skipped;
+                        // Normalize per-suite total to components to avoid adapter-specific extra counters
+                        results.Unit.Total = results.Unit.Passed + results.Unit.Failed + results.Unit.Skipped;
                         results.Unit.FailedNames.AddRange(failedCases.Select(c => c.Name));
                         results.FailureDetails.AddRange(failedCases);
                     }
@@ -417,6 +419,7 @@ public class TestCommand : CommandBase
                         results.Integration.Passed = passed;
                         results.Integration.Failed = failed;
                         results.Integration.Skipped = skipped;
+                        results.Integration.Total = results.Integration.Passed + results.Integration.Failed + results.Integration.Skipped;
                         results.Integration.FailedNames.AddRange(failedCases.Select(c => c.Name));
                         results.FailureDetails.AddRange(failedCases);
                     }
@@ -428,10 +431,11 @@ public class TestCommand : CommandBase
             }
 
             // Aggregate
-            results.TotalTests = results.Unit.Total + results.Integration.Total;
             results.PassedTests = results.Unit.Passed + results.Integration.Passed;
             results.FailedTests = results.Unit.Failed + results.Integration.Failed;
             results.SkippedTests = results.Unit.Skipped + results.Integration.Skipped;
+            // Recompute aggregate total strictly from components for determinism
+            results.TotalTests = results.PassedTests + results.FailedTests + results.SkippedTests;
             results.FailedTestNames = results.FailureDetails.Select(f => f.Name).Distinct().ToList();
         }
         catch (Exception ex)
@@ -590,6 +594,7 @@ public class TestCommand : CommandBase
             var artifactsDir = ".artifacts";
             Directory.CreateDirectory(artifactsDir);
             var summaryPath = System.IO.Path.Combine(artifactsDir, "test-summary.json");
+            var tempPath = summaryPath + ".tmp";
             var payload = new
             {
                 mode,
@@ -623,7 +628,13 @@ public class TestCommand : CommandBase
             {
                 WriteIndented = true
             });
-            await File.WriteAllTextAsync(summaryPath, json);
+            await File.WriteAllTextAsync(tempPath, json);
+            // Atomic replace
+            if (File.Exists(summaryPath))
+            {
+                File.Delete(summaryPath);
+            }
+            File.Move(tempPath, summaryPath);
             _consoleService.Info($"🧾 JSON summary written: {summaryPath}");
         }
         catch (Exception ex)

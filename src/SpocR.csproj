@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup Label="Build">
-    <Version>4.1.35</Version>
+    <Version>4.5.0-alpha</Version>
     <TargetFrameworks>net9.0;net8.0;</TargetFrameworks>
     <TargetFramework>net8.0</TargetFramework>
   </PropertyGroup>
@@ -13,7 +13,8 @@
     </AssemblyAttribute>
   </ItemGroup>
   <ItemGroup Label="Package References">
-    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" PrivateAssets="All" Version="1.0.0" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" PrivateAssets="All"
+      Version="1.0.0" />
   </ItemGroup>
   <PropertyGroup>
     <LangVersion>latest</LangVersion>

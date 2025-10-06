@@ -116,6 +116,10 @@ Exceptions:
 
 If you encounter leftover German (or other language) fragments, submit a small cleanup PR.
 
+AI / Automation:
+
+Automated agents or scripts contributing code must also adhere to the English-only rule and SHOULD reference `.ai/guidelines.md` (if present) for guardrails (naming, idempotent changes, safety). If the file is missing, create one before large-scale automated refactors.
+
 ## Code Style
 
 - C# `latest` features allowed, but use pragmatically.

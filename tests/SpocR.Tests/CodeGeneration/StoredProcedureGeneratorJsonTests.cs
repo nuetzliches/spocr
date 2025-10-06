@@ -118,8 +118,9 @@ public class StoredProcedureGeneratorJsonTests
         var code = source.ToString();
 
         code.Should().Contain("Task<string> UserListAsJsonAsync");
-        code.Should().Contain("Task<List<UserListAsJson>> UserListAsJsonDeserializeAsync");
-        code.Should().Contain("JsonSerializer.Deserialize<List<UserListAsJson>>");
+    code.Should().Contain("Task<List<UserListAsJson>> UserListAsJsonDeserializeAsync");
+    // Accept current helper-based deserialization pattern
+    code.Should().Contain("ReadJsonDeserializeAsync<List<UserListAsJson>>");
     }
 
     [Fact]
@@ -136,8 +137,8 @@ public class StoredProcedureGeneratorJsonTests
         var code = source.ToString();
 
         code.Should().Contain("Task<string> UserFindAsJsonAsync");
-        code.Should().Contain("Task<UserFindAsJson> UserFindAsJsonDeserializeAsync");
-        code.Should().Contain("JsonSerializer.Deserialize<UserFindAsJson>");
+    code.Should().Contain("Task<UserFindAsJson> UserFindAsJsonDeserializeAsync");
+    code.Should().Contain("ReadJsonDeserializeAsync<UserFindAsJson>");
     }
 
     [Fact]

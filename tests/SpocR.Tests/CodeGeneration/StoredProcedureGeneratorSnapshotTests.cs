@@ -115,11 +115,11 @@ public class StoredProcedureGeneratorSnapshotTests
         // Assert presence of raw + deserialize for JSON procs
         code.Should().Contain("Task<string> UserListAsJsonAsync");
         code.Should().Contain("Task<List<UserListAsJson>> UserListAsJsonDeserializeAsync");
-        code.Should().Contain("JsonSerializer.Deserialize<List<UserListAsJson>>");
+    code.Should().Contain("ReadJsonDeserializeAsync<List<UserListAsJson>>");
 
         code.Should().Contain("Task<string> UserFindAsJsonAsync");
         code.Should().Contain("Task<UserFindAsJson> UserFindAsJsonDeserializeAsync");
-        code.Should().Contain("JsonSerializer.Deserialize<UserFindAsJson>");
+    code.Should().Contain("ReadJsonDeserializeAsync<UserFindAsJson>");
 
         // Non-JSON must not get deserialize
         code.Should().Contain("UserListAsync");

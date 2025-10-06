@@ -17,7 +17,8 @@
 - **📊 JSON Support**: Handle complex JSON return types with optional deserialization strategies
 - **🏗️ CI/CD Ready**: Seamlessly integrate into build pipelines and automated workflows
 - **🧮 JSON UDTT Mapping**: JSON result columns typed via matching User Defined Table Type; legacy heuristic inference removed for determinism
-- **🧠 Cache Control**: Opt-in pull cache speeds up repeated executions while `--no-cache` forces a guaranteed full re-parse when validating parser / heuristic changes
+ - **� Stored Procedure JSON Extensions (Alpha)**: Automatic generation of raw + typed async extension methods for `*AsJson` procedures (see JSON section below)
+- **�🧠 Cache Control**: Opt-in pull cache speeds up repeated executions while `--no-cache` forces a guaranteed full re-parse when validating parser / heuristic changes
 - **🔍 Snapshot-Only Architecture**: Generation uses fingerprinted schema snapshots (`.spocr/schema/*.json`) decoupled from config persistence
 - **🚫 Ignored Schemas Simplified**: Replace legacy per-schema status list with a concise `Project.IgnoredSchemas` string array
 
@@ -58,6 +59,33 @@ var result = await context.GetUserByIdAsync(new GetUserByIdInput {
 For comprehensive documentation, examples, and advanced configuration:
 
 **[📚 Visit the SpocR Documentation](https://nuetzliches.github.io/spocr/)**
+
+## 🧾 JSON Stored Procedures (Alpha)
+
+SpocR detects stored procedures following the `*AsJson` convention (and certain recognized patterns) and generates two extension method layers per procedure:
+
+| Method | Purpose |
+| ------ | ------- |
+| `UserListAsJsonAsync` | Returns the raw JSON payload as `string` |
+| `UserListAsJsonDeserializeAsync` | Deserializes JSON into a strongly typed model / list |
+
+Key design points:
+
+1. Raw + Typed Separation: Consumers can choose raw JSON for forwarding (e.g. to an API response) or typed for business logic.
+2. Helper Abstraction: Deserialization is performed via an internal helper `ReadJsonDeserializeAsync<T>` (subject to change while in alpha).
+3. Fallback Models: If column inference for JSON paths fails (dynamic SQL / wildcard), an empty model is still generated with XML remarks explaining limitations.
+4. Array vs Single Detection: Heuristics detect wrapper vs non-wrapper payloads (supports `WITHOUT ARRAY WRAPPER`).
+5. Future Evolution: Planned improvements include per-column nullability refinement and polymorphic payload strategies.
+
+CLI Listing:
+
+```
+spocr sp ls --schema dbo --json
+```
+
+Always returns a valid JSON array (e.g. `[{"name":"UserListAsJson"}]`). Use `--json` to suppress human warnings for scripted consumption.
+
+> Note: This feature is alpha. The helper layer, naming, and heuristics may evolve before a stable (non-alpha) release. Pin the tool version or review the changelog when upgrading.
 
 ## ✅ Testing & Quality
 
@@ -457,7 +485,7 @@ We welcome contributions! A lightweight contributor guide is available in `CONTR
 
 Engineering infrastructure lives under `eng/` (e.g., `eng/quality-gates.ps1`). Transient test & coverage artifacts are written to the hidden directory `.artifacts/` to keep the repository root clean.
 
-All code, comments, commit messages and documentation are authored in English (see Language Policy in `CONTRIBUTING.md`).
+All code, comments, commit messages and documentation must be written in English (see Language Policy in `CONTRIBUTING.md`). Non-English identifiers or comments should be refactored during reviews.
 
 - 🐛 **Bug Reports**: [Create an issue](https://github.com/nuetzliches/spocr/issues/new?template=bug_report.md)
 - 💡 **Feature Requests**: [Create an issue](https://github.com/nuetzliches/spocr/issues/new?template=feature_request.md)
