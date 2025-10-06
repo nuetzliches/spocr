@@ -1,7 +1,8 @@
 # JSON Stored Procedure Generation (Alpha)
 
-Status: The JSON result set parser is in **alpha** – core generation paths are stable, but advanced inference (nested objects, multi-result JSON chaining) is still evolving. Breaking refinements (property typing upgrades, model shape stabilization) may occur in upcoming minor releases.
+\_
 
+_Status applies to current alpha builds; details may evolve before a stable release. Review the Changelog when upgrading._
 Detection is based solely on parsed metadata of each `ResultSet` (`ResultSets[i].ReturnsJson == true`). Naming conventions (suffixes like `AsJson`) are treated as hints only during pull heuristics – not as a hard requirement for generation.
 
 ## Generated Methods (Current Alpha Capabilities)
@@ -69,15 +70,15 @@ Parser v4 adds an opportunistic upgrade step: previously persisted fallback `nva
 
 ## Limitations (Alpha)
 
-| Area | Current Behavior | Planned / Notes |
-| ---- | ---------------- | --------------- |
-| Multiple JSON result sets | Only first (`ResultSets[0]`) exposed via helpers | Later: per-result accessor methods or unified wrapper |
-| Deep nested objects | Flattening not attempted; raw JSON preserved | Potential optional projection generator |
-| `JSON_QUERY` nullability | Conservative: may mark columns nullable broadly | Refined provenance + join analysis |
-| Custom serializer options | Not exposed | Overload `DeserializeAsync(opts)` planned |
-| Streaming large arrays | Entire payload buffered | Future: `Utf8JsonReader` incremental + `IAsyncEnumerable<T>` |
-| Mixed scalar + JSON in first set | JSON branch wins – scalar columns ignored for typed path | Warning emission (planned) |
-| Upgrades of fallback types | Occurs silently during subsequent pulls | Will emit structured diff summary |
+| Area                             | Current Behavior                                         | Planned / Notes                                              |
+| -------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------ |
+| Multiple JSON result sets        | Only first (`ResultSets[0]`) exposed via helpers         | Later: per-result accessor methods or unified wrapper        |
+| Deep nested objects              | Flattening not attempted; raw JSON preserved             | Potential optional projection generator                      |
+| `JSON_QUERY` nullability         | Conservative: may mark columns nullable broadly          | Refined provenance + join analysis                           |
+| Custom serializer options        | Not exposed                                              | Overload `DeserializeAsync(opts)` planned                    |
+| Streaming large arrays           | Entire payload buffered                                  | Future: `Utf8JsonReader` incremental + `IAsyncEnumerable<T>` |
+| Mixed scalar + JSON in first set | JSON branch wins – scalar columns ignored for typed path | Warning emission (planned)                                   |
+| Upgrades of fallback types       | Occurs silently during subsequent pulls                  | Will emit structured diff summary                            |
 
 ### Known Edge Cases
 
@@ -110,4 +111,4 @@ spocr pull --no-cache --verbose
 
 ---
 
-_Applies to branch `feature/json-proc-parser` (alpha parser)._ 
+_Applies to branch `feature/json-proc-parser` (alpha parser)._

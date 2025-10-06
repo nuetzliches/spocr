@@ -8,21 +8,20 @@
 
 **SpocR** is a powerful code generator for SQL Server stored procedures that creates strongly typed C# classes for inputs, models, and execution. Eliminate boilerplate data access code and increase type safety in your .NET applications.
 
-## ✨ Features
+## Features
 
-- **🛡️ Type Safety**: Generate strongly typed C# classes that catch errors at compile time
-- **⚡ Zero Boilerplate**: Eliminate manual mapping code and data access layers
-- **🚀 Fast Integration**: Integrate into existing .NET solutions within minutes
-- **🔧 Extensible**: Customize naming conventions, output structure, and generation behavior
-- **📊 JSON Support**: Handle complex JSON return types with optional deserialization strategies
-- **🏗️ CI/CD Ready**: Seamlessly integrate into build pipelines and automated workflows
-- **🧮 JSON UDTT Mapping**: JSON result columns typed via matching User Defined Table Type; legacy heuristic inference removed for determinism
- - **� Stored Procedure JSON Extensions (Alpha)**: Automatic generation of raw + typed async extension methods for `*AsJson` procedures (see JSON section below)
-- **�🧠 Cache Control**: Opt-in pull cache speeds up repeated executions while `--no-cache` forces a guaranteed full re-parse when validating parser / heuristic changes
-- **🔍 Snapshot-Only Architecture**: Generation uses fingerprinted schema snapshots (`.spocr/schema/*.json`) decoupled from config persistence
-- **🚫 Ignored Schemas Simplified**: Replace legacy per-schema status list with a concise `Project.IgnoredSchemas` string array
+- Type-Safe Code Generation: Strongly typed inputs, models & execution extensions
+- Zero Boilerplate: Remove manual ADO.NET plumbing and mapping
+- Fast Integration: Add to an existing solution in minutes
+- Extensible Templates: Naming, output layout & model generation are customizable
+- JSON Stored Procedures (Alpha): Raw + typed generation for first JSON result set (see section below)
+- JSON Column Typing via UDTT Mapping: Deterministic typing using table types & base table provenance
+- CI/CD Ready: Machine-readable test summaries, exit codes & (optional) JUnit XML
+- Snapshot-Only Architecture: Fingerprinted schema snapshots decouple discovery from config
+- Pull Cache & `--no-cache`: Fast iteration with explicit full re-parse when needed
+- Ignored Schemas List: Concise `ignoredSchemas` replaces legacy per-schema status node
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Installation
 
@@ -50,32 +49,43 @@ var reader = await command.ExecuteReaderAsync();
 ```csharp
 var context = new GeneratedDbContext(connectionString);
 var result = await context.GetUserByIdAsync(new GetUserByIdInput {
-    UserId = 123
+		UserId = 123
 });
 ```
 
-## 📖 Documentation
+## Documentation
 
 For comprehensive documentation, examples, and advanced configuration:
 
-**[📚 Visit the SpocR Documentation](https://nuetzliches.github.io/spocr/)**
+**[Visit the SpocR Documentation](https://nuetzliches.github.io/spocr/)**
 
-## 🧾 JSON Stored Procedures (Alpha)
+### Migration Note: Removal of Legacy `Output`
 
-SpocR detects stored procedures following the `*AsJson` convention (and certain recognized patterns) and generates two extension method layers per procedure:
+Older snapshots exposed a root-level `Output` array for JSON-returning procedures. This was removed in favor of a unified `ResultSets` model. Update any tooling referencing `Output` to:
 
-| Method | Purpose |
-| ------ | ------- |
-| `UserListAsJsonAsync` | Returns the raw JSON payload as `string` |
-| `UserListAsJsonDeserializeAsync` | Deserializes JSON into a strongly typed model / list |
+```csharp
+var rs0 = snapshot.StoredProcedures[procName].ResultSets[0];
+foreach (var col in rs0.Columns) { /* ... */ }
+```
+
+This change eliminates divergence between scalar and JSON procedures and reduces surface area.
+
+## JSON Stored Procedures (Alpha)
+
+SpocR identifies a stored procedure as JSON-capable when its first result set is recognized as JSON (heuristic & metadata driven). Historical naming patterns like `*AsJson` are treated only as hints; they are **not** required. Two method layers are generated:
+
+| Method                     | Purpose                                              |
+| -------------------------- | ---------------------------------------------------- |
+| `UserListAsync` (raw)      | Returns the raw JSON payload as `string`             |
+| `UserListDeserializeAsync` | Deserializes JSON into a strongly typed model / list |
 
 Key design points:
 
-1. Raw + Typed Separation: Consumers can choose raw JSON for forwarding (e.g. to an API response) or typed for business logic.
-2. Helper Abstraction: Deserialization is performed via an internal helper `ReadJsonDeserializeAsync<T>` (subject to change while in alpha).
-3. Fallback Models: If column inference for JSON paths fails (dynamic SQL / wildcard), an empty model is still generated with XML remarks explaining limitations.
-4. Array vs Single Detection: Heuristics detect wrapper vs non-wrapper payloads (supports `WITHOUT ARRAY WRAPPER`).
-5. Future Evolution: Planned improvements include per-column nullability refinement and polymorphic payload strategies.
+1. Raw + Typed Separation: Choose raw JSON for pass-through or typed for domain logic.
+2. Internal Helper: Deserialization uses an internal helper (subject to change while in alpha).
+3. Empty Model Fallback: If inference fails (wildcards / dynamic SQL), an empty model with XML doc rationale is emitted.
+4. Array vs Single Detection: Heuristics support `WITHOUT ARRAY WRAPPER`.
+5. Planned: Serializer options overloads, streaming for large arrays, richer nested model inference.
 
 CLI Listing:
 
@@ -83,11 +93,11 @@ CLI Listing:
 spocr sp ls --schema dbo --json
 ```
 
-Always returns a valid JSON array (e.g. `[{"name":"UserListAsJson"}]`). Use `--json` to suppress human warnings for scripted consumption.
+Always returns a valid JSON array (e.g. `[]` or objects). Use `--json` to suppress human warnings for scripted consumption.
 
 > Note: This feature is alpha. The helper layer, naming, and heuristics may evolve before a stable (non-alpha) release. Pin the tool version or review the changelog when upgrading.
 
-## ✅ Testing & Quality
+## Testing & Quality
 
 SpocR provides a layered quality & verification stack with machine-readable reporting for CI.
 
@@ -114,6 +124,7 @@ spocr test --ci --only unit,validation
 
 # Skip validation phase
 spocr test --ci --no-validation
+```
 
 ### Pull Caching & Forcing a Fresh Parse
 
@@ -122,9 +133,7 @@ spocr test --ci --no-validation
 Use the flag:
 
 ```
-
 spocr pull --no-cache
-
 ```
 
 to deliberately bypass both loading and saving the cache. This ensures every stored procedure is fully re-fetched and re-parsed (useful directly after changing parsing heuristics or when validating JSON metadata like `WITHOUT ARRAY WRAPPER`).
@@ -136,12 +145,10 @@ Verbose output with `--verbose` will show `[proc-loaded]` lines for every proced
 Schema metadata used for generation is persisted as fingerprinted snapshot files under `.spocr/schema/`. Over time older snapshots can accumulate (each pull that detects changes writes a new file). Use:
 
 ```
-
 spocr snapshot clean # keep latest 5 (default retention)
 spocr snapshot clean --keep 10 # keep latest 10
 spocr snapshot clean --all # delete all snapshot files
 spocr snapshot clean -d # dry-run: show what would be deleted
-
 ```
 
 Snapshots are small JSON documents (procedures, result sets, UDTTs, stats). Retaining a short history can help diffing parser outcomes; prune aggressively in CI.
@@ -151,14 +158,12 @@ Snapshots are small JSON documents (procedures, result sets, UDTTs, stats). Reta
 Older SpocR versions persisted a full `schema` array inside `spocr.json` with per-schema status values (Build / Ignore). This has been replaced by:
 
 ```
-
 {
 "project": {
 "defaultSchemaStatus": "Build",
 "ignoredSchemas": [ "audit", "hangfire" ]
 }
 }
-
 ```
 
 Rules:
@@ -177,14 +182,11 @@ Rationale:
 Migration Output Example (`--verbose`):
 
 ```
-
 [migration] Collected 2 ignored schema name(s) into Project.IgnoredSchemas
 [migration] Legacy 'schema' node removed; snapshot + IgnoredSchemas are now authoritative.
-
 ```
 
 If you need to newly ignore a schema later, append it to the `ignoredSchemas` list and re-run `spocr pull` (a new snapshot fingerprint will be generated if affected procedures change).
-```
 
 ### JSON Summary Artifact
 
@@ -235,7 +237,7 @@ Artifacts (JSON summary, JUnit XML, coverage) live under `.artifacts/` (git-igno
 
 Roadmap reference: see [Testing Framework](/roadmap/testing-framework) for remaining open enhancements.
 
-## 🚢 Release & Publishing
+## Release & Publishing
 
 Releases are published automatically to NuGet when a GitHub Release is created with a tag matching the pattern:
 
@@ -256,7 +258,7 @@ Key safeguards:
 
 You can test the release workflow without publishing:
 
-1. GitHub → Actions → `Publish NuGet`
+1. GitHub > Actions > `Publish NuGet`
 2. Run workflow (leave `dry-run=true`)
 3. (Optional) Set `override-version` (e.g. `9.9.9-local`) to simulate a different output
 
@@ -303,7 +305,7 @@ Workflow:
 
 The project file no longer auto-increments version numbers; builds are reproducible from tags.
 
-## ⚙️ Exit Codes
+## Exit Codes
 
 SpocR uses categorized, spaced exit codes to allow future expansion without breaking CI consumers.
 
@@ -411,9 +413,9 @@ Example (future target structure):
 
 ```xml
 <testsuites tests="42" failures="2" time="3.421">
-  <testsuite name="unit" tests="30" failures="1" time="1.2" />
-  <testsuite name="integration" tests="8" failures="1" time="2.1" />
-  <testsuite name="validation" tests="4" failures="0" time="0.121" />
+	<testsuite name="unit" tests="30" failures="1" time="1.2" />
+	<testsuite name="integration" tests="8" failures="1" time="2.1" />
+	<testsuite name="validation" tests="4" failures="0" time="0.121" />
 </testsuites>
 ```
 
@@ -427,20 +429,20 @@ If you rely on strict JUnit consumers today, treat this as experimental and vali
 
 For now, rely on 0 vs non‑zero; begin adapting scripts to treat 1 as a generic failure boundary. Future enhancements will keep 0 backward compatible and only refine non‑zero granularity.
 
-## 🛠️ Requirements
+## Requirements
 
 - .NET SDK 6.0 or higher (8.0+ recommended)
 - SQL Server (2016 or later)
 - Access to SQL Server instance for metadata extraction
 
-## 🎯 Use Cases
+## Use Cases
 
 - **Enterprise Applications**: Reduce data access layer complexity
 - **API Development**: Generate type-safe database interactions
 - **Legacy Modernization**: Safely wrap existing stored procedures
 - **DevOps Integration**: Automate code generation in CI/CD pipelines
 
-## 📦 Installation Options
+## Installation Options
 
 ### Global Tool (Recommended)
 
@@ -462,7 +464,7 @@ dotnet tool run spocr --version
 <PackageReference Include="SpocR" Version="4.1.*" />
 ```
 
-## 🔧 Configuration
+## Configuration
 
 SpocR uses a `spocr.json` configuration file to customize generation behavior:
 
@@ -479,7 +481,7 @@ SpocR uses a `spocr.json` configuration file to customize generation behavior:
 }
 ```
 
-## 🤝 Contributing
+## Contributing
 
 We welcome contributions! A lightweight contributor guide is available in `CONTRIBUTING.md` (Root).
 
@@ -487,16 +489,16 @@ Engineering infrastructure lives under `eng/` (e.g., `eng/quality-gates.ps1`). T
 
 All code, comments, commit messages and documentation must be written in English (see Language Policy in `CONTRIBUTING.md`). Non-English identifiers or comments should be refactored during reviews.
 
-- 🐛 **Bug Reports**: [Create an issue](https://github.com/nuetzliches/spocr/issues/new?template=bug_report.md)
-- 💡 **Feature Requests**: [Create an issue](https://github.com/nuetzliches/spocr/issues/new?template=feature_request.md)
-- 🔧 **Pull Requests**: See `CONTRIBUTING.md`
-- 🤖 **AI Agents**: See `.ai/guidelines.md` for automated contribution standards
+- Bug Reports: [Create an issue](https://github.com/nuetzliches/spocr/issues/new?template=bug_report.md)
+- Feature Requests: [Create an issue](https://github.com/nuetzliches/spocr/issues/new?template=feature_request.md)
+- Pull Requests: See `CONTRIBUTING.md`
+- AI Agents: See `.ai/guidelines.md` for automated contribution standards
 
-## 📝 License
+## License
 
 This project is licensed under the [MIT License](LICENSE).
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - Built with [Roslyn](https://github.com/dotnet/roslyn) for C# code generation
 - Inspired by modern ORM and code generation tools
