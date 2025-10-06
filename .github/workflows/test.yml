@@ -28,6 +28,12 @@ jobs:
         with:
           dotnet-version: ${{ matrix.dotnet-version }}
 
+      # Install .NET 9 SDK as well so multi-target build (net9.0;net8.0) succeeds
+      - name: Setup .NET 9.x (multi-target support)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
       - name: Restore dependencies
         run: dotnet restore src/SpocR.csproj
 
@@ -61,6 +67,12 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      # Install .NET 9 SDK (required because project multi-targets net9.0;net8.0)
+      - name: Setup .NET 9.x (multi-target support)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
 
       - name: Restore dependencies
         run: dotnet restore src/SpocR.csproj
