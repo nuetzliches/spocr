@@ -224,7 +224,7 @@ public class TestCommand : CommandBase
             StartInfo = new ProcessStartInfo
             {
                 FileName = "dotnet",
-                Arguments = $"test tests/SpocR.Tests/SpocR.Tests.csproj --no-build {trxArg} --filter Category!=Meta --verbosity minimal",
+                Arguments = $"test tests/SpocR.Tests/SpocR.Tests.csproj -c Release {trxArg} --filter Category!=Meta --verbosity minimal",
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true
@@ -275,7 +275,7 @@ public class TestCommand : CommandBase
             StartInfo = new ProcessStartInfo
             {
                 FileName = "dotnet",
-                Arguments = $"test tests/SpocR.IntegrationTests/SpocR.IntegrationTests.csproj --no-build {trxArg} --verbosity minimal",
+                Arguments = $"test tests/SpocR.IntegrationTests/SpocR.IntegrationTests.csproj -c Release {trxArg} --verbosity minimal",
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true
