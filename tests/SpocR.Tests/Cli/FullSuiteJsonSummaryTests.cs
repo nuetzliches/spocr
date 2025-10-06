@@ -25,7 +25,7 @@ public class FullSuiteJsonSummaryTests
         var summary = Path.Combine(root, ".artifacts", "test-summary.json");
         if (File.Exists(summary)) File.Delete(summary);
 
-        var startInfo = new ProcessStartInfo("dotnet", $"run --project \"{project}\" -- test --ci")
+    var startInfo = new ProcessStartInfo("dotnet", $"run --framework net8.0 --project \"{project}\" -- test --ci")
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,

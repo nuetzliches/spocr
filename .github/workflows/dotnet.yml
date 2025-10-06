@@ -51,6 +51,11 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      - name: Setup .NET 9 (multi-target support)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
       - name: Show .NET Info
         run: dotnet --info
 
@@ -94,7 +99,7 @@ jobs:
           if [ -n "${{ inputs.override-version }}" ]; then echo "Override version used: ${{ inputs.override-version }}"; fi
 
       - name: Self-Validation (internal test command)
-        run: dotnet run --project $PROJECT_FILE --configuration Release -- test --validate
+        run: dotnet run --framework net8.0 --project $PROJECT_FILE --configuration Release -- test --validate
 
       - name: Run Tests
         run: dotnet test tests/Tests.sln --configuration Release --no-build

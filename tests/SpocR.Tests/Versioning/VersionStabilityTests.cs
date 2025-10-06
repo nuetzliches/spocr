@@ -27,7 +27,7 @@ public class VersionStabilityTests
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = "dotnet",
-                    Arguments = $"build \"{projectPath}\" -c Debug --nologo",
+                    Arguments = $"build \"{projectPath}\" -c Debug -f net8.0 --nologo",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false
@@ -38,8 +38,8 @@ public class VersionStabilityTests
             proc.ExitCode.Should().Be(0, "build must succeed");
 
             // Load produced assembly to read informational version
-            var outputDir = Path.Combine(root, "src", "bin", "Debug");
-            var dll = Directory.GetFiles(outputDir, "SpocR.dll", SearchOption.AllDirectories)
+            var outputDir = Path.Combine(root, "src", "bin", "Debug", "net8.0");
+            var dll = Directory.GetFiles(outputDir, "SpocR.dll", SearchOption.TopDirectoryOnly)
                 .OrderByDescending(f => File.GetLastWriteTimeUtc(f))
                 .First();
 

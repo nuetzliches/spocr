@@ -41,7 +41,7 @@ jobs:
         run: dotnet build src/SpocR.csproj --no-restore --configuration Release
 
       - name: Run Self-Validation
-        run: dotnet run --project src/SpocR.csproj --configuration Release -- test --validate
+        run: dotnet run --framework net8.0 --project src/SpocR.csproj --configuration Release -- test --validate
 
       - name: Run All Tests
         run: |
