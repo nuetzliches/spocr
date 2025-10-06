@@ -81,7 +81,7 @@ public class StoredProcedureListTests
     public void Schema_Not_Found_Returns_Empty_Array()
     {
         var console = new CaptureConsole();
-    var manager = new SpocrStoredProcedureManager(console);
+        var manager = new SpocrStoredProcedureManager(console);
 
         // Workaround: Erzeuge leere temporäre config Datei, damit TryOpen false -> Manager gibt [] aus
         var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
