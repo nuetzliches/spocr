@@ -326,7 +326,6 @@ public class SpocrManager(
                         {
                             Schema = sp.SchemaName,
                             Name = sp.Name,
-                            ModifiedTicks = sp.ModifiedTicks ?? sp.Modified.Ticks,
                             Inputs = (sp.Input ?? []).Select(i => new SnapshotInput
                             {
                                 Name = i.Name,
@@ -604,7 +603,7 @@ public class SpocrManager(
             // Optional informational warning if legacy schema section still present (non-empty) – snapshot only build.
             if (mergedConfig.Schema != null && mergedConfig.Schema.Count > 0 && options.Verbose)
             {
-                consoleService.Verbose("[legacy-schema] config.Schema wird ignoriert (Snapshot-only Build aktiv)");
+                consoleService.Verbose("[legacy-schema] config.Schema is ignored (snapshot-only build mode)");
             }
 
             var elapsed = await GenerateCodeAsync(project, options);

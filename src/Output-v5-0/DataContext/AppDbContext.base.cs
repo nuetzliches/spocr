@@ -7,6 +7,7 @@ using Microsoft.Data.SqlClient;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.Json;
 
 namespace Source.DataContext
 {
@@ -38,6 +39,10 @@ namespace Source.DataContext
         /// The CommandTimeout in Seconds
         /// </summary>
         public int CommandTimeout { get; set; } = 30;
+        /// <summary>
+        /// Optional JsonSerializerOptions used by ReadJsonDeserializeAsync. If null a default (PropertyNameCaseInsensitive=true) is used.
+        /// </summary>
+        public JsonSerializerOptions JsonSerializerOptions { get; set; }
     }
 
     public class AppDbContextPipe : IAppDbContextPipe
@@ -138,7 +143,7 @@ namespace Source.DataContext
                 }
             }
 
-            // NVARCHAR(MAX) Parameter werden nicht korrket behandelt. Workaround: 
+            // NVARCHAR(MAX) parameters are not handled correctly in some drivers. Workaround:
             if (size == null && type == typeof(string)) size = 1070000000;
 
             return new SqlParameter(parameter, input ?? DBNull.Value)

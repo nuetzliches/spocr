@@ -222,7 +222,7 @@ public class SchemaManager(
         }
         // Change detection now exclusively uses local cache snapshot (previous config ignore)
 
-        // NOTE: Current Modified Ticks werden aus dem sys.objects modify_date geladen (siehe StoredProcedure.Modified)
+    // NOTE: Current modification ticks are derived from sys.objects.modify_date (see StoredProcedure.Modified)
 
         // Build snapshot procedure lookup (latest snapshot) for hydration of skipped procedures
         Dictionary<string, Dictionary<string, SnapshotProcedure>> snapshotProcMap = null;

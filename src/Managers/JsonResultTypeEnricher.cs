@@ -58,7 +58,7 @@ public sealed class JsonResultTypeEnricher
             var modifiedLocal = false;
             foreach (var col in set.Columns)
             {
-                // UDTT Context Mapping Heuristik: 'record' Platzhalter auf vorhandenen Context Input mappen
+                // UDTT context mapping heuristic: map placeholder column 'record' to existing Context table-valued input
                 if (string.Equals(col.Name, "record", StringComparison.OrdinalIgnoreCase) &&
                     (string.IsNullOrWhiteSpace(col.UserTypeName) && string.IsNullOrWhiteSpace(col.UserTypeSchemaName)))
                 {
@@ -66,7 +66,7 @@ public sealed class JsonResultTypeEnricher
                         string.Equals(i.TableTypeName, "Context", StringComparison.OrdinalIgnoreCase));
                     if (contextInput != null)
                     {
-                        col.UserTypeSchemaName = contextInput.TableTypeSchemaName ?? "core"; // Default core falls nicht gesetzt
+                        col.UserTypeSchemaName = contextInput.TableTypeSchemaName ?? "core"; // default schema fallback
                         col.UserTypeName = contextInput.TableTypeName;
                         modifiedLocal = true;
                         if (verbose && level == JsonTypeLogLevel.Detailed)

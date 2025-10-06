@@ -328,21 +328,36 @@ public class StoredProcedureGenerator(
             returnModel = storedProcedure.Name;
             if (isJsonArray)
             {
-                returnType = $"Task<List<{returnModel}>>";
+                var hasOutputs = storedProcedure.HasOutputs();
+                var wrapperType = hasOutputs ? $"JsonOutputOptions<List<{returnModel}>>" : $"List<{returnModel}>";
+                returnType = hasOutputs ? $"Task<JsonOutputOptions<List<{returnModel}>>>" : $"Task<List<{returnModel}>>";
                 if (isOverload)
                 {
-                    // Delegate directly to pipe variant mirroring pattern of raw JSON methods
                     var call = $"context.CreatePipe().{storedProcedure.Name}DeserializeAsync({(storedProcedure.HasInputs() ? "input, " : string.Empty)}cancellationToken)";
                     returnExpression = call;
                 }
                 else
                 {
-                    returnExpression = $"await context.ReadJsonDeserializeAsync<List<{returnModel}>>(\"{storedProcedure.SqlObjectName}\", parameters, cancellationToken)";
+                    var inner = $"await context.ReadJsonDeserializeAsync<List<{returnModel}>>(\"{storedProcedure.SqlObjectName}\", parameters, cancellationToken)";
+                    if (hasOutputs)
+                    {
+                        // Build Output wrapper from parameters (expected OUTPUT params already present)
+                        // Reuse ExecuteAsync signature logic? We construct Output manually via parameter extensions.
+                        // Using parameters.ToOutput<Output>() to get base Output then wrap.
+                        if (!methodNode.Modifiers.Any(m => m.IsKind(SyntaxKind.AsyncKeyword)))
+                        {
+                            methodNode = methodNode.WithModifiers(methodNode.Modifiers.Add(SyntaxFactory.Token(SyntaxKind.AsyncKeyword)));
+                        }
+                        inner = $"new JsonOutputOptions<List<{returnModel}>>(parameters.ToOutput<Output>(), {inner})";
+                    }
+                    returnExpression = inner;
                 }
             }
             else
             {
-                returnType = $"Task<{returnModel}>";
+                var hasOutputs = storedProcedure.HasOutputs();
+                var wrapperType = hasOutputs ? $"JsonOutputOptions<{returnModel}>" : returnModel;
+                returnType = hasOutputs ? $"Task<JsonOutputOptions<{returnModel}>>" : $"Task<{returnModel}>";
                 if (isOverload)
                 {
                     var call = $"context.CreatePipe().{storedProcedure.Name}DeserializeAsync({(storedProcedure.HasInputs() ? "input, " : string.Empty)}cancellationToken)";
@@ -350,7 +365,16 @@ public class StoredProcedureGenerator(
                 }
                 else
                 {
-                    returnExpression = $"await context.ReadJsonDeserializeAsync<{returnModel}>(\"{storedProcedure.SqlObjectName}\", parameters, cancellationToken)";
+                    var inner = $"await context.ReadJsonDeserializeAsync<{returnModel}>(\"{storedProcedure.SqlObjectName}\", parameters, cancellationToken)";
+                    if (hasOutputs)
+                    {
+                        if (!methodNode.Modifiers.Any(m => m.IsKind(SyntaxKind.AsyncKeyword)))
+                        {
+                            methodNode = methodNode.WithModifiers(methodNode.Modifiers.Add(SyntaxFactory.Token(SyntaxKind.AsyncKeyword)));
+                        }
+                        inner = $"new JsonOutputOptions<{returnModel}>(parameters.ToOutput<Output>(), {inner})";
+                    }
+                    returnExpression = inner;
                 }
             }
         }
@@ -406,50 +430,78 @@ public class StoredProcedureGenerator(
                     var multiColumn = columnCount > 1;
                     returnModel = storedProcedure.Name;
 
-                    // Heuristik: Viele frühere "Find"-Prozeduren liefern genau einen Datensatz (auch wenn mehrere Spalten) –
-                    // nach Entfernen der Naming Convention würden sie aktuell als List<T> generiert (Breaking Change).
-                    // Wir erkennen einen Single-Row-Fall, wenn:
-                    // 1) Es genau einen nicht-Output Parameter gibt, der auf eine Id hindeutet (@Id oder *@...Id)
-                    // 2) ODER (Name enthält "Find" UND nicht "List") UND höchstens zwei nicht-Output Parameter vorhanden sind, die Id-orientiert sind.
-                    // (Konservativ, um Mehrfach-Result-Fälle wie *FindForAssignment* mit vielen Parametern nicht irrtümlich zu erzwingen.)
+                    // Legacy CRUD minimal result mapping (OBSOLETE - scheduled for removal):
+                    // If the procedure name indicates Create/Update/Delete/Merge/Upsert AND there are NO custom outputs
+                    // AND the first result set only contains [ResultId] and/or [RecordId] (no real data columns),
+                    // we collapse to Output and map those columns into Output so consumers have a consistent pattern.
+                    // This predates richer model generation and will be removed once callers are migrated.
+                    var nameLowerCrud = storedProcedure.Name.ToLowerInvariant();
+                    bool isCrudVerb = nameLowerCrud.Contains("create") || nameLowerCrud.Contains("update") || nameLowerCrud.Contains("delete") || nameLowerCrud.Contains("merge") || nameLowerCrud.Contains("upsert");
+                    // Special cases: procedures without a classic CRUD verb that still only emit meta columns
+                    // and should be treated as minimal CRUD (fallback -> CrudResult)
+                    var crudVerbWhitelist = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        "invoicesend"
+                    };
+                    if (crudVerbWhitelist.Contains(nameLowerCrud))
+                    {
+                        isCrudVerb = true;
+                    }
+                    var crudAllowedCols = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "resultid", "recordid" };
+                    var firstSetCols = firstSet2?.Columns?.Select(c => c.Name)?.ToList() ?? new List<string>();
+                    bool onlyCrudMetaColumns = firstSetCols.Count > 0 && firstSetCols.All(c => crudAllowedCols.Contains(c));
+                    bool noCustomOutputs = !hasOutputs || customOutputCount == 0;
+
+                    if (isCrudVerb && onlyCrudMetaColumns && noCustomOutputs)
+                    {
+                        // OBSOLETE CRUD minimal result heuristic: collapse meta-only resultset to CrudResult
+                        returnType = "Task<CrudResult>";
+                        returnExpression = ReplacePlaceholder(returnExpression, $"ExecuteSingleAsync<CrudResult>");
+                        // Skip obsolete list/find heuristic for this branch
+                    }
+                    else
+                    {
+
+                    // OBSOLETE Heuristic (scheduled for removal): List vs Single inference for *Find* / *List* names.
+                    // Maintained temporarily for backward compatibility. Will be replaced by explicit metadata.
                     var nonOutputParams = storedProcedure.Input.Where(p => !p.IsOutput && !(p.IsTableType ?? false)).ToList();
                     bool IsIdName(string n) => n.Equals("@Id", StringComparison.OrdinalIgnoreCase) || n.EndsWith("Id", StringComparison.OrdinalIgnoreCase);
                     var idParams = nonOutputParams.Where(p => IsIdName(p.Name)).ToList();
                     bool singleIdParam = idParams.Count == 1 && nonOutputParams.Count == 1;
                     var nameLower = storedProcedure.Name.ToLowerInvariant();
                     bool nameSuggestsFind = nameLower.Contains("find") && !nameLower.Contains("list");
+                    // Treat any pattern FindBy* as explicit single-row intent (not nur FindById)
+                    bool nameIsFindByPattern = nameLower.Contains("findby");
                     bool fewParams = nonOutputParams.Count <= 2;
-                    bool forceSingle = singleIdParam || (nameSuggestsFind && fewParams && idParams.Count >= 1);
+                    // Force single row when:
+                    //  - Explicit *FindById* pattern (even if multiple Id-like params exist, e.g. UserId + ClaimId + ComparisonCalculationId)
+                    //  - Exactly one Id parameter and it is the only filter (legacy behaviour)
+                    //  - Generic *Find* pattern with few params (<=2) and at least one Id param (conservative to avoid list-breaking)
+                    bool forceSingle = nameIsFindByPattern || singleIdParam || (nameSuggestsFind && fewParams && idParams.Count >= 1);
 
-                    if (multiColumn && !forceSingle)
+                    var nameLower2All = storedProcedure.Name.ToLowerInvariant();
+                    var indicatesListGlobal = nameLower2All.Contains("list");
+                    if (indicatesListGlobal)
                     {
-                        // Echte Liste
-                        var nameLower2 = storedProcedure.Name.ToLowerInvariant();
-                        var indicatesList = nameLower2.Contains("list");
-                        if (indicatesList)
-                        {
-                            // Für *List* Prozeduren geben wir IEnumerable<T> zurück, um Implementierungen flexibler zu halten
-                            returnType = $"Task<IEnumerable<{returnModel}>>";
-                            // Force async so wir das List<T> Ergebnis awaited zurückgeben können (implizite List->IEnumerable Konvertierung)
-                            if (!methodNode.Modifiers.Any(m => m.IsKind(SyntaxKind.AsyncKeyword)))
-                            {
-                                methodNode = methodNode.WithModifiers(methodNode.Modifiers.Add(SyntaxFactory.Token(SyntaxKind.AsyncKeyword)));
-                            }
-                            // Ersetze Platzhalter und wrap mit await
-                            var callExpr = ReplacePlaceholder(returnExpression, $"ExecuteListAsync<{returnModel}>");
-                            returnExpression = callExpr.StartsWith("await ") ? callExpr : $"await {callExpr}";
-                        }
-                        else
-                        {
-                            returnType = $"Task<List<{returnModel}>>";
-                            returnExpression = ReplacePlaceholder(returnExpression, $"ExecuteListAsync<{returnModel}>");
-                        }
+                        // Force list even if earlier single-row heuristics matched
+                        forceSingle = false;
+                    }
+                    var indicatesFind = nameLower2All.Contains("find") && !nameLower2All.Contains("list");
+                    // OBSOLETE naming heuristic (sunsetting once consumers migrate):
+                    //   - Default: single (ExecuteSingleAsync)
+                    //   - Only if procedure name contains "List" -> List<T>
+                    //   - "FindBy*" & other forceSingle signals enforce single even with multiple columns
+                    // Goal: explicit metadata will replace this. Do not add new special cases.
+                    if (!forceSingle && indicatesListGlobal)
+                    {
+                        returnType = $"Task<List<{returnModel}>>";
+                        returnExpression = ReplacePlaceholder(returnExpression, $"ExecuteListAsync<{returnModel}>");
                     }
                     else
                     {
-                        // Einzelnes Modell (entweder single-column, oder multi-column aber heuristisch als Single erkannt)
                         returnType = $"Task<{returnModel}>";
                         returnExpression = ReplacePlaceholder(returnExpression, $"ExecuteSingleAsync<{returnModel}>");
+                    }
                     }
                 }
             }

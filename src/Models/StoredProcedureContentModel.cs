@@ -357,12 +357,12 @@ public class StoredProcedureContentModel
             _parentSelectElementCount = node.SelectElements?.Count ?? 0;
             if (node.ForClause is JsonForClause jsonClause)
             {
-                // Wenn wir uns innerhalb eines ScalarSubquery befinden, dann handelt es sich um ein verschachteltes JSON Fragment
-                // das als einzelnes NVARCHAR(MAX) Feld (Alias im äußeren Select) zurückgegeben wird. In diesem Fall KEIN eigenes ResultSet anlegen.
-                // Ausnahme: Pass-through Fall (Eltern-Select hat genau 1 Projektion, die nur dieses ScalarSubquery enthält) => als top-level JSON behandeln
+                // Inside a ScalarSubquery this represents a nested JSON fragment
+                // returned as a single NVARCHAR(MAX) column (aliased in the outer SELECT). In that case DO NOT create a separate ResultSet.
+                // Exception: Pass-through case (parent SELECT has exactly one projection which is this ScalarSubquery) => treat as top-level JSON.
                 if (_scalarSubqueryDepth > 0 && !(parentSelectCount == 1))
                 {
-                    // Markiere im äußersten aktuellen Set später die entsprechende Column als Nested (erfolgt in CollectJsonColumnsForSet über Expression-Typ Erkennung)
+                    // Mark the corresponding column in the outer set as nested (handled later in CollectJsonColumnsForSet via expression kind detection)
                     base.ExplicitVisit(node);
                     _parentSelectElementCount = parentSelectCount; // restore before return
                     return;

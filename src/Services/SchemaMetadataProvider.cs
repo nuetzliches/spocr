@@ -96,10 +96,11 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
                     {
                         SchemaName = p.Schema,
                         Name = p.Name,
-                        Modified = new DateTime(p.ModifiedTicks, DateTimeKind.Utc)
+                        // ModifiedTicks nicht mehr Teil des Snapshots: Fallback auf GeneratedUtc / DateTime.MinValue
+                            Modified = DateTime.MinValue
                     })
                     {
-                        ModifiedTicks = p.ModifiedTicks,
+                            ModifiedTicks = null,
                         Input = p.Inputs.Select(i => new StoredProcedureInputModel(new DataContext.Models.StoredProcedureInput
                         {
                             Name = i.Name,
@@ -192,7 +193,7 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
             }).ToArray()
         }).ToList();
 
-        // Heuristik: Einzelnes Set, Einzelne Legacy JSON Column -> Markiere als JSON
+    // Heuristic: Single result set, single legacy FOR JSON column -> mark as JSON
         if (sets.Count == 1)
         {
             var s = sets[0];

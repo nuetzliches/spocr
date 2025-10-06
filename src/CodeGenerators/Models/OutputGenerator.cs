@@ -159,7 +159,10 @@ public class OutputGenerator(
                     var propName = p.Name.TrimStart('@').FirstCharToUpper();
                     if (skipNames.Contains(propName)) continue;
                     if (classNode.Members.OfType<PropertyDeclarationSyntax>().Any(m => m.Identifier.Text == propName)) continue;
-                    var typeSyntax = ParseTypeFromSqlDbTypeName(p.SqlTypeName, p.IsNullable ?? true);
+                    // Nullability: Für OUTPUT-Parameter war bisher der Fallback (?? true) -> alle unbekannten wurden nullable generiert.
+                    // Das führte dazu, dass z.B. 'TransitionRowVersion' (IsNullable = false oder fehlend) als 'long?' ausgegeben wurde.
+                    // Neue Regel: Nur nullable generieren, wenn Metadaten explizit IsNullable == true liefern. Fallback ist false.
+                    var typeSyntax = ParseTypeFromSqlDbTypeName(p.SqlTypeName, p.IsNullable == true);
                     var prop = SyntaxFactory.PropertyDeclaration(typeSyntax, SyntaxFactory.Identifier(propName))
                         .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
                         .AddAccessorListAccessors(

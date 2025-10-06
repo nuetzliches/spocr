@@ -102,7 +102,6 @@ public class SnapshotProcedure
 {
     public string Schema { get; set; }
     public string Name { get; set; }
-    public long ModifiedTicks { get; set; }
     public List<SnapshotInput> Inputs { get; set; } = new();
     public List<SnapshotResultSet> ResultSets { get; set; } = new();
 }

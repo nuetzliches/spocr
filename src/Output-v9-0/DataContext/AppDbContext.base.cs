@@ -136,7 +136,7 @@ public class AppDbContext(
             }
         }
 
-        // NVARCHAR(MAX) Parameter werden nicht korrket behandelt. Workaround: 
+    // NVARCHAR(MAX) parameters are not handled correctly in some drivers. Workaround:
         if (size == null && type == typeof(string)) size = 1070000000;
 
         return new SqlParameter(parameter, input ?? DBNull.Value)
