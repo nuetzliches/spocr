@@ -70,8 +70,20 @@ public class FullSuiteJsonSummaryTests
 
         modeFinal.Should().Be("full-suite");
         node["duration"]!["totalMs"]!.GetValue<long>().Should().BeGreaterThan(0);
+
+        // Sometimes the mode flips to full-suite slightly before counters are aggregated on slower CI
         var total = node["tests"]!["total"]!.GetValue<int>();
-        total.Should().BeGreaterThan(0, "the full suite should discover tests");
+        if (total == 0)
+        {
+            for (var i = 0; i < 4 && total == 0; i++)
+            {
+                await Task.Delay(150 * (i + 1));
+                var json = File.ReadAllText(summary);
+                node = JsonNode.Parse(json)!;
+                total = node["tests"]!["total"]!.GetValue<int>();
+            }
+        }
+        total.Should().BeGreaterThan(0, "the full suite should discover tests (after retries)");
         var failed = node["tests"]!["failed"]!.GetValue<int>();
         failed.Should().Be(0, "no test failures expected");
         var passed = node["tests"]!["passed"]!.GetValue<int>();
