@@ -33,7 +33,20 @@ namespace SpocR;
 [HelpOption("-?|-h|--help")]
 public class Program
 {
-    static async Task<int> Main(string[] args)
+    /// <summary>
+    /// In-process entry point for the SpocR CLI used by the test suite and potential host integrations.
+    /// Rationale:
+    ///  - Allows meta / integration tests to invoke the CLI without spawning an external process (faster & fewer race conditions).
+    ///  - Eliminates Windows file locking issues observed with repeated <c>dotnet run</c> / apphost executions (MSB3026/MSB3027 during rebuilds).
+    ///  - Provides a single place to construct DI + command conventions while keeping <c>Main</c> minimal.
+    ///  - Enables future programmatic embedding (e.g., other tools calling SpocR as a library) without reflection hacks.
+    ///
+    /// Notes for maintainers:
+    ///  - Tests call this method directly; removing or changing the signature will break in-process meta tests.
+    ///  - Keep side-effects (env var reads, working directory assumptions) confined here to mirror real CLI startup.
+    ///  - If additional global setup is added, prefer extending this method rather than duplicating logic in tests.
+    /// </summary>
+    public static async Task<int> RunCliAsync(string[] args)
     {
         // Determine environment from environment variables
         string environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ??
@@ -83,64 +96,17 @@ public class Program
         }
         catch (Exception ex)
         {
-            // Attempt to log via console service if available
             try
             {
                 var console = serviceProvider.GetService<IConsoleService>();
                 console?.Error($"Unhandled exception: {ex.Message}");
                 if (ex.InnerException != null)
-                {
                     console?.Error($"Inner exception: {ex.InnerException.Message}");
-                }
             }
-            catch
-            {
-                // Swallow any logging failures – we are already failing hard.
-            }
+            catch { }
             return ExitCodes.InternalError;
         }
-
-        // Automatic update check on startup
-        // var consoleService = serviceProvider.GetRequiredService<IConsoleService>();
-        // var autoUpdater = serviceProvider.GetRequiredService<AutoUpdaterService>();
-
-        // Display the current environment
-        // consoleService.Verbose($"Current environment: {environment}");
-
-        // try
-        // {
-        //     // Check for updates without blocking execution
-        //     _ = Task.Run(async () =>
-        //     {
-        //         try
-        //         {
-        //             await autoUpdater.RunAsync();
-        //         }
-        //         catch (Exception ex)
-        //         {
-        //             // Update check failures should not affect the main execution
-        //             consoleService.Warn($"Update check failed: {ex.Message}");
-        //         }
-        //     });
-
-        //     app.OnExecute(() =>
-        //     {
-        //         app.ShowRootCommandFullNameAndVersion();
-        //         app.ShowHelp();
-        //         return 0;
-        //     });
-
-        //     // Execute the command line
-        //     return await app.ExecuteAsync(args);
-        // }
-        // catch (Exception ex)
-        // {
-        //     consoleService.Error($"Unhandled exception: {ex.Message}");
-        //     if (ex.InnerException != null)
-        //     {
-        //         consoleService.Error($"Inner exception: {ex.InnerException.Message}");
-        //     }
-        //     return 1; // Return error code
-        // }
     }
+
+    static Task<int> Main(string[] args) => RunCliAsync(args);
 }
