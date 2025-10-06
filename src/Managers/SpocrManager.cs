@@ -159,6 +159,9 @@ public class SpocrManager(
         stopwatch.Start();
 
         List<SchemaModel> schemas = null;
+        var originalIgnored = config?.Project?.IgnoredSchemas == null
+            ? new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>(config.Project.IgnoredSchemas, StringComparer.OrdinalIgnoreCase);
         try
         {
             schemas = await schemaManager.ListAsync(config, options.NoCache);
@@ -170,16 +173,7 @@ public class SpocrManager(
                 return ExecuteResultEnum.Error;
             }
 
-            // Initialize schema statuses based on project defaults (legacy persisted list removed)
-            foreach (var schema in schemas)
-            {
-                schema.Status = config.Project.DefaultSchemaStatus;
-                if (config.Project.IgnoredSchemas != null && config.Project.IgnoredSchemas.Contains(schema.Name, StringComparer.OrdinalIgnoreCase))
-                {
-                    schema.Status = SchemaStatusEnum.Ignore;
-                }
-            }
-            // SchemaManager already hydrated skipped procedures from cache; no merge needed here.
+            // SchemaManager now provides final statuses (including auto-ignore of new schemas where applicable).
 
             // --- Snapshot Construction (experimental) ---
             try
@@ -517,7 +511,21 @@ public class SpocrManager(
         }
         else
         {
-            // Legacy schema node no longer written; only save if IgnoredSchemas changed earlier (handled in migration)
+            // Persist IgnoredSchemas changes if SchemaManager added or promoted schemas
+            var currentIgnored = config.Project?.IgnoredSchemas ?? new List<string>();
+            bool ignoredChanged = currentIgnored.Count != originalIgnored.Count || currentIgnored.Any(i => !originalIgnored.Contains(i));
+            if (ignoredChanged)
+            {
+                try
+                {
+                    await configFile.SaveAsync(config);
+                    consoleService.Verbose("[ignore] Persisted updated IgnoredSchemas to configuration file");
+                }
+                catch (Exception sx)
+                {
+                    consoleService.Warn($"Failed to persist updated IgnoredSchemas: {sx.Message}");
+                }
+            }
         }
 
         return ExecuteResultEnum.Succeeded;

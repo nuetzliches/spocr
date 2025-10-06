@@ -510,7 +510,7 @@ public class StoredProcedureGenerator(
 
         foreach (var schema in schemas)
         {
-            var storedProcedures = schema.StoredProcedures;
+            var storedProcedures = schema.StoredProcedures.ToList();
 
             if (!storedProcedures.Any())
             {
@@ -534,6 +534,20 @@ public class StoredProcedureGenerator(
                 var sourceText = await GetStoredProcedureExtensionsCodeAsync(schema, groupedStoredProcedures);
 
                 await Output.WriteAsync(fileNameWithPath, sourceText, isDryRun);
+
+                // Verbose trace to help diagnose empty StoredProcedures directory issues
+                try
+                {
+                    consoleService.Verbose($"[sp-generator] wrote {fileName} (procedures={groupedStoredProcedures.Count}) to {path}");
+                }
+                catch { /* ignore logging errors */ }
+            }
+
+            // Safety: if loop wrote nothing despite storedProcedures.Any(), log anomaly
+            if (!Directory.EnumerateFiles(path, "*Extensions.cs").Any())
+            {
+                var warnMsg = $"[sp-generator][warn] No extension files generated for schema '{schema.Name}' though {storedProcedures.Count} procedures present (check filters & statuses)";
+                consoleService.Verbose(warnMsg);
             }
         }
     }

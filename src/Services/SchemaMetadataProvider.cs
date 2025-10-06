@@ -76,8 +76,20 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
 
         var schemas = snapshot.Schemas.Select(s =>
             {
-                // Status no longer persisted in snapshot; derive solely via IgnoredSchemas/default
-                var status = ignored.Contains(s.Name, StringComparer.OrdinalIgnoreCase) ? SchemaStatusEnum.Ignore : defaultStatus;
+                // Derive status: if default=Ignore we promote all non-explicit schemas to Build (first-run + subsequent semantics)
+                SchemaStatusEnum status;
+                if (defaultStatus == SchemaStatusEnum.Ignore)
+                {
+                    status = ignored.Contains(s.Name, StringComparer.OrdinalIgnoreCase)
+                        ? SchemaStatusEnum.Ignore
+                        : SchemaStatusEnum.Build;
+                }
+                else
+                {
+                    status = ignored.Contains(s.Name, StringComparer.OrdinalIgnoreCase)
+                        ? SchemaStatusEnum.Ignore
+                        : defaultStatus;
+                }
                 var spList = snapshot.Procedures
                     .Where(p => p.Schema.Equals(s.Name, StringComparison.OrdinalIgnoreCase))
                     .Select(p => new StoredProcedureModel(new DataContext.Models.StoredProcedure

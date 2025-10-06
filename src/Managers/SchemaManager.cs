@@ -28,7 +28,7 @@ public class SchemaManager(
 
         var schemas = dbSchemas?.Select(i => new SchemaModel(i)).ToList();
 
-        // Legacy schema list (config.Schema) still present -> use its statuses first
+    // Legacy schema list (config.Schema) still present -> use its statuses first
         if (config?.Schema != null)
         {
             foreach (var schema in schemas)
@@ -41,19 +41,104 @@ public class SchemaManager(
         }
         else if (config?.Project != null)
         {
-            // Snapshot-only mode (legacy schema node removed). Apply default + IgnoredSchemas list.
+            // Snapshot-only mode (legacy schema node removed).
+            // Revised semantics for DefaultSchemaStatus=Ignore:
+            //   - ONLY brand new schemas (not present in the latest snapshot) are auto-ignored and added to IgnoredSchemas.
+            //   - Previously known schemas default to Build unless explicitly ignored.
+            // For any other default value the prior fallback behavior applies.
+
             var ignored = config.Project.IgnoredSchemas ?? new List<string>();
-            foreach (var schema in schemas)
+            var defaultStatus = config.Project.DefaultSchemaStatus;
+
+            // Determine known schemas from latest snapshot (if present)
+            var knownSchemas = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            try
             {
-                schema.Status = config.Project.DefaultSchemaStatus;
-                if (ignored.Contains(schema.Name, StringComparer.OrdinalIgnoreCase))
+                var working = Utils.DirectoryUtils.GetWorkingDirectory();
+                var schemaDir = System.IO.Path.Combine(working, ".spocr", "schema");
+                if (System.IO.Directory.Exists(schemaDir))
                 {
-                    schema.Status = SchemaStatusEnum.Ignore;
+                    var latest = System.IO.Directory.GetFiles(schemaDir, "*.json")
+                        .Select(f => new System.IO.FileInfo(f))
+                        .OrderByDescending(fi => fi.LastWriteTimeUtc)
+                        .FirstOrDefault();
+                    if (latest != null)
+                    {
+                        var snap = schemaSnapshotService.Load(System.IO.Path.GetFileNameWithoutExtension(latest.Name));
+                        if (snap?.Schemas != null)
+                        {
+                            foreach (var s in snap.Schemas)
+                            {
+                                if (!string.IsNullOrWhiteSpace(s.Name))
+                                    knownSchemas.Add(s.Name);
+                            }
+                        }
+                    }
                 }
             }
+            catch { /* best effort */ }
+
+            bool addedNewIgnored = false;
+            var initialIgnoredSet = new HashSet<string>(ignored, StringComparer.OrdinalIgnoreCase); // track originally ignored for delta detection
+            var autoAddedIgnored = new List<string>();
+
+            foreach (var schema in schemas)
+            {
+                var isExplicitlyIgnored = ignored.Contains(schema.Name, StringComparer.OrdinalIgnoreCase);
+                var isKnown = knownSchemas.Contains(schema.Name);
+
+                if (defaultStatus == SchemaStatusEnum.Ignore)
+                {
+                    // FIRST RUN (no snapshot): do NOT auto-extend IgnoredSchemas.
+                    if (knownSchemas.Count == 0)
+                    {
+                        schema.Status = isExplicitlyIgnored ? SchemaStatusEnum.Ignore : SchemaStatusEnum.Build;
+                        continue;
+                    }
+
+                    // Subsequent runs: only truly new (unknown) schemas become auto-ignored.
+                    if (isExplicitlyIgnored)
+                    {
+                        schema.Status = SchemaStatusEnum.Ignore;
+                    }
+                    else if (!isKnown)
+                    {
+                        schema.Status = SchemaStatusEnum.Ignore;
+                        if (!ignored.Contains(schema.Name, StringComparer.OrdinalIgnoreCase))
+                        {
+                            ignored.Add(schema.Name);
+                            autoAddedIgnored.Add(schema.Name);
+                            addedNewIgnored = true;
+                        }
+                    }
+                    else
+                    {
+                        schema.Status = SchemaStatusEnum.Build;
+                    }
+                }
+                else
+                {
+                    schema.Status = defaultStatus;
+                    if (isExplicitlyIgnored)
+                    {
+                        schema.Status = SchemaStatusEnum.Ignore;
+                    }
+                }
+            }
+
+            // Update IgnoredSchemas in config (in-memory only here; persistence handled by caller)
+            if (addedNewIgnored)
+            {
+                // Ensure list stays de-duplicated and sorted
+                config.Project.IgnoredSchemas = ignored.Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
+                consoleService.Verbose($"[ignore] Auto-added {autoAddedIgnored.Count} new schema(s) to IgnoredSchemas (default=Ignore)");
+            }
+
+            // Bootstrap heuristic removed: on first run all non-explicitly ignored schemas are built.
+
             if (ignored.Count > 0)
             {
-                consoleService.Verbose($"[ignore] Applied IgnoredSchemas list ({ignored.Count})");
+                consoleService.Verbose($"[ignore] Applied IgnoredSchemas list ({ignored.Count}) (default={defaultStatus})");
             }
         }
 
@@ -70,14 +155,13 @@ public class SchemaManager(
             consoleService.Verbose($"[ignore] IgnoredSchemas override applied ({config.Project.IgnoredSchemas.Count})");
         }
 
-        // reorder schemas, ignored at top
+    // Reorder: ignored first (kept for legacy ordering expectations)
         schemas = schemas.OrderByDescending(schema => schema.Status).ToList();
 
         var activeSchemas = schemas.Where(i => i.Status != SchemaStatusEnum.Ignore).ToList();
         if (!activeSchemas.Any())
         {
-            // Fallback: if there are stored procedures later that reference schemas we ignored entirely due to config, we would miss them.
-            // To keep behavior stable for tests and migration, emit warning and return early.
+            // Fallback: warn and return if everything ended up ignored (prevents downstream null references)
             consoleService.Warn("No schemas found or all schemas ignored!");
             return schemas;
         }
