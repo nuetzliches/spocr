@@ -1,6 +1,9 @@
 name: Publish NuGet
 
 on:
+  push:
+    tags:
+      - "v*"
   release:
     types: [published]
   workflow_dispatch:
@@ -70,7 +73,11 @@ jobs:
         run: |
           EVENT="${{ github.event_name }}"
           OVERRIDE="${{ inputs.override-version }}"
-          if [ "$EVENT" = "release" ]; then
+          if [ "$EVENT" = "push" ]; then
+            RAW_TAG="${GITHUB_REF_NAME}"
+            VERSION="${RAW_TAG#v}"
+            echo "Push tag event: using $RAW_TAG -> version $VERSION"
+          elif [ "$EVENT" = "release" ]; then
             RAW_TAG="${{ github.event.release.tag_name }}"
             VERSION="${RAW_TAG#v}"
             echo "Release event: using tag $RAW_TAG -> version $VERSION"
@@ -145,7 +152,7 @@ jobs:
             echo "Override version in dispatch -> treat as dry run"
           else
             echo "will-publish=true" >> $GITHUB_OUTPUT
-            echo "Eligible for publish"
+            echo "Eligible for publish (event=$EVENT)"
           fi
 
       - name: Pack
