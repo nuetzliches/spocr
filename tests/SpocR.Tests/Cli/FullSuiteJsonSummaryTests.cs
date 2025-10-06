@@ -23,7 +23,17 @@ public class FullSuiteJsonSummaryTests
         var root = FindRepoRoot();
         var summary = Path.Combine(root, ".artifacts", "test-summary.json");
         if (File.Exists(summary)) File.Delete(summary);
-        var exit = await global::SpocR.Program.RunCliAsync(new[] { "test", "--ci", "--validate" });
+        var prevCwd = Directory.GetCurrentDirectory();
+        Directory.SetCurrentDirectory(root); // ensure repository context for validation (looks for src/SpocR.csproj)
+        int exit;
+        try
+        {
+            exit = await global::SpocR.Program.RunCliAsync(new[] { "test", "--ci", "--validate" });
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(prevCwd);
+        }
         exit.Should().Be(0, "validation-only run should succeed");
         File.Exists(summary).Should().BeTrue("in-process invocation should emit test-summary.json");
 
