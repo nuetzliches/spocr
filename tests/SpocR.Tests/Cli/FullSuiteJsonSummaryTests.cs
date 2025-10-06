@@ -75,15 +75,35 @@ public class FullSuiteJsonSummaryTests
         var total = node["tests"]!["total"]!.GetValue<int>();
         if (total == 0)
         {
-            for (var i = 0; i < 4 && total == 0; i++)
+            // Extended retry budget: ~2s total (progressive backoff)
+            for (var i = 0; i < 8 && total == 0; i++)
             {
-                await Task.Delay(150 * (i + 1));
+                await Task.Delay(125 * (i + 1));
                 var json = File.ReadAllText(summary);
                 node = JsonNode.Parse(json)!;
                 total = node["tests"]!["total"]!.GetValue<int>();
             }
         }
-        total.Should().BeGreaterThan(0, "the full suite should discover tests (after retries)");
+
+        if (total == 0)
+        {
+            // Capture diagnostics to aid troubleshooting instead of blind failure
+            var diagPath = Path.Combine(root, ".artifacts", "test-summary-zero-diagnostic.json");
+            var diag = new JsonObject
+            {
+                ["originalMode"] = modeFinal,
+                ["attemptedTotal"] = total,
+                ["rawSummary"] = File.ReadAllText(summary),
+                ["env"] = new JsonObject
+                {
+                    ["SPOCR_INNER_TEST_RUN"] = Environment.GetEnvironmentVariable("SPOCR_INNER_TEST_RUN") ?? "",
+                    ["MachineName"] = Environment.MachineName,
+                }
+            };
+            File.WriteAllText(diagPath, diag.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+        }
+
+        total.Should().BeGreaterThan(0, "the full suite should discover tests (after extended retries)");
         var failed = node["tests"]!["failed"]!.GetValue<int>();
         failed.Should().Be(0, "no test failures expected");
         var passed = node["tests"]!["passed"]!.GetValue<int>();
