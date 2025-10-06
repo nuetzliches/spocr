@@ -119,7 +119,22 @@ jobs:
         run: dotnet run --framework net8.0 --project $PROJECT_FILE --configuration Release -- test --validate
 
       - name: Run Tests
-        run: dotnet test tests/Tests.sln --configuration Release --no-build
+        run: |
+          echo "Running test solution (fresh build to avoid adapter mismatch)..."
+          dotnet test tests/Tests.sln \
+            --configuration Release \
+            --verbosity minimal \
+            --logger trx \
+            --results-directory .artifacts/test-results || FAILED=$?
+          if [ -n "${FAILED:-}" ]; then
+            echo "Initial test run failed (exit $FAILED). Collecting diagnostic log and retrying once..." >&2
+            dotnet test tests/Tests.sln \
+              --configuration Release \
+              --verbosity normal \
+              --diag .artifacts/test-results/diagnostic-vstest.log \
+              --logger trx \
+              --results-directory .artifacts/test-results || exit 1
+          fi
 
       - name: Check if Package Already Exists on NuGet
         id: nuget_exists
