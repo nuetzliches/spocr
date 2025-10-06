@@ -97,21 +97,51 @@ jobs:
         run: |
           set -euo pipefail
           echo "Checking coverage threshold..."
-          THRESHOLD=60
+          : "${COVERAGE_MIN:=60}"  # allow override via env COVERAGE_MIN
+          THRESHOLD=$COVERAGE_MIN
+
+          echo "Configured threshold: ${THRESHOLD}%"
+          echo "Listing candidate coverage artifacts (debug):"
+          find .artifacts/test-results -type f -name 'coverage.*' -printf '%p (%s bytes)\n' 2>/dev/null || true
+
           mkdir -p .artifacts/coverage
           SUMMARY_FILE=$(find .artifacts/coverage -type f -name 'Summary.xml' 2>/dev/null | head -n 1 || true)
+          if [ -n "$SUMMARY_FILE" ]; then
+            echo "Found Summary.xml: $SUMMARY_FILE"
+            head -n 20 "$SUMMARY_FILE" || true
+          fi
+
+          SOURCE_FILE=""
           if [ -z "$SUMMARY_FILE" ]; then
             echo "Summary.xml not found. Falling back to Cobertura parsing..."
             COBERTURA_FILE=$(find .artifacts/test-results -type f -name 'coverage.cobertura.xml' 2>/dev/null | head -n 1 || true)
             if [ -z "$COBERTURA_FILE" ]; then echo "No Cobertura file found (cannot evaluate coverage)."; exit 1; fi
-            LINE_RATE=$(grep -o 'line-rate="[0-9.]*"' "$COBERTURA_FILE" | head -n1 | sed -E 's/.*line-rate="([0-9.]+)"/\1/')
+            SOURCE_FILE=$COBERTURA_FILE
           else
-            LINE_RATE=$(grep -o 'line-rate="[0-9.]*"' "$SUMMARY_FILE" | head -n1 | sed -E 's/.*line-rate="([0-9.]+)"/\1/')
+            SOURCE_FILE=$SUMMARY_FILE
           fi
-          if [ -z "${LINE_RATE:-}" ]; then echo "Could not read line-rate from Summary.xml or Cobertura."; exit 1; fi
+
+          LINE_RATE=$(grep -o 'line-rate="[0-9.]*"' "$SOURCE_FILE" | head -n1 | sed -E 's/.*line-rate="([0-9.]+)"/\1/') || true
+
+          if [ -z "${LINE_RATE:-}" ]; then
+            echo "line-rate attribute missing; attempting to derive from lines-covered / lines-valid..."
+            LINES_COVERED=$(grep -o 'lines-covered="[0-9]*"' "$SOURCE_FILE" | head -n1 | sed -E 's/.*lines-covered="([0-9]+)"/\1/') || true
+            LINES_VALID=$(grep -o 'lines-valid="[0-9]*"' "$SOURCE_FILE" | head -n1 | sed -E 's/.*lines-valid="([0-9]+)"/\1/') || true
+            if [ -n "$LINES_COVERED" ] && [ -n "$LINES_VALID" ] && [ "$LINES_VALID" -gt 0 ]; then
+              LINE_RATE=$(awk -v c="$LINES_COVERED" -v v="$LINES_VALID" 'BEGIN { printf "%.6f", (c/v) }')
+              echo "Derived line-rate: $LINE_RATE (covered=$LINES_COVERED valid=$LINES_VALID)"
+            fi
+          fi
+
+            if [ -z "${LINE_RATE:-}" ]; then
+            echo "Could not read or derive line-rate from $SOURCE_FILE"; exit 1; fi
+
           PERCENT=$(awk -v lr="$LINE_RATE" 'BEGIN { printf "%.2f", (lr*100) }')
-          echo "Line Coverage: $PERCENT%"
-          awk -v p="$PERCENT" -v t="$THRESHOLD" 'BEGIN { if (p < t) { printf "Coverage below threshold (%.2f%% < %d%%)\n", p, t; exit 1 } else { printf "Coverage threshold met (%.2f%% >= %d%%)\n", p, t } }'
+          echo "Line Coverage: $PERCENT% (raw rate=$LINE_RATE)"
+          if awk -v p="$PERCENT" -v t="$THRESHOLD" 'BEGIN { exit (p < t) ? 0 : 1 }'; then
+            echo "Coverage below threshold ($PERCENT% < ${THRESHOLD}%)."; exit 1
+          fi
+          echo "Coverage threshold met (>= ${THRESHOLD}%)."
 
       - name: Upload Coverage Report
         uses: actions/upload-artifact@v4
