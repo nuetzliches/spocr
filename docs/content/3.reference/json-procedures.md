@@ -1,8 +1,10 @@
-# JSON Stored Procedure Generation
+# JSON Stored Procedure Generation (Alpha)
 
-This reference explains how SpocR handles stored procedures that produce JSON result sets. Detection is based solely on the parsed metadata of each `ResultSet` (`ResultSets[i].ReturnsJson == true`). Naming conventions of the stored procedure (e.g. suffixes) are NOT used for detection.
+Status: The JSON result set parser is in **alpha** – core generation paths are stable, but advanced inference (nested objects, multi-result JSON chaining) is still evolving. Breaking refinements (property typing upgrades, model shape stabilization) may occur in upcoming minor releases.
 
-## Generated Methods
+Detection is based solely on parsed metadata of each `ResultSet` (`ResultSets[i].ReturnsJson == true`). Naming conventions (suffixes like `AsJson`) are treated as hints only during pull heuristics – not as a hard requirement for generation.
+
+## Generated Methods (Current Alpha Capabilities)
 
 For every stored procedure whose first result set (`ResultSets[0]`) is JSON, two method variants (pipe + context) are generated per access mode:
 
@@ -13,6 +15,8 @@ For every stored procedure whose first result set (`ResultSets[0]`) is JSON, two
 | Typed model (single JSON object) | `<ProcedureName>DeserializeAsync` | `Task<ProcedureName>`       |
 
 If a generated deserialize method name would collide with an existing one, a fallback `<ProcedureName>ToModelAsync` is used automatically.
+
+> Roadmap: Optional overloads with `JsonSerializerOptions` + streaming (`IAsyncEnumerable<T>`) for very large arrays.
 
 ### Example
 
@@ -42,7 +46,7 @@ JsonSerializer.Deserialize<List<UserList>>(await UserListAsync(ct)) ?? new List<
 
 When `ResultSets[0].ReturnsJson` is true a model type with the same base name as the procedure is generated (e.g. `UserList` / `UserFind`). If property inference is impossible (dynamic SQL, wildcard selection) an empty model is still emitted with an explanatory XML doc comment. This allows consistent referencing in API annotations.
 
-### Column Typing (Parser v3 / v4)
+### Column Typing (Heuristics v3 / v4)
 
 JSON result set column SQL types are assigned via a two-stage enrichment pipeline during `spocr pull`:
 
@@ -63,11 +67,37 @@ Parser v4 adds an opportunistic upgrade step: previously persisted fallback `nva
 - Array JSON: `null` literal ⇒ empty list (`[]` equivalent at call site)
 - Single JSON object: `null` literal ⇒ returned reference is `null`
 
-## Limitations (Current)
+## Limitations (Alpha)
 
-- Only the first JSON result set is surfaced in method generation (multi-result support is internal only for now)
-- No overloads yet for passing custom `JsonSerializerOptions`
-- Advanced inference for nested `JSON_QUERY` and left join nullability is planned (see roadmap)
+| Area | Current Behavior | Planned / Notes |
+| ---- | ---------------- | --------------- |
+| Multiple JSON result sets | Only first (`ResultSets[0]`) exposed via helpers | Later: per-result accessor methods or unified wrapper |
+| Deep nested objects | Flattening not attempted; raw JSON preserved | Potential optional projection generator |
+| `JSON_QUERY` nullability | Conservative: may mark columns nullable broadly | Refined provenance + join analysis |
+| Custom serializer options | Not exposed | Overload `DeserializeAsync(opts)` planned |
+| Streaming large arrays | Entire payload buffered | Future: `Utf8JsonReader` incremental + `IAsyncEnumerable<T>` |
+| Mixed scalar + JSON in first set | JSON branch wins – scalar columns ignored for typed path | Warning emission (planned) |
+| Upgrades of fallback types | Occurs silently during subsequent pulls | Will emit structured diff summary |
+
+### Known Edge Cases
+
+- Dynamic SQL with shape variance between executions may lead to unstable models – consider stabilizing with `SELECT ... FOR JSON` fixed projections.
+- Procedures returning an empty JSON literal (`''`) instead of `null` or `[]` are treated as deserialization failures; prefer `SELECT '' FOR JSON PATH` (returns `[]`).
+- Legacy `Output` metadata has been removed; tooling must read `ResultSets[0].Columns`.
+
+## CLI Integration
+
+Use the CLI to introspect which stored procedures were identified as JSON-capable:
+
+```bash
+spocr sp ls --schema core --json
+```
+
+Returned array is derived from the current `spocr.json` snapshot. If a procedure is missing, run a fresh pull:
+
+```bash
+spocr pull --no-cache --verbose
+```
 
 ## Troubleshooting
 
@@ -80,4 +110,4 @@ Parser v4 adds an opportunistic upgrade step: previously persisted fallback `nva
 
 ---
 
-_Applies to branch `feature/json-proc-parser`._
+_Applies to branch `feature/json-proc-parser` (alpha parser)._ 

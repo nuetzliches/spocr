@@ -7,6 +7,10 @@ Format loosely inspired by Keep a Changelog. Dates use ISO 8601 (UTC).
 
 ### Added
 
+- `spocr sp ls --json` Option für maschinenlesbare Ausgabe aller Stored Procedures eines Schemas (immer valides JSON Array)
+- Neue Dokumentationsseite `2.cli/commands/sp.md` für Stored Procedure Befehle
+- JSON Stored Procedure Parser (Alpha): Basis-Erkennung erster JSON ResultSets mit Typ-Try/Upgrade Heuristiken (künftige Verbesserungen vorbehalten)
+
 - Reference documentation page `3.reference/json-procedures.md` detailing raw vs typed (`DeserializeAsync`) JSON stored procedure method generation and model fallback behavior.
 
 - (planned) Reactivate integration tests (LocalDB)
@@ -27,6 +31,8 @@ Format loosely inspired by Keep a Changelog. Dates use ISO 8601 (UTC).
 
 ### Changed
 
+- Schreibweise intern vereinheitlicht: `StoredProcdure` -> `StoredProcedure` (Namespaces, Klassen, DI Registration). Alte Namen wurden entfernt (Breaking nur für Embedding von internen Typen – CLI Aufruf `sp` unverändert)
+
 - Test orchestration made sequential to ensure deterministic TRX parsing (removed race conditions)
 - JSON schema for test summary expanded (nested `tests.unit` / `tests.integration`, timestamps, per-phase durations)
 - `spocr.json` serialization: For JSON-returning stored procedures (`ResultSets[0].ReturnsJson == true`), the legacy `Output` array is now omitted entirely (previously still emitted). Non-JSON procedures continue to emit `Output` until they are migrated to unified `ResultSets` modeling.
@@ -35,6 +41,8 @@ Format loosely inspired by Keep a Changelog. Dates use ISO 8601 (UTC).
 - Internal: Removed `PrimaryResultSet` helper property and root-level JSON flag serialization (`ReturnsJson*`) from `spocr.json` (flags remain within `ResultSets`). This is treated as non-breaking because consumer tooling should already read `ResultSets[0]`.
 
 ### Fixed
+
+- Ungültige JSON-Ausgabe von `sp ls` korrigiert (vorher fehlerhafte manuelle Verkettung) – liefert jetzt immer valides `[]` bzw. `[{"name":"..."}]`
 
 - Intermittent zero-count test parsing due to premature TRX access (retry & readiness checks)
 

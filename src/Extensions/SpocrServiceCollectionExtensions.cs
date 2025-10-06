@@ -67,7 +67,7 @@ namespace SpocR.Extensions
             services.AddSingleton<SpocrManager>();
             services.AddSingleton<SpocrProjectManager>();
             services.AddSingleton<SpocrSchemaManager>();
-            services.AddSingleton<SpocrStoredProcdureManager>();
+            services.AddSingleton<SpocrStoredProcedureManager>();
             services.AddSingleton<SpocrConfigManager>();
             // Local metadata cache (stored procedure modify_date snapshot)
             services.AddSingleton<ILocalCacheService, LocalCacheService>();

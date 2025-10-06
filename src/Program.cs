@@ -6,7 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SpocR.Commands.Project;
 using SpocR.Commands.Schema;
 using SpocR.Commands.Spocr;
-using SpocR.Commands.StoredProcdure;
+using SpocR.Commands.StoredProcedure;
 using SpocR.Commands.Snapshot;
 using SpocR.DataContext;
 using SpocR.Extensions;
@@ -27,7 +27,7 @@ namespace SpocR;
 [Subcommand(typeof(ConfigCommand))]
 [Subcommand(typeof(ProjectCommand))]
 [Subcommand(typeof(SchemaCommand))]
-[Subcommand(typeof(StoredProcdureCommand))]
+[Subcommand(typeof(StoredProcedureCommand))]
 [Subcommand(typeof(SnapshotCommand))]
 [Subcommand(typeof(SpocR.Commands.Test.TestCommand))]
 [HelpOption("-?|-h|--help")]
