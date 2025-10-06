@@ -1,0 +1,171 @@
+name: SpocR Test Suite
+
+on:
+  push:
+    branches: [master, develop, feature/*]
+  pull_request:
+    branches: [master, develop]
+
+env:
+  DOTNET_VERSION: "8.0.x"
+  COVERAGE_MIN: "25"
+
+jobs:
+  test:
+    name: Test on ${{ matrix.os }} with .NET ${{ matrix.dotnet-version }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        dotnet-version: ["8.0.x"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET ${{ matrix.dotnet-version }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ matrix.dotnet-version }}
+
+      # Install .NET 9 SDK as well so multi-target build (net9.0;net8.0) succeeds
+      - name: Setup .NET 9.x (multi-target support)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore src/SpocR.csproj
+
+      - name: Build project
+        run: dotnet build src/SpocR.csproj --no-restore --configuration Release
+
+      - name: Run Self-Validation
+        run: dotnet run --framework net8.0 --project src/SpocR.csproj --configuration Release -- test --validate
+
+      - name: Run All Tests
+        run: |
+          dotnet test tests/Tests.sln --configuration Release --logger trx --results-directory .artifacts/test-results
+
+      - name: Upload Test Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-${{ matrix.os }}-${{ matrix.dotnet-version }}
+          path: .artifacts/test-results/
+
+  coverage:
+    name: Code Coverage
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      # Install .NET 9 SDK (required because project multi-targets net9.0;net8.0)
+      - name: Setup .NET 9.x (multi-target support)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore src/SpocR.csproj
+
+      - name: Run Tests with Coverage
+        run: |
+          dotnet test tests/Tests.sln \
+            --configuration Release \
+            --collect:"XPlat Code Coverage" \
+            --results-directory ./.artifacts/test-results
+
+      - name: Generate Coverage Report
+        run: |
+          dotnet tool install -g dotnet-reportgenerator-globaltool
+          reportgenerator \
+            -reports:".artifacts/test-results/**/coverage.cobertura.xml" \
+            -targetdir:".artifacts/coverage" \
+            -reporttypes:"Html;Badges;Cobertura;XmlSummary" # XmlSummary produces Summary.xml for threshold step
+
+      - name: Enforce Minimum Coverage (60%)
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Checking coverage threshold..."
+          : "${COVERAGE_MIN:=60}"  # allow override via env COVERAGE_MIN
+          THRESHOLD=$COVERAGE_MIN
+
+          echo "Configured threshold: ${THRESHOLD}%"
+          echo "Listing candidate coverage artifacts (debug):"
+          find .artifacts/test-results -type f -name 'coverage.*' -printf '%p (%s bytes)\n' 2>/dev/null || true
+
+          mkdir -p .artifacts/coverage
+          SUMMARY_FILE=$(find .artifacts/coverage -type f -name 'Summary.xml' 2>/dev/null | head -n 1 || true)
+          if [ -n "$SUMMARY_FILE" ]; then
+            echo "Found Summary.xml: $SUMMARY_FILE"
+            head -n 20 "$SUMMARY_FILE" || true
+          fi
+
+          SOURCE_FILE=""
+          if [ -z "$SUMMARY_FILE" ]; then
+            echo "Summary.xml not found. Falling back to Cobertura parsing..."
+            COBERTURA_FILE=$(find .artifacts/test-results -type f -name 'coverage.cobertura.xml' 2>/dev/null | head -n 1 || true)
+            if [ -z "$COBERTURA_FILE" ]; then echo "No Cobertura file found (cannot evaluate coverage)."; exit 1; fi
+            SOURCE_FILE=$COBERTURA_FILE
+          else
+            SOURCE_FILE=$SUMMARY_FILE
+          fi
+
+          LINE_RATE=$(grep -o 'line-rate="[0-9.]*"' "$SOURCE_FILE" | head -n1 | sed -E 's/.*line-rate="([0-9.]+)"/\1/') || true
+
+          if [ -z "${LINE_RATE:-}" ]; then
+            echo "line-rate attribute missing; attempting to derive from lines-covered / lines-valid..."
+            LINES_COVERED=$(grep -o 'lines-covered="[0-9]*"' "$SOURCE_FILE" | head -n1 | sed -E 's/.*lines-covered="([0-9]+)"/\1/') || true
+            LINES_VALID=$(grep -o 'lines-valid="[0-9]*"' "$SOURCE_FILE" | head -n1 | sed -E 's/.*lines-valid="([0-9]+)"/\1/') || true
+            if [ -n "$LINES_COVERED" ] && [ -n "$LINES_VALID" ] && [ "$LINES_VALID" -gt 0 ]; then
+              LINE_RATE=$(awk -v c="$LINES_COVERED" -v v="$LINES_VALID" 'BEGIN { printf "%.6f", (c/v) }')
+              echo "Derived line-rate: $LINE_RATE (covered=$LINES_COVERED valid=$LINES_VALID)"
+            else
+              # Try ReportGenerator XML summary elements
+              RG_PCT=$(grep -i -o '<Linecoverage>[0-9.]*</Linecoverage>' "$SOURCE_FILE" | head -n1 | sed -E 's/.*<Linecoverage>([0-9.]+)<\/Linecoverage>.*/\1/' || true)
+              if [ -n "$RG_PCT" ]; then
+                LINE_RATE=$(awk -v p="$RG_PCT" 'BEGIN { printf "%.6f", (p/100) }')
+                echo "Derived line-rate from <Linecoverage>: $LINE_RATE (percent=$RG_PCT)"
+              else
+                RG_COVERED=$(grep -i -o '<Coveredlines>[0-9]*</Coveredlines>' "$SOURCE_FILE" | head -n1 | sed -E 's/.*<Coveredlines>([0-9]+)<\/Coveredlines>.*/\1/' || true)
+                RG_COVERABLE=$(grep -i -o '<Coverablelines>[0-9]*</Coverablelines>' "$SOURCE_FILE" | head -n1 | sed -E 's/.*<Coverablelines>([0-9]+)<\/Coverablelines>.*/\1/' || true)
+                if [ -n "$RG_COVERED" ] && [ -n "$RG_COVERABLE" ] && [ "$RG_COVERABLE" -gt 0 ]; then
+                  LINE_RATE=$(awk -v c="$RG_COVERED" -v v="$RG_COVERABLE" 'BEGIN { printf "%.6f", (c/v) }')
+                  echo "Derived line-rate from <Coveredlines>/<Coverablelines>: $LINE_RATE (covered=$RG_COVERED coverable=$RG_COVERABLE)"
+                fi
+              fi
+            fi
+          fi
+
+            if [ -z "${LINE_RATE:-}" ]; then
+            echo "Could not read or derive line-rate from $SOURCE_FILE"; exit 1; fi
+
+          PERCENT=$(awk -v lr="$LINE_RATE" 'BEGIN { printf "%.2f", (lr*100) }')
+          echo "Line Coverage: $PERCENT% (raw rate=$LINE_RATE)"
+          if awk -v p="$PERCENT" -v t="$THRESHOLD" 'BEGIN { exit (p < t) ? 0 : 1 }'; then
+            echo "Coverage below threshold ($PERCENT% < ${THRESHOLD}%)."; exit 1
+          fi
+          echo "Coverage threshold met (>= ${THRESHOLD}%)."
+
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: .artifacts/coverage/
+
+      - name: Upload Raw Coverage Data
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-data
+          path: .artifacts/test-results/

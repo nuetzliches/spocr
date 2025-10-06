@@ -1,9 +1,9 @@
 ﻿using System;
 
-namespace Source.DataContext.Models.Schema
+namespace Source.DataContext.Models.Schema;
+
+public class Model
 {
-    public class Model
-    {
-        public object Property { get; set; }
-    }
+    // <spocr-placeholder-property>
+    public object Property { get; set; }
 }

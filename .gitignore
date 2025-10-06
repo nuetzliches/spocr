@@ -19,7 +19,6 @@ nupkg/
 *.sln.docstates
 
 # Build results
-[Dd]ebug/
 [Dd]ebugPublic/
 [Rr]elease/
 [Rr]eleases/
@@ -46,3 +45,15 @@ samples/
 !samples/mssql/
 !samples/mssql/**
 samples/mssql/.env
+
+# Transient artifacts (coverage, test results, reports)
+.artifacts/*
+!.artifacts/.gitkeep
+
+# Debug artifacts & local configs
+# Keep the root /debug directory (contains reports & example templates) but ignore sensitive/runtime files.
+debug/*
+debug/spocr.json
+debug/.env
+!debug/*.example
+!debug/README.md

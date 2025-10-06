@@ -7,6 +7,14 @@
       "type": "process",
       "args": ["build", "${workspaceFolder}/src/SpocR.csproj"],
       "problemMatcher": "$msCompile"
-    }
+    },
+    {
+			"label": "dev-docs",
+			"type": "shell",
+			"command": "cd docs && bun run dev",
+			"isBackground": true,
+			"problemMatcher": [],
+			"group": "build"
+		}
   ]
 }

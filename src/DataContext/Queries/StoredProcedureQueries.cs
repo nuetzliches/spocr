@@ -13,8 +13,25 @@ public static class StoredProcedureQueries
         var parameters = new List<SqlParameter>
         {
         };
-        var queryString = "SELECT s.name AS schema_name, o.name, o.modify_date FROM sys.objects AS o INNER JOIN sys.schemas AS s ON s.schema_id = o.schema_id WHERE o.type = N'P' AND s.name IN(@schemaList) ORDER BY o.name;".Replace("@schemaList", schemaList);
+        var queryString = @"SELECT s.name AS schema_name, o.name, o.modify_date
+                               FROM sys.objects AS o 
+                               INNER JOIN sys.schemas AS s ON s.schema_id = o.schema_id 
+                               WHERE o.type = N'P' AND s.name IN(@schemaList) 
+                               ORDER BY o.name;".Replace("@schemaList", schemaList);
         return context.ListAsync<StoredProcedure>(queryString, parameters, cancellationToken);
+    }
+
+    public static async Task<StoredProcedureDefinition> StoredProcedureDefinitionAsync(this DbContext context, string schemaName, string name, CancellationToken cancellationToken)
+    {
+        var sp = await context.ObjectAsync(schemaName, name, cancellationToken);
+        if (sp == null) return null;
+        var parameters = new List<SqlParameter> { new("@objectId", sp.Id) };
+        var queryString = @"SELECT s.name AS schema_name, o.name, o.object_id AS id, m.definition
+                               FROM sys.objects AS o
+                               INNER JOIN sys.schemas AS s ON s.schema_id = o.schema_id
+                               INNER JOIN sys.sql_modules AS m ON m.object_id = o.object_id
+                               WHERE o.object_id = @objectId";
+        return await context.SingleAsync<StoredProcedureDefinition>(queryString, parameters, cancellationToken);
     }
 
     public static async Task<List<StoredProcedureOutput>> StoredProcedureOutputListAsync(this DbContext context, string schemaName, string name, CancellationToken cancellationToken)
@@ -73,7 +90,25 @@ public static class StoredProcedureQueries
         return await context.ListAsync<StoredProcedureInput>(queryString, parameters, cancellationToken);
     }
 
-    public static Task<Object> ObjectAsync(this DbContext context, string schemaName, string name, CancellationToken cancellationToken)
+    public static async Task<string> StoredProcedureContentAsync(this DbContext context, string schemaName, string name, CancellationToken cancellationToken)
+    {
+        var storedProcedure = await context.ObjectAsync(schemaName, name, cancellationToken);
+        if (storedProcedure == null)
+        {
+            return null;
+        }
+
+        var parameters = new List<SqlParameter>
+        {
+            new("@objectId", storedProcedure.Id)
+        };
+
+        var queryString = @"SELECT definition FROM sys.sql_modules WHERE object_id = @objectId;";
+        var content = await context.SingleAsync<StoredProcedureContent>(queryString, parameters, cancellationToken);
+        return content?.Definition;
+    }
+
+    public static Task<DbObject> ObjectAsync(this DbContext context, string schemaName, string name, CancellationToken cancellationToken)
     {
         var parameters = new List<SqlParameter>
         {
@@ -84,6 +119,6 @@ public static class StoredProcedureQueries
                                 FROM sys.objects AS o
                                 INNER JOIN sys.schemas AS s ON s.schema_id = o.schema_id
                                 WHERE s.name = @schemaName AND o.name = @name;";
-        return context.SingleAsync<Object>(queryString, parameters, cancellationToken);
+        return context.SingleAsync<DbObject>(queryString, parameters, cancellationToken);
     }
 }

@@ -54,6 +54,19 @@ public class ProjectModel
     public DataBaseModel DataBase { get; set; } = new DataBaseModel();
     public OutputModel Output { get; set; } = new OutputModel();
     public SchemaStatusEnum DefaultSchemaStatus { get; set; } = SchemaStatusEnum.Build;
+    // New: list of schema names that are explicitly ignored (migration target replacing legacy Schema list)
+    public List<string> IgnoredSchemas { get; set; } = new();
+    // New: list of fully-qualified procedure names (schema.name) to ignore even if schema is built
+    public List<string> IgnoredProcedures { get; set; } = new();
+    // Controls verbosity of JSON/procedure typing logs: Detailed (default), SummaryOnly, Off
+    public JsonTypeLogLevel JsonTypeLogLevel { get; set; } = JsonTypeLogLevel.Detailed;
+}
+
+public enum JsonTypeLogLevel
+{
+    Detailed = 0,
+    SummaryOnly = 1,
+    Off = 2
 }
 
 public class RoleModel

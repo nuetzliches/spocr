@@ -26,6 +26,16 @@ public class StoredProcedureModel : IEquatable<StoredProcedureModel>
         set => _item.Name = value;
     }
 
+    // Exposes database modify_date from sys.objects
+    public DateTime Modified
+    {
+        get => _item.Modified;
+        set => _item.Modified = value;
+    }
+
+    // Persisted modification time (ticks) for quick detection of unchanged procedures
+    public long? ModifiedTicks { get; set; }
+
     [JsonIgnore]
     public string SchemaName
     {
@@ -40,12 +50,19 @@ public class StoredProcedureModel : IEquatable<StoredProcedureModel>
         set => _input = value;
     }
 
-    private IEnumerable<StoredProcedureOutputModel> _output;
-    public IEnumerable<StoredProcedureOutputModel> Output
+
+    private StoredProcedureContentModel _content;
+
+    [JsonIgnore]
+    public StoredProcedureContentModel Content
     {
-        get => _output?.Any() ?? false ? _output : null;
-        set => _output = value;
+        get => _content;
+        set => _content = value;
     }
+
+    // Expose unified result sets (JSON aware). Return null when empty to omit from serialized model.
+    public IReadOnlyList<StoredProcedureContentModel.ResultSet> ResultSets
+        => (Content?.ResultSets != null && Content.ResultSets.Any()) ? Content.ResultSets : null;
 
     // public IEnumerable<StoredProcedureInputModel> Input { get; set; }
     // public IEnumerable<StoredProcedureOutputModel> Output { get; set; }

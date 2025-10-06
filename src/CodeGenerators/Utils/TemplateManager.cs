@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -75,15 +76,40 @@ public class TemplateManager
         var root = template;
         var templateFileName = Path.GetFileNameWithoutExtension(templateType);
 
-        // Replace Namespace
+        // Replace Namespace (explicit construction to avoid partial replacement edge cases)
+        var configuredRootNs = _configManager.Config.Project.Output.Namespace?.Trim();
+        if (string.IsNullOrWhiteSpace(configuredRootNs))
+        {
+            throw new System.InvalidOperationException("Configuration error: 'Project.Output.Namespace' is missing or empty in spocr.json. Please provide a valid root namespace.");
+        }
+
+        // Determine root segment (Models / Inputs / Outputs / TableTypes / StoredProcedures) based on template path
+        string nsSegment = "Models"; // default
+        if (templateType.StartsWith("Inputs/", StringComparison.OrdinalIgnoreCase)) nsSegment = "Inputs";
+        else if (templateType.StartsWith("Outputs/", StringComparison.OrdinalIgnoreCase)) nsSegment = "Outputs";
+        else if (templateType.StartsWith("TableTypes/", StringComparison.OrdinalIgnoreCase)) nsSegment = "TableTypes";
+        else if (templateType.StartsWith("StoredProcedures/", StringComparison.OrdinalIgnoreCase)) nsSegment = "StoredProcedures"; // usually extensions
+
+        // Build namespace; if schemaName is empty (root-level artifacts like Outputs base files) avoid trailing dot
+        string targetNamespace;
         if (_configManager.Config.Project.Role.Kind == RoleKindEnum.Lib)
         {
-            root = root.ReplaceNamespace(ns => ns.Replace("Source.DataContext", _configManager.Config.Project.Output.Namespace).Replace("Schema", schemaName));
+            targetNamespace = string.IsNullOrWhiteSpace(schemaName)
+                ? $"{configuredRootNs}.{nsSegment}"
+                : $"{configuredRootNs}.{nsSegment}.{schemaName}";
         }
         else
         {
-            root = root.ReplaceNamespace(ns => ns.Replace("Source", _configManager.Config.Project.Output.Namespace).Replace("Schema", schemaName));
+            targetNamespace = string.IsNullOrWhiteSpace(schemaName)
+                ? $"{configuredRootNs}.DataContext.{nsSegment}"
+                : $"{configuredRootNs}.DataContext.{nsSegment}.{schemaName}";
         }
+
+        // Safety: collapse any accidental duplicate dots (should not happen if config is valid)
+        while (targetNamespace.Contains(".."))
+            targetNamespace = targetNamespace.Replace("..", ".");
+
+        root = root.ReplaceNamespace(_ => targetNamespace);
 
         // Replace ClassName
         root = root.ReplaceClassName(ci => ci.Replace(templateFileName, className));
@@ -96,11 +122,41 @@ public class TemplateManager
     /// </summary>
     public static CompilationUnitSyntax RemoveTemplateProperty(CompilationUnitSyntax root)
     {
-        var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-        var classNode = (ClassDeclarationSyntax)nsNode.Members[0];
-        var newClassMembers = SyntaxFactory.List(classNode.Members.Skip(1));
-        var newClassNode = classNode.WithMembers(newClassMembers);
-        return root.ReplaceNode(classNode, newClassNode);
+        // Support both file-scoped and block namespaces
+        ClassDeclarationSyntax classNode = null;
+        if (root.Members[0] is FileScopedNamespaceDeclarationSyntax fns)
+        {
+            classNode = fns.Members.OfType<ClassDeclarationSyntax>().FirstOrDefault();
+            if (classNode == null) return root;
+            var filtered = classNode.Members.Where(m =>
+                m is not PropertyDeclarationSyntax p ||
+                !p.GetLeadingTrivia().ToString().Contains("<spocr-placeholder-property>") &&
+                !p.ToFullString().Contains("<spocr-placeholder-property>")
+            ).ToList();
+            if (filtered.Count == classNode.Members.Count) // fallback: remove first property if marker missing
+            {
+                filtered = classNode.Members.Skip(1).ToList();
+            }
+            var newClass = classNode.WithMembers(SyntaxFactory.List(filtered));
+            return root.ReplaceNode(classNode, newClass);
+        }
+        else if (root.Members[0] is NamespaceDeclarationSyntax bns)
+        {
+            classNode = bns.Members.OfType<ClassDeclarationSyntax>().FirstOrDefault();
+            if (classNode == null) return root;
+            var filtered = classNode.Members.Where(m =>
+                m is not PropertyDeclarationSyntax p ||
+                !p.GetLeadingTrivia().ToString().Contains("<spocr-placeholder-property>") &&
+                !p.ToFullString().Contains("<spocr-placeholder-property>")
+            ).ToList();
+            if (filtered.Count == classNode.Members.Count)
+            {
+                filtered = classNode.Members.Skip(1).ToList();
+            }
+            var newClass = classNode.WithMembers(SyntaxFactory.List(filtered));
+            return root.ReplaceNode(classNode, newClass);
+        }
+        return root;
     }
 
     /// <summary>

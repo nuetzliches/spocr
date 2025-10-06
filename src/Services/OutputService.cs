@@ -17,26 +17,45 @@ public class OutputService(
 {
     public DirectoryInfo GetOutputRootDir()
     {
-        if (string.IsNullOrEmpty(configFile.Config.TargetFramework))
-        {
-            return new DirectoryInfo(Path.Combine(DirectoryUtils.GetApplicationRoot(), "Output"));
-        }
-
+        // Determine desired versioned output folder name based on target framework.
         var targetFramework = configFile.Config.TargetFramework;
-        _ = int.TryParse(targetFramework?.Replace("net", "")[0].ToString(), out var versionNumber);
+        string desiredFolder;
 
-        if (targetFramework.StartsWith("net8") || targetFramework.StartsWith("net9"))
+        if (string.IsNullOrWhiteSpace(targetFramework))
         {
-            return new DirectoryInfo(Path.Combine(DirectoryUtils.GetApplicationRoot(), "Output-v9-0"));
+            desiredFolder = "Output";
         }
-        else if (versionNumber >= 5)
+        else if (targetFramework.StartsWith("net9"))
         {
-            return new DirectoryInfo(Path.Combine(DirectoryUtils.GetApplicationRoot(), "Output-v5-0"));
+            desiredFolder = "Output-v9-0";
+        }
+        else if (targetFramework.StartsWith("net8"))
+        {
+            desiredFolder = "Output-v9-0"; // net8 shares the v9 templates currently
+        }
+        else if (int.TryParse(targetFramework.Replace("net", "").Split('.')[0], out var versionNumber) && versionNumber >= 5)
+        {
+            desiredFolder = "Output-v5-0";
         }
         else
         {
-            return new DirectoryInfo(Path.Combine(DirectoryUtils.GetApplicationRoot(), "Output"));
+            desiredFolder = "Output";
         }
+
+        // Prefer template folders that live under src/ (repository layout) when present.
+        var appRoot = DirectoryUtils.GetApplicationRoot();
+        var candidateInSrc = Path.Combine(appRoot, "src", desiredFolder);
+        var candidateAtRoot = Path.Combine(appRoot, desiredFolder);
+
+        string resolvedPath = Directory.Exists(candidateInSrc) ? candidateInSrc : candidateAtRoot;
+
+        // If the directory does not exist yet (e.g. fresh clone or new TF), create it so subsequent copy calls don't fail.
+        if (!Directory.Exists(resolvedPath))
+        {
+            Directory.CreateDirectory(resolvedPath);
+        }
+
+        return new DirectoryInfo(resolvedPath);
     }
 
     public void GenerateCodeBase(OutputModel output, bool dryrun)
@@ -44,7 +63,14 @@ public class OutputService(
         var dir = GetOutputRootDir();
 
         var targetDir = DirectoryUtils.GetWorkingDirectory(output.DataContext.Path);
-        CopyAllFiles(Path.Combine(dir.FullName, "DataContext"), targetDir, output.Namespace, dryrun);
+        // Ensure the versioned DataContext template source exists; if not, emit a warning instead of throwing.
+        var templateDataContextDir = Path.Combine(dir.FullName, "DataContext");
+        if (!Directory.Exists(templateDataContextDir))
+        {
+            consoleService.Warn($"Template source directory '{templateDataContextDir}' not found. Skipping base code copy.");
+            return; // Without templates we cannot proceed copying base files.
+        }
+        CopyAllFiles(templateDataContextDir, targetDir, output.Namespace, dryrun);
 
         // var inputTargetDir = DirectoryUtils.GetWorkingDirectory(targetDir, output.DataContext.Inputs.Path);
         // CopyAllFiles(Path.Combine(dir.FullName, "DataContext/Inputs"), inputTargetDir, output.Namespace, dryrun);
@@ -82,15 +108,24 @@ public class OutputService(
         var tree = CSharpSyntaxTree.ParseText(fileContent);
         var root = tree.GetCompilationUnitRoot();
 
+        if (string.IsNullOrWhiteSpace(nameSpace))
+        {
+            throw new System.InvalidOperationException("OutputService: Provided namespace is empty – ensure configuration Project.Output.Namespace is set before generation.");
+        }
+
+        // Normalize to avoid double dots
+        string Normalize(string ns) => ns.Replace("..", ".").Trim('.');
+        nameSpace = Normalize(nameSpace);
+
         if (configFile.Config.Project.Role.Kind == RoleKindEnum.Lib)
         {
-            root = root.ReplaceUsings(u => u.Replace("Source.DataContext", $"{nameSpace}"));
+            root = root.ReplaceUsings(u => u.Replace("Source.DataContext", nameSpace));
             root = root.ReplaceNamespace(ns => ns.Replace("Source.DataContext", nameSpace));
         }
         else
         {
-            root = root.ReplaceUsings(u => u.Replace("Source.", $"{nameSpace}."));
-            root = root.ReplaceNamespace(ns => ns.Replace("Source.", $"{nameSpace}."));
+            root = root.ReplaceUsings(u => u.Replace("Source.", nameSpace + "."));
+            root = root.ReplaceNamespace(ns => ns.Replace("Source.", nameSpace + "."));
         }
 
         var targetDir = Path.GetDirectoryName(targetFileName);
@@ -110,6 +145,28 @@ public class OutputService(
         var fileName = Path.GetFileName(targetFileName);
         var fileAction = FileActionEnum.Created;
         var outputFileText = sourceText.ToString();
+
+        // Inject XML auto-generated header (similar style to DataContext.Models) if not already present.
+        // We avoid duplicating when file already contains the marker 'Auto-generated by SpocR.'
+        const string headerMarker = "Auto-generated by SpocR.";
+        if (!outputFileText.Contains(headerMarker))
+        {
+            var timestamp = System.DateTime.UtcNow.ToString("u").Replace(' ', ' '); // keep 'Z' style via ToString("u") ends with 'Z'
+            var header =
+                "/// <summary>Auto-generated by SpocR. DO NOT EDIT. Changes will be overwritten on rebuild.</summary>\r\n" +
+                $"/// <remarks>Generated at {timestamp}</remarks>\r\n";
+
+            // If file starts with using directives, place header before them, else at top.
+            // Preserve BOM if present
+            if (outputFileText.StartsWith("using "))
+            {
+                outputFileText = header + outputFileText;
+            }
+            else
+            {
+                outputFileText = header + outputFileText;
+            }
+        }
 
         if (File.Exists(targetFileName))
         {

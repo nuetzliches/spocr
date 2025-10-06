@@ -12,7 +12,49 @@ namespace SpocR.Utils
 
         internal static void SetBasePath(string path)
         {
-            BasePath = Path.GetDirectoryName(path);
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                BasePath = null;
+                return;
+            }
+
+            // If a file (ends with .json, .csproj etc.) was passed, use its directory; otherwise treat as directory path
+            var candidate = path;
+            try
+            {
+                // Expand relative inputs (e.g. ./debug/spocr.json or debug) against current directory
+                if (!Path.IsPathRooted(candidate))
+                {
+                    candidate = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), candidate));
+                }
+
+                if (File.Exists(candidate))
+                {
+                    candidate = Path.GetDirectoryName(candidate);
+                }
+                else
+                {
+                    // If it does not exist yet, heuristically check if it looks like a file by extension
+                    var ext = Path.GetExtension(candidate);
+                    if (!string.IsNullOrEmpty(ext))
+                    {
+                        candidate = Path.GetDirectoryName(candidate);
+                    }
+                }
+
+                // Normalize trailing directory separator
+                if (!string.IsNullOrEmpty(candidate))
+                {
+                    candidate = Path.GetFullPath(candidate);
+                }
+
+                BasePath = candidate;
+            }
+            catch
+            {
+                // Fallback: reset BasePath so legacy fallback logic applies
+                BasePath = null;
+            }
         }
 
         internal static string GetApplicationRoot()

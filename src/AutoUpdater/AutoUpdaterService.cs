@@ -48,6 +48,15 @@ public class AutoUpdaterService(
     /// <param name="silent">Suppress notifications unless an update is available</param>
     public async Task RunAsync(bool force = false, bool silent = false)
     {
+        // Early skip via environment variable (SPOCR_SKIP_UPDATE / SPOCR_NO_UPDATE)
+        if (ShouldSkipByEnvironment())
+        {
+            if (!silent)
+            {
+                _consoleService.Verbose("Auto-update skipped via environment variable (SPOCR_SKIP_UPDATE / SPOCR_NO_UPDATE)");
+            }
+            return;
+        }
         if (!ShouldRunUpdate(force))
             return;
 
@@ -123,12 +132,29 @@ public class AutoUpdaterService(
         if (force)
             return true;
 
+        // Also respect env skip if reached indirectly
+        if (ShouldSkipByEnvironment())
+            return false;
+
         if (!_globalConfigFile.Config.AutoUpdate.Enabled)
             return false;
 
         var now = DateTime.Now.Ticks;
         var nextCheckTicks = _globalConfigFile.Config.AutoUpdate.NextCheckTicks;
         return now > nextCheckTicks;
+    }
+
+    private static readonly string[] SkipEnvKeys = ["SPOCR_SKIP_UPDATE", "SPOCR_NO_UPDATE"];
+    private bool ShouldSkipByEnvironment()
+    {
+        foreach (var key in SkipEnvKeys)
+        {
+            var val = Environment.GetEnvironmentVariable(key);
+            if (string.IsNullOrWhiteSpace(val)) continue;
+            val = val.Trim().ToLowerInvariant();
+            if (val is "1" or "true" or "yes" or "on") return true;
+        }
+        return false;
     }
 
     /// <summary>

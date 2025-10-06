@@ -3,45 +3,188 @@ name: Publish NuGet
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "Do not push package (build + pack + summary only)"
+        required: false
+        default: "true"
+        type: choice
+        options: ["true", "false"]
+      override-version:
+        description: "Override version (for workflow_dispatch only, no publish)"
+        required: false
+        default: ""
+        type: string
+
+concurrency:
+  group: publish-nuget
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
 
 jobs:
   publish:
-    name: build, pack & publish
+    name: build, validate, pack & publish
     runs-on: ubuntu-latest
+    env:
+      PROJECT_FILE: src/SpocR.csproj
+      ARTIFACTS_DIR: .artifacts
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Setup .NET 9.0
+      - name: Cache NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Setup .NET 9 (multi-target support)
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 9.0.x
 
-      - name: Restore dependencies
-        run: dotnet restore src/SpocR.csproj
+      - name: Show .NET Info
+        run: dotnet --info
 
-      - name: Build
-        run: dotnet build src/SpocR.csproj --configuration Release --no-restore
+      - name: Restore
+        run: dotnet restore $PROJECT_FILE
 
-      - name: Test
-        run: dotnet test src/SpocR.csproj --no-restore --verbosity normal
+      - name: Build (Release)
+        run: dotnet build $PROJECT_FILE --configuration Release --no-restore -p:ContinuousIntegrationBuild=true -p:Deterministic=true
 
-      # Publish
-      - name: publish on version change
-        id: publish_nuget
-        uses: alirezanet/publish-nuget@v3.1.0
+      - name: Extract Version From csproj / Override
+        id: version
+        run: |
+          BASE_VERSION=$(grep -oPm1 '(?<=<Version>)([^<]+)' $PROJECT_FILE || true)
+          if [ -z "$BASE_VERSION" ]; then
+            echo "Version not found in project file"; exit 1;
+          fi
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.override-version }}" ]; then
+            VERSION="${{ inputs.override-version }}"
+            echo "Using override version: $VERSION (base was $BASE_VERSION)"
+          else
+            VERSION="$BASE_VERSION"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "base-version=$BASE_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Validate Release Tag matches Version
+        if: github.event_name == 'release'
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          EXPECTED="v${{ steps.version.outputs.version }}"
+          echo "Release tag: $TAG / Expected: $EXPECTED"
+          if [ "$TAG" != "$EXPECTED" ]; then
+            echo "Tag and project version mismatch"; exit 1;
+          fi
+
+      - name: Note Dispatch Context
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo "Manual dispatch detected." 
+          echo "Dry-run: ${{ inputs['dry-run'] }}" 
+          if [ -n "${{ inputs.override-version }}" ]; then echo "Override version used: ${{ inputs.override-version }}"; fi
+
+      - name: Self-Validation (internal test command)
+        run: dotnet run --framework net8.0 --project $PROJECT_FILE --configuration Release -- test --validate
+
+      - name: Run Tests
+        run: dotnet test tests/Tests.sln --configuration Release --no-build
+
+      - name: Check if Package Already Exists on NuGet
+        id: nuget_exists
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          PKG_URL="https://api.nuget.org/v3-flatcontainer/spocr/${VERSION}/spocr.${VERSION}.nupkg"
+            echo "Checking $PKG_URL"
+          if curl -s --head --fail "$PKG_URL" > /dev/null; then
+            echo "already=true" >> $GITHUB_OUTPUT
+            echo "Package version already exists on NuGet. Skipping publish."
+          else
+            echo "already=false" >> $GITHUB_OUTPUT
+            echo "Package version not on NuGet. Proceeding."
+          fi
+
+      - name: Evaluate Publish Conditions
+        id: publish_gate
+        run: |
+          DRY="${{ inputs['dry-run'] }}"
+          EVENT="${{ github.event_name }}"
+          ALREADY="${{ steps.nuget_exists.outputs.already }}"
+          if [ "$EVENT" = "workflow_dispatch" ] && [ "$DRY" = "true" ]; then
+            echo "will-publish=false" >> $GITHUB_OUTPUT
+            echo "Dry run (dispatch) -> no publish" 
+          elif [ "$ALREADY" = "true" ]; then
+            echo "will-publish=false" >> $GITHUB_OUTPUT
+            echo "Already on NuGet -> no publish"
+          elif [ "$EVENT" = "workflow_dispatch" ] && [ -n "${{ inputs.override-version }}" ]; then
+            echo "will-publish=false" >> $GITHUB_OUTPUT
+            echo "Override version in dispatch -> treat as dry run"
+          else
+            echo "will-publish=true" >> $GITHUB_OUTPUT
+            echo "Eligible for publish"
+          fi
+
+      - name: Pack
+        if: steps.publish_gate.outputs.will-publish == 'true'
+        run: |
+          mkdir -p $ARTIFACTS_DIR/nuget
+          dotnet pack $PROJECT_FILE \
+            --configuration Release \
+            --no-build \
+            -p:ContinuousIntegrationBuild=true \
+            -p:RepositoryUrl=${{ github.server_url }}/${{ github.repository }} \
+            -p:RepositoryCommit=${{ github.sha }} \
+            -o $ARTIFACTS_DIR/nuget
+
+      - name: Install CycloneDX tool
+        if: steps.publish_gate.outputs.will-publish == 'true'
+        run: dotnet tool update --global CycloneDX || dotnet tool install --global CycloneDX
+
+      - name: Generate SBOM (CycloneDX)
+        if: steps.publish_gate.outputs.will-publish == 'true'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PATH: /home/runner/.dotnet/tools:$PATH
+        run: |
+          mkdir -p $ARTIFACTS_DIR/sbom
+          cyclonedx dotnet --project-file $PROJECT_FILE --out $ARTIFACTS_DIR/sbom --json
+
+      - name: Push to NuGet
+        if: steps.publish_gate.outputs.will-publish == 'true'
+        run: |
+          dotnet nuget push "$ARTIFACTS_DIR/nuget/*.nupkg" \
+            --api-key "${{ secrets.NUGET_API_KEY }}" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+
+      - name: Upload Artifacts (Package + SBOM)
+        if: steps.publish_gate.outputs.will-publish == 'true'
+        uses: actions/upload-artifact@v4
         with:
-          # Filepath of the project to be packaged, relative to root of repository
-          PROJECT_FILE_PATH: src/SpocR.csproj
+          name: nuget-package-and-sbom
+          path: |
+            .artifacts/nuget/*.nupkg
+            .artifacts/sbom/*
 
-          # API key to authenticate with NuGet server
-          NUGET_KEY: ${{secrets.NUGET_API_KEY}}
-
-          # Flag to toggle git tagging, enabled by default
-          TAG_COMMIT: true
-
-          # Format of the git tag, [*] gets replaced with actual version
-          TAG_FORMAT: v*
+      - name: Summary
+        run: |
+          echo "## Publish Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- Version: ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.publish_gate.outputs.will-publish }}" = "true" ]; then
+            echo "- Status: Published" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- Status: Skipped (Dry run / Already published / Override)" >> $GITHUB_STEP_SUMMARY
+          fi

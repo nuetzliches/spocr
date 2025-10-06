@@ -24,7 +24,7 @@ public class BuildCommand(
     SpocrProjectManager spocrProjectManager
 ) : SpocrCommandBase(spocrProjectManager), IBuildCommandOptions
 {
-    [Option("--generators", "Generator types to execute (TableTypes,Inputs,Outputs,Models,StoredProcedures)", CommandOptionType.SingleValue)]
+    [Option("--generators", "Generator types to execute (TableTypes,Inputs,Models,StoredProcedures)", CommandOptionType.SingleValue)]
     public string GeneratorTypesString { get; set; }
 
     public GeneratorTypes GeneratorTypes
@@ -61,6 +61,7 @@ public class BuildCommand(
         }
 
         await base.OnExecuteAsync();
-        return (int)await spocrManager.BuildAsync(this);
+        var result = await spocrManager.BuildAsync(this);
+        return CommandResultMapper.Map(result); // unified exit code mapping
     }
 }

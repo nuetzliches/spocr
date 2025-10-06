@@ -1,341 +1,552 @@
-# SpocR [![Publish NuGet](https://github.com/nuetzliches/spocr/actions/workflows/dotnet.yml/badge.svg)](https://github.com/nuetzliches/spocr/actions/workflows/dotnet.yml) [![NuGet Badge](https://img.shields.io/nuget/v/SpocR.svg)](https://www.nuget.org/packages/SpocR/) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+# SpocR
 
-> **Sp**ent **o**n **c**ode **r**eduction - A modern C# code generator for SQL Server stored procedures
+[![NuGet](https://img.shields.io/nuget/v/SpocR.svg)](https://www.nuget.org/packages/SpocR)
+[![NuGet Downloads](https://img.shields.io/nuget/dt/SpocR.svg)](https://www.nuget.org/packages/SpocR)
+[![License](https://img.shields.io/github/license/nuetzliches/spocr.svg)](LICENSE)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/nuetzliches/spocr/test.yml?branch=main)](https://github.com/nuetzliches/spocr/actions)
+[![Code Coverage](https://img.shields.io/badge/coverage-check%20actions-blue)](https://github.com/nuetzliches/spocr/actions)
+
+**SpocR** is a powerful code generator for SQL Server stored procedures that creates strongly typed C# classes for inputs, models, and execution. Eliminate boilerplate data access code and increase type safety in your .NET applications.
 
 ## Features
 
-- Automatically scaffolds SQL Server stored procedures and models into C# files
-- Intuitive CLI interface for seamless integration into your workflow
-- Strongly-typed models with full IntelliSense support
-- Flexible architecture supporting multiple deployment scenarios
-- Async-first approach with full Task-based API generation
-- Support for multiple .NET versions (NET 6.0, 8.0, 9.0)
+- Type-Safe Code Generation: Strongly typed inputs, models & execution extensions
+- Zero Boilerplate: Remove manual ADO.NET plumbing and mapping
+- Fast Integration: Add to an existing solution in minutes
+- Extensible Templates: Naming, output layout & model generation are customizable
+- JSON Stored Procedures (Alpha): Raw + typed generation for first JSON result set (see section below)
+- JSON Column Typing via UDTT Mapping: Deterministic typing using table types & base table provenance
+- CI/CD Ready: Machine-readable test summaries, exit codes & (optional) JUnit XML
+- Snapshot-Only Architecture: Fingerprinted schema snapshots decouple discovery from config
+- Pull Cache & `--no-cache`: Fast iteration with explicit full re-parse when needed
+- Ignored Schemas List: Concise `ignoredSchemas` replaces legacy per-schema status node
 
-# How SpocR works
+## Quick Start
 
-SpocR extracts your database schema via a provided ConnectionString and stores it in a `spocr.json` configuration file.
-This configuration file is highly customizable, allowing you to select which schemas to include or exclude.
+### Installation
 
-SpocR generates a complete DataContext folder structure with all required C# code for your .NET application (App, API, or Services).
-
-## Deployment Models
-
-SpocR offers three deployment models to fit your specific needs:
-
-- **Default Mode**: Standalone project with all dependencies included
-- **Library Mode**: Integrate SpocR into other projects with AppDbContext and dependencies
-- **Extension Mode**: Extend existing SpocR libraries without AppDbContext duplication
-
-## Key Capabilities
-
-- **User-Defined Table Types**: Full support for complex SQL parameter types
-- **Strongly-Typed Models**: Automatic mapping to C# types with proper nullability
-- **Multiple Result Sets**: Handle procedures returning lists or complex hierarchical data
-- **JSON Support**: Direct handling of JSON string results without additional model classes
-- **Async Operations**: First-class async/await support with CancellationToken handling
-
-# Generated Project Structure
-
-```
-DataContext/
-  |- Models/
-  |  |- [schema]/
-  |  |  |- [StoredProcedureName].cs      # Output model classes
-  |- Inputs/
-  |  |- [schema]/
-  |  |  |- [InputType].cs               # Input model classes
-  |- StoredProcedures/
-  |  |- [schema]/
-  |  |  |- [EntityName]Extensions.cs    # Extension methods
-  |- TableTypes/
-  |  |- [schema]/
-  |  |  |- [TableTypeName].cs           # Table type definitions
-  |- AppDbContext.cs                      # Core database context
-  |- AppDbContextExtensions.cs            # General extensions
-  |- ServiceCollectionExtensions.cs       # DI registration
-  |- SqlDataReaderExtensions.cs           # Data reader utilities
-  `- SqlParameterExtensions.cs            # Parameter utilities
-
-```
-
-## Samples
-
-- samples/mssql: Docker Compose setup for a SQL Server instance with sample data and stored procedures (including JSON output) for experimenting with SpocR.
-
-# Integration with Your Application
-
-## Register the DbContext
-
-Register `IAppDbContext` in your dependency injection container:
-
-```csharp
-// Program.cs (.NET 6+)
-builder.Services.AddAppDbContext(options => {
-    options.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-});
-
-// Startup.cs (legacy)
-services.AddAppDbContext(options => {
-    options.ConnectionString = Configuration.GetConnectionString("DefaultConnection");
-});
-```
-
-## Inject and Use the Context
-
-```csharp
-public class UserService
-{
-    private readonly IAppDbContext _dbContext;
-
-    public UserService(IAppDbContext dbContext)
-    {
-        _dbContext = dbContext;
-    }
-
-    public async Task<User> GetUserAsync(int userId, CancellationToken cancellationToken = default)
-    {
-        // Calls the generated extension method for UserFind stored procedure
-        return await _dbContext.UserFindAsync(userId, cancellationToken);
-    }
-
-    public async Task<List<User>> ListUsersAsync(CancellationToken cancellationToken = default)
-    {
-        // Calls the generated extension method for UserList stored procedure
-        return await _dbContext.UserListAsync(cancellationToken);
-    }
-
-    public async Task<int> CreateUserAsync(string name, string email, CancellationToken cancellationToken = default)
-    {
-        // Calls the generated extension method for UserCreate stored procedure
-        var result = await _dbContext.UserCreateAsync(name, email, cancellationToken);
-        return result.RecordId; // Returns the new user ID
-    }
-}
-```
-
-# Naming Conventions
-
-## StoredProcedure Naming Pattern
-
-```
-[EntityName][Action][Suffix]
-```
-
-- **EntityName** (required): Base SQL table name (e.g., `User`)
-- **Action** (required): `Create`, `Update`, `Delete`, `Merge`, `Upsert`, `Find`, `List`
-- **Suffix** (optional): `WithChildren`, custom suffix, etc.
-
-## CRUD Operation Result Schema
-
-For Create, Update, Delete, Merge, and Upsert operations, your stored procedures should return:
-
-| Column     | Type | Description                  |
-| ---------- | ---- | ---------------------------- |
-| `ResultId` | INT  | Operation result status code |
-| `RecordId` | INT  | ID of the affected record    |
-
-# Technical Requirements
-
-- **Database**: SQL Server 2012 or higher
-- **Framework**: .NET 6.0+ (with backward compatibility to .NET Core 2.2)
-- **Current Version**: 4.1.35 (September 2025)
-
-## Dependencies
-
-| Package                              | Purpose                  |
-| ------------------------------------ | ------------------------ |
-| Microsoft.Data.SqlClient             | SQL Server connectivity  |
-| Microsoft.Extensions.Configuration   | Configuration management |
-| Microsoft.CodeAnalysis.CSharp        | Code generation          |
-| McMaster.Extensions.CommandLineUtils | CLI interface            |
-
-# Installation
-
-## Prerequisites
-
-- [.NET SDK](https://dotnet.microsoft.com/download) (latest recommended)
-- SQL Server 2012+ database with stored procedures
-
-## Option A: Install via NuGet (Recommended)
+Install SpocR as a global .NET tool:
 
 ```bash
 dotnet tool install --global SpocR
 ```
 
-## Option B: Install from Source
+### Basic Usage
 
-```bash
-# Clone the repository
-git clone https://github.com/nuetzliches/spocr.git
+````bash
+# Initialize project
+spocr create --project MyProject
 
-# Navigate to source directory
-cd spocr/src
+```csharp
+var command = new SqlCommand("EXEC GetUserById", connection);
+command.Parameters.AddWithValue("@UserId", 123);
+var reader = await command.ExecuteReaderAsync();
+// ... manual mapping code
+````
 
-# Uninstall previous versions (if needed)
-dotnet tool uninstall -g spocr
+**With SpocR** (generated, type-safe):
 
-# Build and install
-dotnet pack --output ./ --configuration Release
-dotnet tool install -g spocr --add-source ./
+```csharp
+var context = new GeneratedDbContext(connectionString);
+var result = await context.GetUserByIdAsync(new GetUserByIdInput {
+		UserId = 123
+});
 ```
 
-# Usage Guide
+## Documentation
 
-## Quick Start
+For comprehensive documentation, examples, and advanced configuration:
 
-```bash
-# Create and configure your project
-spocr create
+**[Visit the SpocR Documentation](https://nuetzliches.github.io/spocr/)**
 
-# Pull schemas and build in one step
-spocr rebuild
+### Migration Note: Removal of Legacy `Output`
+
+Older snapshots exposed a root-level `Output` array for JSON-returning procedures. This was removed in favor of a unified `ResultSets` model. Update any tooling referencing `Output` to:
+
+```csharp
+var rs0 = snapshot.StoredProcedures[procName].ResultSets[0];
+foreach (var col in rs0.Columns) { /* ... */ }
 ```
 
-## Step-by-Step Workflow
+This change eliminates divergence between scalar and JSON procedures and reduces surface area.
 
-```bash
-# 1. Pull database schemas
-spocr pull
+## JSON Stored Procedures (Alpha)
 
-# 2. Build DataContext folder
-spocr build
+SpocR identifies a stored procedure as JSON-capable when its first result set is recognized as JSON (heuristic & metadata driven). Historical naming patterns like `*AsJson` are treated only as hints; they are **not** required. Two method layers are generated:
+
+| Method                     | Purpose                                              |
+| -------------------------- | ---------------------------------------------------- |
+| `UserListAsync` (raw)      | Returns the raw JSON payload as `string`             |
+| `UserListDeserializeAsync` | Deserializes JSON into a strongly typed model / list |
+
+Key design points:
+
+1. Raw + Typed Separation: Choose raw JSON for pass-through or typed for domain logic.
+2. Internal Helper: Deserialization uses an internal helper (subject to change while in alpha).
+3. Empty Model Fallback: If inference fails (wildcards / dynamic SQL), an empty model with XML doc rationale is emitted.
+4. Array vs Single Detection: Heuristics support `WITHOUT ARRAY WRAPPER`.
+5. Planned: Serializer options overloads, streaming for large arrays, richer nested model inference.
+
+CLI Listing:
+
+```
+spocr sp ls --schema dbo --json
 ```
 
-## All Available Commands
+Always returns a valid JSON array (e.g. `[]` or objects). Use `--json` to suppress human warnings for scripted consumption.
 
-| Command   | Description                                             |
-| --------- | ------------------------------------------------------- |
-| `create`  | Creates initial configuration file (spocr.json)         |
-| `pull`    | Extracts database schema to update configuration        |
-| `build`   | Generates DataContext code based on configuration       |
-| `rebuild` | Combines pull and build in one operation                |
-| `remove`  | Removes SpocR configuration and/or generated code       |
-| `version` | Displays current version information                    |
-| `config`  | Manages configuration settings                          |
-| `project` | Project-related commands (create, list, update, delete) |
-| `schema`  | Schema-related commands (list, update)                  |
-| `sp`      | Stored procedure related commands (list)                |
+> Note: This feature is alpha. The helper layer, naming, and heuristics may evolve before a stable (non-alpha) release. Pin the tool version or review the changelog when upgrading.
 
-## Advanced Command Options
+## Testing & Quality
 
-```bash
-# Selectively rebuild only certain generators
-spocr build --generators TableTypes,Models,StoredProcedures
+SpocR provides a layered quality & verification stack with machine-readable reporting for CI.
 
-# Test mode (no file changes)
-spocr build --dry-run
+| Layer            | Purpose                                        | Command / Entry Point                      |
+| ---------------- | ---------------------------------------------- | ------------------------------------------ |
+| Validation       | Static / structural project checks (Roslyn)    | `spocr test --validate`                    |
+| Unit Tests       | Generators, helpers, extensions, core logic    | `dotnet test tests/SpocR.Tests`            |
+| Integration (\*) | DB & end-to-end stored procedure roundtrips    | `dotnet test tests/SpocR.IntegrationTests` |
+| Full Suite       | Orchestrated validation + unit (+ integration) | `spocr test --ci`                          |
 
-# View detailed logs
-spocr build --verbose
+(\*) Integration suite currently deferred; orchestration scaffold in place.
 
-# Get help for any command
-spocr [command] --help
-```
-
-## Cleanup
+### Core Commands
 
 ```bash
-# Remove SpocR configuration/generated code
-spocr remove
+# Validation only (fast)
+spocr test --validate
+
+# Full suite (produces JSON + optional JUnit if requested)
+spocr test --ci --junit
+
+# Limit phases (comma-separated: unit,integration,validation)
+spocr test --ci --only unit,validation
+
+# Skip validation phase
+spocr test --ci --no-validation
 ```
 
-# Configuration
+### Pull Caching & Forcing a Fresh Parse
 
-## Project Role Types
+`spocr pull` maintains an internal cache keyed by last modification ticks of each stored procedure to skip unchanged definitions. This keeps repeat pulls fast on large databases.
 
-The `spocr.json` file defines your project's behavior with three possible role types:
+Use the flag:
 
-| Role          | Description                                                    | Use Case                                             |
-| ------------- | -------------------------------------------------------------- | ---------------------------------------------------- |
-| **Default**   | Creates standalone project with all dependencies               | Standard application with direct database access     |
-| **Lib**       | Creates a SpocR library for reuse                              | Shared library to be referenced by multiple projects |
-| **Extension** | Creates an extensible project without duplicating dependencies | Extending an existing SpocR library                  |
+```
+spocr pull --no-cache
+```
 
-For Extension mode, you'll need to configure the namespace (Project.Role.LibNamespace) to resolve the SpocR library.
+to deliberately bypass both loading and saving the cache. This ensures every stored procedure is fully re-fetched and re-parsed (useful directly after changing parsing heuristics or when validating JSON metadata like `WITHOUT ARRAY WRAPPER`).
 
-## Complete Configuration Schema
+Verbose output with `--verbose` will show `[proc-loaded]` lines for every procedure when `--no-cache` is active (no `[proc-skip]` entries appear) and a `[cache] Disabled (--no-cache)` banner.
 
-```json
+### Snapshot Maintenance
+
+Schema metadata used for generation is persisted as fingerprinted snapshot files under `.spocr/schema/`. Over time older snapshots can accumulate (each pull that detects changes writes a new file). Use:
+
+```
+spocr snapshot clean # keep latest 5 (default retention)
+spocr snapshot clean --keep 10 # keep latest 10
+spocr snapshot clean --all # delete all snapshot files
+spocr snapshot clean -d # dry-run: show what would be deleted
+```
+
+Snapshots are small JSON documents (procedures, result sets, UDTTs, stats). Retaining a short history can help diffing parser outcomes; prune aggressively in CI.
+
+### Ignoring Schemas (Snapshot-Only Mode)
+
+Older SpocR versions persisted a full `schema` array inside `spocr.json` with per-schema status values (Build / Ignore). This has been replaced by:
+
+```
 {
-  "Project": {
-    "Role": {
-      "Kind": "Default",
-      "LibNamespace": "YourCompany.YourLibrary"
-    },
-    "Output": {
-      "DataContext": {
-        "Path": "./DataContext",
-        "Models": {
-          "Path": "Models"
-        },
-        "StoredProcedures": {
-          "Path": "StoredProcedures"
-        },
-        "Inputs": {
-          "Path": "Inputs"
-        },
-        "Outputs": {
-          "Path": "Outputs"
-        },
-        "TableTypes": {
-          "Path": "TableTypes"
-        }
-      }
-    },
-    "TargetFramework": "net8.0"
-  },
-  "ConnectionStrings": {
-    "Default": "Server=.;Database=YourDatabase;Trusted_Connection=True;Encrypt=False"
-  },
-  "Schema": [
-    {
-      "Name": "dbo",
-      "Path": "Dbo",
-      "Status": "Build",
-      "StoredProcedures": []
-    }
-  ]
+"project": {
+"defaultSchemaStatus": "Build",
+"ignoredSchemas": [ "audit", "hangfire" ]
+}
 }
 ```
 
-# Examples and Resources
+Rules:
 
-## Sample Implementation
+1. Every discovered DB schema defaults to `defaultSchemaStatus`.
+2. Any name present (case-insensitive) in `ignoredSchemas` is skipped entirely.
+3. The legacy `schema` node is migrated automatically on the first `spocr pull` after upgrading (ignored entries become `ignoredSchemas`; others are discarded). The node is then removed.
+4. Subsequent pulls never write the legacy node again; snapshots + `ignoredSchemas` are authoritative.
 
-For a complete example with stored procedures and API implementation:
-[Sample Project Repository](https://github.com/nuetzliches/nuts)
+Rationale:
 
-### Debugging Tips
+- Smaller, stable configuration surface
+- Deterministic generator inputs (snapshot + explicit ignores)
+- Faster config diffs and fewer merge conflicts
 
-- Run with `--dry-run` to see what changes would be made without actually writing files
-- Check your `spocr.json` file for proper configuration
-- Ensure your stored procedures follow the naming convention requirements
-- For specific issues, try running only one generator type at a time with the `--generators` option
+Migration Output Example (`--verbose`):
 
-## Development Resources
+```
+[migration] Collected 2 ignored schema name(s) into Project.IgnoredSchemas
+[migration] Legacy 'schema' node removed; snapshot + IgnoredSchemas are now authoritative.
+```
 
-- [Roslyn Quoter](http://roslynquoter.azurewebsites.net/) - Helpful for understanding code generation patterns
-- [.NET Global Tools Documentation](https://learn.microsoft.com/en-us/dotnet/core/tools/global-tools) - Learn more about .NET global tools
-- [SQL Server Stored Procedures Best Practices](https://learn.microsoft.com/en-us/sql/relational-databases/stored-procedures/create-a-stored-procedure) - Microsoft's guidance on stored procedures
+If you need to newly ignore a schema later, append it to the `ignoredSchemas` list and re-run `spocr pull` (a new snapshot fingerprint will be generated if affected procedures change).
 
-## Known Limitations
+### JSON Summary Artifact
 
-- **Computed Columns**: SQL Server cannot reliably determine nullable property for computed columns. Wrap computed columns in `ISNULL({computed_expression}, 0)` for cleaner models.
-- **Complex Parameters**: When using table-valued parameters, ensure they follow the required table type structure.
-- **JSON Procedures**: For stored procedures returning JSON data, no explicit output models are generated. You'll need to deserialize the JSON string manually or use the raw string result.
-- **System-Named Constraints**: Some system-generated constraint names may cause naming conflicts; use explicit constraint names when possible.
-- **Naming Conventions**: The code generator relies on specific naming patterns for stored procedures. Deviating from these patterns may result in less optimal code generation.
-- **Large Schema Performance**: For very large database schemas with many stored procedures (more than 1000 stored procedures), the initial pull operation may take significant time to complete.
+When run with `--ci`, a rich summary is written to `.artifacts/test-summary.json`.
+
+Key fields (subset):
+
+| Field                                                | Description                                                          |
+| ---------------------------------------------------- | -------------------------------------------------------------------- |
+| `mode`                                               | `full-suite` or `validation-only`                                    |
+| `tests.total` / `tests.unit.total`                   | Aggregated & per-suite counts                                        |
+| `tests.unit.failed` / `tests.integration.failed`     | Failure counts per suite                                             |
+| `duration.unitMs` / `integrationMs` / `validationMs` | Phase durations (ms)                                                 |
+| `failureDetails[]`                                   | Objects with `name` & `message` for failed tests                     |
+| `startedAtUtc` / `endedAtUtc`                        | Wall clock boundaries                                                |
+| `success`                                            | Overall success flag (all selected phases passed & tests discovered) |
+
+Use this file for CI gating instead of scraping console output.
+
+### JUnit XML (Experimental Single-Suite)
+
+Add `--junit` to emit an aggregate JUnit-style XML (`.artifacts/junit-results.xml`).
+Multi-suite XML (separate unit/integration `<testsuite>` elements) is planned; track progress in the roadmap.
+
+### Exit Codes (Testing)
+
+SpocR specializes test failures:
+
+| Code | Meaning                  |
+| ---- | ------------------------ |
+| 41   | Unit test failure        |
+| 42   | Integration test failure |
+| 43   | Validation failure       |
+
+If multiple fail: precedence is 41 > 42 > 43; otherwise aggregate 40 is used.
+
+### Failure Summaries
+
+Console output lists up to 10 failing tests (with suite tag). Stack trace inclusion is a planned enhancement.
+
+### Quality Gates Script
+
+```powershell
+powershell -ExecutionPolicy Bypass -File eng/quality-gates.ps1 -CoverageThreshold 60
+```
+
+Artifacts (JSON summary, JUnit XML, coverage) live under `.artifacts/` (git-ignored).
+
+Roadmap reference: see [Testing Framework](/roadmap/testing-framework) for remaining open enhancements.
+
+### Coverage Policy
+
+SpocR enforces a line coverage quality gate in CI. We deliberately start with a modest threshold to allow incremental, sustainable improvement without blocking unrelated contributions.
+
+Current policy:
+
+| Item                       | Value                                         |
+| -------------------------- | --------------------------------------------- |
+| Initial enforced threshold | 30% (line coverage)                           |
+| Target (medium-term)       | 50%                                           |
+| Target (long-term)         | 60%+                                          |
+| Gate location              | GitHub Action `test.yml` (`COVERAGE_MIN` env) |
+
+Rationale:
+
+1. Avoid “big bang” coverage pushes that add low‑value tests.
+2. Encourage focused tests around generators, parsing, and validation logic (highest defect risk).
+3. Provide transparent, reviewable increments (raise `COVERAGE_MIN` only after genuine improvements).
+
+Raising the threshold:
+
+1. Add meaningful tests (prefer logic / edge cases, avoid trivial property getters).
+2. Run the coverage job locally: `dotnet test --collect:"XPlat Code Coverage"` and generate report with ReportGenerator.
+3. Confirm new percentage in the coverage job artifact.
+4. Update `COVERAGE_MIN` (e.g. from 30 to 35) in `.github/workflows/test.yml`.
+
+Exclusions (future): We may introduce targeted exclusions for generated or template scaffolding code if it becomes a drag on achieving the threshold without improving confidence.
+
+If the gate fails:
+
+- Check `.artifacts/coverage/Summary.xml` or fallback Cobertura files in `.artifacts/test-results/`.
+- The workflow step prints the derived coverage rate and which path was used.
+
+To experiment locally without failing CI, you can temporarily export a lower threshold before running the workflow logic:
+
+```bash
+export COVERAGE_MIN=25
+```
+
+(Do not commit a lower threshold unless agreed in review.)
+
+We track incremental increases in the CHANGELOG to make coverage progression transparent.
+
+## Release & Publishing
+
+Releases are published automatically to NuGet when a GitHub Release is created with a tag matching the pattern:
+
+```
+v<semantic-version>
+```
+
+Example: `v4.1.36` will publish package version `4.1.36` if not already present on NuGet.
+
+Key safeguards:
+
+- Tag/version match validation
+- Skip if version already published
+- Deterministic build flags (`ContinuousIntegrationBuild=true`, `Deterministic=true`)
+- SBOM generation (CycloneDX) uploaded as artifact
+
+### Dry Run (Manual Test of Pipeline)
+
+You can test the release workflow without publishing:
+
+1. GitHub > Actions > `Publish NuGet`
+2. Run workflow (leave `dry-run=true`)
+3. (Optional) Set `override-version` (e.g. `9.9.9-local`) to simulate a different output
+
+The workflow builds, validates and tests but skips the publish step.
+
+### Local Pre-Release Validation
+
+```powershell
+powershell -ExecutionPolicy Bypass -File eng/quality-gates.ps1 -SkipCoverage
+```
+
+Then create a tag & release once green:
+
+```bash
+git tag v4.1.36
+git push origin v4.1.36
+```
+
+### Versioning
+
+Semantic versions are derived from Git tags using [MinVer](https://github.com/adamralph/minver).
+
+Tag format:
+
+```
+v<MAJOR>.<MINOR>.<PATCH>
+```
+
+Examples:
+
+| Git Tag   | NuGet Package Version |
+| --------- | --------------------- |
+| `v4.1.36` | 4.1.36                |
+| `v5.0.0`  | 5.0.0                 |
+
+If you create a pre-release tag (e.g. `v4.2.0-alpha.1`), that version flows into the package.
+
+Workflow:
+
+1. Ensure tests & validation are green (`eng/quality-gates.ps1`).
+2. Decide version bump (SemVer): MAJOR (breaking), MINOR (features), PATCH (fixes).
+3. Create & push tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+4. Draft GitHub Release using that tag (or let automation publish on tag if configured in future).
+
+The project file no longer auto-increments version numbers; builds are reproducible from tags.
+
+## Exit Codes
+
+SpocR uses categorized, spaced exit codes to allow future expansion without breaking CI consumers.
+
+| Code | Category        | Meaning / Usage                            | Emitted Now                | Notes                                  |
+| ---- | --------------- | ------------------------------------------ | -------------------------- | -------------------------------------- |
+| 0    | Success         | Successful execution                       | Yes                        | Stable                                 |
+| 10   | Validation      | Validation / user input failure            | Yes (validate path)        |                                        |
+| 20   | Generation      | Code generation pipeline error             | No                         | Reserved                               |
+| 30   | Dependency      | External system (DB/network) failure       | No                         | Reserved                               |
+| 40   | Testing         | Test suite failure (aggregate)             | Yes                        | 41=Unit, 42=Integration, 43=Validation |
+| 41   | Testing         | Unit test failure                          | Yes (unit failures)        | More specific than 40                  |
+| 42   | Testing         | Integration test failure                   | Yes (integration failures) | Falls back to 40 if ambiguous          |
+| 43   | Testing         | Validation test failure                    | Yes (validation failures)  | Structural / repository validation     |
+| 50   | Benchmark       | Benchmark execution failure                | No                         | Reserved (flag present, impl pending)  |
+| 60   | Rollback        | Rollback / recovery failed                 | No                         | Reserved                               |
+| 70   | Configuration   | Config parsing/validation error            | No                         | Reserved                               |
+| 80   | Internal        | Unexpected unhandled exception             | Yes (Program.cs catch)     | Critical – file issue/bug              |
+| 99   | Future/Reserved | Experimental / feature-flag reserved space | No                         | Avoid relying on this                  |
+
+Guidance:
+
+- Treat any non-zero as failure if you do not need granularity.
+- To react specifically: validation remediation (10), test failure investigation (40), file an issue for 80 (internal error).
+- Future minor releases may add sub-codes inside the 40s without altering existing meanings.
+
+### CI JSON Summary
+
+When running with `--ci`, SpocR writes a machine-readable summary to `.artifacts/test-summary.json`:
+
+```jsonc
+{
+  "mode": "full-suite", // or validation-only
+  "timestampUtc": "2025-10-02T12:34:56Z",
+  "startedAtUtc": "2025-10-02T12:34:50Z",
+  "endedAtUtc": "2025-10-02T12:34:56Z",
+  "validation": { "total": 3, "passed": 3, "failed": 0 },
+  "tests": { "total": 27, "passed": 27, "failed": 0, "skipped": 0 },
+  "duration": {
+    "totalMs": 1234,
+    "unitMs": 800,
+    "integrationMs": 434,
+    "validationMs": 52
+  },
+  "failedTestNames": [],
+  "success": true
+}
+```
+
+Notes:
+
+- `failed` fields enable quick gating without recomputing.
+- `skipped` summarizes ignored / filtered tests.
+- `failedTestNames` (array) stays small (only failing tests) – empty on success.
+- `startedAtUtc` / `endedAtUtc` allow deriving wall-clock span; `duration.totalMs` is an explicit metric.
+- Fields may expand (non-breaking) in future (e.g. per-suite timing arrays).
+
+You can consume this in CI to branch logic (e.g. fail early, annotate PRs, or feed dashboards) without parsing console output. Future enhancements will merge richer failure metadata for per-suite timing and failure details.
+
+### JUnit / XML Test Output
+
+SpocR can emit a basic JUnit-style XML for CI systems that natively ingest it:
+
+```
+spocr test --ci --junit
+```
+
+By default this writes `.artifacts/junit-results.xml`. Use `--output <path>` to choose a custom location (takes precedence over `--junit`).
+
+### Phase Control & Skipping
+
+- `--no-validation` skips repository/project validation when running the full suite.
+- Validation time is still reported as `0` ms in JSON if skipped.
+
+### Exit Code Precedence
+
+If multiple phases fail the precedence applied is: Unit (41) > Integration (42) > Validation (43) > Aggregate (40).
+
+### Process Cleanup
+
+If you encounter repeated file lock build warnings (`SpocR.dll` / `testhost`), run:
+
+```
+powershell -ExecutionPolicy Bypass -File eng/kill-testhosts.ps1
+```
+
+This forcibly terminates stale test processes and stabilizes subsequent builds.
+
+SpocR aims to provide native JUnit-style XML output for integration with CI platforms (GitHub Actions, Azure DevOps, GitLab, Jenkins).
+
+Current status:
+
+- Basic placeholder implementation writes a minimal JUnit XML file when `--output <file>` is used with `spocr test`.
+- The structure currently contains a single aggregated testsuite with placeholder counts.
+- Future versions will emit one `<testsuite>` per logical test category (unit, integration, validation) and optional `<system-out>` / `<properties>` metadata.
+
+Planned enhancements:
+
+1. Real test counting integrated with `dotnet test` results parsing.
+2. Failure details mapped into `<failure>` nodes with message + stack trace.
+3. Duration tracking (wall clock + per suite timings).
+4. Optional attachment of generated artifacts summary.
+5. Exit code specialization (e.g. distinguishing generation vs dependency vs validation failures) aligned with reserved codes (2,3).
+
+Example (future target structure):
+
+```xml
+<testsuites tests="42" failures="2" time="3.421">
+	<testsuite name="unit" tests="30" failures="1" time="1.2" />
+	<testsuite name="integration" tests="8" failures="1" time="2.1" />
+	<testsuite name="validation" tests="4" failures="0" time="0.121" />
+</testsuites>
+```
+
+Usage (current minimal behavior):
+
+```
+spocr test --validate --output results.xml
+```
+
+If you rely on strict JUnit consumers today, treat this as experimental and validate the schema before ingest.
+
+For now, rely on 0 vs non‑zero; begin adapting scripts to treat 1 as a generic failure boundary. Future enhancements will keep 0 backward compatible and only refine non‑zero granularity.
+
+## Requirements
+
+- .NET SDK 6.0 or higher (8.0+ recommended)
+- SQL Server (2016 or later)
+- Access to SQL Server instance for metadata extraction
+
+## Use Cases
+
+- **Enterprise Applications**: Reduce data access layer complexity
+- **API Development**: Generate type-safe database interactions
+- **Legacy Modernization**: Safely wrap existing stored procedures
+- **DevOps Integration**: Automate code generation in CI/CD pipelines
+
+## Installation Options
+
+### Global Tool (Recommended)
+
+```bash
+dotnet tool install --global SpocR
+```
+
+### Project-local Tool
+
+```bash
+dotnet new tool-manifest
+dotnet tool install SpocR
+dotnet tool run spocr --version
+```
+
+### Package Reference
+
+```xml
+<PackageReference Include="SpocR" Version="4.1.*" />
+```
+
+## Configuration
+
+SpocR uses a `spocr.json` configuration file to customize generation behavior:
+
+```json
+{
+  "project": {
+    "name": "MyProject",
+    "connectionString": "Server=.;Database=AppDb;Trusted_Connection=True;",
+    "output": {
+      "directory": "./Generated",
+      "namespace": "MyProject.Data"
+    }
+  }
+}
+```
 
 ## Contributing
 
-We welcome contributions! Please feel free to submit a Pull Request.
+We welcome contributions! A lightweight contributor guide is available in `CONTRIBUTING.md` (Root).
+
+Engineering infrastructure lives under `eng/` (e.g., `eng/quality-gates.ps1`). Transient test & coverage artifacts are written to the hidden directory `.artifacts/` to keep the repository root clean.
+
+All code, comments, commit messages and documentation must be written in English (see Language Policy in `CONTRIBUTING.md`). Non-English identifiers or comments should be refactored during reviews.
+
+- Bug Reports: [Create an issue](https://github.com/nuetzliches/spocr/issues/new?template=bug_report.md)
+- Feature Requests: [Create an issue](https://github.com/nuetzliches/spocr/issues/new?template=feature_request.md)
+- Pull Requests: See `CONTRIBUTING.md`
+- AI Agents: See `.ai/guidelines.md` for automated contribution standards
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the [MIT License](LICENSE).
 
-```
+## Acknowledgments
 
-```
+- Built with [Roslyn](https://github.com/dotnet/roslyn) for C# code generation
+- Inspired by modern ORM and code generation tools
+- Community feedback and contributions
 
+---
+
+**[Get Started →](https://nuetzliches.github.io/spocr/getting-started/installation)** | **[Documentation →](https://nuetzliches.github.io/spocr/)** | **[Examples →](samples/)**

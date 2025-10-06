@@ -33,17 +33,23 @@ namespace SpocR.Extensions
 
         internal static bool HasResult(this StoredProcedure storedProcedure)
         {
-            return storedProcedure.Output?.Any() ?? false;
+            var first = storedProcedure.ResultSets?.FirstOrDefault();
+            if (first == null) return false;
+            if (first.ReturnsJson) return true; // JSON considered a result even without inferred columns
+            return first.Columns?.Any() ?? false;
         }
 
         internal static bool IsScalarResult(this StoredProcedure storedProcedure)
         {
-            // TODO: i.Output?.Count() -> Implement a Property "IsScalar" and "IsJson"
-            return storedProcedure.ReadWriteKind == ReadWriteKindEnum.Read && storedProcedure.Output?.Count() == 1;
+            var first = storedProcedure.ResultSets?.FirstOrDefault();
+            if (first == null || first.ReturnsJson) return false;
+            var columnCount = first.Columns?.Count ?? 0;
+            return columnCount == 1;
         }
 
         internal static string GetOutputTypeName(this StoredProcedure storedProcedure)
         {
+            // Kept for compatibility; naming unchanged
             return storedProcedure.IsDefaultOutput() ? "Output" : $"{storedProcedure.Name}Output";
         }
 

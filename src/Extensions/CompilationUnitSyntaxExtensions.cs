@@ -2,6 +2,7 @@ using System;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using System.Linq;
 
 namespace SpocR.Extensions
 {
@@ -37,14 +38,18 @@ namespace SpocR.Extensions
             throw new InvalidOperationException("Root must contain a namespace declaration.");
         }
 
-        internal static CompilationUnitSyntax ReplaceClassName(this CompilationUnitSyntax root, Func<string, string> replacer, Func<NamespaceDeclarationSyntax, ClassDeclarationSyntax> selector = null)
+        internal static CompilationUnitSyntax ReplaceClassName(this CompilationUnitSyntax root, Func<string, string> replacer, Func<BaseNamespaceDeclarationSyntax, ClassDeclarationSyntax> selector = null)
         {
-            var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
+            var nsNode = root.Members[0] as BaseNamespaceDeclarationSyntax;
+            if (nsNode == null)
+            {
+                throw new InvalidOperationException("Root does not contain a namespace declaration.");
+            }
             var classNode = selector != null
                 ? selector.Invoke(nsNode)
-                : (ClassDeclarationSyntax)nsNode.Members[0];
+                : nsNode.Members.OfType<ClassDeclarationSyntax>().First();
             var cnValue = replacer.Invoke(classNode.Identifier.ValueText);
-            var classIdentifier = SyntaxFactory.ParseToken($"{cnValue}{Environment.NewLine}");
+            var classIdentifier = SyntaxFactory.Identifier(cnValue);
             return root.ReplaceNode(classNode, classNode.WithIdentifier(classIdentifier));
         }
 

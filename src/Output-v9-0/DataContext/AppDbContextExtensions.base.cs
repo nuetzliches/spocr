@@ -1,7 +1,9 @@
+using System;
 using System.Collections.Generic;
 using System.Data;
 using Microsoft.Data.SqlClient;
 using System.Linq;
+using System.Text.Json;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,6 +22,7 @@ public static class AppDbContextExtensions
     {
         return context.CreatePipe().WithTransaction(transaction);
     }
+
 
     public static IAppDbContextPipe CreatePipe(this IAppDbContext context)
     {
@@ -40,6 +43,7 @@ public static class AppDbContextPipeExtensions
         pipe.Transaction = transaction;
         return pipe;
     }
+
 
     public static async Task<TOutput> ExecuteAsync<TOutput>(this IAppDbContextPipe pipe, string procedureName, IEnumerable<SqlParameter> parameters, CancellationToken cancellationToken = default) where TOutput : class, IOutput, new()
     {
@@ -68,6 +72,24 @@ public static class AppDbContextPipeExtensions
         return (await pipe.ExecuteListAsync<T>(procedureName, parameters, cancellationToken)).SingleOrDefault();
     }
 
+    public static async Task<T> ExecuteScalarAsync<T>(this IAppDbContextPipe pipe, string procedureName, IEnumerable<SqlParameter> parameters, CancellationToken cancellationToken = default)
+    {
+        if (pipe == null) throw new ArgumentNullException(nameof(pipe));
+        var command = await pipe.CreateSqlCommandAsync(procedureName, parameters, cancellationToken);
+        var value = await command.ExecuteScalarAsync(cancellationToken);
+        if (value == null || value == DBNull.Value) return default;
+        if (value is T t) return t;
+        try
+        {
+            var target = Nullable.GetUnderlyingType(typeof(T)) ?? typeof(T);
+            return (T)Convert.ChangeType(value, target);
+        }
+        catch
+        {
+            return (T)value; // may throw later if incompatible
+        }
+    }
+
     public static async Task<string> ReadJsonAsync(this IAppDbContextPipe pipe, string procedureName, IEnumerable<SqlParameter> parameters, CancellationToken cancellationToken = default)
     {
         var command = await pipe.CreateSqlCommandAsync(procedureName, parameters, cancellationToken);
@@ -78,6 +100,24 @@ public static class AppDbContextPipeExtensions
         reader.Close();
 
         return result.ToString();
+    }
+
+    public static async Task<T> ReadJsonAsync<T>(this IAppDbContextPipe pipe, string procedureName, IEnumerable<SqlParameter> parameters, CancellationToken cancellationToken = default)
+    {
+        var json = await pipe.ReadJsonAsync(procedureName, parameters, cancellationToken);
+        if (string.IsNullOrWhiteSpace(json)) return default;
+        return JsonSerializer.Deserialize<T>(json);
+    }
+
+    /// <summary>
+    /// Executes the stored procedure and deserializes the resulting JSON payload into T using either configured JsonSerializerOptions or a permissive default.
+    /// </summary>
+    public static async Task<T?> ReadJsonDeserializeAsync<T>(this IAppDbContextPipe pipe, string procedureName, IEnumerable<SqlParameter> parameters, CancellationToken cancellationToken = default)
+    {
+        var json = await pipe.ReadJsonAsync(procedureName, parameters, cancellationToken);
+        if (string.IsNullOrWhiteSpace(json)) return default;
+        var options = pipe.Context.Options.JsonSerializerOptions ?? new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        return JsonSerializer.Deserialize<T>(json, options);
     }
 
     internal static async Task<SqlCommand> CreateSqlCommandAsync(this IAppDbContextPipe pipe, string procedureName, IEnumerable<SqlParameter> parameters, CancellationToken cancellationToken = default)
@@ -109,4 +149,5 @@ public static class AppDbContextPipeExtensions
     {
         return pipe.Transaction ?? pipe.Context.Transactions.LastOrDefault();
     }
+
 }

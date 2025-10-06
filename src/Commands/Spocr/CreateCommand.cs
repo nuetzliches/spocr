@@ -52,7 +52,8 @@ public class CreateCommand(
             Path = project.ConfigFile;
         }
 
-        return (int)await spocrManager.CreateAsync(CreateCommandOptions);
+        var result = await spocrManager.CreateAsync(CreateCommandOptions);
+        return CommandResultMapper.Map(result);
     }
 }
 

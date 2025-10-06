@@ -17,9 +17,10 @@ namespace SpocR.CodeGenerators;
 /// </remarks>
 public class CodeGenerationOrchestrator(
     InputGenerator inputGenerator,
-    OutputGenerator outputGenerator,
     ModelGenerator modelGenerator,
+    CrudResultGenerator crudResultGenerator,
     TableTypeGenerator tableTypeGenerator,
+    OutputGenerator outputGenerator,
     StoredProcedureGenerator storedProcedureGenerator,
     IConsoleService consoleService,
     OutputService outputService
@@ -46,6 +47,7 @@ public class CodeGenerationOrchestrator(
     {
         var stopwatch = new Stopwatch();
         var elapsed = new Dictionary<string, long>();
+        // Steps: CodeBase (lib only), TableTypes, Inputs, Outputs, Models, StoredProcedures
         var totalSteps = roleKind == RoleKindEnum.Extension ? 5 : 6;
         var currentStep = 0;
 
@@ -198,19 +200,21 @@ public class CodeGenerationOrchestrator(
     }
 
     /// <summary>
-    /// Generates output classes for stored procedures
+    /// Generates output classes for stored procedure OUTPUT parameters
     /// </summary>
     public Task GenerateDataContextOutputsAsync(bool isDryRun)
     {
         return outputGenerator.GenerateDataContextOutputsAsync(isDryRun);
     }
 
+
     /// <summary>
     /// Generates entity model classes
     /// </summary>
-    public Task GenerateDataContextModelsAsync(bool isDryRun)
+    public async Task GenerateDataContextModelsAsync(bool isDryRun)
     {
-        return modelGenerator.GenerateDataContextModels(isDryRun);
+        await modelGenerator.GenerateDataContextModels(isDryRun);
+        await crudResultGenerator.GenerateAsync(isDryRun);
     }
 
     /// <summary>

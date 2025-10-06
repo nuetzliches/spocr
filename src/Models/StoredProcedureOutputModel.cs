@@ -24,8 +24,8 @@ public class StoredProcedureOutputModel
 
     public bool? IsNullable
     {
-        get => _item.IsNullable ? (bool?)true : null;
-        set => _item.IsNullable = value == true ? true : false;
+        get => _item.IsNullable;
+        set => _item.IsNullable = value ?? false;
     }
 
     public string SqlTypeName
@@ -40,3 +40,4 @@ public class StoredProcedureOutputModel
         set => _item.MaxLength = value;
     }
 }
+
