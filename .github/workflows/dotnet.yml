@@ -119,7 +119,7 @@ jobs:
         run: dotnet run --framework net8.0 --project $PROJECT_FILE --configuration Release -- test --validate
 
       - name: Run Tests
-        run: dotnet test tests/Tests.sln --configuration Release
+        run: dotnet test tests/Tests.sln --configuration Release --settings SpocR.runsettings
 
       - name: Check if Package Already Exists on NuGet
         id: nuget_exists
