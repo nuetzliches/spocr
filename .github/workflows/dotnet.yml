@@ -171,10 +171,12 @@ jobs:
         if: steps.publish_gate.outputs.will-publish == 'true'
         run: dotnet tool update --global CycloneDX || dotnet tool install --global CycloneDX
 
+      - name: Ensure CycloneDX on PATH
+        if: steps.publish_gate.outputs.will-publish == 'true'
+        run: echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+
       - name: Generate SBOM (CycloneDX)
         if: steps.publish_gate.outputs.will-publish == 'true'
-        env:
-          PATH: /home/runner/.dotnet/tools:$PATH
         run: |
           mkdir -p $ARTIFACTS_DIR/sbom
           cyclonedx dotnet --project-file $PROJECT_FILE --out $ARTIFACTS_DIR/sbom --json

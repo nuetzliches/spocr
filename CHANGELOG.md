@@ -7,6 +7,9 @@ Format loosely inspired by Keep a Changelog. Dates use ISO 8601 (UTC).
 
 ### Planned
 - (none currently) – add new items here.
+ 
+### Infrastructure
+- Fix: Publish workflow SBOM step no longer overrides PATH (previously caused `mkdir: command not found`); now appends dotnet global tools directory via GITHUB_PATH.
 
 ## [4.5.0-alpha.5] - 2025-10-07
 
