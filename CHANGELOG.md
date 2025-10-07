@@ -8,6 +8,8 @@ Format loosely inspired by Keep a Changelog. Dates use ISO 8601 (UTC).
 ### Planned
 - (none currently) – add new items here.
 
+## [4.5.0-alpha.12] - 2025-10-07
+
 ### Fixed
 - CI: Korrigierter CycloneDX SBOM Aufruf – ersetzte ungültige Argumentform (`dotnet CycloneDX dotnet --project-file ... --json`) durch gültige Syntax `dotnet CycloneDX <project> --output <dir> --output-format json --exclude-test-projects`.
 
