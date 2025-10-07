@@ -176,11 +176,19 @@ jobs:
           if ! command -v cyclonedx >/dev/null 2>&1; then
             echo "cyclonedx cli not found on PATH; attempting re-install..." >&2
             dotnet tool install --global CycloneDX
-            echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+            # Ensure PATH update is effective in this shell
+            export PATH="$HOME/.dotnet/tools:$PATH"
             hash -r || true
           fi
-          echo "Using cyclonedx version: $(cyclonedx --version || echo 'unknown')" >&2
-          cyclonedx dotnet --project-file $PROJECT_FILE --out $ARTIFACTS_DIR/sbom --json
+          # Direct path fallback if still not resolvable
+          if ! command -v cyclonedx >/dev/null 2>&1 && [ -x "$HOME/.dotnet/tools/cyclonedx" ]; then
+            echo "Resolving cyclonedx via explicit path" >&2
+            CYCLONEDX_CMD="$HOME/.dotnet/tools/cyclonedx"
+          else
+            CYCLONEDX_CMD="cyclonedx"
+          fi
+          echo "Using cyclonedx version: $($CYCLONEDX_CMD --version || echo 'unknown')" >&2
+          $CYCLONEDX_CMD dotnet --project-file $PROJECT_FILE --out $ARTIFACTS_DIR/sbom --json
 
       - name: Push to NuGet
         if: steps.publish_gate.outputs.will-publish == 'true'
