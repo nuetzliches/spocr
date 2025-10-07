@@ -8,21 +8,6 @@ Format loosely inspired by Keep a Changelog. Dates use ISO 8601 (UTC).
 ### Planned
 - (none currently) – add new items here.
 
-### Infrastructure
-- Change: NuGet package publication now only occurs on GitHub Release events (tag push still builds & packs artifacts without publishing).
-
-## [4.5.0-alpha.6] - 2025-10-07
-
-### Infrastructure
-- Fix: Publish workflow SBOM step no longer overrides PATH (previously caused `mkdir: command not found`); now appends dotnet global tools directory via GITHUB_PATH.
-
-## [4.5.0-alpha.5] - 2025-10-07
-
-### Infrastructure
-- Publish workflow now uses unified root `SpocR.runsettings` ensuring consistent timeout and blame configuration across CI jobs.
-
-## [4.5.0-alpha.4] - 2025-10-07
-
 ### Fixed
 - CI publish workflow: removed `--no-build` from test step to prevent invalid argument errors when stale test binaries were not present (ensures a reliable build before execution).
 
