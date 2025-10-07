@@ -6,10 +6,10 @@ Format loosely inspired by Keep a Changelog. Dates use ISO 8601 (UTC).
 ## [Unreleased]
 
 ### Planned
-- Reactivate integration tests (LocalDB)
-- Multi-suite JUnit/XML output (separate unit/integration suites)
-- Rollback mechanism for AI‑agent workflows
- 
+- (none currently) – add new items here.
+
+## [4.5.0-alpha.3] - 2025-10-07
+
 ### Changed
 - Migrated test assertion library from FluentAssertions to Shouldly (licensing simplification, leaner dependency footprint)
 - `SpocrStoredProcedureManager` now accepts an injected configuration file manager (enables unit testing without internal FileManager construction)

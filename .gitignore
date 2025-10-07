@@ -49,6 +49,8 @@ samples/mssql/.env
 # Transient artifacts (coverage, test results, reports)
 .artifacts/*
 !.artifacts/.gitkeep
+# Ensure no test result TRX files are committed if pattern exceptions are added later
+*.trx
 
 # Debug artifacts & local configs
 # Keep the root /debug directory (contains reports & example templates) but ignore sensitive/runtime files.
