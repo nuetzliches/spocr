@@ -172,8 +172,8 @@ jobs:
           # The global tool exposes the command name 'dotnet-cyclonedx' (invoked as 'dotnet CycloneDX').
           echo "Listing global dotnet tools for diagnostics:" >&2
           dotnet tool list --global >&2 || true
-          echo "Running: dotnet CycloneDX dotnet --project-file $PROJECT_FILE --out $ARTIFACTS_DIR/sbom --json" >&2
-          dotnet CycloneDX dotnet --project-file "$PROJECT_FILE" --out "$ARTIFACTS_DIR/sbom" --json
+          echo "Running: dotnet CycloneDX $PROJECT_FILE --output $ARTIFACTS_DIR/sbom --output-format json --exclude-test-projects" >&2
+          dotnet CycloneDX "$PROJECT_FILE" --output "$ARTIFACTS_DIR/sbom" --output-format json --exclude-test-projects
 
       - name: Push to NuGet
         if: steps.publish_gate.outputs.will-publish == 'true'
