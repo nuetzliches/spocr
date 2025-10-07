@@ -7,7 +7,9 @@ Format loosely inspired by Keep a Changelog. Dates use ISO 8601 (UTC).
 
 ### Planned
 - (none currently) – add new items here.
- 
+
+## [4.5.0-alpha.5] - 2025-10-07
+
 ### Infrastructure
 - Publish workflow now uses unified root `SpocR.runsettings` ensuring consistent timeout and blame configuration across CI jobs.
 
