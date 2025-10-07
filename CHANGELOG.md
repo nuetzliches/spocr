@@ -8,6 +8,10 @@ Format loosely inspired by Keep a Changelog. Dates use ISO 8601 (UTC).
 ### Planned
 - (none currently) – add new items here.
 
+### Infrastructure
+- Removed tag-push trigger from publish workflow (NuGet publish now only runs on GitHub Release or manual dispatch).
+- Further hardened CycloneDX SBOM step (explicit PATH export + direct binary fallback).
+
 ## [4.5.0-alpha.9] - 2025-10-07
 
 ### Notes

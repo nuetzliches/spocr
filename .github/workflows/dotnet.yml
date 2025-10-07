@@ -1,11 +1,8 @@
 name: Publish NuGet
 
 on:
-  push:
-    tags:
-      - "v*" # Build & pack only (no publish). Maintains tagging for versioning.
   release:
-    types: [published] # Only a published GitHub Release may trigger publish to NuGet
+    types: [published] # Only a published GitHub Release triggers publish now
   workflow_dispatch:
     inputs:
       dry-run:
@@ -73,11 +70,7 @@ jobs:
         run: |
           EVENT="${{ github.event_name }}"
           OVERRIDE="${{ inputs.override-version }}"
-          if [ "$EVENT" = "push" ]; then
-            RAW_TAG="${GITHUB_REF_NAME}"
-            VERSION="${RAW_TAG#v}"
-            echo "Push tag event: using $RAW_TAG -> version $VERSION"
-          elif [ "$EVENT" = "release" ]; then
+          if [ "$EVENT" = "release" ]; then
             RAW_TAG="${{ github.event.release.tag_name }}"
             VERSION="${RAW_TAG#v}"
             echo "Release event: using tag $RAW_TAG -> version $VERSION"
