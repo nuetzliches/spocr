@@ -7,6 +7,9 @@ Format loosely inspired by Keep a Changelog. Dates use ISO 8601 (UTC).
 
 ### Planned
 - (none currently) – add new items here.
+
+## [4.5.0-alpha.11] - 2025-10-07
+
 ### Infrastructure
 - SBOM Erzeugung: Wechsel von direktem Binary Aufruf `cyclonedx` (nicht vorhanden) zu korrektem `dotnet CycloneDX` Global Tool Invocation; vereinfacht Fallback-Logik und behebt `command not found` Fehler unter GitHub Actions.
 
