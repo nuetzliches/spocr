@@ -3,9 +3,9 @@ name: Publish NuGet
 on:
   push:
     tags:
-      - "v*"
+      - "v*" # Build & pack only (no publish). Maintains tagging for versioning.
   release:
-    types: [published]
+    types: [published] # Only a published GitHub Release may trigger publish to NuGet
   workflow_dispatch:
     inputs:
       dry-run:
@@ -138,25 +138,19 @@ jobs:
       - name: Evaluate Publish Conditions
         id: publish_gate
         run: |
-          DRY="${{ inputs['dry-run'] }}"
           EVENT="${{ github.event_name }}"
           ALREADY="${{ steps.nuget_exists.outputs.already }}"
-          if [ "$EVENT" = "workflow_dispatch" ] && [ "$DRY" = "true" ]; then
-            echo "will-publish=false" >> $GITHUB_OUTPUT
-            echo "Dry run (dispatch) -> no publish" 
-          elif [ "$ALREADY" = "true" ]; then
-            echo "will-publish=false" >> $GITHUB_OUTPUT
-            echo "Already on NuGet -> no publish"
-          elif [ "$EVENT" = "workflow_dispatch" ] && [ -n "${{ inputs.override-version }}" ]; then
-            echo "will-publish=false" >> $GITHUB_OUTPUT
-            echo "Override version in dispatch -> treat as dry run"
-          else
+          # Only publish when this is a GitHub Release (published) AND not already on NuGet
+          if [ "$EVENT" = "release" ] && [ "$ALREADY" != "true" ]; then
             echo "will-publish=true" >> $GITHUB_OUTPUT
-            echo "Eligible for publish (event=$EVENT)"
+            echo "Eligible for publish (GitHub Release event)"
+          else
+            echo "will-publish=false" >> $GITHUB_OUTPUT
+            echo "Skipping publish (event=$EVENT, already=$ALREADY)"
           fi
 
       - name: Pack
-        if: steps.publish_gate.outputs.will-publish == 'true'
+        # Always pack so artifacts are available for inspection even if not publishing
         run: |
           mkdir -p $ARTIFACTS_DIR/nuget
           dotnet pack $PROJECT_FILE \
@@ -168,15 +162,12 @@ jobs:
             -o $ARTIFACTS_DIR/nuget
 
       - name: Install CycloneDX tool
-        if: steps.publish_gate.outputs.will-publish == 'true'
         run: dotnet tool update --global CycloneDX || dotnet tool install --global CycloneDX
 
       - name: Ensure CycloneDX on PATH
-        if: steps.publish_gate.outputs.will-publish == 'true'
         run: echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
 
       - name: Generate SBOM (CycloneDX)
-        if: steps.publish_gate.outputs.will-publish == 'true'
         run: |
           mkdir -p $ARTIFACTS_DIR/sbom
           cyclonedx dotnet --project-file $PROJECT_FILE --out $ARTIFACTS_DIR/sbom --json
@@ -190,7 +181,6 @@ jobs:
             --skip-duplicate
 
       - name: Upload Artifacts (Package + SBOM)
-        if: steps.publish_gate.outputs.will-publish == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: nuget-package-and-sbom
