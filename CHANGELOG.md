@@ -8,6 +8,9 @@ Format loosely inspired by Keep a Changelog. Dates use ISO 8601 (UTC).
 ### Planned
 - (none currently) – add new items here.
 
+### Infrastructure
+- Fix: Hardened SBOM generation step (re-validates cyclonedx tool availability and reinstalls if missing to avoid intermittent 'command not found').
+
 ### Fixed
 - CI publish workflow: removed `--no-build` from test step to prevent invalid argument errors when stale test binaries were not present (ensures a reliable build before execution).
 

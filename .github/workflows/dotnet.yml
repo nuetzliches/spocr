@@ -165,11 +165,21 @@ jobs:
         run: dotnet tool update --global CycloneDX || dotnet tool install --global CycloneDX
 
       - name: Ensure CycloneDX on PATH
-        run: echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+        run: |
+          echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+          echo "Added dotnet tools dir to PATH via GITHUB_PATH"
 
       - name: Generate SBOM (CycloneDX)
         run: |
+          set -euo pipefail
           mkdir -p $ARTIFACTS_DIR/sbom
+          if ! command -v cyclonedx >/dev/null 2>&1; then
+            echo "cyclonedx cli not found on PATH; attempting re-install..." >&2
+            dotnet tool install --global CycloneDX
+            echo "$HOME/.dotnet/tools" >> $GITHUB_PATH
+            hash -r || true
+          fi
+          echo "Using cyclonedx version: $(cyclonedx --version || echo 'unknown')" >&2
           cyclonedx dotnet --project-file $PROJECT_FILE --out $ARTIFACTS_DIR/sbom --json
 
       - name: Push to NuGet
