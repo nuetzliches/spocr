@@ -107,12 +107,12 @@ src/
 
 ### Dependencies
 
-- **xUnit** - Primary test framework
-- **FluentAssertions** - Enhanced assertion syntax
-- **Testcontainers** - Docker-based SQL Server testing
-- **Microsoft.Extensions.Testing** - Dependency injection in tests
-- **Verify** - Snapshot testing for generated code
-- **BenchmarkDotNet** - Performance benchmarking
+- **xUnit** – Primary test framework for unit and integration tests
+- **Shouldly** – Human-readable assertions
+- **Testcontainers** – Docker-based SQL Server integration testing
+- **Microsoft.Extensions.Testing** – Dependency injection support in tests
+- **Verify** – Snapshot testing for generated code
+- **BenchmarkDotNet** – Performance benchmarking
 
 ### CI/CD Integration
 

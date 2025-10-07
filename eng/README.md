@@ -71,13 +71,13 @@ Intermittent hangs or timeouts can originate from blocking waits, background thr
 ### Configuration
 
 - `tests/xunit.runner.json`: Enables `diagnosticMessages` and flags tests running longer than `longRunningTestSeconds` (adjust as needed).
-- `tests/SpocR.runsettings`: Sets `TestSessionTimeout` and enables the VSTest blame collector for crash/hang diagnostics.
+- `SpocR.runsettings` (root): Sets `TestSessionTimeout` and enables the VSTest blame collector for crash/hang diagnostics.
 
 ### Recommended Commands
 
 Detect long runners:
 ```
-dotnet test tests/Tests.sln -c Release --settings tests/SpocR.runsettings
+dotnet test tests/Tests.sln -c Release --settings SpocR.runsettings
 ```
 
 Capture hang dump after 2 minutes:

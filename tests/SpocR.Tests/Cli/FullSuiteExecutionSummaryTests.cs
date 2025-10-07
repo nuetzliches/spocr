@@ -23,8 +23,8 @@ public class FullSuiteExecutionSummaryTests
             Console.WriteLine("[FullSuiteExecutionSummaryTests] Skipping full-suite meta test (set SPOCR_ENABLE_FULLSUITE_META=1 to enable).");
             return; // soft skip via return keeps output visible without marking test skipped (still counts as passed)
         }
-        var root = FindRepoRoot();
-        var summary = Path.Combine(root, ".artifacts", "test-summary.json");
+        var root = global::SpocR.TestFramework.TestPaths.RepoRoot;
+        var summary = global::SpocR.TestFramework.TestPaths.Artifacts("test-summary.json");
         if (File.Exists(summary)) File.Delete(summary);
 
         // Run full suite (no --validate) with a safety timeout to prevent indefinite hangs in CI
@@ -50,14 +50,5 @@ public class FullSuiteExecutionSummaryTests
         node["success"]!.GetValue<bool>().ShouldBeTrue();
     }
 
-    private static string FindRepoRoot()
-    {
-        var dir = Directory.GetCurrentDirectory();
-        while (dir is not null)
-        {
-            if (File.Exists(Path.Combine(dir, "src", "SpocR.csproj"))) return dir;
-            dir = Directory.GetParent(dir)?.FullName;
-        }
-        return Directory.GetCurrentDirectory();
-    }
+    // Path resolution now centralized in TestPaths helper
 }

@@ -20,8 +20,8 @@ public class FullSuiteJsonSummaryTests
             // Prevent recursive infinite spawning when CLI re-invokes dotnet test on this project.
             return;
         }
-        var root = FindRepoRoot();
-        var summary = Path.Combine(root, ".artifacts", "test-summary.json");
+        var root = global::SpocR.TestFramework.TestPaths.RepoRoot;
+        var summary = global::SpocR.TestFramework.TestPaths.Artifacts("test-summary.json");
         if (File.Exists(summary)) File.Delete(summary);
         var prevCwd = Directory.GetCurrentDirectory();
         Directory.SetCurrentDirectory(root); // ensure repository context for validation (looks for src/SpocR.csproj)
@@ -62,7 +62,7 @@ public class FullSuiteJsonSummaryTests
         if (total == 0)
         {
             // Capture diagnostics to aid troubleshooting instead of blind failure
-            var diagPath = Path.Combine(root, ".artifacts", "test-summary-zero-diagnostic.json");
+            var diagPath = global::SpocR.TestFramework.TestPaths.Artifacts("test-summary-zero-diagnostic.json");
             var diag = new JsonObject
             {
                 ["originalMode"] = modeFinal,
@@ -107,14 +107,5 @@ public class FullSuiteJsonSummaryTests
         }
     }
 
-    private static string FindRepoRoot()
-    {
-        var dir = Directory.GetCurrentDirectory();
-        while (dir is not null)
-        {
-            if (File.Exists(Path.Combine(dir, "src", "SpocR.csproj"))) return dir;
-            dir = Directory.GetParent(dir)?.FullName;
-        }
-        return Directory.GetCurrentDirectory();
-    }
+    // Path resolution now centralized in TestPaths helper
 }

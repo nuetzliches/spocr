@@ -14,10 +14,10 @@ public class TestCommandSummaryTests
     [Fact]
     public async Task CiValidate_Should_Write_TestSummaryJson()
     {
-        var root = FindRepoRoot();
+        var root = global::SpocR.TestFramework.TestPaths.RepoRoot;
         var project = Path.Combine(root, "src", "SpocR.csproj");
         File.Exists(project).ShouldBeTrue();
-        var summaryPath = Path.Combine(root, ".artifacts", "test-summary.json");
+        var summaryPath = global::SpocR.TestFramework.TestPaths.Artifacts("test-summary.json");
         if (File.Exists(summaryPath)) File.Delete(summaryPath);
 
         var startInfo = new ProcessStartInfo("dotnet", $"run --framework net8.0 --project \"{project}\" -- test --validate --ci")
@@ -44,14 +44,5 @@ public class TestCommandSummaryTests
         await Task.CompletedTask;
     }
 
-    private static string FindRepoRoot()
-    {
-        var dir = Directory.GetCurrentDirectory();
-        while (dir is not null)
-        {
-            if (File.Exists(Path.Combine(dir, "src", "SpocR.csproj"))) return dir;
-            dir = Directory.GetParent(dir)?.FullName;
-        }
-        return Directory.GetCurrentDirectory();
-    }
+    // Path resolution centralized via TestPaths
 }
