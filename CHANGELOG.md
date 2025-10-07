@@ -8,6 +8,11 @@ Format loosely inspired by Keep a Changelog. Dates use ISO 8601 (UTC).
 ### Planned
 - (none currently) – add new items here.
 
+## [4.5.0-alpha.9] - 2025-10-07
+
+### Notes
+- No functional changes since 4.5.0-alpha.8 (administrative tag only).
+
 ## [4.5.0-alpha.8] - 2025-10-07
 
 ### Infrastructure
