@@ -8,6 +8,15 @@ Format loosely inspired by Keep a Changelog. Dates use ISO 8601 (UTC).
 ### Planned
 - (none currently) – add new items here.
 
+## [4.5.0-alpha.4] - 2025-10-07
+
+### Fixed
+- CI publish workflow: removed `--no-build` from test step to prevent invalid argument errors when stale test binaries were not present (ensures a reliable build before execution).
+
+### Infrastructure
+- Consolidated test artifacts under unified `.artifacts/` root with robust root detection helper (`TestPaths`).
+- Added root-level `SpocR.runsettings` (session timeout, blame collector) replacing per-test location.
+
 ## [4.5.0-alpha.3] - 2025-10-07
 
 ### Changed
