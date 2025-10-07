@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using SpocR.TestFramework;
 using Xunit;
 
@@ -16,8 +16,8 @@ public class BasicIntegrationTests : SpocRTestBase
         var connectionString = GetTestConnectionString();
 
         // Assert
-        connectionString.Should().NotBeNullOrEmpty();
-        connectionString.Should().Contain("SpocRTest");
+        connectionString.ShouldNotBeNull();
+        connectionString.ShouldContain("SpocRTest");
     }
 
     [Fact]
@@ -30,8 +30,8 @@ public class BasicIntegrationTests : SpocRTestBase
         var isValid = SpocRValidator.ValidateGeneratedCodeSyntax(emptyCode, out var errors);
 
         // Assert
-        isValid.Should().BeFalse();
-        errors.Should().NotBeEmpty();
-        errors.Should().Contain("Generated code is empty or null");
+        isValid.ShouldBeFalse();
+        errors.ShouldNotBeEmpty();
+        errors.ShouldContain("Generated code is empty or null");
     }
 }

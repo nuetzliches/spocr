@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <RunConfiguration>
+    <!-- Abort run if it exceeds (ms). Adjust if CI agents are slower -->
+    <TestSessionTimeout>600000</TestSessionTimeout>
+    <ResultsDirectory>.artifacts/TestResults</ResultsDirectory>
+  </RunConfiguration>
+  <RunConfiguration>
+  </RunConfiguration>
+  <LoggerRunSettings>
+    <Loggers>
+      <Logger friendlyName="trx" />
+    </Loggers>
+  </LoggerRunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <!-- Collect hang dumps if a timeout occurs -->
+      <DataCollector friendlyName="blame" enabled="True">
+        <Configuration>
+          <CollectDump AlwaysCollect="false" CollectAlways="false" />
+          <ResultsFormat>xml</ResultsFormat>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>

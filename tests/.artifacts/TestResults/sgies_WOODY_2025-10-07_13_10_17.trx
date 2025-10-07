@@ -1,0 +1,301 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="24f080b2-7c1c-4ccf-b622-99bcf0cb9d66" name="sgies@WOODY 2025-10-07 13:10:17" runUser="WOODY\sgies" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2025-10-07T13:10:17.1694453+02:00" queuing="2025-10-07T13:10:17.1694455+02:00" start="2025-10-07T13:10:16.5085346+02:00" finish="2025-10-07T13:10:25.3361044+02:00" />
+  <TestSettings name="default" id="40e38076-3fbc-4317-8678-1de031d73b3e">
+    <Deployment runDeploymentRoot="sgies_WOODY_2025-10-07_13_10_17" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="31d52585-5772-4090-89b4-3325d1b6e271" testId="8aa13eea-74a9-2da4-799a-2901dfcced67" testName="SpocR.Tests.Cli.HeuristicAndCacheTests.Caching_Skips_Unchanged_Definition_Load" computerName="WOODY" duration="00:00:00.0586049" startTime="2025-10-07T13:10:17.1365478+02:00" endTime="2025-10-07T13:10:17.1880407+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="31d52585-5772-4090-89b4-3325d1b6e271" />
+    <UnitTestResult executionId="e5b00ac1-7c98-4857-9acd-1710253b7e44" testId="bacb3668-e872-60bf-f20c-f38299f4a2c1" testName="SpocR.Tests.VersionExtensionsTests.Compare_Should_Work_On_First_3_Parts(left: &quot;1.0.1&quot;, right: &quot;1.0.0&quot;, expectedSign: 1)" computerName="WOODY" duration="00:00:00.0000026" startTime="2025-10-07T13:10:17.1634076+02:00" endTime="2025-10-07T13:10:17.1634708+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e5b00ac1-7c98-4857-9acd-1710253b7e44" />
+    <UnitTestResult executionId="2a412dca-d580-4f57-aa07-47764a580c73" testId="54e27e23-77a3-3bf2-0b73-ca15f455dfed" testName="SpocR.Tests.CodeGeneration.ModelGeneratorMultiResultSetTests.Generates_Multiple_Result_Set_Models_With_Suffixes" computerName="WOODY" duration="00:00:00.0918900" startTime="2025-10-07T13:10:17.1358203+02:00" endTime="2025-10-07T13:10:17.1989271+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="2a412dca-d580-4f57-aa07-47764a580c73" />
+    <UnitTestResult executionId="16300467-20b9-48ff-9c0d-73da0fb9dc7b" testId="f4a765a6-c9c1-87ed-d242-099e8b68ea36" testName="SpocR.Tests.Cli.StoredProcedureListTests.Schema_Not_Found_Returns_Empty_Array" computerName="WOODY" duration="00:00:00.0006072" startTime="2025-10-07T13:10:17.1867208+02:00" endTime="2025-10-07T13:10:17.1867501+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="16300467-20b9-48ff-9c0d-73da0fb9dc7b" />
+    <UnitTestResult executionId="31cb08f1-f859-4186-93fe-560ccea41971" testId="bbe016f2-c985-a967-63a3-28c53ae8982f" testName="SpocR.Tests.VersionExtensionsTests.IsLessThan_Should_Return_True_When_Left_Is_Older" computerName="WOODY" duration="00:00:00.0000808" startTime="2025-10-07T13:10:17.1795885+02:00" endTime="2025-10-07T13:10:17.1812627+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="31cb08f1-f859-4186-93fe-560ccea41971" />
+    <UnitTestResult executionId="ed3244ab-8225-4ec6-a32c-106ee87a1edf" testId="ccd4bbdb-4e2e-0b84-54eb-71b690067dd2" testName="SpocR.Tests.StringExtensionsTests.ToPascalCase_Works(input: &quot;spocr generate command&quot;, expected: &quot;SpocrGenerateCommand&quot;)" computerName="WOODY" duration="00:00:00.0000050" startTime="2025-10-07T13:10:17.1771034+02:00" endTime="2025-10-07T13:10:17.1771423+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="ed3244ab-8225-4ec6-a32c-106ee87a1edf" />
+    <UnitTestResult executionId="8cb3f571-6047-462c-8a4f-ea9d1aad2784" testId="4b10f895-d52f-1024-073d-9c5db214bf2d" testName="SpocR.Tests.CodeGeneration.StoredProcedureGeneratorJsonTests.Generates_Only_Raw_For_NonJson" computerName="WOODY" duration="00:00:00.0017865" startTime="2025-10-07T13:10:17.2355002+02:00" endTime="2025-10-07T13:10:17.2362017+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="8cb3f571-6047-462c-8a4f-ea9d1aad2784" />
+    <UnitTestResult executionId="f40f62aa-03db-4e9f-ba84-99f9bc59fbde" testId="fc622026-4829-25ac-689b-8d48120a17f3" testName="SpocR.Tests.Cli.SkipUpdateTests.EnvVar_Skips_Update_Check" computerName="WOODY" duration="00:00:00.0360479" startTime="2025-10-07T13:10:17.1358347+02:00" endTime="2025-10-07T13:10:17.1853981+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="f40f62aa-03db-4e9f-ba84-99f9bc59fbde" />
+    <UnitTestResult executionId="3d07974a-66e3-4614-bd3b-d5695dd56e2c" testId="83b97a31-3ea9-fb05-5592-715f3964fd2b" testName="SpocR.Tests.VersionExtensionsTests.Equals_Should_Ignore_Revision_Component" computerName="WOODY" duration="00:00:00.0002629" startTime="2025-10-07T13:10:17.1646074+02:00" endTime="2025-10-07T13:10:17.1732425+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="3d07974a-66e3-4614-bd3b-d5695dd56e2c" />
+    <UnitTestResult executionId="f2ac2229-0ebd-4c41-8b01-a59ca314bff2" testId="0ce4aedd-c57b-4e35-70bf-ca3db5c25084" testName="SpocR.Tests.StringExtensionsTests.FirstCharToLower_Works(input: &quot;Hello&quot;, expected: &quot;hello&quot;)" computerName="WOODY" duration="00:00:00.0000314" startTime="2025-10-07T13:10:17.1599063+02:00" endTime="2025-10-07T13:10:17.1610507+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="f2ac2229-0ebd-4c41-8b01-a59ca314bff2" />
+    <UnitTestResult executionId="47be9d00-bb36-4762-832a-a1227c680ac9" testId="4bfe9218-fd5b-2175-67f4-aefb242cb1e5" testName="SpocR.Tests.StringExtensionsTests.ToPascalCase_Works(input: &quot;some_value&quot;, expected: &quot;Some_value&quot;)" computerName="WOODY" duration="00:00:00.0000801" startTime="2025-10-07T13:10:17.1731888+02:00" endTime="2025-10-07T13:10:17.1743399+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="47be9d00-bb36-4762-832a-a1227c680ac9" />
+    <UnitTestResult executionId="40c0941d-efc2-4b9c-8761-9a625be963ed" testId="61bfa95a-b7bc-118f-15c5-1fbf580fdfb6" testName="SpocR.Tests.Cli.JsonParserV5InferenceTests.Cast_Target_Type_Should_Be_Assigned" computerName="WOODY" duration="00:00:00.0587015" startTime="2025-10-07T13:10:17.1358879+02:00" endTime="2025-10-07T13:10:17.1890585+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="40c0941d-efc2-4b9c-8761-9a625be963ed" />
+    <UnitTestResult executionId="4bdaa9b9-0577-4c47-8f49-277ca8aa1238" testId="b41531c6-90a7-6477-2545-450ac00f98ca" testName="SpocR.Tests.Versioning.VersionStabilityTests.Build_Twice_ShouldProduceSameAssemblyVersion_WhenNoTagChanges" computerName="WOODY" duration="00:00:02.0174508" startTime="2025-10-07T13:10:23.2691206+02:00" endTime="2025-10-07T13:10:25.2836850+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="4bdaa9b9-0577-4c47-8f49-277ca8aa1238" />
+    <UnitTestResult executionId="3aa13fe3-361d-4bf2-9243-60c195b7ada6" testId="3397ddfa-adaf-0155-6729-62e2656d6ea7" testName="SpocR.Tests.StringExtensionsTests.ToPascalCase_Works(input: &quot;some value&quot;, expected: &quot;SomeValue&quot;)" computerName="WOODY" duration="00:00:00.0000026" startTime="2025-10-07T13:10:17.1795762+02:00" endTime="2025-10-07T13:10:17.1796274+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="3aa13fe3-361d-4bf2-9243-60c195b7ada6" />
+    <UnitTestResult executionId="67f2f2ca-01ab-4893-bdc6-a577d7959cb0" testId="e2eb0536-8644-e9b0-6a31-5826c65f544a" testName="SpocR.Tests.CodeGeneration.StoredProcedureGeneratorJsonTests.Generates_Raw_And_Deserialize_For_Json_Array" computerName="WOODY" duration="00:00:00.1219764" startTime="2025-10-07T13:10:17.1349404+02:00" endTime="2025-10-07T13:10:17.2278162+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="67f2f2ca-01ab-4893-bdc6-a577d7959cb0" />
+    <UnitTestResult executionId="5d121d08-8dfd-4b29-9d2f-ea6776538c1a" testId="2fb4d325-f06a-b874-ed38-9180caa3966c" testName="SpocR.Tests.CodeGeneration.ModelGeneratorJsonEmptyModelTests.Generates_Xml_Doc_For_Empty_Json_Model" computerName="WOODY" duration="00:00:00.0824135" startTime="2025-10-07T13:10:17.1357718+02:00" endTime="2025-10-07T13:10:17.1923168+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="5d121d08-8dfd-4b29-9d2f-ea6776538c1a" />
+    <UnitTestResult executionId="b4b805c2-4906-4a13-9535-b362468da561" testId="06a02a93-20c5-fddc-e17e-66032bfc8fb7" testName="SpocR.Tests.Cli.JsonParserSelectStarTests.ForJson_WithSelectStar_SetsHasSelectStarTrueAndNoColumns" computerName="WOODY" duration="00:00:00.0009075" startTime="2025-10-07T13:10:17.1879992+02:00" endTime="2025-10-07T13:10:17.1880253+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="b4b805c2-4906-4a13-9535-b362468da561" />
+    <UnitTestResult executionId="f259c8b4-4eea-40d0-a002-47de9a836119" testId="18604c25-f454-22fb-3c22-192b085f8fa2" testName="SpocR.Tests.StringExtensionsTests.FirstCharToUpper_Works(input: &quot;hello&quot;, expected: &quot;Hello&quot;)" computerName="WOODY" duration="00:00:00.0001071" startTime="2025-10-07T13:10:17.1812345+02:00" endTime="2025-10-07T13:10:17.1820916+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="f259c8b4-4eea-40d0-a002-47de9a836119" />
+    <UnitTestResult executionId="dfcb03f0-1018-433a-8891-edecc8395686" testId="92a7fcb9-fd96-3c60-dd27-7ae8f78b2955" testName="SpocR.Tests.StringExtensionsTests.ToPascalCase_Works(input: &quot;some.value&quot;, expected: &quot;SomeValue&quot;)" computerName="WOODY" duration="00:00:00.0002215" startTime="2025-10-07T13:10:17.1634245+02:00" endTime="2025-10-07T13:10:17.1646564+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="dfcb03f0-1018-433a-8891-edecc8395686" />
+    <UnitTestResult executionId="5e3faae8-830b-4419-86e8-890da5a35a0a" testId="ee109950-b706-c268-4f17-60f4142f6bf0" testName="SpocR.Tests.StringExtensionsTests.ToPascalCase_Works(input: &quot;__alreadyPascal&quot;, expected: &quot;__alreadyPascal&quot;)" computerName="WOODY" duration="00:00:00.0000033" startTime="2025-10-07T13:10:17.1784139+02:00" endTime="2025-10-07T13:10:17.1788248+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="5e3faae8-830b-4419-86e8-890da5a35a0a" />
+    <UnitTestResult executionId="cb86f373-7f1c-4eba-8b30-0e7a47e33c88" testId="a2bbdb73-4296-02f1-6508-f29c9db8ff8a" testName="SpocR.Tests.StringExtensionsTests.FirstCharToUpper_Works(input: &quot;&quot;, expected: &quot;&quot;)" computerName="WOODY" duration="00:00:00.0000887" startTime="2025-10-07T13:10:17.1830337+02:00" endTime="2025-10-07T13:10:17.1830606+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="cb86f373-7f1c-4eba-8b30-0e7a47e33c88" />
+    <UnitTestResult executionId="2619f59a-7aa7-430d-bbe1-1c55a939fc82" testId="9012aed6-d062-f70f-8c52-c6eb9b56b5ef" testName="SpocR.Tests.Cli.ExecAppendNormalizationTests.ProcedureWithOwnJsonAndExec_AppendsExecutedProcResultSets" computerName="WOODY" duration="00:00:00.0674250" startTime="2025-10-07T13:10:17.1365845+02:00" endTime="2025-10-07T13:10:17.1904229+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="2619f59a-7aa7-430d-bbe1-1c55a939fc82" />
+    <UnitTestResult executionId="e79bd500-fe0c-411e-b36d-02535b2e333f" testId="69092e1a-47bd-364b-94b1-62e5fce0fb2e" testName="SpocR.Tests.VersionExtensionsTests.Compare_Should_Work_On_First_3_Parts(left: &quot;2.0.0&quot;, right: &quot;2.1.0&quot;, expectedSign: -1)" computerName="WOODY" duration="00:00:00.0001702" startTime="2025-10-07T13:10:17.1511371+02:00" endTime="2025-10-07T13:10:17.1599453+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="e79bd500-fe0c-411e-b36d-02535b2e333f" />
+    <UnitTestResult executionId="8cba8aff-6ef7-4d04-a8db-5d9b7d0399c9" testId="3770c957-5a49-2af5-37b4-087b1bc86866" testName="SpocR.Tests.Infrastructure.ExitCodesTests.ExitCodeValues_ShouldMatchDocumentation" computerName="WOODY" duration="00:00:00.0062616" startTime="2025-10-07T13:10:17.1365675+02:00" endTime="2025-10-07T13:10:17.1375602+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="8cba8aff-6ef7-4d04-a8db-5d9b7d0399c9" />
+    <UnitTestResult executionId="6a6f4cfe-0ae7-42a8-a129-d63237e8a625" testId="14217d24-bad4-b961-96a3-fc1d927b4ca8" testName="SpocR.Tests.StringExtensionsTests.FirstCharToUpper_Works(input: null, expected: null)" computerName="WOODY" duration="00:00:00.0000029" startTime="2025-10-07T13:10:17.1841757+02:00" endTime="2025-10-07T13:10:17.1842016+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="6a6f4cfe-0ae7-42a8-a129-d63237e8a625" />
+    <UnitTestResult executionId="271c6fa0-2af0-4287-bac9-aef0a88211af" testId="f03e3ae9-c73e-8bc9-d2c8-98a5d6052f22" testName="SpocR.Tests.VersionExtensionsTests.Compare_Should_Work_On_First_3_Parts(left: &quot;1.0.0&quot;, right: &quot;1.0.0&quot;, expectedSign: 0)" computerName="WOODY" duration="00:00:00.0062549" startTime="2025-10-07T13:10:17.1357351+02:00" endTime="2025-10-07T13:10:17.1397273+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="271c6fa0-2af0-4287-bac9-aef0a88211af" />
+    <UnitTestResult executionId="160f3a29-4246-48d1-a5d2-8b061b3c52bd" testId="dd881a9b-e1cd-7eab-f579-a9dab9e17c3b" testName="SpocR.Tests.StringExtensionsTests.ToPascalCase_Works(input: &quot;some-value&quot;, expected: &quot;SomeValue&quot;)" computerName="WOODY" duration="00:00:00.0000020" startTime="2025-10-07T13:10:17.1803804+02:00" endTime="2025-10-07T13:10:17.1804064+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="160f3a29-4246-48d1-a5d2-8b061b3c52bd" />
+    <UnitTestResult executionId="2cdf49ab-ede0-4a11-9cbd-d364e6e093d9" testId="7e71660c-171e-6dc0-a3d9-a4801da95574" testName="SpocR.Tests.Cli.StoredProcedureListTests.List_Returns_Procedures_As_Json_Array" computerName="WOODY" duration="00:00:00.0445367" startTime="2025-10-07T13:10:17.1358517+02:00" endTime="2025-10-07T13:10:17.1858547+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="2cdf49ab-ede0-4a11-9cbd-d364e6e093d9" />
+    <UnitTestResult executionId="6c89a4ea-3c84-419b-86e3-b8bb3a069c6b" testId="76928d9a-8d02-6f2f-edc6-a9e3bfc149cf" testName="SpocR.Tests.Infrastructure.ExitCodesTests.ExitCodes_ShouldBeUnique" computerName="WOODY" duration="00:00:00.0015068" startTime="2025-10-07T13:10:17.1585532+02:00" endTime="2025-10-07T13:10:17.1849306+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="6c89a4ea-3c84-419b-86e3-b8bb3a069c6b" />
+    <UnitTestResult executionId="beb330e3-8ea1-43dc-a3e4-0d492090b64f" testId="de06310c-12e3-3ab3-c21f-e512eb124502" testName="SpocR.Tests.Cli.JsonParserV5InferenceTests.JsonQuery_Function_Should_Set_NvarcharMax_And_Nullable" computerName="WOODY" duration="00:00:00.0027710" startTime="2025-10-07T13:10:17.1918429+02:00" endTime="2025-10-07T13:10:17.1918687+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="beb330e3-8ea1-43dc-a3e4-0d492090b64f" />
+    <UnitTestResult executionId="643dbe3c-4a07-4e21-abe7-42be253cd76e" testId="d9cf9315-c5e1-56b0-3017-b933246b67f5" testName="SpocR.Tests.StringExtensionsTests.FirstCharToLower_Works(input: &quot;&quot;, expected: &quot;&quot;)" computerName="WOODY" duration="00:00:00.0080714" startTime="2025-10-07T13:10:17.1358708+02:00" endTime="2025-10-07T13:10:17.1511967+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="643dbe3c-4a07-4e21-abe7-42be253cd76e" />
+    <UnitTestResult executionId="a454ce94-8289-4292-9d41-a4eac4958a81" testId="972e4b70-45c8-af01-3e2d-c4ec707fc4bc" testName="SpocR.Tests.Cli.JsonParserSelectStarTests.ForJson_WithExplicitAndStar_SetsFlagAndKeepsExplicitColumn" computerName="WOODY" duration="00:00:00.0576879" startTime="2025-10-07T13:10:17.1357904+02:00" endTime="2025-10-07T13:10:17.1871954+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="a454ce94-8289-4292-9d41-a4eac4958a81" />
+    <UnitTestResult executionId="2067bb72-a6a5-4da2-a593-caced1988a78" testId="9d78bb61-69f2-8609-4581-bb08b9a82eae" testName="SpocR.Tests.SimpleTest.SimpleAssertion_ShouldWork" computerName="WOODY" duration="00:00:00.0080775" startTime="2025-10-07T13:10:17.1359057+02:00" endTime="2025-10-07T13:10:17.1523710+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="2067bb72-a6a5-4da2-a593-caced1988a78" />
+    <UnitTestResult executionId="59068ea5-70e8-43f2-a921-faca1845e85c" testId="91d4f3a6-3e74-068e-1531-235897e85a9e" testName="SpocR.Tests.Cli.TestCommandSummaryTests.CiValidate_Should_Write_TestSummaryJson" computerName="WOODY" duration="00:00:01.3859493" startTime="2025-10-07T13:10:17.2374522+02:00" endTime="2025-10-07T13:10:18.6226961+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="59068ea5-70e8-43f2-a921-faca1845e85c" />
+    <UnitTestResult executionId="81ba76ec-560f-4dd8-9b41-64f3d910c8e3" testId="b0c7c10e-5dc7-f793-2f0a-dd0a9c6f5a2c" testName="SpocR.Tests.VersionExtensionsTests.IsGreaterThan_Should_Return_True_When_Left_Is_Newer" computerName="WOODY" duration="00:00:00.0000827" startTime="2025-10-07T13:10:17.1743085+02:00" endTime="2025-10-07T13:10:17.1779889+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="81ba76ec-560f-4dd8-9b41-64f3d910c8e3" />
+    <UnitTestResult executionId="78805baa-dd02-4615-8a6f-1f8be33e9fcb" testId="8a0d999a-0aac-c38a-7d4b-1e873169211e" testName="SpocR.Tests.VersionExtensionsTests.Compare_Should_Work_On_First_3_Parts(left: &quot;1.1.0&quot;, right: &quot;1.0.5&quot;, expectedSign: 1)" computerName="WOODY" duration="00:00:00.0000051" startTime="2025-10-07T13:10:17.1610255+02:00" endTime="2025-10-07T13:10:17.1617303+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="78805baa-dd02-4615-8a6f-1f8be33e9fcb" />
+    <UnitTestResult executionId="ef4b33de-73ea-4e58-8f4a-0ee9a5b78c90" testId="76cc152d-9128-1a77-d630-bb4717854660" testName="SpocR.Tests.StringExtensionsTests.FirstCharToLower_Works(input: null, expected: null)" computerName="WOODY" duration="00:00:00.0000865" startTime="2025-10-07T13:10:17.1531967+02:00" endTime="2025-10-07T13:10:17.1586128+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="ef4b33de-73ea-4e58-8f4a-0ee9a5b78c90" />
+    <UnitTestResult executionId="f9265630-6429-45a2-bb14-5470885e525c" testId="9694ec65-e232-bb06-9f31-934f3f716ced" testName="SpocR.Tests.CodeGeneration.StoredProcedureGeneratorJsonTests.Generates_Raw_And_Deserialize_For_Json_Single" computerName="WOODY" duration="00:00:00.0065385" startTime="2025-10-07T13:10:17.2290899+02:00" endTime="2025-10-07T13:10:17.2343972+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="f9265630-6429-45a2-bb14-5470885e525c" />
+    <UnitTestResult executionId="51cb151c-f8a3-452e-9c38-7b6201357eb7" testId="399e7843-362c-cc59-026d-0c8a5af954f5" testName="SpocR.Tests.Cli.JsonParserV5InferenceTests.LeftJoin_Second_Table_Should_Force_Nullability" computerName="WOODY" duration="00:00:00.0105594" startTime="2025-10-07T13:10:17.1903914+02:00" endTime="2025-10-07T13:10:17.1908697+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="51cb151c-f8a3-452e-9c38-7b6201357eb7" />
+    <UnitTestResult executionId="ba1a7b54-e090-4c88-a6bc-dd82413ceff9" testId="2b4d05b9-1745-e198-d25e-ffa5903aaba4" testName="SpocR.Tests.StringExtensionsTests.ToPascalCase_Works(input: &quot;123abc&quot;, expected: &quot;_123abc&quot;)" computerName="WOODY" duration="00:00:00.0000131" startTime="2025-10-07T13:10:17.1759739+02:00" endTime="2025-10-07T13:10:17.1760159+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="ba1a7b54-e090-4c88-a6bc-dd82413ceff9" />
+    <UnitTestResult executionId="9846e603-199f-4db8-b013-018cb7179156" testId="252ff013-7a23-afcd-436c-79dde7617bea" testName="SpocR.Tests.Cli.FullSuiteExecutionSummaryTests.FullSuite_Should_Write_Counters" computerName="WOODY" duration="00:00:00.0004658" startTime="2025-10-07T13:10:23.2679218+02:00" endTime="2025-10-07T13:10:23.2679972+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="9846e603-199f-4db8-b013-018cb7179156" />
+    <UnitTestResult executionId="5ae0db5a-a484-42e7-9ea2-1862d02cc547" testId="4db3a0a8-ece1-dd11-e239-b64cdfcc07eb" testName="SpocR.Tests.CodeGeneration.StoredProcedureGeneratorSnapshotTests.Snapshot_Raw_And_Deserialize_Pattern" computerName="WOODY" duration="00:00:00.1269021" startTime="2025-10-07T13:10:17.1358079+02:00" endTime="2025-10-07T13:10:17.2326800+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="5ae0db5a-a484-42e7-9ea2-1862d02cc547" />
+    <UnitTestResult executionId="43ba6467-3fe6-4cc0-a35a-0a0729c81625" testId="05e71bc8-d68d-b61c-7bba-2d4aefd8b274" testName="SpocR.Tests.Cli.FullSuiteJsonSummaryTests.FullSuite_Should_Populate_Test_Counters" computerName="WOODY" duration="00:00:04.6419553" startTime="2025-10-07T13:10:18.6366599+02:00" endTime="2025-10-07T13:10:23.2653299+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Passed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="43ba6467-3fe6-4cc0-a35a-0a0729c81625" />
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="SpocR.Tests.StringExtensionsTests.FirstCharToUpper_Works(input: &quot;&quot;, expected: &quot;&quot;)" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="a2bbdb73-4296-02f1-6508-f29c9db8ff8a">
+      <Execution id="cb86f373-7f1c-4eba-8b30-0e7a47e33c88" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.StringExtensionsTests" name="FirstCharToUpper_Works" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.Cli.FullSuiteExecutionSummaryTests.FullSuite_Should_Write_Counters" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="252ff013-7a23-afcd-436c-79dde7617bea">
+      <Execution id="9846e603-199f-4db8-b013-018cb7179156" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.Cli.FullSuiteExecutionSummaryTests" name="FullSuite_Should_Write_Counters" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.Cli.TestCommandSummaryTests.CiValidate_Should_Write_TestSummaryJson" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="91d4f3a6-3e74-068e-1531-235897e85a9e">
+      <Execution id="59068ea5-70e8-43f2-a921-faca1845e85c" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.Cli.TestCommandSummaryTests" name="CiValidate_Should_Write_TestSummaryJson" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.StringExtensionsTests.ToPascalCase_Works(input: &quot;__alreadyPascal&quot;, expected: &quot;__alreadyPascal&quot;)" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="ee109950-b706-c268-4f17-60f4142f6bf0">
+      <Execution id="5e3faae8-830b-4419-86e8-890da5a35a0a" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.StringExtensionsTests" name="ToPascalCase_Works" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.CodeGeneration.StoredProcedureGeneratorSnapshotTests.Snapshot_Raw_And_Deserialize_Pattern" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="4db3a0a8-ece1-dd11-e239-b64cdfcc07eb">
+      <Execution id="5ae0db5a-a484-42e7-9ea2-1862d02cc547" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.CodeGeneration.StoredProcedureGeneratorSnapshotTests" name="Snapshot_Raw_And_Deserialize_Pattern" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.VersionExtensionsTests.Equals_Should_Ignore_Revision_Component" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="83b97a31-3ea9-fb05-5592-715f3964fd2b">
+      <Execution id="3d07974a-66e3-4614-bd3b-d5695dd56e2c" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.VersionExtensionsTests" name="Equals_Should_Ignore_Revision_Component" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.StringExtensionsTests.FirstCharToLower_Works(input: &quot;Hello&quot;, expected: &quot;hello&quot;)" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="0ce4aedd-c57b-4e35-70bf-ca3db5c25084">
+      <Execution id="f2ac2229-0ebd-4c41-8b01-a59ca314bff2" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.StringExtensionsTests" name="FirstCharToLower_Works" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.StringExtensionsTests.FirstCharToUpper_Works(input: null, expected: null)" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="14217d24-bad4-b961-96a3-fc1d927b4ca8">
+      <Execution id="6a6f4cfe-0ae7-42a8-a129-d63237e8a625" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.StringExtensionsTests" name="FirstCharToUpper_Works" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.StringExtensionsTests.ToPascalCase_Works(input: &quot;some.value&quot;, expected: &quot;SomeValue&quot;)" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="92a7fcb9-fd96-3c60-dd27-7ae8f78b2955">
+      <Execution id="dfcb03f0-1018-433a-8891-edecc8395686" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.StringExtensionsTests" name="ToPascalCase_Works" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.Cli.StoredProcedureListTests.List_Returns_Procedures_As_Json_Array" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="7e71660c-171e-6dc0-a3d9-a4801da95574">
+      <Execution id="2cdf49ab-ede0-4a11-9cbd-d364e6e093d9" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.Cli.StoredProcedureListTests" name="List_Returns_Procedures_As_Json_Array" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.SimpleTest.SimpleAssertion_ShouldWork" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="9d78bb61-69f2-8609-4581-bb08b9a82eae">
+      <Execution id="2067bb72-a6a5-4da2-a593-caced1988a78" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.SimpleTest" name="SimpleAssertion_ShouldWork" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.VersionExtensionsTests.IsGreaterThan_Should_Return_True_When_Left_Is_Newer" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="b0c7c10e-5dc7-f793-2f0a-dd0a9c6f5a2c">
+      <Execution id="81ba76ec-560f-4dd8-9b41-64f3d910c8e3" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.VersionExtensionsTests" name="IsGreaterThan_Should_Return_True_When_Left_Is_Newer" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.Infrastructure.ExitCodesTests.ExitCodeValues_ShouldMatchDocumentation" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="3770c957-5a49-2af5-37b4-087b1bc86866">
+      <Execution id="8cba8aff-6ef7-4d04-a8db-5d9b7d0399c9" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.Infrastructure.ExitCodesTests" name="ExitCodeValues_ShouldMatchDocumentation" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.VersionExtensionsTests.Compare_Should_Work_On_First_3_Parts(left: &quot;1.0.1&quot;, right: &quot;1.0.0&quot;, expectedSign: 1)" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="bacb3668-e872-60bf-f20c-f38299f4a2c1">
+      <Execution id="e5b00ac1-7c98-4857-9acd-1710253b7e44" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.VersionExtensionsTests" name="Compare_Should_Work_On_First_3_Parts" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.CodeGeneration.StoredProcedureGeneratorJsonTests.Generates_Raw_And_Deserialize_For_Json_Array" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="e2eb0536-8644-e9b0-6a31-5826c65f544a">
+      <Execution id="67f2f2ca-01ab-4893-bdc6-a577d7959cb0" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.CodeGeneration.StoredProcedureGeneratorJsonTests" name="Generates_Raw_And_Deserialize_For_Json_Array" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.Cli.StoredProcedureListTests.Schema_Not_Found_Returns_Empty_Array" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="f4a765a6-c9c1-87ed-d242-099e8b68ea36">
+      <Execution id="16300467-20b9-48ff-9c0d-73da0fb9dc7b" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.Cli.StoredProcedureListTests" name="Schema_Not_Found_Returns_Empty_Array" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.VersionExtensionsTests.Compare_Should_Work_On_First_3_Parts(left: &quot;2.0.0&quot;, right: &quot;2.1.0&quot;, expectedSign: -1)" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="69092e1a-47bd-364b-94b1-62e5fce0fb2e">
+      <Execution id="e79bd500-fe0c-411e-b36d-02535b2e333f" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.VersionExtensionsTests" name="Compare_Should_Work_On_First_3_Parts" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.Cli.JsonParserSelectStarTests.ForJson_WithSelectStar_SetsHasSelectStarTrueAndNoColumns" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="06a02a93-20c5-fddc-e17e-66032bfc8fb7">
+      <Execution id="b4b805c2-4906-4a13-9535-b362468da561" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.Cli.JsonParserSelectStarTests" name="ForJson_WithSelectStar_SetsHasSelectStarTrueAndNoColumns" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.StringExtensionsTests.FirstCharToUpper_Works(input: &quot;hello&quot;, expected: &quot;Hello&quot;)" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="18604c25-f454-22fb-3c22-192b085f8fa2">
+      <Execution id="f259c8b4-4eea-40d0-a002-47de9a836119" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.StringExtensionsTests" name="FirstCharToUpper_Works" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.StringExtensionsTests.ToPascalCase_Works(input: &quot;some value&quot;, expected: &quot;SomeValue&quot;)" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="3397ddfa-adaf-0155-6729-62e2656d6ea7">
+      <Execution id="3aa13fe3-361d-4bf2-9243-60c195b7ada6" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.StringExtensionsTests" name="ToPascalCase_Works" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.StringExtensionsTests.FirstCharToLower_Works(input: &quot;&quot;, expected: &quot;&quot;)" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="d9cf9315-c5e1-56b0-3017-b933246b67f5">
+      <Execution id="643dbe3c-4a07-4e21-abe7-42be253cd76e" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.StringExtensionsTests" name="FirstCharToLower_Works" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.CodeGeneration.ModelGeneratorJsonEmptyModelTests.Generates_Xml_Doc_For_Empty_Json_Model" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="2fb4d325-f06a-b874-ed38-9180caa3966c">
+      <Execution id="5d121d08-8dfd-4b29-9d2f-ea6776538c1a" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.CodeGeneration.ModelGeneratorJsonEmptyModelTests" name="Generates_Xml_Doc_For_Empty_Json_Model" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.StringExtensionsTests.FirstCharToLower_Works(input: null, expected: null)" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="76cc152d-9128-1a77-d630-bb4717854660">
+      <Execution id="ef4b33de-73ea-4e58-8f4a-0ee9a5b78c90" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.StringExtensionsTests" name="FirstCharToLower_Works" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.CodeGeneration.ModelGeneratorMultiResultSetTests.Generates_Multiple_Result_Set_Models_With_Suffixes" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="54e27e23-77a3-3bf2-0b73-ca15f455dfed">
+      <Execution id="2a412dca-d580-4f57-aa07-47764a580c73" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.CodeGeneration.ModelGeneratorMultiResultSetTests" name="Generates_Multiple_Result_Set_Models_With_Suffixes" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.Versioning.VersionStabilityTests.Build_Twice_ShouldProduceSameAssemblyVersion_WhenNoTagChanges" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="b41531c6-90a7-6477-2545-450ac00f98ca">
+      <Execution id="4bdaa9b9-0577-4c47-8f49-277ca8aa1238" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.Versioning.VersionStabilityTests" name="Build_Twice_ShouldProduceSameAssemblyVersion_WhenNoTagChanges" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.VersionExtensionsTests.IsLessThan_Should_Return_True_When_Left_Is_Older" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="bbe016f2-c985-a967-63a3-28c53ae8982f">
+      <Execution id="31cb08f1-f859-4186-93fe-560ccea41971" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.VersionExtensionsTests" name="IsLessThan_Should_Return_True_When_Left_Is_Older" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.CodeGeneration.StoredProcedureGeneratorJsonTests.Generates_Only_Raw_For_NonJson" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="4b10f895-d52f-1024-073d-9c5db214bf2d">
+      <Execution id="8cb3f571-6047-462c-8a4f-ea9d1aad2784" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.CodeGeneration.StoredProcedureGeneratorJsonTests" name="Generates_Only_Raw_For_NonJson" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.Cli.FullSuiteJsonSummaryTests.FullSuite_Should_Populate_Test_Counters" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="05e71bc8-d68d-b61c-7bba-2d4aefd8b274">
+      <Execution id="43ba6467-3fe6-4cc0-a35a-0a0729c81625" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.Cli.FullSuiteJsonSummaryTests" name="FullSuite_Should_Populate_Test_Counters" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.VersionExtensionsTests.Compare_Should_Work_On_First_3_Parts(left: &quot;1.0.0&quot;, right: &quot;1.0.0&quot;, expectedSign: 0)" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="f03e3ae9-c73e-8bc9-d2c8-98a5d6052f22">
+      <Execution id="271c6fa0-2af0-4287-bac9-aef0a88211af" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.VersionExtensionsTests" name="Compare_Should_Work_On_First_3_Parts" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.Cli.JsonParserV5InferenceTests.LeftJoin_Second_Table_Should_Force_Nullability" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="399e7843-362c-cc59-026d-0c8a5af954f5">
+      <Execution id="51cb151c-f8a3-452e-9c38-7b6201357eb7" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.Cli.JsonParserV5InferenceTests" name="LeftJoin_Second_Table_Should_Force_Nullability" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.Cli.JsonParserV5InferenceTests.Cast_Target_Type_Should_Be_Assigned" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="61bfa95a-b7bc-118f-15c5-1fbf580fdfb6">
+      <Execution id="40c0941d-efc2-4b9c-8761-9a625be963ed" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.Cli.JsonParserV5InferenceTests" name="Cast_Target_Type_Should_Be_Assigned" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.Infrastructure.ExitCodesTests.ExitCodes_ShouldBeUnique" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="76928d9a-8d02-6f2f-edc6-a9e3bfc149cf">
+      <Execution id="6c89a4ea-3c84-419b-86e3-b8bb3a069c6b" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.Infrastructure.ExitCodesTests" name="ExitCodes_ShouldBeUnique" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.Cli.SkipUpdateTests.EnvVar_Skips_Update_Check" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="fc622026-4829-25ac-689b-8d48120a17f3">
+      <Execution id="f40f62aa-03db-4e9f-ba84-99f9bc59fbde" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.Cli.SkipUpdateTests" name="EnvVar_Skips_Update_Check" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.Cli.JsonParserSelectStarTests.ForJson_WithExplicitAndStar_SetsFlagAndKeepsExplicitColumn" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="972e4b70-45c8-af01-3e2d-c4ec707fc4bc">
+      <Execution id="a454ce94-8289-4292-9d41-a4eac4958a81" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.Cli.JsonParserSelectStarTests" name="ForJson_WithExplicitAndStar_SetsFlagAndKeepsExplicitColumn" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.Cli.HeuristicAndCacheTests.Caching_Skips_Unchanged_Definition_Load" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="8aa13eea-74a9-2da4-799a-2901dfcced67">
+      <Execution id="31d52585-5772-4090-89b4-3325d1b6e271" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.Cli.HeuristicAndCacheTests" name="Caching_Skips_Unchanged_Definition_Load" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.VersionExtensionsTests.Compare_Should_Work_On_First_3_Parts(left: &quot;1.1.0&quot;, right: &quot;1.0.5&quot;, expectedSign: 1)" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="8a0d999a-0aac-c38a-7d4b-1e873169211e">
+      <Execution id="78805baa-dd02-4615-8a6f-1f8be33e9fcb" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.VersionExtensionsTests" name="Compare_Should_Work_On_First_3_Parts" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.StringExtensionsTests.ToPascalCase_Works(input: &quot;some-value&quot;, expected: &quot;SomeValue&quot;)" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="dd881a9b-e1cd-7eab-f579-a9dab9e17c3b">
+      <Execution id="160f3a29-4246-48d1-a5d2-8b061b3c52bd" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.StringExtensionsTests" name="ToPascalCase_Works" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.StringExtensionsTests.ToPascalCase_Works(input: &quot;some_value&quot;, expected: &quot;Some_value&quot;)" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="4bfe9218-fd5b-2175-67f4-aefb242cb1e5">
+      <Execution id="47be9d00-bb36-4762-832a-a1227c680ac9" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.StringExtensionsTests" name="ToPascalCase_Works" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.Cli.ExecAppendNormalizationTests.ProcedureWithOwnJsonAndExec_AppendsExecutedProcResultSets" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="9012aed6-d062-f70f-8c52-c6eb9b56b5ef">
+      <Execution id="2619f59a-7aa7-430d-bbe1-1c55a939fc82" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.Cli.ExecAppendNormalizationTests" name="ProcedureWithOwnJsonAndExec_AppendsExecutedProcResultSets" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.CodeGeneration.StoredProcedureGeneratorJsonTests.Generates_Raw_And_Deserialize_For_Json_Single" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="9694ec65-e232-bb06-9f31-934f3f716ced">
+      <Execution id="f9265630-6429-45a2-bb14-5470885e525c" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.CodeGeneration.StoredProcedureGeneratorJsonTests" name="Generates_Raw_And_Deserialize_For_Json_Single" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.Cli.JsonParserV5InferenceTests.JsonQuery_Function_Should_Set_NvarcharMax_And_Nullable" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="de06310c-12e3-3ab3-c21f-e512eb124502">
+      <Execution id="beb330e3-8ea1-43dc-a3e4-0d492090b64f" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.Cli.JsonParserV5InferenceTests" name="JsonQuery_Function_Should_Set_NvarcharMax_And_Nullable" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.StringExtensionsTests.ToPascalCase_Works(input: &quot;123abc&quot;, expected: &quot;_123abc&quot;)" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="2b4d05b9-1745-e198-d25e-ffa5903aaba4">
+      <Execution id="ba1a7b54-e090-4c88-a6bc-dd82413ceff9" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.StringExtensionsTests" name="ToPascalCase_Works" />
+    </UnitTest>
+    <UnitTest name="SpocR.Tests.StringExtensionsTests.ToPascalCase_Works(input: &quot;spocr generate command&quot;, expected: &quot;SpocrGenerateCommand&quot;)" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\release\net8.0\spocr.tests.dll" id="ccd4bbdb-4e2e-0b84-54eb-71b690067dd2">
+      <Execution id="ed3244ab-8225-4ec6-a32c-106ee87a1edf" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Release\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.StringExtensionsTests" name="ToPascalCase_Works" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="8aa13eea-74a9-2da4-799a-2901dfcced67" executionId="31d52585-5772-4090-89b4-3325d1b6e271" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="bacb3668-e872-60bf-f20c-f38299f4a2c1" executionId="e5b00ac1-7c98-4857-9acd-1710253b7e44" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="54e27e23-77a3-3bf2-0b73-ca15f455dfed" executionId="2a412dca-d580-4f57-aa07-47764a580c73" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="f4a765a6-c9c1-87ed-d242-099e8b68ea36" executionId="16300467-20b9-48ff-9c0d-73da0fb9dc7b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="bbe016f2-c985-a967-63a3-28c53ae8982f" executionId="31cb08f1-f859-4186-93fe-560ccea41971" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="ccd4bbdb-4e2e-0b84-54eb-71b690067dd2" executionId="ed3244ab-8225-4ec6-a32c-106ee87a1edf" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="4b10f895-d52f-1024-073d-9c5db214bf2d" executionId="8cb3f571-6047-462c-8a4f-ea9d1aad2784" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="fc622026-4829-25ac-689b-8d48120a17f3" executionId="f40f62aa-03db-4e9f-ba84-99f9bc59fbde" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="83b97a31-3ea9-fb05-5592-715f3964fd2b" executionId="3d07974a-66e3-4614-bd3b-d5695dd56e2c" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="0ce4aedd-c57b-4e35-70bf-ca3db5c25084" executionId="f2ac2229-0ebd-4c41-8b01-a59ca314bff2" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="4bfe9218-fd5b-2175-67f4-aefb242cb1e5" executionId="47be9d00-bb36-4762-832a-a1227c680ac9" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="61bfa95a-b7bc-118f-15c5-1fbf580fdfb6" executionId="40c0941d-efc2-4b9c-8761-9a625be963ed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="b41531c6-90a7-6477-2545-450ac00f98ca" executionId="4bdaa9b9-0577-4c47-8f49-277ca8aa1238" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="3397ddfa-adaf-0155-6729-62e2656d6ea7" executionId="3aa13fe3-361d-4bf2-9243-60c195b7ada6" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="e2eb0536-8644-e9b0-6a31-5826c65f544a" executionId="67f2f2ca-01ab-4893-bdc6-a577d7959cb0" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="2fb4d325-f06a-b874-ed38-9180caa3966c" executionId="5d121d08-8dfd-4b29-9d2f-ea6776538c1a" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="06a02a93-20c5-fddc-e17e-66032bfc8fb7" executionId="b4b805c2-4906-4a13-9535-b362468da561" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="18604c25-f454-22fb-3c22-192b085f8fa2" executionId="f259c8b4-4eea-40d0-a002-47de9a836119" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="92a7fcb9-fd96-3c60-dd27-7ae8f78b2955" executionId="dfcb03f0-1018-433a-8891-edecc8395686" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="ee109950-b706-c268-4f17-60f4142f6bf0" executionId="5e3faae8-830b-4419-86e8-890da5a35a0a" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="a2bbdb73-4296-02f1-6508-f29c9db8ff8a" executionId="cb86f373-7f1c-4eba-8b30-0e7a47e33c88" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="9012aed6-d062-f70f-8c52-c6eb9b56b5ef" executionId="2619f59a-7aa7-430d-bbe1-1c55a939fc82" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="69092e1a-47bd-364b-94b1-62e5fce0fb2e" executionId="e79bd500-fe0c-411e-b36d-02535b2e333f" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="3770c957-5a49-2af5-37b4-087b1bc86866" executionId="8cba8aff-6ef7-4d04-a8db-5d9b7d0399c9" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="14217d24-bad4-b961-96a3-fc1d927b4ca8" executionId="6a6f4cfe-0ae7-42a8-a129-d63237e8a625" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="f03e3ae9-c73e-8bc9-d2c8-98a5d6052f22" executionId="271c6fa0-2af0-4287-bac9-aef0a88211af" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="dd881a9b-e1cd-7eab-f579-a9dab9e17c3b" executionId="160f3a29-4246-48d1-a5d2-8b061b3c52bd" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="7e71660c-171e-6dc0-a3d9-a4801da95574" executionId="2cdf49ab-ede0-4a11-9cbd-d364e6e093d9" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="76928d9a-8d02-6f2f-edc6-a9e3bfc149cf" executionId="6c89a4ea-3c84-419b-86e3-b8bb3a069c6b" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="de06310c-12e3-3ab3-c21f-e512eb124502" executionId="beb330e3-8ea1-43dc-a3e4-0d492090b64f" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="d9cf9315-c5e1-56b0-3017-b933246b67f5" executionId="643dbe3c-4a07-4e21-abe7-42be253cd76e" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="972e4b70-45c8-af01-3e2d-c4ec707fc4bc" executionId="a454ce94-8289-4292-9d41-a4eac4958a81" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="9d78bb61-69f2-8609-4581-bb08b9a82eae" executionId="2067bb72-a6a5-4da2-a593-caced1988a78" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="91d4f3a6-3e74-068e-1531-235897e85a9e" executionId="59068ea5-70e8-43f2-a921-faca1845e85c" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="b0c7c10e-5dc7-f793-2f0a-dd0a9c6f5a2c" executionId="81ba76ec-560f-4dd8-9b41-64f3d910c8e3" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="8a0d999a-0aac-c38a-7d4b-1e873169211e" executionId="78805baa-dd02-4615-8a6f-1f8be33e9fcb" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="76cc152d-9128-1a77-d630-bb4717854660" executionId="ef4b33de-73ea-4e58-8f4a-0ee9a5b78c90" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="9694ec65-e232-bb06-9f31-934f3f716ced" executionId="f9265630-6429-45a2-bb14-5470885e525c" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="399e7843-362c-cc59-026d-0c8a5af954f5" executionId="51cb151c-f8a3-452e-9c38-7b6201357eb7" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="2b4d05b9-1745-e198-d25e-ffa5903aaba4" executionId="ba1a7b54-e090-4c88-a6bc-dd82413ceff9" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="252ff013-7a23-afcd-436c-79dde7617bea" executionId="9846e603-199f-4db8-b013-018cb7179156" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="4db3a0a8-ece1-dd11-e239-b64cdfcc07eb" executionId="5ae0db5a-a484-42e7-9ea2-1862d02cc547" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestEntry testId="05e71bc8-d68d-b61c-7bba-2d4aefd8b274" executionId="43ba6467-3fe6-4cc0-a35a-0a0729c81625" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Ergebnisse nicht in einer Liste" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="Alle geladenen Ergebnisse" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Completed">
+    <Counters total="43" executed="43" passed="43" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v3.1.5+1b188a7b0a (64-bit .NET 8.0.20)&#xD;
+[xUnit.net 00:00:00.13]   Discovering: SpocR.Tests&#xD;
+[xUnit.net 00:00:00.16]   Discovered:  SpocR.Tests&#xD;
+[xUnit.net 00:00:00.18]   Starting:    SpocR.Tests&#xD;
+?? SpocR Testing Framework&#xD;
+==========================&#xD;
+?? Running validation tests only...&#xD;
+?? Test Results Summary&#xD;
+=====================&#xD;
+Validation Tests: 3/3 passed&#xD;
+Overall Result: ? SUCCESS&#xD;
+?? JSON summary written: .artifacts\test-summary.json&#xD;
+[FullSuiteJsonSummaryTests] Warning: total remained 0 after retries, but success=true. Soft-passing test.&#xD;
+[FullSuiteExecutionSummaryTests] Skipping full-suite meta test (set SPOCR_ENABLE_FULLSUITE_META=1 to enable).&#xD;
+[xUnit.net 00:00:08.38]   Finished:    SpocR.Tests&#xD;
+</StdOut>
+    </Output>
+    <RunInfos>
+      <RunInfo computerName="WOODY" outcome="Warning" timestamp="2025-10-07T13:10:16.8124813+02:00">
+        <Text>Datensammler "Blame" – Meldung: Der angegebene blame-Parameterschlüssel "AlwaysCollect" ist ungültig. Dieser Schlüssel wird ignoriert..</Text>
+      </RunInfo>
+    </RunInfos>
+  </ResultSummary>
+</TestRun>

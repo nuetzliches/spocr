@@ -3,7 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.CodeAnalysis.CSharp;
 using SpocR.CodeGenerators.Models;
 using SpocR.CodeGenerators.Utils;
@@ -113,21 +113,21 @@ public class StoredProcedureGeneratorSnapshotTests
         var code = Normalize(src.ToString());
 
         // Assert presence of raw + deserialize for JSON procs
-        code.Should().Contain("Task<string> UserListAsJsonAsync");
-        code.Should().Contain("Task<List<UserListAsJson>> UserListAsJsonDeserializeAsync");
-    code.Should().Contain("ReadJsonDeserializeAsync<List<UserListAsJson>>");
+        code.ShouldContain("Task<string> UserListAsJsonAsync");
+        code.ShouldContain("Task<List<UserListAsJson>> UserListAsJsonDeserializeAsync");
+        code.ShouldContain("ReadJsonDeserializeAsync<List<UserListAsJson>>");
 
-        code.Should().Contain("Task<string> UserFindAsJsonAsync");
-        code.Should().Contain("Task<UserFindAsJson> UserFindAsJsonDeserializeAsync");
-    code.Should().Contain("ReadJsonDeserializeAsync<UserFindAsJson>");
+        code.ShouldContain("Task<string> UserFindAsJsonAsync");
+        code.ShouldContain("Task<UserFindAsJson> UserFindAsJsonDeserializeAsync");
+        code.ShouldContain("ReadJsonDeserializeAsync<UserFindAsJson>");
 
         // Non-JSON must not get deserialize
-        code.Should().Contain("UserListAsync");
-        code.Should().NotContain("UserListDeserializeAsync");
+        code.ShouldContain("UserListAsync");
+        code.ShouldNotContain("UserListDeserializeAsync");
 
         // XML docs for JSON methods
-        code.Should().Contain("returns the raw JSON string");
-        code.Should().Contain("deserializes the JSON response");
+        code.ShouldContain("returns the raw JSON string");
+        code.ShouldContain("deserializes the JSON response");
     }
 
     private static string Normalize(string input)

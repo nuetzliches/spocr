@@ -1,10 +1,10 @@
 using Xunit;
-using FluentAssertions;
+using Shouldly;
 
 namespace SpocR.Tests;
 
 /// <summary>
-/// Einfacher Test um zu validieren, dass das Test-Framework funktioniert
+/// Simple test to validate that the test framework wiring works
 /// </summary>
 public class SimpleTest
 {
@@ -13,6 +13,6 @@ public class SimpleTest
     {
         var expected = "Hello World";
         var actual = "Hello World";
-        actual.Should().Be(expected);
+        actual.ShouldBe(expected);
     }
 }

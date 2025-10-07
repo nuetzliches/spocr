@@ -1,6 +1,6 @@
 using System;
 using SpocR.Extensions;
-using FluentAssertions;
+using Shouldly;
 using Xunit;
 
 namespace SpocR.Tests;
@@ -17,19 +17,19 @@ public class VersionExtensionsTests
         var v1 = Version.Parse(left);
         var v2 = Version.Parse(right);
         var cmp = v1.Compare(v2);
-        Math.Sign(cmp).Should().Be(expectedSign);
+        Math.Sign(cmp).ShouldBe(expectedSign);
     }
 
     [Fact]
     public void IsGreaterThan_Should_Return_True_When_Left_Is_Newer()
     {
-        new Version(1, 2, 3).IsGreaterThan(new Version(1, 2, 2)).Should().BeTrue();
+        new Version(1, 2, 3).IsGreaterThan(new Version(1, 2, 2)).ShouldBeTrue();
     }
 
     [Fact]
     public void IsLessThan_Should_Return_True_When_Left_Is_Older()
     {
-        new Version(1, 2, 2).IsLessThan(new Version(1, 2, 3)).Should().BeTrue();
+        new Version(1, 2, 2).IsLessThan(new Version(1, 2, 3)).ShouldBeTrue();
     }
 
     [Fact]
@@ -39,9 +39,9 @@ public class VersionExtensionsTests
         var a = new Version(1, 2, 3, 9);
         var b = new Version(1, 2, 3, 0);
         // System.Version.Equals (instance) compares all 4 components => False
-        a.Equals(b).Should().BeFalse("System.Version considers revision component");
+        a.Equals(b).ShouldBeFalse("System.Version considers revision component");
         // Extension-based comparison (first 3 parts) => True
-        SpocR.Extensions.VersionExtensions.Equals(a, b).Should().BeTrue("extension Compare truncates to 3 parts");
+        SpocR.Extensions.VersionExtensions.Equals(a, b).ShouldBeTrue("extension Compare truncates to 3 parts");
     }
 }
 
@@ -53,7 +53,7 @@ public class StringExtensionsTests
     [InlineData("Hello", "hello")]
     public void FirstCharToLower_Works(string? input, string? expected)
     {
-        input?.FirstCharToLower().Should().Be(expected);
+        input?.FirstCharToLower().ShouldBe(expected);
         if (input == null) return; // null safe already tested
     }
 
@@ -63,7 +63,7 @@ public class StringExtensionsTests
     [InlineData("hello", "Hello")]
     public void FirstCharToUpper_Works(string? input, string? expected)
     {
-        input?.FirstCharToUpper().Should().Be(expected);
+        input?.FirstCharToUpper().ShouldBe(expected);
     }
 
     [Theory]
@@ -76,6 +76,6 @@ public class StringExtensionsTests
     [InlineData("spocr generate command", "SpocrGenerateCommand")]
     public void ToPascalCase_Works(string input, string expected)
     {
-        input.ToPascalCase().Should().Be(expected);
+        input.ToPascalCase().ShouldBe(expected);
     }
 }

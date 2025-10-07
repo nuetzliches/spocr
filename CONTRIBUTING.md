@@ -120,6 +120,24 @@ AI / Automation:
 
 Automated agents or scripts contributing code must also adhere to the English-only rule and SHOULD reference `.ai/guidelines.md` (if present) for guardrails (naming, idempotent changes, safety). If the file is missing, create one before large-scale automated refactors.
 
+### Script Formatting & Generation Guidelines (Automation)
+
+When generating or reviewing automation scripts (PowerShell or Windows batch) the following rules apply:
+
+- Always target a single shell per snippet: either PowerShell (`powershell` code fence) or classic cmd (`cmd` fence); do not mix syntaxes.
+- Use fenced code blocks with language hint and no inline commentary inside the block; explanations belong above/below.
+- PowerShell style: 4 spaces indentation, no artificial line wraps; use backticks only for *intentional* logical line continuation.
+- Batch (cmd) style: avoid PowerShell constructs; prefer simple `IF` one-liners or clearly grouped parentheses blocks; no `%ERRORLEVEL%` suppression unless justified.
+- Avoid exotic Unicode whitespace; standard ASCII spaces only.
+- Ensure idempotency: check existence before creating/removing files or directories.
+- Emit explicit non-zero exit codes on errors (`throw` in PowerShell, `exit /b 1` in cmd) and fail fast.
+- Keep variable naming consistent (PascalCase or camelCase in PowerShell; UPPER_SNAKE for env-like constants in cmd).
+- Do not silently swallow errors; prefer `Set-StrictMode -Version Latest` (PowerShell) for complex scripts.
+- Long-running scripts should log key phases with timestamps.
+- Never embed secrets; reference environment variables or secure stores.
+
+These conventions improve readability, reduce CI friction, and make AI-assisted changes safer.
+
 ## Code Style
 
 - C# `latest` features allowed, but use pragmatically.

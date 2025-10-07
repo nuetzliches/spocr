@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
-using FluentAssertions;
+using Shouldly;
 using Xunit;
 
 namespace SpocR.Tests.Versioning;
@@ -18,7 +18,7 @@ public class VersionStabilityTests
 
         var root = TestContext.LocateRepoRoot();
         var projectPath = Path.Combine(root, "src", "SpocR.csproj");
-        File.Exists(projectPath).Should().BeTrue($"expected project at {projectPath}");
+        File.Exists(projectPath).ShouldBeTrue($"expected project at {projectPath}");
 
         string BuildAndGetInformationalVersion()
         {
@@ -35,7 +35,7 @@ public class VersionStabilityTests
             };
             proc.Start();
             proc.WaitForExit();
-            proc.ExitCode.Should().Be(0, "build must succeed");
+            proc.ExitCode.ShouldBe(0, "build must succeed");
 
             // Load produced assembly to read informational version
             var outputDir = Path.Combine(root, "src", "bin", "Debug", "net8.0");
@@ -48,14 +48,14 @@ public class VersionStabilityTests
                 .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
                 .OfType<System.Reflection.AssemblyInformationalVersionAttribute>()
                 .FirstOrDefault();
-            infoAttr.Should().NotBeNull();
+            infoAttr.ShouldNotBeNull();
             return infoAttr!.InformationalVersion;
         }
 
         var v1 = BuildAndGetInformationalVersion();
         var v2 = BuildAndGetInformationalVersion();
 
-        v2.Should().Be(v1, "version should be stable across consecutive builds without new tags");
+        v2.ShouldBe(v1, "version should be stable across consecutive builds without new tags");
         await Task.CompletedTask;
     }
 }

@@ -9,6 +9,16 @@ Format loosely inspired by Keep a Changelog. Dates use ISO 8601 (UTC).
 - Reactivate integration tests (LocalDB)
 - Multi-suite JUnit/XML output (separate unit/integration suites)
 - Rollback mechanism for AI‑agent workflows
+ 
+### Changed
+- Migrated test assertion library from FluentAssertions to Shouldly (licensing simplification, leaner dependency footprint)
+- `SpocrStoredProcedureManager` now accepts an injected configuration file manager (enables unit testing without internal FileManager construction)
+
+### Removed
+- Obsolete heuristic JSON parser test (`JsonParserHeuristicRemovalTests`) that asserted null `ResultSets`; implementation now standardizes on empty collections instead of null
+
+### Build
+- MinVer configuration enriched: explicit `MinVerAutoIncrement=patch`, default prerelease id `preview`, detailed verbosity, and build metadata placeholder `commit-%GIT_SHA%` for future CI substitution.
 
 ## [4.5.0-alpha] - 2025-10-06
 

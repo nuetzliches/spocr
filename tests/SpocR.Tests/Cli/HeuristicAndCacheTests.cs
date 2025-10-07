@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using FluentAssertions;
+using Shouldly;
 using Moq;
 using SpocR.DataContext;
 using SpocR.DataContext.Models;
@@ -269,15 +269,15 @@ public class HeuristicAndCacheTests
 
         // First run populates cache
         var schemas1 = await manager.ListAsync(cfg);
-        ctx.DefinitionCalls.Should().Be(1);
-        cache.Saved.Procedures.Should().ContainSingle();
+        ctx.DefinitionCalls.ShouldBe(1);
+        cache.Saved.Procedures.Count.ShouldBe(1);
 
         // Prepare second run with loaded cache snapshot
         cache.Loaded = cache.Saved; // unchanged modify_date
         var ctx2 = new TestDbContext(SilentConsole(), new[] { sp }, defs, new(), new());
         var manager2 = new SchemaManager(ctx2, SilentConsole(), new FakeSchemaSnapshotService(), cache);
         var schemas2 = await manager2.ListAsync(cfg);
-        ctx2.DefinitionCalls.Should().Be(0, "definition should be skipped when modify_date unchanged");
+        ctx2.DefinitionCalls.ShouldBe(0, "definition should be skipped when modify_date unchanged");
     }
 }
 

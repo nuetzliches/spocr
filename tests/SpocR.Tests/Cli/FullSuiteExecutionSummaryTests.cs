@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
-using FluentAssertions;
+using Shouldly;
 using Xunit;
 
 namespace SpocR.Tests.Cli;
@@ -35,19 +35,19 @@ public class FullSuiteExecutionSummaryTests
             throw new TimeoutException("Full suite meta test exceeded 5 minute timeout.");
         }
         var exit = await runTask;
-        exit.Should().Be(0, "full test suite should succeed with zero failures");
-        File.Exists(summary).Should().BeTrue();
+        exit.ShouldBe(0, "full test suite should succeed with zero failures");
+        File.Exists(summary).ShouldBeTrue();
 
         var json = File.ReadAllText(summary);
         var node = JsonNode.Parse(json)!;
-        node["mode"]!.ToString().Should().Be("full-suite");
+        node["mode"]!.ToString().ShouldBe("full-suite");
         var total = node["tests"]!["total"]!.GetValue<int>();
-        total.Should().BeGreaterThan(0);
-        node["tests"]!["failed"]!.GetValue<int>().Should().Be(0);
+        total.ShouldBeGreaterThan(0);
+        node["tests"]!["failed"]!.GetValue<int>().ShouldBe(0);
         var passed = node["tests"]!["passed"]!.GetValue<int>();
         var skipped = node["tests"]!["skipped"]!.GetValue<int>();
-        (passed + skipped).Should().Be(total);
-        node["success"]!.GetValue<bool>().Should().BeTrue();
+        (passed + skipped).ShouldBe(total);
+        node["success"]!.GetValue<bool>().ShouldBeTrue();
     }
 
     private static string FindRepoRoot()

@@ -2,7 +2,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.Text;
 using Xunit;
-using FluentAssertions;
+using Shouldly;
 using SpocR.CodeGenerators.Models;
 using SpocR.CodeGenerators.Utils;
 using SpocR.Services;
@@ -117,10 +117,10 @@ public class StoredProcedureGeneratorJsonTests
         var source = await gen.GetStoredProcedureExtensionsCodeAsync(schema, new List<Definition.StoredProcedure> { sp });
         var code = source.ToString();
 
-        code.Should().Contain("Task<string> UserListAsJsonAsync");
-    code.Should().Contain("Task<List<UserListAsJson>> UserListAsJsonDeserializeAsync");
-    // Accept current helper-based deserialization pattern
-    code.Should().Contain("ReadJsonDeserializeAsync<List<UserListAsJson>>");
+        code.ShouldContain("Task<string> UserListAsJsonAsync");
+        code.ShouldContain("Task<List<UserListAsJson>> UserListAsJsonDeserializeAsync");
+        // Accept current helper-based deserialization pattern
+        code.ShouldContain("ReadJsonDeserializeAsync<List<UserListAsJson>>");
     }
 
     [Fact]
@@ -136,9 +136,9 @@ public class StoredProcedureGeneratorJsonTests
         var source = await gen.GetStoredProcedureExtensionsCodeAsync(schema, new List<Definition.StoredProcedure> { sp });
         var code = source.ToString();
 
-        code.Should().Contain("Task<string> UserFindAsJsonAsync");
-    code.Should().Contain("Task<UserFindAsJson> UserFindAsJsonDeserializeAsync");
-    code.Should().Contain("ReadJsonDeserializeAsync<UserFindAsJson>");
+        code.ShouldContain("Task<string> UserFindAsJsonAsync");
+        code.ShouldContain("Task<UserFindAsJson> UserFindAsJsonDeserializeAsync");
+        code.ShouldContain("ReadJsonDeserializeAsync<UserFindAsJson>");
     }
 
     [Fact]
@@ -154,8 +154,8 @@ public class StoredProcedureGeneratorJsonTests
         var source = await gen.GetStoredProcedureExtensionsCodeAsync(schema, new List<Definition.StoredProcedure> { sp });
         var code = source.ToString();
 
-        code.Should().Contain("UserListAsync");
-        code.Should().NotContain("UserListDeserializeAsync");
+        code.ShouldContain("UserListAsync");
+        code.ShouldNotContain("UserListDeserializeAsync");
     }
 
     private class TestConsoleService : SpocR.Services.IConsoleService

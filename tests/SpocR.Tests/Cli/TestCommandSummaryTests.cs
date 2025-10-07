@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
-using FluentAssertions;
+using Shouldly;
 using Xunit;
 
 namespace SpocR.Tests.Cli;
@@ -16,7 +16,7 @@ public class TestCommandSummaryTests
     {
         var root = FindRepoRoot();
         var project = Path.Combine(root, "src", "SpocR.csproj");
-        File.Exists(project).Should().BeTrue();
+        File.Exists(project).ShouldBeTrue();
         var summaryPath = Path.Combine(root, ".artifacts", "test-summary.json");
         if (File.Exists(summaryPath)) File.Delete(summaryPath);
 
@@ -33,14 +33,14 @@ public class TestCommandSummaryTests
         var stderr = proc.StandardError.ReadToEnd();
         proc.WaitForExit();
 
-        proc.ExitCode.Should().Be(0, $"CLI failed. StdOut: {stdout}\nStdErr: {stderr}");
-        File.Exists(summaryPath).Should().BeTrue("JSON summary should exist after CI validation run");
+        proc.ExitCode.ShouldBe(0, $"CLI failed. StdOut: {stdout}\nStdErr: {stderr}");
+        File.Exists(summaryPath).ShouldBeTrue("JSON summary should exist after CI validation run");
 
         var json = File.ReadAllText(summaryPath);
-        json.Should().NotBeNullOrWhiteSpace();
+        json.ShouldNotBeNull();
         var node = JsonNode.Parse(json)!;
-        node["mode"]!.ToString().Should().Be("validation-only");
-        node["success"]!.GetValue<bool>().Should().BeTrue();
+        node["mode"]!.ToString().ShouldBe("validation-only");
+        node["success"]!.GetValue<bool>().ShouldBeTrue();
         await Task.CompletedTask;
     }
 

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using FluentAssertions;
+using Shouldly;
 using SpocR.Models;
 using Xunit;
 
@@ -68,15 +68,16 @@ public class JsonParserV5InferenceTests
     {
         var def = @"CREATE OR ALTER PROCEDURE dbo.UserNestedJson AS SELECT JSON_QUERY('{""a"":1}') as data FOR JSON PATH";
         var content = StoredProcedureContentModel.Parse(def);
-        content.ResultSets.Should().ContainSingle();
+        content.ResultSets.Count.ShouldBe(1);
         var jsonSet = content.ResultSets.Single();
-        jsonSet.Columns.Should().ContainSingle();
+        jsonSet.Columns.Count.ShouldBe(1);
         var col = jsonSet.Columns.Single();
-        col.SqlTypeName.Should().BeNull(); // before enrichment
+        col.SqlTypeName.ShouldBeNull(); // before enrichment
         await EnrichAsync(content);
-        col.SqlTypeName.Should().Be("nvarchar(max)");
-        col.IsNullable.Should().BeTrue();
-        col.ExpressionKind.Should().Be(StoredProcedureContentModel.ResultColumnExpressionKind.JsonQuery);
+        col.SqlTypeName.ShouldBe("nvarchar(max)");
+        col.IsNullable.ShouldNotBeNull();
+        col.IsNullable!.Value.ShouldBeTrue();
+        col.ExpressionKind.ShouldBe(StoredProcedureContentModel.ResultColumnExpressionKind.JsonQuery);
     }
 
     [Fact]
@@ -84,11 +85,12 @@ public class JsonParserV5InferenceTests
     {
         var def = @"CREATE PROCEDURE dbo.UserLeft AS SELECT u.Id, p.Street as street FROM dbo.Users u LEFT JOIN dbo.Profile p ON p.UserId = u.Id FOR JSON PATH";
         var content = StoredProcedureContentModel.Parse(def);
-        content.ResultSets.Should().ContainSingle();
+        content.ResultSets.Count.ShouldBe(1);
         var jsonSet = content.ResultSets.Single();
-        jsonSet.Columns.Should().HaveCount(2);
+        jsonSet.Columns.Count.ShouldBe(2);
         var street = jsonSet.Columns.Single(c => c.Name.Equals("street", StringComparison.OrdinalIgnoreCase));
-        street.ForcedNullable.Should().BeTrue();
+        street.ForcedNullable.ShouldNotBeNull();
+        street.ForcedNullable!.Value.ShouldBeTrue();
     }
 
     [Fact]
@@ -96,12 +98,12 @@ public class JsonParserV5InferenceTests
     {
         var def = @"CREATE PROCEDURE dbo.UserCast AS SELECT CAST(1 as bigint) as bigId FOR JSON PATH";
         var content = StoredProcedureContentModel.Parse(def);
-        content.ResultSets.Should().ContainSingle();
+        content.ResultSets.Count.ShouldBe(1);
         var jsonSet = content.ResultSets.Single();
         var bigId = jsonSet.Columns.Single();
-        bigId.CastTargetType.Should().Be("bigint");
-        bigId.SqlTypeName.Should().BeNull();
+        bigId.CastTargetType.ShouldBe("bigint");
+        bigId.SqlTypeName.ShouldBeNull();
         await EnrichAsync(content);
-        bigId.SqlTypeName.Should().Be("bigint");
+        bigId.SqlTypeName.ShouldBe("bigint");
     }
 }

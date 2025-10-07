@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
-using FluentAssertions;
+using Shouldly;
 using SpocR.Commands.StoredProcedure;
 using SpocR.Enums;
 using SpocR.Managers;
@@ -17,11 +17,11 @@ public class StoredProcedureListTests
     private class TestOptions : IStoredProcedureCommandOptions
     {
         public string SchemaName { get; set; } = string.Empty;
-        public bool Json { get; set; } = true; // Standard für Tests
+        public bool Json { get; set; } = true; // Default for tests
         public bool Quiet { get; set; }
         public bool Verbose { get; set; }
         public string Path { get; set; } = ".";
-        // Unbenutzte ICommandOptions Properties (Defaultwerte ausreichend für diese Tests)
+        // Unused ICommandOptions properties (defaults are sufficient for these tests)
         public bool DryRun { get; set; }
         public bool Force { get; set; }
         public bool NoVersionCheck { get; set; }
@@ -74,23 +74,56 @@ public class StoredProcedureListTests
             }).ToList()
         };
 
-    [Fact(Skip = "Manager erstellt FileManager intern – erfordert Refactor für sauberes Unit Testing (DI).")]
-    public void List_Returns_Procedures_As_Json_Array() { }
+    private class FakeFileManager : IFileManager<ConfigurationModel>
+    {
+        private readonly ConfigurationModel? _config;
+        private readonly bool _canOpen;
+        public FakeFileManager(ConfigurationModel? config, bool canOpen = true)
+        { _config = config; _canOpen = canOpen; }
+        public ConfigurationModel Config => _config!;
+        public bool TryOpen(string path, out ConfigurationModel config)
+        {
+            if (_canOpen && _config != null)
+            {
+                config = _config;
+                return true;
+            }
+            config = null!; // intentional: signal failure to open
+            return false;
+        }
+    }
+
+    [Fact]
+    public void List_Returns_Procedures_As_Json_Array()
+    {
+        var cfg = BuildConfig(("dbo", new[] { "GetUsers", "GetOrders" }));
+        var console = new CaptureConsole();
+        var fm = new FakeFileManager(cfg);
+        var manager = new SpocrStoredProcedureManager(console, fm);
+        var options = new TestOptions { SchemaName = "dbo", Path = ".", Json = true };
+
+        var result = manager.List(options);
+
+        result.ShouldBe(ExecuteResultEnum.Succeeded);
+        // Output should be JSON array with procedure names
+        console.Infos.ShouldContain(s => s.StartsWith("[{") && s.Contains("GetUsers"));
+    }
 
     [Fact]
     public void Schema_Not_Found_Returns_Empty_Array()
     {
         var console = new CaptureConsole();
-        var manager = new SpocrStoredProcedureManager(console);
+    var fm = new FakeFileManager(null, canOpen: false);
+    var manager = new SpocrStoredProcedureManager(console, fm);
 
-        // Workaround: Erzeuge leere temporäre config Datei, damit TryOpen false -> Manager gibt [] aus
+        // Workaround: create empty temporary config file so TryOpen returns false and manager outputs []
         var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
         Directory.CreateDirectory(tempDir);
         var options = new TestOptions { SchemaName = "DoesNotExist", Path = tempDir, Json = true };
 
         var result = manager.List(options);
 
-        result.Should().Be(ExecuteResultEnum.Aborted);
-        console.Infos.Should().Contain("[]");
+        result.ShouldBe(ExecuteResultEnum.Aborted);
+        console.Infos.ShouldContain("[]");
     }
 }

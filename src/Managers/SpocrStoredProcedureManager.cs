@@ -7,20 +7,28 @@ using SpocR.Services;
 
 namespace SpocR.Managers;
 
-public class SpocrStoredProcedureManager(
-    IConsoleService consoleService
-)
+public class SpocrStoredProcedureManager
 {
+    private readonly IConsoleService _consoleService;
+    private readonly IFileManager<ConfigurationModel> _configFile;
+
+    public SpocrStoredProcedureManager(IConsoleService consoleService, IFileManager<ConfigurationModel> configFile = null)
+    {
+        _consoleService = consoleService;
+        _configFile = configFile != null
+            ? configFile
+            : new FileManager<ConfigurationModel>(null, Constants.ConfigurationFile);
+    }
+
     public ExecuteResultEnum List(IStoredProcedureCommandOptions options)
     {
-        var configFile = new FileManager<ConfigurationModel>(null, Constants.ConfigurationFile);
-        if (!configFile.TryOpen(options.Path, out ConfigurationModel config))
+        if (!_configFile.TryOpen(options.Path, out ConfigurationModel config))
         {
             // Keine Config -> leere JSON Liste zurückgeben (bleibt dennoch Aborted um bestehendes Verhalten nicht zu brechen)
-            consoleService.Output("[]");
+            _consoleService.Output("[]");
             if (!options.Quiet && !options.Json)
             {
-                consoleService.Warn("No configuration file found");
+                _consoleService.Warn("No configuration file found");
             }
             return ExecuteResultEnum.Aborted;
         }
@@ -28,10 +36,10 @@ public class SpocrStoredProcedureManager(
         var schema = config?.Schema.FirstOrDefault(_ => _.Name.Equals(options.SchemaName));
         if (schema == null)
         {
-            consoleService.Output("[]");
+            _consoleService.Output("[]");
             if (!options.Quiet && !options.Json)
             {
-                consoleService.Warn($"Schema '{options.SchemaName}' not found");
+                _consoleService.Warn($"Schema '{options.SchemaName}' not found");
             }
             return ExecuteResultEnum.Aborted;
         }
@@ -41,10 +49,10 @@ public class SpocrStoredProcedureManager(
         if (!(storedProcedures?.Any() ?? false))
         {
             // Leere Liste – immer valides JSON ausgeben
-            consoleService.Output("[]");
+            _consoleService.Output("[]");
             if (!options.Quiet && !options.Json)
             {
-                consoleService.Warn("No StoredProcedures found");
+                _consoleService.Warn("No StoredProcedures found");
             }
             return ExecuteResultEnum.Aborted; // Beibehaltung des bisherigen Exit Codes
         }
@@ -52,7 +60,7 @@ public class SpocrStoredProcedureManager(
             storedProcedures.Select(sp => new { name = sp.Name }),
             new JsonSerializerOptions { WriteIndented = false }
         );
-        consoleService.Output(json);
+        _consoleService.Output(json);
 
         return ExecuteResultEnum.Succeeded;
     }

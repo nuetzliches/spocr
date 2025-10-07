@@ -1,4 +1,4 @@
-using FluentAssertions;
+using Shouldly;
 using SpocR.Infrastructure;
 using Xunit;
 
@@ -9,16 +9,16 @@ public class ExitCodesTests
     [Fact]
     public void ExitCodeValues_ShouldMatchDocumentation()
     {
-        ExitCodes.Success.Should().Be(0);
-        ExitCodes.ValidationError.Should().Be(10);
-        ExitCodes.GenerationError.Should().Be(20);
-        ExitCodes.DependencyError.Should().Be(30);
-        ExitCodes.TestFailure.Should().Be(40);
-        ExitCodes.BenchmarkFailure.Should().Be(50);
-        ExitCodes.RollbackFailure.Should().Be(60);
-        ExitCodes.ConfigurationError.Should().Be(70);
-        ExitCodes.InternalError.Should().Be(80);
-        ExitCodes.Reserved.Should().Be(99);
+        ExitCodes.Success.ShouldBe(0);
+        ExitCodes.ValidationError.ShouldBe(10);
+        ExitCodes.GenerationError.ShouldBe(20);
+        ExitCodes.DependencyError.ShouldBe(30);
+        ExitCodes.TestFailure.ShouldBe(40);
+        ExitCodes.BenchmarkFailure.ShouldBe(50);
+        ExitCodes.RollbackFailure.ShouldBe(60);
+        ExitCodes.ConfigurationError.ShouldBe(70);
+        ExitCodes.InternalError.ShouldBe(80);
+        ExitCodes.Reserved.ShouldBe(99);
     }
 
     [Fact]
@@ -38,6 +38,6 @@ public class ExitCodesTests
             ExitCodes.Reserved
         };
 
-        values.Should().OnlyHaveUniqueItems();
+        values.ShouldBe(values.Distinct());
     }
 }

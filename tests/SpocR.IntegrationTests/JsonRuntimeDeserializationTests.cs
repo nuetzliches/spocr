@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using System.Text.Json;
-using FluentAssertions;
+using Shouldly;
 using Xunit;
 
 namespace SpocR.IntegrationTests;
@@ -27,9 +27,9 @@ public class JsonRuntimeDeserializationTests
         // Generated pattern: System.Text.Json.JsonSerializer.Deserialize<List<UserListAsJson>>(await Raw()) ?? new List<UserListAsJson>()
         var typed = JsonSerializer.Deserialize<List<UserListAsJson>>(raw) ?? new List<UserListAsJson>();
 
-        typed.Should().HaveCount(2);
-        typed[0].Id.Should().Be("1");
-        typed[1].Name.Should().Be("Bob");
+        typed.Count.ShouldBe(2);
+        typed[0].Id.ShouldBe("1");
+        typed[1].Name.ShouldBe("Bob");
     }
 
     [Fact]
@@ -38,9 +38,9 @@ public class JsonRuntimeDeserializationTests
         var raw = GetSingleJson();
         var typed = JsonSerializer.Deserialize<UserFindAsJson>(raw);
 
-        typed.Should().NotBeNull();
-        typed!.Id.Should().Be("42");
-        typed.Name.Should().Be("Zaphod");
+        typed.ShouldNotBeNull();
+        typed!.Id.ShouldBe("42");
+        typed.Name.ShouldBe("Zaphod");
     }
 
     [Fact]
@@ -48,7 +48,7 @@ public class JsonRuntimeDeserializationTests
     {
         string raw = "null"; // JSON literal null
         var typed = JsonSerializer.Deserialize<List<UserListAsJson>>(raw) ?? new List<UserListAsJson>();
-        typed.Should().BeEmpty();
+        typed.ShouldBeEmpty();
     }
 
     [Fact]
@@ -56,7 +56,7 @@ public class JsonRuntimeDeserializationTests
     {
         string raw = "[]";
         var typed = JsonSerializer.Deserialize<List<UserListAsJson>>(raw) ?? new List<UserListAsJson>();
-        typed.Should().BeEmpty();
+        typed.ShouldBeEmpty();
     }
 
     [Fact]
@@ -64,7 +64,7 @@ public class JsonRuntimeDeserializationTests
     {
         string raw = "  \n  " + GetArrayJson() + "  \n  ";
         var typed = JsonSerializer.Deserialize<List<UserListAsJson>>(raw.Trim()) ?? new List<UserListAsJson>();
-        typed.Should().HaveCount(2);
+        typed.Count.ShouldBe(2);
     }
 
     [Fact]
@@ -72,8 +72,8 @@ public class JsonRuntimeDeserializationTests
     {
         var raw = GetSingleJsonWithoutWrapper();
         var typed = JsonSerializer.Deserialize<UserFindAsJson>(raw);
-        typed.Should().NotBeNull();
-        typed!.Name.Should().Be("Trillian");
+        typed.ShouldNotBeNull();
+        typed!.Name.ShouldBe("Trillian");
     }
 
     [Fact]
@@ -82,6 +82,6 @@ public class JsonRuntimeDeserializationTests
         // Deliberately malformed (trailing comma before closing brace)
         var raw = "{\"Id\":\"1\",\"Name\":\"Broken\",}"; // malformed JSON
         var act = () => JsonSerializer.Deserialize<UserFindAsJson>(raw);
-        act.Should().Throw<JsonException>();
+        Should.Throw<JsonException>(act);
     }
 }

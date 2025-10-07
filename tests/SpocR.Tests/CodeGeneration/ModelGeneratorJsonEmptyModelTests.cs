@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.CodeAnalysis.CSharp;
 using SpocR.CodeGenerators.Models;
 using SpocR.CodeGenerators.Utils;
@@ -85,10 +85,10 @@ public class ModelGeneratorJsonEmptyModelTests
 
         // The generator should inject documentation comment; tolerate absence only if RawJson present (future-proofing)
         (code.Contains("Generated JSON model (no columns detected at generation time)") || code.Contains("RawJson"))
-            .Should().BeTrue("either the explanatory doc comment or the RawJson property must exist");
-        code.Should().Contain("class UserListAsJson");
+            .ShouldBeTrue("either the explanatory doc comment or the RawJson property must exist");
+        code.ShouldContain("class UserListAsJson");
         // Ensure no properties other than template removal result
-        code.Should().NotContain("__TemplateProperty__");
+        code.ShouldNotContain("__TemplateProperty__");
     }
 
     private class TestConsoleService : IConsoleService

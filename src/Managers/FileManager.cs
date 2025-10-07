@@ -10,11 +10,17 @@ using SpocR.Utils;
 
 namespace SpocR.Managers;
 
+public interface IFileManager<TConfig> where TConfig : class, IVersioned
+{
+    TConfig Config { get; }
+    bool TryOpen(string path, out TConfig config);
+}
+
 public class FileManager<TConfig>(
     SpocrService spocr,
     string fileName,
     TConfig defaultConfig = default
-) where TConfig : class, IVersioned
+) : IFileManager<TConfig> where TConfig : class, IVersioned
 {
     public TConfig DefaultConfig
     {

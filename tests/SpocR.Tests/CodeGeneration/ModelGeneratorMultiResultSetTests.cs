@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using FluentAssertions;
+using Shouldly;
 using Microsoft.CodeAnalysis.CSharp;
 using SpocR.CodeGenerators.Models;
 using SpocR.CodeGenerators.Utils;
@@ -103,8 +103,8 @@ public class ModelGeneratorMultiResultSetTests
         // New behavior: caller must manually split multi-result sets (generator expects exactly one set per call).
         // Validate that calling with original multi-set SP throws, enforcing explicit splitting.
         var act = async () => await gen.GetModelTextForStoredProcedureAsync(schema, sp);
-        await act.Should().ThrowAsync<System.InvalidOperationException>()
-            .WithMessage("*expects exactly one ResultSet*");
+        var ex = await Should.ThrowAsync<System.InvalidOperationException>(act);
+        ex.Message.ShouldContain("expects exactly one ResultSet");
 
         // Now simulate explicit per-set splitting (what production code does) and validate outputs
         for (int r = 0; r < sp.ResultSets.Count; r++)
@@ -125,11 +125,11 @@ public class ModelGeneratorMultiResultSetTests
             var defSynthetic = Definition.ForStoredProcedure(synthetic, schema);
             var text = await gen.GetModelTextForStoredProcedureAsync(schema, defSynthetic);
             var code = text.ToString();
-            code.Should().Contain($"class {splitName}");
-            if (r == 0) code.Should().Contain("UserName");
-            if (r == 1) code.Should().Contain("OrderCount");
-            if (r == 2) code.Should().Contain("LastLogin");
-            code.Should().NotContain("__TemplateProperty__");
+            code.ShouldContain($"class {splitName}");
+            if (r == 0) code.ShouldContain("UserName");
+            if (r == 1) code.ShouldContain("OrderCount");
+            if (r == 2) code.ShouldContain("LastLogin");
+            code.ShouldNotContain("__TemplateProperty__");
         }
     }
 

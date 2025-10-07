@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
-using FluentAssertions;
+using Shouldly;
 using Xunit;
 
 namespace SpocR.Tests.Cli;
@@ -34,15 +34,15 @@ public class FullSuiteJsonSummaryTests
         {
             Directory.SetCurrentDirectory(prevCwd);
         }
-        exit.Should().Be(0, "validation-only run should succeed");
-        File.Exists(summary).Should().BeTrue("in-process invocation should emit test-summary.json");
+        exit.ShouldBe(0, "validation-only run should succeed");
+        File.Exists(summary).ShouldBeTrue("in-process invocation should emit test-summary.json");
 
         var jsonContent = File.ReadAllText(summary);
         var node = JsonNode.Parse(jsonContent)!;
         var modeFinal = node["mode"]!.ToString();
-        modeFinal.Should().Be("validation-only");
-        node["validation"]!["failed"]!.GetValue<int>().Should().Be(0);
-        node["success"]!.GetValue<bool>().Should().BeTrue();
+        modeFinal.ShouldBe("validation-only");
+        node["validation"]!["failed"]!.GetValue<int>().ShouldBe(0);
+        node["success"]!.GetValue<bool>().ShouldBeTrue();
         // no further assertions here – full suite covered in separate test
 
         // Sometimes the mode flips to full-suite slightly before counters are aggregated on slower CI
@@ -88,22 +88,22 @@ public class FullSuiteJsonSummaryTests
                 return;
             }
             // Hard fail if also success=false (real issue)
-            total.Should().BeGreaterThan(0, "the full suite should discover tests (after extended retries)");
+            total.ShouldBeGreaterThan(0, "the full suite should discover tests (after extended retries)");
         }
         var failed = node["tests"]!["failed"]!.GetValue<int>();
-        failed.Should().Be(0, "no test failures expected");
+        failed.ShouldBe(0, "no test failures expected");
         var passed = node["tests"]!["passed"]!.GetValue<int>();
         var skipped = node["tests"]!["skipped"]!.GetValue<int>();
-        (passed + failed + skipped).Should().Be(total, "the sum of passed+failed+skipped must equal total");
-        node["success"]!.GetValue<bool>().Should().BeTrue();
-        skipped.Should().BeGreaterOrEqualTo(0);
-        node["failedTestNames"]!.AsArray().Count.Should().Be(0);
+        (passed + failed + skipped).ShouldBe(total, "the sum of passed+failed+skipped must equal total");
+        node["success"]!.GetValue<bool>().ShouldBeTrue();
+        skipped.ShouldBeGreaterThanOrEqualTo(0);
+        node["failedTestNames"]!.AsArray().Count.ShouldBe(0);
         // started/ended may be null in earlier alpha full-suite; tolerate null but if both present enforce ordering
         var started = node["startedAtUtc"]?.ToString();
         var ended = node["endedAtUtc"]?.ToString();
         if (!string.IsNullOrWhiteSpace(started) && !string.IsNullOrWhiteSpace(ended))
         {
-            DateTime.Parse(started!).Should().BeBefore(DateTime.Parse(ended!));
+            DateTime.Parse(started!).ShouldBeLessThan(DateTime.Parse(ended!));
         }
     }
 
