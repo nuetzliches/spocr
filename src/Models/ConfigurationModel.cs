@@ -42,7 +42,7 @@ public class ConfigurationModel : IVersioned
     public Version Version { get; set; }
 
     [JsonConverter(typeof(TargetFrameworkConverter))]
-    public string TargetFramework { get; set; } = Constants.DefaultTargetFramework.ToFrameworkString(); // Erlaubte Werte: netcoreapp2.2, net6.0, net8.0, net9.0
+    public string TargetFramework { get; set; } = Constants.DefaultTargetFramework.ToFrameworkString(); // Erlaubte Werte: netcoreapp2.2, net6.0, net8.0, net9.0, net10.0
 
     public ProjectModel Project { get; set; }
     public List<SchemaModel> Schema { get; set; }

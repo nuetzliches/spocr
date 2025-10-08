@@ -1,3 +1,5 @@
+ändere erldigte Aufgaben von `- [ ] ` zu `- [x] `
+
 > Aktuelles samples/web-api/spocr.json:1 zeigt noch "TargetFramework": "net8.0". Du hattest erwähnt, auf net10.0 gestellt zu haben – ggf. ist das noch nicht gespeichert.
 
 - [ ] In der Datei C:\Projekte\GitHub\spocr\samples\web-api\spocr.json steht: "TargetFramework": "net10.0" in Zeile 3, bitte verifizieren. Oder prüfen, wo das Problem liegt.
@@ -32,3 +34,5 @@
 - [ ] Die Templates seit v10 sollen von hier aus entstehen: C:\Projekte\GitHub\spocr\src\CodeGenerators\Templates\ITemplateEngine.cs also kein Output Ordner mehr (Bitte Kommentare/Dokumentation anpassen, wenn das nicht klar erkenntlich war)
 
 - [ ] Existiert in docs/content ein Abschnitt zu Empfehlungen der .gitignore?
+- [ ] Alle getätigten Änderungen auf diesem branch mit englischen Kommentaren/Dokumentation
+- [ ] Die Logik im FileManager zur ermittlung des Namespaces gibt es jetzt mehrfach in der Anwendung? Bzw. wie wird der Default auf der Property berechnet? Sollte die Logik ausgelagert werden?

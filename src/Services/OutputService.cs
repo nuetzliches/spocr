@@ -18,7 +18,8 @@ public class OutputService(
     public DirectoryInfo GetOutputRootDir()
     {
         // Determine desired versioned output folder name based on target framework.
-        var targetFramework = configFile.Config.TargetFramework;
+        var cfg = configFile.Config; // may be null during early runs; guard below
+        var targetFramework = cfg?.TargetFramework ?? Constants.DefaultTargetFramework.ToFrameworkString();
         string desiredFolder;
 
         if (string.IsNullOrWhiteSpace(targetFramework))
@@ -126,9 +127,10 @@ public class OutputService(
         // replace custom DefaultConnection identifier
     // Modern Mode (net10+): ignore configured RuntimeConnectionStringIdentifier (deprecated) – always map to static "DefaultConnection"
         string runtimeConnectionStringIdentifier;
-        if (IsModern(configFile.Config.TargetFramework))
+        var cfgLocal = configFile.Config;
+        if (IsModern(cfgLocal?.TargetFramework))
         {
-            if (!string.IsNullOrWhiteSpace(configFile.Config.Project.DataBase.RuntimeConnectionStringIdentifier))
+            if (!string.IsNullOrWhiteSpace(cfgLocal?.Project?.DataBase?.RuntimeConnectionStringIdentifier))
             {
                 consoleService.Verbose("[modern] Ignoring configured RuntimeConnectionStringIdentifier (deprecated in modern mode). Use service options to override at runtime.");
             }
@@ -136,7 +138,7 @@ public class OutputService(
         }
         else
         {
-            runtimeConnectionStringIdentifier = configFile.Config.Project.DataBase.RuntimeConnectionStringIdentifier ?? "DefaultConnection";
+            runtimeConnectionStringIdentifier = cfgLocal?.Project?.DataBase?.RuntimeConnectionStringIdentifier ?? "DefaultConnection";
         }
         fileContent = fileContent.Replace(@"<spocr>DefaultConnection</spocr>", runtimeConnectionStringIdentifier);
 
@@ -152,13 +154,17 @@ public class OutputService(
         string Normalize(string ns) => ns.Replace("..", ".").Trim('.');
         nameSpace = Normalize(nameSpace);
 
-        if (configFile.Config.Project.Role.Kind == RoleKindEnum.Lib)
+        // Avoid double "DataContext" when caller already provides a namespace ending with ".DataContext"
+        var endsWithDataContext = nameSpace.EndsWith(".DataContext", System.StringComparison.OrdinalIgnoreCase);
+        if (configFile.Config.Project.Role.Kind == RoleKindEnum.Lib || endsWithDataContext)
         {
+            // Replace the exact Source.DataContext root with the provided namespace
             root = root.ReplaceUsings(u => u.Replace("Source.DataContext", nameSpace));
             root = root.ReplaceNamespace(ns => ns.Replace("Source.DataContext", nameSpace));
         }
         else
         {
+            // Generic replacement keeping segment structure (e.g., Source.DataContext -> <ns>.DataContext)
             root = root.ReplaceUsings(u => u.Replace("Source.", nameSpace + "."));
             root = root.ReplaceNamespace(ns => ns.Replace("Source.", nameSpace + "."));
         }

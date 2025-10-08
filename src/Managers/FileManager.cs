@@ -1,9 +1,11 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using SpocR.Extensions;
+using SpocR.Enums;
 using SpocR.Interfaces;
 using SpocR.Services;
 using SpocR.Utils;
@@ -126,6 +128,69 @@ public class FileManager<TConfig>(
                     && string.IsNullOrWhiteSpace(cfg.Project.Role.LibNamespace))
                 {
                     cfg.Project.Role = null; // Wird dank JsonIgnoreCondition.WhenWritingNull nicht geschrieben
+                }
+
+                // TargetFramework: Standard nicht persistieren (Default = Constants.DefaultTargetFramework)
+                var defaultTfm = Constants.DefaultTargetFramework.ToFrameworkString();
+                if (!string.IsNullOrWhiteSpace(cfg.TargetFramework) && string.Equals(cfg.TargetFramework, defaultTfm, StringComparison.OrdinalIgnoreCase))
+                {
+                    cfg.TargetFramework = null;
+                }
+
+                // Output.Namespace: wenn dem automatisch ermittelten Standard entspricht, nicht schreiben
+                // Output komplett entfernen, wenn keine Sub-Properties vorhanden
+                if (cfg.Project?.Output != null)
+                {
+                    string inferredNs = null;
+                    try
+                    {
+                        var cwd = DirectoryUtils.GetWorkingDirectory();
+                        var csproj = Directory.EnumerateFiles(cwd, "*.csproj", SearchOption.TopDirectoryOnly).FirstOrDefault();
+                        string Sanitize(string raw)
+                        {
+                            if (string.IsNullOrWhiteSpace(raw)) return null;
+                            var cleaned = System.Text.RegularExpressions.Regex.Replace(raw, "[^A-Za-z0-9_.]", "_");
+                            while (cleaned.Contains("__")) cleaned = cleaned.Replace("__", "_");
+                            while (cleaned.Contains("..")) cleaned = cleaned.Replace("..", ".");
+                            cleaned = cleaned.Trim('_', '.');
+                            if (string.IsNullOrEmpty(cleaned)) cleaned = "App";
+                            if (!System.Text.RegularExpressions.Regex.IsMatch(cleaned.Substring(0, 1), "[A-Za-z_]")) cleaned = "App_" + cleaned;
+                            return cleaned;
+                        }
+                        if (csproj != null)
+                        {
+                            var xml = File.ReadAllText(csproj);
+                            var rootNsMatch = System.Text.RegularExpressions.Regex.Match(xml, "<RootNamespace>(.*?)</RootNamespace>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                            var asmMatch = System.Text.RegularExpressions.Regex.Match(xml, "<AssemblyName>(.*?)</AssemblyName>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                            inferredNs = rootNsMatch.Success ? Sanitize(rootNsMatch.Groups[1].Value.Trim())
+                                                             : asmMatch.Success ? Sanitize(asmMatch.Groups[1].Value.Trim())
+                                                                               : Sanitize(Path.GetFileNameWithoutExtension(csproj));
+                        }
+                        inferredNs ??= Sanitize(new DirectoryInfo(cwd).Name);
+                    }
+                    catch { inferredNs = null; }
+
+                    if (!string.IsNullOrWhiteSpace(inferredNs) && !string.IsNullOrWhiteSpace(cfg.Project.Output.Namespace))
+                    {
+                        if (string.Equals(cfg.Project.Output.Namespace, inferredNs, StringComparison.Ordinal))
+                        {
+                            cfg.Project.Output.Namespace = null;
+                        }
+                    }
+
+                    bool HasDataContextProps(SpocR.Models.DataContextModel dc)
+                        => !(dc == null || (string.IsNullOrWhiteSpace(dc.Path)
+                                            && (dc.Inputs == null || string.IsNullOrWhiteSpace(dc.Inputs.Path))
+                                            && (dc.Outputs == null || string.IsNullOrWhiteSpace(dc.Outputs.Path))
+                                            && (dc.Models == null || string.IsNullOrWhiteSpace(dc.Models.Path))
+                                            && (dc.StoredProcedures == null || string.IsNullOrWhiteSpace(dc.StoredProcedures.Path))
+                                            && (dc.TableTypes == null || string.IsNullOrWhiteSpace(dc.TableTypes.Path))));
+
+                    var dcHas = HasDataContextProps(cfg.Project.Output.DataContext);
+                    if (string.IsNullOrWhiteSpace(cfg.Project.Output.Namespace) && !dcHas)
+                    {
+                        cfg.Project.Output = null;
+                    }
                 }
             }
         }

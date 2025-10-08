@@ -159,8 +159,16 @@ public class {className} {{ // modern stub
 
         // Build namespace; if schemaName is empty (root-level artifacts like Outputs base files) avoid trailing dot
         string targetNamespace;
+        var endsWithDataContext = configuredRootNs.EndsWith(".DataContext", StringComparison.OrdinalIgnoreCase);
         if (_configManager.Config.Project.Role.Kind == RoleKindEnum.Lib)
         {
+            targetNamespace = string.IsNullOrWhiteSpace(schemaName)
+                ? $"{configuredRootNs}.{nsSegment}"
+                : $"{configuredRootNs}.{nsSegment}.{schemaName}";
+        }
+        else if (endsWithDataContext)
+        {
+            // User provided root already contains DataContext suffix; do not append again
             targetNamespace = string.IsNullOrWhiteSpace(schemaName)
                 ? $"{configuredRootNs}.{nsSegment}"
                 : $"{configuredRootNs}.{nsSegment}.{schemaName}";

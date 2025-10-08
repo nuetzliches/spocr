@@ -1,95 +1,59 @@
-<#!
-.SYNOPSIS
-  Convenience wrapper to run a local SpocR pull + generate cycle against a config.
-
-.DESCRIPTION
-  Ensures the project is built (optionally restores) and then invokes the SpocR CLI
-  with typical development defaults. Targets modern mode automatically if the
-  sample/web-api project targets net10. Pass-through extra CLI arguments with -SpocrArgs.
-
-.PARAMETER Config
-  Path to spocr.json (default: samples/web-api/spocr.json)
-
-.PARAMETER SkipPull
-  Skip the 'pull' phase (only run generation).
-
-.PARAMETER SkipGenerate
-  Skip the 'generate' phase (only pull definitions).
-
-.PARAMETER NoRestore
-  Do not run a dotnet restore before build.
-
-.PARAMETER Configuration
-  Build configuration (Debug|Release). Default Debug.
-
-.PARAMETER SpocrArgs
-  Additional raw arguments forwarded to each SpocR CLI invocation.
-
-.EXAMPLE
-  pwsh -File eng/run-local-spocr.ps1
-
-.EXAMPLE
-  pwsh -File eng/run-local-spocr.ps1 -Config ./my/spocr.json -SpocrArgs "--only inputs,models"
-
-.NOTES
-  Writes transient artifacts to the stabilized ./debug directory (repo root anchored).
-#>
 param(
-    [string]$Config = "samples/web-api/spocr.json",
-    [switch]$SkipPull,
-    [switch]$SkipGenerate,
-    [switch]$NoRestore,
-    [string]$Configuration = "Debug",
-    [string]$SpocrArgs
+  [Parameter(Mandatory=$true, Position=0)]
+  [ValidateSet('create','pull','build','rebuild','remove','project','schema','sp','snapshot','version','config')]
+  [string]$Command,
+
+  [Parameter(Mandatory=$true, Position=1)]
+  [string]$ConfigPath,
+
+  [Parameter(Position=2, ValueFromRemainingArguments=$true)]
+  [string[]]$Args
 )
 
 $ErrorActionPreference = 'Stop'
 
-function Write-Info($msg){ Write-Host "[run-local] $msg" -ForegroundColor Cyan }
-function Write-Step($msg){ Write-Host "==> $msg" -ForegroundColor Green }
-
-# Resolve repo root (directory containing SpocR.sln)
-$repoRoot = git rev-parse --show-toplevel 2>$null
-if(-not $repoRoot){
-  # Fallback: ascend looking for solution
-  $probe = (Get-Location).Path
-  while($probe -and -not (Test-Path (Join-Path $probe 'SpocR.sln'))){
-    $parent = Split-Path $probe -Parent
-    if($parent -eq $probe){ break }
-    $probe = $parent
-  }
-  if(Test-Path (Join-Path $probe 'SpocR.sln')){ $repoRoot = $probe } else { $repoRoot = (Get-Location).Path }
+function Get-RepoRoot {
+  $here = Split-Path -Parent $MyInvocation.MyCommand.Path
+  # eng folder → repo root
+  return (Split-Path -Parent $here)
 }
-Set-Location $repoRoot
 
-if(-not (Test-Path $Config)){ throw "Config not found: $Config" }
+function Get-TargetFrameworkFromConfig([string]$configPath) {
+  if (-not (Test-Path $configPath)) { throw "Config not found: $configPath" }
+  $json = Get-Content -Raw -Path $configPath | ConvertFrom-Json
+  $tfm = $json.TargetFramework
+  if ([string]::IsNullOrWhiteSpace($tfm)) { return 'net10.0' }
+  return $tfm
+}
 
-$spocrProj = Join-Path $repoRoot 'src/SpocR.csproj'
-if(-not (Test-Path $spocrProj)){ throw "SpocR.csproj not found under src/" }
+function Invoke-SpocR {
+  param(
+    [string]$tfm,
+    [string]$command,
+    [string]$config,
+    [string[]]$extra
+  )
+  $root = Get-RepoRoot
+  $proj = Join-Path $root 'src/SpocR.csproj'
+  $forward = @('--no-auto-update') + $extra
+  $dotnetArgs = @('run','--project', $proj, '--framework', $tfm, '--', $command, '-p', $config) + $forward
+  Write-Host "dotnet $($dotnetArgs -join ' ')" -ForegroundColor Cyan
+  & dotnet @dotnetArgs
+}
 
-Write-Step "Build CLI ($Configuration)"
-if(-not $NoRestore){ dotnet restore $spocrProj | Out-Null }
-dotnet build $spocrProj -c $Configuration --nologo
+try {
+  $root = Get-RepoRoot
+  if (-not (Test-Path $ConfigPath)) {
+    # allow relative to repo root
+    $candidate = Join-Path $root $ConfigPath
+    if (Test-Path $candidate) { $ConfigPath = $candidate }
+  }
 
-$cli = Join-Path $repoRoot 'src/bin' | Join-Path -ChildPath "$Configuration"
-# Detect produced dll (multi-target maybe). Pick highest TFM folder.
-$tfms = Get-ChildItem -Directory $cli | Select-Object -ExpandProperty Name | Sort-Object
-if($tfms.Count -gt 0){ $selectedTfm = $tfms[-1]; $cliPath = Join-Path $cli $selectedTfm | Join-Path -ChildPath 'SpocR.dll' } else { $cliPath = Join-Path $cli 'SpocR.dll' }
-if(-not (Test-Path $cliPath)){ throw "CLI assembly not found: $cliPath" }
+  $tfm = Get-TargetFrameworkFromConfig -configPath $ConfigPath
+  Invoke-SpocR -tfm $tfm -command $Command -config $ConfigPath -extra $Args
+}
+catch {
+  Write-Host $_.Exception.Message -ForegroundColor Red
+  exit 1
+}
 
-$baseArgs = "-p $Config"
-if($SpocrArgs){ $baseArgs = "$baseArgs $SpocrArgs" }
-
-if(-not $SkipPull){
-  Write-Step "Pull"
-  # CommandLineUtils expects: dotnet <dll> pull [options]
-  dotnet $cliPath pull $baseArgs
-} else { Write-Info "SkipPull enabled" }
-
-if(-not $SkipGenerate){
-  Write-Step "Build"
-  # Generation is performed by 'build' (there is no 'generate' command in current CLI)
-  dotnet $cliPath build $baseArgs
-} else { Write-Info "SkipGenerate enabled" }
-
-Write-Step "Done"

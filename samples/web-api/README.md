@@ -78,10 +78,10 @@ The manual context is a temporary bridge – do not build new features atop it; 
 ## Modern Mode Behavior
 
 Modern mode (net10+):
-1. Auto-infers root namespace from the project (`WebApi`).
+1. Auto-infers root namespace from the project (`WebApi`) unless explicitly set in `spocr.json`.
 2. Fills missing `Project.Output.*` fields (namespace & subpaths) if omitted.
 3. Ignores deprecated `project.dataBase.runtimeConnectionStringIdentifier` (uses `DefaultConnection`).
-4. Skips legacy template preloading; uses dynamic stubs (to be replaced by real modern templates).
+4. Templates for v10+ are sourced via the embedded template engine (`src/CodeGenerators/Templates/ITemplateEngine.cs`). The legacy `Output-*` folders are used only as a fallback during transition.
 
 ## Deprecations Highlighted Here
 

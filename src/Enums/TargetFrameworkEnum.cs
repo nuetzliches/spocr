@@ -5,7 +5,8 @@ public enum TargetFrameworkEnum
     NetCoreApp22,
     Net60,
     Net80,
-    Net90
+    Net90,
+    Net100
 }
 
 public static class TargetFrameworkExtensions
@@ -23,6 +24,7 @@ public static class TargetFrameworkExtensions
             TargetFrameworkEnum.Net60 => "net6.0",
             TargetFrameworkEnum.Net80 => "net8.0",
             TargetFrameworkEnum.Net90 => "net9.0",
+            TargetFrameworkEnum.Net100 => "net10.0",
             _ => framework.ToDefaultTargetFramework()
         };
     }
@@ -38,6 +40,7 @@ public static class TargetFrameworkExtensions
             "net6.0" => TargetFrameworkEnum.Net60,
             "net8.0" => TargetFrameworkEnum.Net80,
             "net9.0" => TargetFrameworkEnum.Net90,
+            "net10.0" => TargetFrameworkEnum.Net100,
             _ => Constants.DefaultTargetFramework
         };
     }
