@@ -498,17 +498,43 @@ public class ConsoleService(
 
     public void PrintConfiguration(ConfigurationModel config)
     {
+        // Kopie erzeugen um Ausgabe zu normalisieren (Role entfernen bei Default)
+        var clone = config == null ? null : new ConfigurationModel
+        {
+            Version = config.Version,
+            TargetFramework = config.TargetFramework,
+            Project = config.Project == null ? null : new ProjectModel
+            {
+                DataBase = config.Project.DataBase,
+                Output = config.Project.Output,
+                DefaultSchemaStatus = config.Project.DefaultSchemaStatus,
+                IgnoredSchemas = config.Project.IgnoredSchemas,
+                IgnoredProcedures = config.Project.IgnoredProcedures,
+                JsonTypeLogLevel = config.Project.JsonTypeLogLevel,
+                Role = config.Project.Role
+            },
+            Schema = config.Schema
+        };
+
+        try
+        {
+#pragma warning disable CS0618
+            if (clone?.Project?.Role?.Kind == RoleKindEnum.Default && string.IsNullOrWhiteSpace(clone.Project.Role.LibNamespace))
+            {
+                clone.Project.Role = null;
+            }
+#pragma warning restore CS0618
+        }
+        catch { }
+
         var jsonSettings = new JsonSerializerOptions()
         {
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
             WriteIndented = true,
-            Converters = {
-                new JsonStringEnumConverter()
-            }
+            Converters = { new JsonStringEnumConverter() }
         };
 
-        var json = JsonSerializer.Serialize(config, jsonSettings);
-
+        var json = JsonSerializer.Serialize(clone, jsonSettings);
         Warn(json);
         Output("");
     }

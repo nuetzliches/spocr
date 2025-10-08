@@ -71,6 +71,7 @@ public enum JsonTypeLogLevel
 
 public class RoleModel
 {
+    [Obsolete("Role.Kind is deprecated and will be removed in v5. Default behavior is 'Default'. Remove the entire 'Role' section from spocr.json when Kind=Default and no LibNamespace is required.")]
     public RoleKindEnum Kind { get; set; } = RoleKindEnum.Default;
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

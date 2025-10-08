@@ -188,6 +188,44 @@ Migration Output Example (`--verbose`):
 
 If you need to newly ignore a schema later, append it to the `ignoredSchemas` list and re-run `spocr pull` (a new snapshot fingerprint will be generated if affected procedures change).
 
+### Deprecation: `Project.Role / RoleKindEnum`
+
+`Project.Role.Kind` is deprecated and scheduled for removal in **v5**. The generator now always behaves as if `Kind = Default`.
+
+Reasons:
+1. Previous values (`Default`, `Lib`, `Extension`) created divergent generation branches with marginal value.
+2. Reduced configuration surface leads to more predictable output.
+3. Encourages explicit composition via DI (extension methods / service registrations) instead of implicit role flags.
+
+Migration:
+Remove the entire `role` node when it only contains `kind: "Default"` (and no `libNamespace`). Non-default values trigger a console warning and are ignored.
+
+Before:
+```jsonc
+{
+  "project": {
+    "role": { "kind": "Default" },
+    "output": { "namespace": "My.App", "dataContext": { "path": "./DataContext" } }
+  }
+}
+```
+
+After:
+```jsonc
+{
+  "project": {
+    "output": { "namespace": "My.App", "dataContext": { "path": "./DataContext" } }
+  }
+}
+```
+
+Console Warning Policy:
+* Until v5 a warning appears if `role.kind` is `Lib` or `Extension`.
+* In v5 the enum and node will be removed entirely; legacy configs will be auto-normalized.
+
+Tracking: See CHANGELOG entry under the deprecation section for progress and final removal PR link once merged.
+
+
 ### JSON Summary Artifact
 
 When run with `--ci`, a rich summary is written to `.artifacts/test-summary.json`.

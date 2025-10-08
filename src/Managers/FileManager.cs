@@ -115,6 +115,25 @@ public class FileManager<TConfig>(
         // Overwrite with current SpocR-Version
         config.Version = spocr.Version;
 
+        // Spezialfall: spocr.json Konfiguration bereinigen (nur wenn es sich um ConfigurationModel handelt)
+        try
+        {
+            if (config is SpocR.Models.ConfigurationModel cfg)
+            {
+                // Wenn Role vorhanden aber Kind == Default und kein LibNamespace => Role entfernen (Deprecation Pfad)
+                if (cfg?.Project?.Role != null
+                    && cfg.Project.Role.Kind == SpocR.Enums.RoleKindEnum.Default
+                    && string.IsNullOrWhiteSpace(cfg.Project.Role.LibNamespace))
+                {
+                    cfg.Project.Role = null; // Wird dank JsonIgnoreCondition.WhenWritingNull nicht geschrieben
+                }
+            }
+        }
+        catch (Exception)
+        {
+            // Bereinigungsfehler ignorieren – darf das Speichern nicht verhindern
+        }
+
         var json = JsonSerializer.Serialize(config, SerializerOptions);
         var path = DirectoryUtils.GetWorkingDirectory(fileName);
         Directory.CreateDirectory(Path.GetDirectoryName(path));

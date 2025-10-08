@@ -62,20 +62,16 @@ public class SpocrManager(
         }
 
         var connectionString = "";
+        // Role deprecated – Optionen nur noch für Migrationshinweis anzeigen falls Benutzer explizit etwas eingibt
         var roleKindString = options.Role;
-        if (!options.Quiet)
+        RoleKindEnum roleKind = RoleKindEnum.Default; // Immer Default setzen
+        string libNamespace = null;
+        if (!options.Quiet && !string.IsNullOrWhiteSpace(roleKindString))
         {
-            roleKindString = consoleService.GetString($"{Constants.Name} Role [Default, Lib, Extension]:", "Default");
-        }
-
-        Enum.TryParse(roleKindString, true, out RoleKindEnum roleKind);
-
-        var libNamespace = options.LibNamespace;
-        if (!options.Quiet)
-        {
-            libNamespace = roleKind == RoleKindEnum.Extension
-                    ? consoleService.GetString($"{Constants.Name} Lib Namespace:", "Nuts.DbContext")
-                    : null;
+            if (Enum.TryParse(roleKindString, true, out RoleKindEnum parsed) && parsed != RoleKindEnum.Default)
+            {
+                consoleService.Warn("[deprecation] Providing a role is deprecated and ignored. Default role is always applied.");
+            }
         }
 
         var config = service.GetDefaultConfiguration(targetFramework, appNamespace, connectionString, roleKind, libNamespace);
@@ -798,7 +794,10 @@ public class SpocrManager(
                 consoleService.Verbose($"Generator types restricted to: {buildOptions.GeneratorTypes}");
             }
 
+            // Zugriff weiterhin nötig bis vollständige Entfernung in v5 – Obsolete Warning lokal unterdrücken
+#pragma warning disable CS0618
             return orchestrator.GenerateCodeWithProgressAsync(options.DryRun, project.Role.Kind, project.Output);
+#pragma warning restore CS0618
         }
         catch (Exception ex)
         {
@@ -822,6 +821,28 @@ public class SpocrManager(
         {
             consoleService.Error("Failed to read configuration file");
             return new ConfigurationModel();
+        }
+
+        // Migration / Normalisierung Role (Deprecation Path)
+        try
+        {
+            // Falls Role fehlt => Standard auffüllen (Kind=Default)
+            if (config.Project != null && config.Project.Role == null)
+            {
+                config.Project.Role = new RoleModel();
+            }
+            // Deprecation Warnung wenn ein Nicht-Default Wert gesetzt ist
+            // Deprecation Warning nur wenn alter Wert (Lib/Extension) verwendet wird
+#pragma warning disable CS0618
+            if (config.Project?.Role?.Kind is SpocR.Enums.RoleKindEnum.Lib or SpocR.Enums.RoleKindEnum.Extension)
+#pragma warning restore CS0618
+            {
+                consoleService.Warn("[deprecation] Project.Role.Kind is deprecated and will be removed in v5. Remove the 'Role' section or set it to Default. See migration guide.");
+            }
+        }
+        catch (Exception ex)
+        {
+            consoleService.Verbose($"[role-migration-warn] {ex.Message}");
         }
 
         var userConfigFileName = Constants.UserConfigurationFile.Replace("{userId}", globalConfigFile.Config?.UserId);
