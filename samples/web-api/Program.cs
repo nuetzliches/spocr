@@ -1,26 +1,27 @@
-using System.Data.Common;
-
 var builder = WebApplication.CreateBuilder(args);
 
 // Add minimal OpenAPI support
 builder.Services.AddOpenApi();
 
-// builder.Services.AddSpocRDbContext(options =>
-// {
-//     // options.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-//     // options.CommandTimeout = 45;
-//     // options.JsonSerializerOptions = new JsonSerializerOptions
-//     // {
-//     //     PropertyNameCaseInsensitive = true,
-//     //     PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-//     // };
-//     // options.StoredProcedures.UserFind.Timeout = 60; // Override specific stored procedure timeout
-//     // options.StoredProcedures.UserFind.JsonSerializerOptions = new JsonSerializerOptions
-//     // {
-//     //     PropertyNameCaseInsensitive = true,
-//     //     PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-//     // };
-// });
+builder.Services.AddSpocRDbContext(options =>
+{
+    // optionale Konfiguration, presets in der Implementierung
+    options.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+    options.CommandTimeout = 45;
+    options.JsonSerializerOptions = new JsonSerializerOptions
+    {
+        PropertyNameCaseInsensitive = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+    // TODO wie werden einzelne Stored Procedures konfiguriert?
+    // erst beim Aufruf der Stored Procedure innerhalb der API-Methode?
+    // options.StoredProcedures.UserFind.Timeout = 60; // Override specific stored procedure timeout
+    // options.StoredProcedures.UserFind.JsonSerializerOptions = new JsonSerializerOptions
+    // {
+    //     PropertyNameCaseInsensitive = true,
+    //     PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    // };
+});
 
 var app = builder.Build();
 
