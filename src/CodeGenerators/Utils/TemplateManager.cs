@@ -44,6 +44,11 @@ public class TemplateManager
 
     private void PreloadTemplates()
     {
+    // Modern Mode (net10+): uses embedded / dynamic templates – skip legacy preload
+        if (IsModern(_configManager.Config.TargetFramework))
+        {
+            return; // kein Preload nötig
+        }
         var rootDir = _output.GetOutputRootDir();
 
         foreach (var templateType in _templateTypes)
@@ -63,6 +68,68 @@ public class TemplateManager
     /// </summary>
     public async Task<CompilationUnitSyntax> GetProcessedTemplateAsync(string templateType, string schemaName, string className)
     {
+    // Modern Mode: dynamic templates diverge strongly – placeholder path until full modern generator is integrated
+        if (IsModern(_configManager.Config.TargetFramework))
+        {
+            // Temporärer Minimal-Stub falls Legacy Generatoren noch aufrufen
+            var ns = _configManager.Config.Project.Output.Namespace ?? "SpocR.Generated";
+            var segment = "Models";
+            if (templateType.StartsWith("Inputs/", StringComparison.OrdinalIgnoreCase)) segment = "Inputs";
+            else if (templateType.StartsWith("Outputs/", StringComparison.OrdinalIgnoreCase)) segment = "Outputs";
+            else if (templateType.StartsWith("TableTypes/", StringComparison.OrdinalIgnoreCase)) segment = "TableTypes";
+            else if (templateType.StartsWith("StoredProcedures/", StringComparison.OrdinalIgnoreCase)) segment = "StoredProcedures";
+
+            var schemaPart = string.IsNullOrWhiteSpace(schemaName) ? string.Empty : $".{schemaName}";
+            string code;
+            if (segment == "StoredProcedures")
+            {
+                // Full placeholder mimicking legacy template (2 methods) – required so StoredProcedureGenerator detects placeholders.
+                // Verbatim string: double quotes must be doubled. Signatures/body intentionally minimal; generator replaces contents.
+                code = $@"using System;
+using System.Collections.Generic;
+using Microsoft.Data.SqlClient;
+using System.Threading;
+using System.Threading.Tasks;
+using {ns}.DataContext.Models;
+using {ns}.DataContext.Outputs;
+using {ns}.DataContext;
+
+namespace {ns}.DataContext.{segment}{schemaPart}
+{{
+    public static class {className}
+    {{
+        public static Task<CrudResult> CrudActionAsync(this IAppDbContextPipe context, Input input, CancellationToken cancellationToken)
+        {{
+            if (context == null)
+            {{
+                throw new ArgumentNullException(nameof(context));
+            }}
+
+            var parameters = new List<SqlParameter>
+            {{
+                AppDbContext.GetParameter(""Parameter"", parameter),
+                AppDbContext.GetCollectionParameter(""TableType"", tableType)
+            }};
+            return context.ExecuteSingleAsync<CrudResult>(""schema.CrudAction"", parameters, cancellationToken);
+        }}
+
+        public static Task<CrudResult> CrudActionAsync(this IAppDbContext context, Input input, CancellationToken cancellationToken)
+        {{
+            return context.CreatePipe().CrudActionAsync(input, cancellationToken);
+        }}
+    }}
+}}";
+            }
+            else
+            {
+                code = $@"namespace {ns}.DataContext.{segment}{schemaPart};
+public class {className} {{ // modern stub
+    // TODO: Replace with modern template content
+}}";
+            }
+            var treeStub = CSharpSyntaxTree.ParseText(code);
+            return treeStub.GetCompilationUnitRoot();
+        }
         if (!_templateCache.TryGetValue(templateType, out var template))
         {
             // Fallback to loading directly from disk if it is not in the cache
@@ -115,6 +182,13 @@ public class TemplateManager
         root = root.ReplaceClassName(ci => ci.Replace(templateFileName, className));
 
         return root;
+    }
+
+    private static bool IsModern(string tfm)
+    {
+        if (string.IsNullOrWhiteSpace(tfm) || !tfm.StartsWith("net")) return false;
+        var core = tfm.Substring(3).Split('.')[0];
+        return int.TryParse(core, out var major) && major >= 10;
     }
 
     /// <summary>

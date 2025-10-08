@@ -33,7 +33,12 @@ public class OutputService(
         {
             desiredFolder = "Output-v9-0"; // net8 shares the v9 templates currently
         }
-        else if (int.TryParse(targetFramework.Replace("net", "").Split('.')[0], out var versionNumber) && versionNumber >= 5)
+        else if (int.TryParse(targetFramework.Replace("net", "").Split('.')[0], out var versionNumber) && versionNumber >= 10)
+        {
+            // Modern Mode: dedicated template folder name (if real templates land later). Currently a placeholder / minimal fallback.
+            desiredFolder = "Output-modern"; // reserved name for modern embedded templates
+        }
+        else if (int.TryParse(targetFramework.Replace("net", "").Split('.')[0], out versionNumber) && versionNumber >= 5)
         {
             desiredFolder = "Output-v5-0";
         }
@@ -62,7 +67,24 @@ public class OutputService(
     {
         var dir = GetOutputRootDir();
 
+    // Defensive fallbacks – in case normalization (older versions) did not populate DataContext structure
+        output ??= new OutputModel();
+        output.DataContext ??= new DataContextModel();
+        output.DataContext.Path ??= "DataContext";
+        output.DataContext.Inputs ??= new DataContextInputsModel { Path = output.DataContext.Inputs?.Path ?? "Inputs" };
+        output.DataContext.Outputs ??= new DataContextOutputsModel { Path = output.DataContext.Outputs?.Path ?? "Outputs" };
+        output.DataContext.Models ??= new DataContextModelsModel { Path = output.DataContext.Models?.Path ?? "Models" };
+        output.DataContext.StoredProcedures ??= new DataContextStoredProceduresModel { Path = output.DataContext.StoredProcedures?.Path ?? "StoredProcedures" };
+        output.DataContext.TableTypes ??= new DataContextTableTypesModel { Path = output.DataContext.TableTypes?.Path ?? "TableTypes" };
+
+        if (string.IsNullOrWhiteSpace(output.Namespace))
+        {
+            consoleService.Warn("[normalize-late] Output.Namespace was empty entering GenerateCodeBase – applying fallback 'SpocR.Generated'.");
+            output.Namespace = "SpocR.Generated";
+        }
+
         var targetDir = DirectoryUtils.GetWorkingDirectory(output.DataContext.Path);
+        consoleService.Verbose($"[codebase] targetDir={targetDir} inputs={output.DataContext.Inputs.Path} outputs={output.DataContext.Outputs.Path} models={output.DataContext.Models.Path} sps={output.DataContext.StoredProcedures.Path} udtts={output.DataContext.TableTypes.Path}");
         // Ensure the versioned DataContext template source exists; if not, emit a warning instead of throwing.
         var templateDataContextDir = Path.Combine(dir.FullName, "DataContext");
         if (!Directory.Exists(templateDataContextDir))
@@ -102,7 +124,20 @@ public class OutputService(
         var fileContent = await File.ReadAllTextAsync(file.FullName);
 
         // replace custom DefaultConnection identifier
-        var runtimeConnectionStringIdentifier = configFile.Config.Project.DataBase.RuntimeConnectionStringIdentifier ?? "DefaultConnection";
+    // Modern Mode (net10+): ignore configured RuntimeConnectionStringIdentifier (deprecated) – always map to static "DefaultConnection"
+        string runtimeConnectionStringIdentifier;
+        if (IsModern(configFile.Config.TargetFramework))
+        {
+            if (!string.IsNullOrWhiteSpace(configFile.Config.Project.DataBase.RuntimeConnectionStringIdentifier))
+            {
+                consoleService.Verbose("[modern] Ignoring configured RuntimeConnectionStringIdentifier (deprecated in modern mode). Use service options to override at runtime.");
+            }
+            runtimeConnectionStringIdentifier = "DefaultConnection";
+        }
+        else
+        {
+            runtimeConnectionStringIdentifier = configFile.Config.Project.DataBase.RuntimeConnectionStringIdentifier ?? "DefaultConnection";
+        }
         fileContent = fileContent.Replace(@"<spocr>DefaultConnection</spocr>", runtimeConnectionStringIdentifier);
 
         var tree = CSharpSyntaxTree.ParseText(fileContent);
@@ -137,6 +172,13 @@ public class OutputService(
         var sourceText = root.GetText();
 
         await WriteAsync(targetFileName, sourceText, isDryRun);
+    }
+
+    private static bool IsModern(string tfm)
+    {
+        if (string.IsNullOrWhiteSpace(tfm) || !tfm.StartsWith("net")) return false;
+        var core = tfm.Substring(3).Split('.')[0];
+        return int.TryParse(core, out var major) && major >= 10;
     }
 
     public async Task WriteAsync(string targetFileName, SourceText sourceText, bool isDryRun)

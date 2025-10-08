@@ -5,8 +5,24 @@ Format loosely inspired by Keep a Changelog. Dates use ISO 8601 (UTC).
 
 ## [Unreleased]
 
+### Added
+- Implicit "Modern Mode" activation when target framework >= `net10.0` (no explicit config flag required). Automatically provides dynamic in-memory template stubs while real modern templates are being authored.
+- Optional `Project.Output` configuration: when omitted, namespace & folder structure are inferred (DataContext, Models, StoredProcedures, etc.).
+- Dynamic Roslyn template stubs for modern mode (DbContext scaffolding & stored procedure extension placeholder) removing need to copy legacy template files.
+
+### Changed
+- Generators (Inputs, Models, TableTypes, StoredProcedures) updated to fully support file-scoped namespaces; resilient placeholder detection for stored procedure extensions.
+- Configuration normalization fills missing Output/DataContext paths to maintain backwards-compatible structure while allowing minimal `spocr.json`.
+- Debug output directory stabilization (root auto-detected via `SpocR.sln` or `.git`) ensuring artifacts land under a consistent `debug/` folder regardless of invocation depth.
+
+### Deprecated
+- `Role.Kind` (ignored during generation; emits deprecation warning – slated for removal after stable modern release).
+- `RuntimeConnectionStringIdentifier` (ignored in modern mode; legacy resolution path retained for pre-net10 targets only).
+- Mandatory presence of `Project.Output` node (now optional; provide only when overriding defaults).
+
 ### Planned
-- (none currently) – add new items here.
+- Replace temporary modern stubs with finalized template implementations (DbContext enhancements, execution pipeline, DI helpers) before beta.
+- Introduce suppression or removal path for deprecated `Role.Kind` warnings (multi-phase: warn -> silent ignore -> removal).
 
 ## [4.5.0-alpha.12] - 2025-10-07
 

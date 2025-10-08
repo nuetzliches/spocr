@@ -15,6 +15,8 @@ using SpocR.Models;
 using SpocR.Services;
 using SpocR.DataContext.Queries;
 using SpocR.DataContext.Models;
+using System.IO;
+using System.Text.RegularExpressions;
 
 namespace SpocR.Managers;
 
@@ -849,6 +851,8 @@ public class SpocrManager(
         if (string.IsNullOrEmpty(globalConfigFile.Config?.UserId))
         {
             consoleService.Verbose("No user ID found in global configuration");
+            // Auch ohne Benutzerkonfiguration unbedingt normalisieren
+            try { NormalizeConfiguration(config); } catch (Exception nx) { consoleService.Verbose($"[normalize-warn] {nx.Message}"); }
             return config;
         }
 
@@ -860,14 +864,205 @@ public class SpocrManager(
             var userConfig = await userConfigFile.ReadAsync();
             if (userConfig != null)
             {
-                return config.OverwriteWith(userConfig);
+                config = config.OverwriteWith(userConfig);
             }
             else
             {
                 consoleService.Warn($"User configuration file exists but could not be read: {userConfigFileName}");
             }
         }
+        // Normalisierung immer anwenden (auch wenn UserConfig leer)
+        try { NormalizeConfiguration(config); } catch (Exception nx) { consoleService.Verbose($"[normalize-warn] {nx.Message}"); }
 
         return config;
+    }
+
+    /// <summary>
+    /// Normalisiert die Konfiguration für den modernen Modus (implizit bei net10+). Füllt fehlende Namespace- und Pfadangaben auf.
+    /// </summary>
+    /// <remarks>
+    /// Ziel: Benutzer muss bei modernen Projekten möglichst wenig / gar nichts in Project.Output.* konfigurieren.
+    /// Strategie: Wenn TargetFramework >= net10.* dann wird fehlender Namespace automatisch aus Arbeitsverzeichnis oder erstem *.csproj abgeleitet.
+    /// Zusätzlich werden fehlende Output/DataContext Strukturen mit Defaults befüllt, damit bestehende Generatoren ohne tiefen Refactor weiter funktionieren.
+    /// </remarks>
+    private void NormalizeConfiguration(ConfigurationModel config)
+    {
+        if (config?.Project == null) return;
+
+        // Runtime TFM Erkennung: Wenn CLI unter einem höheren netX ausgeführt wird als in der Konfiguration angegeben,
+        // heben wir TargetFramework auf dieses Runtime-TFM an um Modern Mode (net10+) zu aktivieren.
+        try
+        {
+            var asm = System.Reflection.Assembly.GetExecutingAssembly();
+            var tfmAttr = asm.GetCustomAttributes(typeof(System.Runtime.Versioning.TargetFrameworkAttribute), false)
+                .OfType<System.Runtime.Versioning.TargetFrameworkAttribute>()
+                .FirstOrDefault();
+            var runtimeTfm = tfmAttr?.FrameworkName; // z.B. .NETCoreApp,Version=v10.0
+            if (!string.IsNullOrWhiteSpace(runtimeTfm) && runtimeTfm.Contains("Version=v"))
+            {
+                var verPart = runtimeTfm.Split("Version=v").Last(); // 10.0
+                if (Version.TryParse(verPart, out var runtimeVersion))
+                {
+                    // nur anheben falls config netX und runtimeVersion Major > configMajor
+                    if (!string.IsNullOrWhiteSpace(config.TargetFramework) && config.TargetFramework.StartsWith("net"))
+                    {
+                        var cfgCore = config.TargetFramework.Substring(3).Split('.')[0];
+                        if (int.TryParse(cfgCore, out var cfgMajor) && runtimeVersion.Major > cfgMajor)
+                        {
+                            var newTfm = $"net{runtimeVersion.Major}.0"; // Normalisieren auf *.0
+                            consoleService.Verbose($"[normalize] Elevating TargetFramework from '{config.TargetFramework}' to runtime '{newTfm}'");
+                            config.TargetFramework = newTfm;
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception rx)
+        {
+            consoleService.Verbose($"[normalize-runtime-tfm-warn] {rx.Message}");
+        }
+
+        // Determine modern mode (implicit) – net10.* or any netX where X >= 10
+        bool IsModernFramework(string tfm)
+        {
+            if (string.IsNullOrWhiteSpace(tfm)) return false;
+            if (!tfm.StartsWith("net")) return false;
+            var core = tfm.Substring(3); // strip 'net'
+            var majorPart = core.Split('.')[0];
+            return int.TryParse(majorPart, out var major) && major >= 10;
+        }
+
+        var isModern = IsModernFramework(config.TargetFramework);
+
+        // Legacy UND Modern: Wenn Project.Output fehlt komplett automatisch erzeugen (Configuration kann Output zukünftig komplett weglassen)
+        config.Project.Output ??= new OutputModel();
+        config.Project.Output.DataContext ??= new DataContextModel();
+
+        if (!isModern)
+        {
+            // Für Legacy (net8/net9) nur Minimal-Auffüllung, Namespace aber ebenfalls ableiten falls leer → Vereinheitlichung
+            if (string.IsNullOrWhiteSpace(config.Project.Output.Namespace))
+            {
+                var inferredLegacyNs = TryInferNamespaceFromCsproj() ?? SanitizeNamespace(new DirectoryInfo(Directory.GetCurrentDirectory()).Name) ?? "SpocR.Generated";
+                config.Project.Output.Namespace = inferredLegacyNs;
+                consoleService.Verbose($"[normalize] Inferred root namespace '{config.Project.Output.Namespace}' (legacy mode)");
+            }
+            // Sicherstellen, dass auch im Legacy Modus alle DataContext Unterstrukturen vorhanden sind (sonst ArgumentNull in OutputService)
+            var ldc = config.Project.Output.DataContext;
+            if (string.IsNullOrWhiteSpace(ldc.Path)) ldc.Path = "DataContext";
+            ldc.Inputs ??= new DataContextInputsModel { Path = ldc.Inputs?.Path ?? "Inputs" };
+            ldc.Outputs ??= new DataContextOutputsModel { Path = ldc.Outputs?.Path ?? "Outputs" };
+            ldc.Models ??= new DataContextModelsModel { Path = ldc.Models?.Path ?? "Models" };
+            ldc.StoredProcedures ??= new DataContextStoredProceduresModel { Path = ldc.StoredProcedures?.Path ?? "StoredProcedures" };
+            ldc.TableTypes ??= new DataContextTableTypesModel { Path = ldc.TableTypes?.Path ?? "TableTypes" };
+            return; // Keine Modern-spezifischen Pfadwarnungen etc.
+        }
+
+        // Modern Mode: Provide defaults / inference
+        config.Project.Output ??= new OutputModel();
+        var output = config.Project.Output;
+
+        // Namespace inference only if null/empty
+        if (string.IsNullOrWhiteSpace(output.Namespace))
+        {
+            string inferred = TryInferNamespaceFromCsproj();
+            if (string.IsNullOrWhiteSpace(inferred))
+            {
+                // fallback: folder name of working directory
+                var dirName = new DirectoryInfo(Directory.GetCurrentDirectory()).Name;
+                inferred = SanitizeNamespace(dirName);
+            }
+            if (string.IsNullOrWhiteSpace(inferred)) inferred = "SpocR.Generated"; // final fallback
+            output.Namespace = inferred;
+            consoleService.Verbose($"[normalize] Inferred root namespace '{output.Namespace}' (modern mode)");
+        }
+        else
+        {
+            // Sanitize existing namespace (avoid accidental invalid chars)
+            var sanitized = SanitizeNamespace(output.Namespace);
+            if (!string.Equals(output.Namespace, sanitized, StringComparison.Ordinal))
+            {
+                consoleService.Verbose($"[normalize] Adjusted namespace '{output.Namespace}' -> '{sanitized}'");
+                output.Namespace = sanitized;
+            }
+        }
+
+        // DataContext path defaults – if user removed section it may be null
+        output.DataContext ??= new DataContextModel();
+        var dc = output.DataContext;
+
+        // Root DataContext folder (keep short & stable). If user configured something, keep it but log deprecation notice.
+        if (string.IsNullOrWhiteSpace(dc.Path))
+        {
+            dc.Path = "DataContext"; // relative to working directory
+        }
+        else
+        {
+            consoleService.Verbose($"[normalize] Using configured DataContext.Path '{dc.Path}' (paths are optional in modern mode)");
+        }
+
+        // Subfolder defaults
+        dc.Inputs ??= new DataContextInputsModel { Path = dc.Inputs?.Path ?? "Inputs" };
+        dc.Outputs ??= new DataContextOutputsModel { Path = dc.Outputs?.Path ?? "Outputs" };
+        dc.Models ??= new DataContextModelsModel { Path = dc.Models?.Path ?? "Models" };
+        dc.StoredProcedures ??= new DataContextStoredProceduresModel { Path = dc.StoredProcedures?.Path ?? "StoredProcedures" };
+        dc.TableTypes ??= new DataContextTableTypesModel { Path = dc.TableTypes?.Path ?? "TableTypes" };
+
+        // Provide gentle warning if user still has an extensive Project.Output.* tree
+        if (configFile.Exists())
+        {
+            var userCustomizedPaths = new[] { dc.Inputs?.Path, dc.Outputs?.Path, dc.Models?.Path, dc.StoredProcedures?.Path, dc.TableTypes?.Path }
+                .Any(p => !string.IsNullOrWhiteSpace(p) && !DefaultPathNames().Contains(p));
+            if (userCustomizedPaths)
+            {
+                consoleService.Warn("[deprecation] Custom DataContext subfolder paths are deprecated in modern mode (net10+). Remove them from spocr.json; defaults are sufficient.");
+            }
+        }
+
+        // Legacy Schema-Knoten vollständig unterdrücken – falls noch vorhanden, auf null setzen (wird nicht mehr persistiert)
+        if (config.Schema != null && config.Schema.Count > 0)
+        {
+            config.Schema = null;
+        }
+
+        // Local helpers
+        string[] DefaultPathNames() => new[] { "Inputs", "Outputs", "Models", "StoredProcedures", "TableTypes" };
+
+        string SanitizeNamespace(string raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return null;
+            // Replace invalid chars with underscore
+            var cleaned = Regex.Replace(raw, "[^A-Za-z0-9_.]", "_");
+            // Collapse multiple underscores / dots
+            while (cleaned.Contains("__")) cleaned = cleaned.Replace("__", "_");
+            while (cleaned.Contains("..")) cleaned = cleaned.Replace("..", ".");
+            cleaned = cleaned.Trim('_', '.');
+            if (string.IsNullOrEmpty(cleaned)) cleaned = "App";
+            // Must start with letter or underscore
+            if (!Regex.IsMatch(cleaned.Substring(0, 1), "[A-Za-z_]")) cleaned = "App_" + cleaned;
+            return cleaned;
+        }
+
+        string TryInferNamespaceFromCsproj()
+        {
+            try
+            {
+                var cwd = Directory.GetCurrentDirectory();
+                var csproj = Directory.EnumerateFiles(cwd, "*.csproj", SearchOption.TopDirectoryOnly).FirstOrDefault();
+                if (csproj == null) return null;
+                var xml = File.ReadAllText(csproj);
+                // Try <RootNamespace> else <AssemblyName>
+                var rootNsMatch = Regex.Match(xml, "<RootNamespace>(.*?)</RootNamespace>", RegexOptions.IgnoreCase);
+                if (rootNsMatch.Success) return SanitizeNamespace(rootNsMatch.Groups[1].Value.Trim());
+                var asmMatch = Regex.Match(xml, "<AssemblyName>(.*?)</AssemblyName>", RegexOptions.IgnoreCase);
+                if (asmMatch.Success) return SanitizeNamespace(asmMatch.Groups[1].Value.Trim());
+                // Fallback to file name sans extension
+                return SanitizeNamespace(Path.GetFileNameWithoutExtension(csproj));
+            }
+            catch
+            {
+                return null;
+            }
+        }
     }
 }

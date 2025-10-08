@@ -45,6 +45,9 @@ samples/
 !samples/mssql/
 !samples/mssql/**
 samples/mssql/.env
+samples/web-api/debug/*
+samples/web-api/.spocr/*
+!samples/web-api/.spocr/schema
 
 # Transient artifacts (coverage, test results, reports)
 .artifacts/*

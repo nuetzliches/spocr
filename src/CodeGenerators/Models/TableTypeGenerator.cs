@@ -39,17 +39,49 @@ public class TableTypeGenerator(
             root = root.AddUsings(libModelUsingDirective).NormalizeWhitespace();
         }
 
-        var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-        var classNode = (ClassDeclarationSyntax)nsNode.Members[0];
+        // Unterstützt file-scoped und block namespaces
+        SyntaxNode nsNodeRaw = root.Members[0];
+        ClassDeclarationSyntax classNode;
+        if (nsNodeRaw is FileScopedNamespaceDeclarationSyntax fns)
+        {
+            classNode = fns.Members.OfType<ClassDeclarationSyntax>().First();
+        }
+        else if (nsNodeRaw is NamespaceDeclarationSyntax bns)
+        {
+            classNode = bns.Members.OfType<ClassDeclarationSyntax>().First();
+        }
+        else
+        {
+            throw new InvalidOperationException("Unexpected namespace syntax node kind in table type template.");
+        }
 
         // Create Properties
         if (tableType.Columns != null)
         {
             foreach (var column in tableType.Columns)
             {
-                nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-                classNode = (ClassDeclarationSyntax)nsNode.Members[0];
-                var propertyNode = (PropertyDeclarationSyntax)classNode.Members[0];
+                nsNodeRaw = root.Members[0];
+                if (nsNodeRaw is FileScopedNamespaceDeclarationSyntax fnsLoop)
+                    classNode = fnsLoop.Members.OfType<ClassDeclarationSyntax>().First();
+                else if (nsNodeRaw is NamespaceDeclarationSyntax bnsLoop)
+                    classNode = bnsLoop.Members.OfType<ClassDeclarationSyntax>().First();
+                // Falls Template keine Beispiel-Property enthält, synthetisch eine minimale erstellen
+                PropertyDeclarationSyntax propertyNode;
+                if (classNode.Members.OfType<PropertyDeclarationSyntax>().Any())
+                {
+                    propertyNode = classNode.Members.OfType<PropertyDeclarationSyntax>().First();
+                }
+                else
+                {
+                    propertyNode = SyntaxFactory.PropertyDeclaration(SyntaxFactory.ParseTypeName("string"), "_Stub")
+                        .AddModifiers(SyntaxFactory.Token(Microsoft.CodeAnalysis.CSharp.SyntaxKind.PublicKeyword))
+                        .WithAccessorList(SyntaxFactory.AccessorList(SyntaxFactory.List(new [] {
+                            SyntaxFactory.AccessorDeclaration(Microsoft.CodeAnalysis.CSharp.SyntaxKind.GetAccessorDeclaration)
+                                .WithSemicolonToken(SyntaxFactory.Token(Microsoft.CodeAnalysis.CSharp.SyntaxKind.SemicolonToken)),
+                            SyntaxFactory.AccessorDeclaration(Microsoft.CodeAnalysis.CSharp.SyntaxKind.SetAccessorDeclaration)
+                                .WithSemicolonToken(SyntaxFactory.Token(Microsoft.CodeAnalysis.CSharp.SyntaxKind.SemicolonToken))
+                        })));
+                }
 
                 var propertyIdentifier = SyntaxFactory.ParseToken($" {column.Name} ");
 

@@ -57,3 +57,19 @@ Outputs will appear in `./debug/` automatically when a bare filename is supplied
 ## Housekeeping
 
 These artifacts are not meant for long-term version control except where useful for audit; keep large JSONs pruned when no longer necessary.
+
+## Helper Script
+
+For a fast local iteration (pull + generate) you can use:
+
+```
+pwsh -File ./eng/run-local-spocr.ps1
+```
+
+Parameters:
+
+- `-Config <path>` override config file (defaults to `samples/web-api/spocr.json`).
+- `-SkipPull` or `-SkipGenerate` to run only part of the cycle.
+- `-SpocrArgs "--only models,sp"` to forward additional CLI options.
+
+The script auto-detects the repo root (anchoring this `debug/` directory) so outputs land here consistently.

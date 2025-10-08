@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -65,8 +66,21 @@ public static class RoslynGeneratorExtensions
         string className,
         IEnumerable<(string TypeName, string ParamName, string PropertyName)> parameters)
     {
-        var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-        var classNode = (ClassDeclarationSyntax)nsNode.Members[0];
+        // Unterstützt sowohl block- als auch file-scoped Namespace Deklarationen
+        ClassDeclarationSyntax classNode;
+        var first = root.Members[0];
+        if (first is FileScopedNamespaceDeclarationSyntax fsn)
+        {
+            classNode = fsn.Members.OfType<ClassDeclarationSyntax>().First();
+        }
+        else if (first is NamespaceDeclarationSyntax bns)
+        {
+            classNode = bns.Members.OfType<ClassDeclarationSyntax>().First();
+        }
+        else
+        {
+            throw new System.InvalidOperationException($"Unsupported root member kind '{first.Kind()}' for parameterized constructor generation");
+        }
 
         // Create constructor
         var constructor = classNode.CreateConstructor(className);

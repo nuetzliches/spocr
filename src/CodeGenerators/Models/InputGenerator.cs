@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -9,6 +10,7 @@ using SpocR.CodeGenerators.Base;
 using SpocR.CodeGenerators.Extensions;
 using SpocR.CodeGenerators.Utils;
 using SpocR.Contracts;
+using SpocR.Enums;
 using SpocR.Extensions;
 using SpocR.Managers;
 using SpocR.Models;
@@ -17,6 +19,10 @@ using SpocR.Utils;
 
 namespace SpocR.CodeGenerators.Models;
 
+/// <summary>
+/// Generiert Input-Klassen (Parameter DTOs) für Stored Procedures.
+/// Unterstützt sowohl block- als auch file-scoped Namespaces in den Vorlagen.
+/// </summary>
 public class InputGenerator(
     FileManager<ConfigurationModel> configFile,
     OutputService output,
@@ -25,37 +31,46 @@ public class InputGenerator(
     ISchemaMetadataProvider metadataProvider
 ) : GeneratorBase(configFile, output, consoleService)
 {
+    private ClassDeclarationSyntax FetchClass(CompilationUnitSyntax root)
+    {
+        var top = root.Members.First();
+        if (top is FileScopedNamespaceDeclarationSyntax fns)
+            return fns.Members.OfType<ClassDeclarationSyntax>().First();
+        if (top is NamespaceDeclarationSyntax bns)
+            return bns.Members.OfType<ClassDeclarationSyntax>().First();
+        throw new InvalidOperationException("Unexpected root member in Input template");
+    }
+
     public async Task<SourceText> GetInputTextForStoredProcedureAsync(Definition.Schema schema, Definition.StoredProcedure storedProcedure)
     {
-        // Process template with the template manager
-        var root = await templateManager.GetProcessedTemplateAsync("Inputs/Input.cs", schema.Name, $"{storedProcedure.Name}Input");
+        var className = $"{storedProcedure.Name}Input";
+        var root = await templateManager.GetProcessedTemplateAsync("Inputs/Input.cs", schema.Name, className);
 
-        // Add table type imports
+        // TableType Usings
         var tableTypeSchemas = storedProcedure.Input
             .Where(i => i.IsTableType ?? false)
-            .GroupBy(t => t.TableTypeSchemaName, (key, group) => key)
+            .Select(i => i.TableTypeSchemaName)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
         var providerSchemas = metadataProvider.GetSchemas();
         foreach (var tableTypeSchema in tableTypeSchemas)
         {
-            var tableTypeSchemaConfig = providerSchemas.FirstOrDefault(s => s.Name.Equals(tableTypeSchema, System.StringComparison.OrdinalIgnoreCase));
+            var tableTypeSchemaConfig = providerSchemas.FirstOrDefault(s => s.Name.Equals(tableTypeSchema, StringComparison.OrdinalIgnoreCase));
             var usingDirective = templateManager.CreateTableTypeImport(tableTypeSchema, tableTypeSchemaConfig);
             root = root.AddUsings(usingDirective);
         }
 
-        var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-        var classNode = (ClassDeclarationSyntax)nsNode.Members[0];
+        // Klasse laden
+        var classNode = FetchClass(root);
 
-        // Add obsolete constructor
-        var obsoleteConstructor = classNode.CreateConstructor($"{storedProcedure.Name}Input");
-        obsoleteConstructor = obsoleteConstructor.AddObsoleteAttribute("This empty contructor will be removed in vNext. Please use constructor with parameters.");
-        root = root.AddConstructor(ref classNode, obsoleteConstructor);
+        // Leerer (deprecated) Konstruktor
+        var obsoleteCtor = classNode.CreateConstructor(className)
+            .AddObsoleteAttribute("This empty contructor will be removed in vNext. Please use constructor with parameters.");
+        root = root.AddConstructor(ref classNode, obsoleteCtor);
 
-        // Build constructor with parameters
+        // Parameter-Konstruktor
         var inputs = storedProcedure.Input.Where(i => !i.IsOutput).ToList();
-
-        // Build parameter list for the constructor
         var parameters = new List<(string TypeName, string ParamName, string PropertyName)>();
         foreach (var input in inputs)
         {
@@ -65,33 +80,20 @@ public class InputGenerator(
                 : ParseTypeFromSqlDbTypeName(input.SqlTypeName, input.IsNullable ?? false).ToString();
             parameters.Add((typeName, paramName, GetPropertyFromSqlInputTableType(input.Name)));
         }
+        root = root.AddParameterizedConstructor(className, parameters);
 
-        // Add constructor to the class
-        root = root.AddParameterizedConstructor($"{storedProcedure.Name}Input", parameters);
-
-        // Generate properties
-        nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-        classNode = (ClassDeclarationSyntax)nsNode.Members[0];
-
+        // Properties
         foreach (var item in storedProcedure.Input)
         {
-            nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-            classNode = (ClassDeclarationSyntax)nsNode.Members[0];
-
+            classNode = FetchClass(root); // refreshed nach jeder Mutation
             var isTableType = item.IsTableType ?? false;
             var propertyType = isTableType
                 ? GetTypeSyntaxForTableType(item)
                 : ParseTypeFromSqlDbTypeName(item.SqlTypeName, item.IsNullable ?? false);
 
-            // Add attribute for NVARCHAR with MaxLength
-            if (!isTableType && (item.SqlTypeName?.Equals(System.Data.SqlDbType.NVarChar.ToString(), System.StringComparison.InvariantCultureIgnoreCase) ?? false)
-                && item.MaxLength.HasValue)
+            if (!isTableType && (item.SqlTypeName?.Equals(System.Data.SqlDbType.NVarChar.ToString(), StringComparison.InvariantCultureIgnoreCase) ?? false) && item.MaxLength.HasValue)
             {
-                var propertyNode = classNode.CreatePropertyWithAttributes(
-                    propertyType,
-                    item.Name,
-                    new Dictionary<string, object> { { "MaxLength", item.MaxLength } });
-
+                var propertyNode = classNode.CreatePropertyWithAttributes(propertyType, item.Name, new Dictionary<string, object> { { "MaxLength", item.MaxLength } });
                 root = root.AddProperty(ref classNode, propertyNode);
             }
             else
@@ -101,51 +103,45 @@ public class InputGenerator(
             }
         }
 
+        // Template-Placeholder Property entfernen (falls vorhanden)
+        root = TemplateManager.RemoveTemplateProperty(root);
         return TemplateManager.GenerateSourceText(root);
     }
 
     public async Task GenerateDataContextInputs(bool isDryRun)
     {
-        // Migrate to Version 1.3.2
+        // Sicherstellen, dass Default-Konfig existiert (Legacy Konfigurationen ohne Inputs-Knoten)
         if (ConfigFile.Config.Project.Output.DataContext.Inputs == null)
         {
-            // SpocrService should be registered as a dependency
             var defaultConfig = new SpocrService().GetDefaultConfiguration();
             ConfigFile.Config.Project.Output.DataContext.Inputs = defaultConfig.Project.Output.DataContext.Inputs;
         }
 
         var schemas = metadataProvider.GetSchemas()
-            .Where(i => i.Status == SchemaStatusEnum.Build && (i.StoredProcedures?.Any() ?? false))
+            .Where(s => s.Status == SchemaStatusEnum.Build && (s.StoredProcedures?.Any() ?? false))
             .Select(Definition.ForSchema);
 
         foreach (var schema in schemas)
         {
             var storedProcedures = schema.StoredProcedures;
+            if (!storedProcedures.Any()) continue;
 
-            if (!storedProcedures.Any())
+            var dataContextInputPath = DirectoryUtils.GetWorkingDirectory(
+                ConfigFile.Config.Project.Output.DataContext.Path,
+                ConfigFile.Config.Project.Output.DataContext.Inputs.Path);
+
+            var schemaPath = Path.Combine(dataContextInputPath, schema.Path);
+            if (!Directory.Exists(schemaPath) && !isDryRun)
             {
-                continue;
+                Directory.CreateDirectory(schemaPath);
             }
 
-            // Ensure target directory exists
-            var dataContextInputPath = DirectoryUtils.GetWorkingDirectory(ConfigFile.Config.Project.Output.DataContext.Path, ConfigFile.Config.Project.Output.DataContext.Inputs.Path);
-            var path = Path.Combine(dataContextInputPath, schema.Path);
-            if (!Directory.Exists(path) && !isDryRun)
+            foreach (var sp in storedProcedures)
             {
-                Directory.CreateDirectory(path);
-            }
-
-            // Generate files
-            foreach (var storedProcedure in storedProcedures)
-            {
-                if (!storedProcedure.HasInputs())
-                {
-                    continue;
-                }
-                var fileName = $"{storedProcedure.Name}.cs";
-                var fileNameWithPath = Path.Combine(path, fileName);
-                var sourceText = await GetInputTextForStoredProcedureAsync(schema, storedProcedure);
-
+                if (!sp.HasInputs()) continue;
+                var fileName = $"{sp.Name}.cs";
+                var fileNameWithPath = Path.Combine(schemaPath, fileName);
+                var sourceText = await GetInputTextForStoredProcedureAsync(schema, sp);
                 await Output.WriteAsync(fileNameWithPath, sourceText, isDryRun);
             }
         }

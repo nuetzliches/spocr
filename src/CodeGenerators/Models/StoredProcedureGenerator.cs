@@ -29,6 +29,7 @@ public class StoredProcedureGenerator(
 {
     public async Task<SourceText> GetStoredProcedureExtensionsCodeAsync(Definition.Schema schema, List<Definition.StoredProcedure> storedProcedures)
     {
+#pragma warning disable CS0618
         // Entity grouping previously relied on OperationKind-derived EntityName. Fallback: use first procedure name as grouping key.
         var entityName = storedProcedures.First().Name;
 
@@ -36,7 +37,7 @@ public class StoredProcedureGenerator(
         var root = await templateManager.GetProcessedTemplateAsync("StoredProcedures/StoredProcedureExtensions.cs", schema.Name, $"{entityName}Extensions");
 
         // If its an extension, add usings for the lib
-        if (ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Extension)
+    if (ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Extension)
         {
             var libUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Role.LibNamespace}"));
             root = root.AddUsings(libUsingDirective).NormalizeWhitespace();
@@ -131,51 +132,66 @@ public class StoredProcedureGenerator(
             }
         }
 
-        var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-        var classNode = (ClassDeclarationSyntax)nsNode.Members[0];
+        // Unterstützt file-scoped oder block Namespace
+        ClassDeclarationSyntax ResolveClass(CompilationUnitSyntax r)
+        {
+            var first = r.Members[0];
+            if (first is FileScopedNamespaceDeclarationSyntax fns)
+                return fns.Members.OfType<ClassDeclarationSyntax>().First();
+            if (first is NamespaceDeclarationSyntax bns)
+                return bns.Members.OfType<ClassDeclarationSyntax>().First();
+            throw new InvalidOperationException("Unexpected root member kind in stored procedure template");
+        }
+        ClassDeclarationSyntax classNode = ResolveClass(root);
 
         // Generate Methods
         foreach (var storedProcedure in storedProcedures)
         {
-            nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-            classNode = (ClassDeclarationSyntax)nsNode.Members[0];
-
-            // Base method (Raw or non-JSON typed behavior)
-            var originMethodNode = (MethodDeclarationSyntax)classNode.Members[0];
+            classNode = ResolveClass(root);
+            if (classNode.Members.Count < 1) throw new InvalidOperationException("StoredProcedureExtensions template must define at least one method placeholder");
+            var originMethodNode = classNode.Members.OfType<MethodDeclarationSyntax>().ElementAtOrDefault(0);
+            if (originMethodNode == null) throw new InvalidOperationException("Missing primary method placeholder in template");
             originMethodNode = GenerateStoredProcedureMethodText(originMethodNode, storedProcedure, StoredProcedureMethodKind.Raw, false);
             root = root.AddMethod(ref classNode, originMethodNode);
 
-            nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-            classNode = (ClassDeclarationSyntax)nsNode.Members[0];
+            classNode = ResolveClass(root);
+            var overloadOptionsMethodNode = classNode.Members.OfType<MethodDeclarationSyntax>().ElementAtOrDefault(1);
+            if (overloadOptionsMethodNode != null)
+            {
+                overloadOptionsMethodNode = GenerateStoredProcedureMethodText(overloadOptionsMethodNode, storedProcedure, StoredProcedureMethodKind.Raw, true);
+                root = root.AddMethod(ref classNode, overloadOptionsMethodNode);
+            }
 
-            // Overloaded extension with IAppDbContext
-            var overloadOptionsMethodNode = (MethodDeclarationSyntax)classNode.Members[1];
-            overloadOptionsMethodNode = GenerateStoredProcedureMethodText(overloadOptionsMethodNode, storedProcedure, StoredProcedureMethodKind.Raw, true);
-            root = root.AddMethod(ref classNode, overloadOptionsMethodNode);
-
-            // Add Deserialize variants for JSON returning procedures (inspect first result set)
             var firstSet = storedProcedure.ResultSets?.FirstOrDefault();
             if (firstSet?.ReturnsJson ?? false)
             {
-                nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-                classNode = (ClassDeclarationSyntax)nsNode.Members[0];
-                var deserializePipeTemplate = (MethodDeclarationSyntax)classNode.Members[0];
-                var deserializeContextTemplate = (MethodDeclarationSyntax)classNode.Members[1];
-
-                var deserializePipe = GenerateStoredProcedureMethodText(deserializePipeTemplate, storedProcedure, StoredProcedureMethodKind.Deserialize, false);
-                root = root.AddMethod(ref classNode, deserializePipe);
-
-                nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-                classNode = (ClassDeclarationSyntax)nsNode.Members[0];
-                var deserializeContext = GenerateStoredProcedureMethodText(deserializeContextTemplate, storedProcedure, StoredProcedureMethodKind.Deserialize, true);
-                root = root.AddMethod(ref classNode, deserializeContext);
+                classNode = ResolveClass(root);
+                var deserializePipeTemplate = classNode.Members.OfType<MethodDeclarationSyntax>().ElementAtOrDefault(0);
+                var deserializeContextTemplate = classNode.Members.OfType<MethodDeclarationSyntax>().ElementAtOrDefault(1);
+                if (deserializePipeTemplate != null)
+                {
+                    var deserializePipe = GenerateStoredProcedureMethodText(deserializePipeTemplate, storedProcedure, StoredProcedureMethodKind.Deserialize, false);
+                    root = root.AddMethod(ref classNode, deserializePipe);
+                }
+                if (deserializeContextTemplate != null)
+                {
+                    classNode = ResolveClass(root);
+                    var deserializeContext = GenerateStoredProcedureMethodText(deserializeContextTemplate, storedProcedure, StoredProcedureMethodKind.Deserialize, true);
+                    root = root.AddMethod(ref classNode, deserializeContext);
+                }
             }
         }
 
         // Remove template Method
-        nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-        classNode = (ClassDeclarationSyntax)nsNode.Members[0];
-        root = root.ReplaceNode(classNode, classNode.WithMembers([.. classNode.Members.Cast<MethodDeclarationSyntax>().Skip(2)]));
+        classNode = ResolveClass(root);
+        // Entferne ursprüngliche Template-Methoden (erste zwei), falls noch vorhanden
+        var methodMembers = classNode.Members.OfType<MethodDeclarationSyntax>().ToList();
+        if (methodMembers.Count > 0)
+        {
+            var toRemove = methodMembers.Take(2).ToHashSet();
+            var retained = classNode.Members.Where(m => m is not MethodDeclarationSyntax md || !toRemove.Contains(md));
+            root = root.ReplaceNode(classNode, classNode.WithMembers(SyntaxFactory.List(retained)));
+        }
 
         // Ensure JSON deserialization namespace is present if any SP returns JSON
         if (storedProcedures.Any(sp => sp.ResultSets?.FirstOrDefault()?.ReturnsJson ?? false)
@@ -184,7 +200,8 @@ public class StoredProcedureGenerator(
             root = root.AddUsings(SyntaxFactory.UsingDirective(SyntaxFactory.ParseName("System.Text.Json"))).NormalizeWhitespace();
         }
 
-        return TemplateManager.GenerateSourceText(root);
+    return TemplateManager.GenerateSourceText(root);
+#pragma warning restore CS0618
     }
 
     private enum StoredProcedureMethodKind { Raw, Deserialize }

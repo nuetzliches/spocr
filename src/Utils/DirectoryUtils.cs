@@ -83,7 +83,27 @@ namespace SpocR.Utils
             else
             {
 #if DEBUG
-                pathList.Add(Path.Combine(Directory.GetCurrentDirectory(), "..", "debug"));
+                // Stabilize debug output directory: always anchor at repo root (dir containing SpocR.sln or .git)
+                string FindRepoRoot()
+                {
+                    var dir = Directory.GetCurrentDirectory();
+                    try
+                    {
+                        while (!string.IsNullOrEmpty(dir))
+                        {
+                            if (File.Exists(Path.Combine(dir, "SpocR.sln")) || Directory.Exists(Path.Combine(dir, ".git")))
+                            {
+                                return dir;
+                            }
+                            dir = Directory.GetParent(dir)?.FullName;
+                        }
+                    }
+                    catch { /* ignore – fallback below */ }
+                    return Directory.GetCurrentDirectory();
+                }
+
+                var repoRoot = FindRepoRoot();
+                pathList.Add(Path.Combine(repoRoot, "debug"));
 #else
                 pathList.Add(Directory.GetCurrentDirectory());
 #endif

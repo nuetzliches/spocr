@@ -225,6 +225,27 @@ Console Warning Policy:
 
 Tracking: See CHANGELOG entry under the deprecation section for progress and final removal PR link once merged.
 
+### Additional Deprecations (Modern Mode net10+)
+
+| Item | Status | Effective | Notes |
+|------|--------|-----------|-------|
+| `Project.DataBase.RuntimeConnectionStringIdentifier` | Deprecated (ignored in modern mode) | v4 (modern) | Always mapped to `DefaultConnection`; configure real connection via options / config. |
+| `Project.Output` (when only used to supply default subpaths) | Optional | v4 (modern) | Namespace & subpath inference auto-fills when omitted. Provide only if customizing folder names. |
+| Legacy template folders (`Output/`, `Output-v5-0`, `Output-v9-0`) for net10+ | Transitional | v4 (modern) | Dynamic stubs used; will be replaced by embedded modern templates. |
+
+Modern Mode Summary:
+1. Activated implicitly for `TargetFramework >= net10.0` (or runtime override).
+2. Performs config normalization (namespace inference from .csproj, default DataContext subpaths).
+3. Skips legacy template preload; supplies dynamic Roslyn AST stubs.
+4. Logs a verbose note if deprecated fields are present (Role.Kind, RuntimeConnectionStringIdentifier).
+5. Roadmap: Replace stubs with fully featured modern execution context (pipe + DI helpers) before v5.
+
+Migration Guidance:
+1. Remove `project.role` if `kind` is `Default` and you don't need `libNamespace`.
+2. Drop `runtimeConnectionStringIdentifier` in configs targeting net10+.
+3. Omit `project.output` block unless customizing paths; let inference handle defaults.
+4. Monitor CHANGELOG for introduction of modern embedded templates; delete unused legacy `Output-*` folders in consumer repos once stable.
+
 
 ### JSON Summary Artifact
 
