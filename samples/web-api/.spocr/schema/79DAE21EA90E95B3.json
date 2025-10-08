@@ -1,7 +1,7 @@
 {
   "SchemaVersion": 1,
   "Fingerprint": "79DAE21EA90E95B3",
-  "GeneratedUtc": "2025-10-08T16:15:37.5307692Z",
+  "GeneratedUtc": "2025-10-08T20:27:22.0901188Z",
   "Database": {
     "ServerHash": "49960DE5880E8C68",
     "Name": "SpocRSample"
@@ -542,7 +542,7 @@
     }
   ],
   "Parser": {
-    "ToolVersion": "net9.0",
+    "ToolVersion": "net8.0",
     "ResultSetParserVersion": 5
   },
   "Stats": {

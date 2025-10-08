@@ -1,6 +1,6 @@
 {
   "Version": "4.0.0",
-  "TargetFramework": "net8.0",
+  "TargetFramework": "net10.0",
   "Project": {
     "DataBase": {
       "RuntimeConnectionStringIdentifier": "DefaultConnection",
