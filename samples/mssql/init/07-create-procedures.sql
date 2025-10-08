@@ -165,3 +165,38 @@ BEGIN
         );
 END
 GO
+
+-- Sample procedures demonstrating OUTPUT parameters (for generator OUTPUT DTO tests)
+
+CREATE OR ALTER PROCEDURE samples.CreateUserWithOutput
+    @DisplayName samples.DisplayNameType,
+    @Email samples.EmailAddressType,
+    @UserId INT OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    INSERT INTO samples.Users(DisplayName, Email)
+    VALUES (@DisplayName, @Email);
+
+    SET @UserId = CAST(SCOPE_IDENTITY() AS INT);
+
+    -- Return a small projection to support both scalar and model wrappers
+    SELECT CreatedUserId = @UserId;
+END
+GO
+
+CREATE OR ALTER PROCEDURE samples.SumWithOutput
+    @A INT,
+    @B INT,
+    @Sum INT OUTPUT,
+    @Success BIT OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET @Sum = ISNULL(@A, 0) + ISNULL(@B, 0);
+    SET @Success = 1;
+    
+    SELECT Result = @Sum;
+END
+GO

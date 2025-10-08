@@ -141,34 +141,7 @@ public class FileManager<TConfig>(
                 // Output komplett entfernen, wenn keine Sub-Properties vorhanden
                 if (cfg.Project?.Output != null)
                 {
-                    string inferredNs = null;
-                    try
-                    {
-                        var cwd = DirectoryUtils.GetWorkingDirectory();
-                        var csproj = Directory.EnumerateFiles(cwd, "*.csproj", SearchOption.TopDirectoryOnly).FirstOrDefault();
-                        string Sanitize(string raw)
-                        {
-                            if (string.IsNullOrWhiteSpace(raw)) return null;
-                            var cleaned = System.Text.RegularExpressions.Regex.Replace(raw, "[^A-Za-z0-9_.]", "_");
-                            while (cleaned.Contains("__")) cleaned = cleaned.Replace("__", "_");
-                            while (cleaned.Contains("..")) cleaned = cleaned.Replace("..", ".");
-                            cleaned = cleaned.Trim('_', '.');
-                            if (string.IsNullOrEmpty(cleaned)) cleaned = "App";
-                            if (!System.Text.RegularExpressions.Regex.IsMatch(cleaned.Substring(0, 1), "[A-Za-z_]")) cleaned = "App_" + cleaned;
-                            return cleaned;
-                        }
-                        if (csproj != null)
-                        {
-                            var xml = File.ReadAllText(csproj);
-                            var rootNsMatch = System.Text.RegularExpressions.Regex.Match(xml, "<RootNamespace>(.*?)</RootNamespace>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                            var asmMatch = System.Text.RegularExpressions.Regex.Match(xml, "<AssemblyName>(.*?)</AssemblyName>", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                            inferredNs = rootNsMatch.Success ? Sanitize(rootNsMatch.Groups[1].Value.Trim())
-                                                             : asmMatch.Success ? Sanitize(asmMatch.Groups[1].Value.Trim())
-                                                                               : Sanitize(Path.GetFileNameWithoutExtension(csproj));
-                        }
-                        inferredNs ??= Sanitize(new DirectoryInfo(cwd).Name);
-                    }
-                    catch { inferredNs = null; }
+                    string inferredNs = ProjectNamespaceHelper.InferRootNamespace();
 
                     if (!string.IsNullOrWhiteSpace(inferredNs) && !string.IsNullOrWhiteSpace(cfg.Project.Output.Namespace))
                     {

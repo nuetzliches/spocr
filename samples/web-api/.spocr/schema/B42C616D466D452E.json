@@ -1,12 +1,58 @@
 {
   "SchemaVersion": 1,
-  "Fingerprint": "79DAE21EA90E95B3",
-  "GeneratedUtc": "2025-10-08T21:31:43.8675808Z",
+  "Fingerprint": "B42C616D466D452E",
+  "GeneratedUtc": "2025-10-08T22:44:50.3307745Z",
   "Database": {
     "ServerHash": "49960DE5880E8C68",
     "Name": "SpocRSample"
   },
   "Procedures": [
+    {
+      "Schema": "samples",
+      "Name": "CreateUserWithOutput",
+      "Inputs": [
+        {
+          "Name": "@DisplayName",
+          "IsTableType": false,
+          "IsOutput": false,
+          "SqlTypeName": "nvarchar",
+          "IsNullable": false,
+          "MaxLength": 128
+        },
+        {
+          "Name": "@Email",
+          "IsTableType": false,
+          "IsOutput": false,
+          "SqlTypeName": "nvarchar",
+          "IsNullable": false,
+          "MaxLength": 256
+        },
+        {
+          "Name": "@UserId",
+          "IsTableType": false,
+          "IsOutput": true,
+          "SqlTypeName": "int",
+          "IsNullable": true,
+          "MaxLength": 4
+        }
+      ],
+      "ResultSets": [
+        {
+          "ReturnsJson": false,
+          "ReturnsJsonArray": false,
+          "ReturnsJsonWithoutArrayWrapper": false,
+          "Columns": [
+            {
+              "Name": "CreatedUserId",
+              "SqlTypeName": "int",
+              "IsNullable": true,
+              "MaxLength": 4
+            }
+          ],
+          "HasSelectStar": false
+        }
+      ]
+    },
     {
       "Schema": "samples",
       "Name": "OrderListAsJson",
@@ -139,6 +185,60 @@
               "IsNullable": true,
               "MaxLength": 1024,
               "JsonPath": "Notes"
+            }
+          ],
+          "HasSelectStar": false
+        }
+      ]
+    },
+    {
+      "Schema": "samples",
+      "Name": "SumWithOutput",
+      "Inputs": [
+        {
+          "Name": "@A",
+          "IsTableType": false,
+          "IsOutput": false,
+          "SqlTypeName": "int",
+          "IsNullable": true,
+          "MaxLength": 4
+        },
+        {
+          "Name": "@B",
+          "IsTableType": false,
+          "IsOutput": false,
+          "SqlTypeName": "int",
+          "IsNullable": true,
+          "MaxLength": 4
+        },
+        {
+          "Name": "@Sum",
+          "IsTableType": false,
+          "IsOutput": true,
+          "SqlTypeName": "int",
+          "IsNullable": true,
+          "MaxLength": 4
+        },
+        {
+          "Name": "@Success",
+          "IsTableType": false,
+          "IsOutput": true,
+          "SqlTypeName": "bit",
+          "IsNullable": true,
+          "MaxLength": 1
+        }
+      ],
+      "ResultSets": [
+        {
+          "ReturnsJson": false,
+          "ReturnsJsonArray": false,
+          "ReturnsJsonWithoutArrayWrapper": false,
+          "Columns": [
+            {
+              "Name": "Result",
+              "SqlTypeName": "int",
+              "IsNullable": true,
+              "MaxLength": 4
             }
           ],
           "HasSelectStar": false
@@ -546,9 +646,9 @@
     "ResultSetParserVersion": 5
   },
   "Stats": {
-    "ProcedureTotal": 8,
+    "ProcedureTotal": 10,
     "ProcedureSkipped": 0,
-    "ProcedureLoaded": 8,
+    "ProcedureLoaded": 10,
     "UdttTotal": 3
   }
 }

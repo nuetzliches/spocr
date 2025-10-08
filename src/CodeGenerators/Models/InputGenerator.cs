@@ -61,51 +61,49 @@ public class InputGenerator(
             root = root.AddUsings(usingDirective);
         }
 
-        // Klasse laden
-        var classNode = FetchClass(root);
+        // Namespace ermitteln
+        var nsBase = root.Members[0] as BaseNamespaceDeclarationSyntax;
+        if (nsBase == null) throw new InvalidOperationException("Template must contain a namespace.");
+        var nsName = nsBase.Name.ToString();
 
-        // Leerer (deprecated) Konstruktor
-        var obsoleteCtor = classNode.CreateConstructor(className)
-            .AddObsoleteAttribute("This empty contructor will be removed in vNext. Please use constructor with parameters.");
-        root = root.AddConstructor(ref classNode, obsoleteCtor);
-
-        // Parameter-Konstruktor
+        // Positional record: alle Nicht-OUTPUT-Parameter als Primärkonstruktor-Parameter
         var inputs = storedProcedure.Input.Where(i => !i.IsOutput).ToList();
-        var parameters = new List<(string TypeName, string ParamName, string PropertyName)>();
-        foreach (var input in inputs)
+        var paramSegments = new List<string>();
+        var needsDataAnnotations = false;
+        foreach (var item in inputs)
         {
-            var paramName = GetIdentifierFromSqlInputTableType(input.Name);
-            var typeName = (input.IsTableType ?? false)
-                ? GetTypeSyntaxForTableType(input).ToString()
-                : ParseTypeFromSqlDbTypeName(input.SqlTypeName, input.IsNullable ?? false).ToString();
-            parameters.Add((typeName, paramName, GetPropertyFromSqlInputTableType(input.Name)));
-        }
-        root = root.AddParameterizedConstructor(className, parameters);
-
-        // Properties
-        foreach (var item in storedProcedure.Input)
-        {
-            classNode = FetchClass(root); // refreshed nach jeder Mutation
             var isTableType = item.IsTableType ?? false;
-            var propertyType = isTableType
-                ? GetTypeSyntaxForTableType(item)
-                : ParseTypeFromSqlDbTypeName(item.SqlTypeName, item.IsNullable ?? false);
+            var typeSyntax = isTableType
+                ? GetTypeSyntaxForTableType(item).ToString()
+                : ParseTypeFromSqlDbTypeName(item.SqlTypeName, item.IsNullable ?? false).ToString();
 
-            if (!isTableType && (item.SqlTypeName?.Equals(System.Data.SqlDbType.NVarChar.ToString(), StringComparison.InvariantCultureIgnoreCase) ?? false) && item.MaxLength.HasValue)
+            // Property-/Parametername (PascalCase beibehalten)
+            var propertyName = GetPropertyFromSqlInputTableType(item.Name);
+
+            string attr = null;
+            if (!isTableType
+                && (item.SqlTypeName?.Equals(System.Data.SqlDbType.NVarChar.ToString(), StringComparison.InvariantCultureIgnoreCase) ?? false)
+                && item.MaxLength.HasValue)
             {
-                var propertyNode = classNode.CreatePropertyWithAttributes(propertyType, item.Name, new Dictionary<string, object> { { "MaxLength", item.MaxLength } });
-                root = root.AddProperty(ref classNode, propertyNode);
+                needsDataAnnotations = true;
+                attr = $"[property: MaxLength({item.MaxLength.Value})] ";
             }
-            else
-            {
-                var propertyNode = classNode.CreateProperty(propertyType, item.Name);
-                root = root.AddProperty(ref classNode, propertyNode);
-            }
+            paramSegments.Add($"{attr}{typeSyntax} {propertyName}".TrimStart());
         }
 
-        // Template-Placeholder Property entfernen (falls vorhanden)
-        root = TemplateManager.RemoveTemplateProperty(root);
-        return TemplateManager.GenerateSourceText(root);
+        // Usings zusammentragen (inkl. TableType-Imports)
+        var usingLines = root.Usings.Select(u => $"using {u.Name};").ToList();
+        if (needsDataAnnotations && !usingLines.Any(l => l.Contains("System.ComponentModel.DataAnnotations", StringComparison.Ordinal)))
+        {
+            usingLines.Add("using System.ComponentModel.DataAnnotations;");
+        }
+
+        var paramBlock = "    " + string.Join(",\n    ", paramSegments);
+        var file = string.Join('\n', usingLines) + (usingLines.Count > 0 ? "\n\n" : string.Empty)
+                 + $"namespace {nsName};\n\n"
+                 + $"public record {className}(\n{paramBlock}\n);\n";
+
+        return SourceText.From(file);
     }
 
     public async Task GenerateDataContextInputs(bool isDryRun)

@@ -1,38 +1,56 @@
-ändere erldigte Aufgaben von `- [ ] ` zu `- [x] `
+Mark completed items with `- [x]` (was `- [ ]`).
 
-> Aktuelles samples/web-api/spocr.json:1 zeigt noch "TargetFramework": "net8.0". Du hattest erwähnt, auf net10.0 gestellt zu haben – ggf. ist das noch nicht gespeichert.
+- [x] Verify `samples/web-api/spocr.json` uses `"TargetFramework": "net10.0"` (line 3) or fix discrepancies.
 
-- [ ] In der Datei C:\Projekte\GitHub\spocr\samples\web-api\spocr.json steht: "TargetFramework": "net10.0" in Zeile 3, bitte verifizieren. Oder prüfen, wo das Problem liegt.
+- [x] Execute SpocR in the web-api directory
+  - Ran: `dotnet run --project src/SpocR.csproj -- rebuild -p samples/web-api/spocr.json --no-auto-update --no-cache`
+  - Improved: default TFM selection for `dotnet run` (no `--framework` needed). Fixed typo in option (`--no-cache`).
 
-> Sollen wir spocr.json auf net10.0 umstellen und die Generation sofort auf den „modern mode“ migrieren?
+- [x] Output namespace shall be `SpocR.Samples.WebApi.DataContext` and avoid duplicate `.DataContext` segments.
 
-- [ ] Das TargetFramework habe ich auf net10.0 gestellt. Bitte spocr im web-api Verzeichnis ausführen: dotnet run --project src/SpocR.csproj -- rebuild -p samples\web-api\spocr.json --no-auto-update --noc-cache
+- [x] Clarify “manual context”
+  - Explained `samples/web-api/ManualData` as a temporary bridge; plan is to rely on generated modern context.
 
-> Bevorzugter Namespace für den generierten Code? Sollen die Artefakte unter SpocR.Samples.WebApi.DataContext liegen?
+- [x] Explain `global.json` purpose and options (SDK pinning, roll-forward, allowPrerelease)
+  - Documentation added; adding the file is optional.
 
-- [ ] Ja, der Output-Namespace soll SpocR.Samples.WebApi.DataContext sein, wobei DataContext mit dem Order DataContext/ zusammentrifft.
+- [x] Upgrade OpenAPI package to stable 10.x
+  - `Microsoft.AspNetCore.OpenApi` → `10.0.0` in `samples/web-api/WebApi.csproj`.
 
-> Darf der manuelle Kontext im Zuge der Umstellung vollständig entfernt werden, oder wünscht ihr eine Übergangsphase mit beiden Pfaden?
+- [x] Add example endpoints using generated SP wrappers
+  - Endpoints added to `samples/web-api/Program.cs` (including JSON deserialization examples).
 
-- [ ] Welcher manuelle Kontext?
+- [x] Add more Stored Procedures (UDT/UDTT/OUTPUT)
+  - Added OUTPUT procedures (`CreateUserWithOutput`, `SumWithOutput`) into `samples/mssql/init/07-create-procedures.sql` and regenerated wrappers/DTOs.
 
-> Sollen wir ein global.json (SDK 10.x) im Repo verankern?
+- [x] Document v10+ template source via `ITemplateEngine` (no Output folder required)
+  - Updated documentation to reflect modern template sourcing; legacy Output-* folders are transition fallbacks.
 
-- [ ] Erkläre bitte erst noch mal die Funktionsweise der global.json. Welche zusätzlichen Properties / Vorteile bringt diese mit sich?
+- [x] Add a docs/content section for `.gitignore` recommendations
+  - New guide: `docs/content/guides/gitignore.md`.
 
-> Dürfen wir das OpenAPI‑Paket auf eine stabile 10.x‑Version aktualisieren, oder sollen wir vorerst bei der RC bleiben?
+- [x] Ensure new/changed comments and docs are in English
+  - Generator comments and new docs written in English.
 
-- [ ] Ja, bitte auf die stabile Version (>=10.0) aktualisieren.
+- [x] Consider duplication of namespace inference logic; extract shared logic
+  - Introduced `Utils/ProjectNamespaceHelper` and changed `FileManager` to use it when saving/cleaning config.
 
-> Soll ich ein paar Beispiel‑Endpoints einbauen, die die generierten SP‑Wrapper nutzen, um die Integration zu demonstrieren?
+---
 
-- [ ] Ja, bitte ein paar Beispiel-Endpoints einbauen.
-- [ ] Weitere Stored Procedures erstellen, gerne eine Story aus Tabellen, UDT und UDTT und Stored Procedures bauen. Mit unterschiedlichen Use-Cases, Kombinationen von Parametern, Rückgabetypen, Multiple Result Sets, etc.
+Documentation (English)
 
-> Für net10 wäre der Template-Ordner „Output-modern“ vorgesehen; er ist nicht vorhanden. Für net8/net9 existieren „Output-v9-0“/„Output-v5-0“. Der Fehler trat schon mit net8‑Konfig auf, also eher ein Konfig-/Nullproblem als ein Templateproblem.
+- Modern Mode (net10+)
+  - Default Target Framework is `net10.0`; the CLI runs without `--framework` by selecting the first TFM.
+  - Namespaces are file-scoped and normalized; `.DataContext` is appended only once (no duplicates).
+  - Inputs are generated as positional records (constructor parameters), one parameter per line, with no outer blank lines.
+  - TableTypes are generated as positional records, one parameter per line, with `[property: MaxLength(n)]` emitted for NVARCHAR columns.
+  - Models and Outputs remain classes, because the DB writes values into these instances at runtime.
+  - OUTPUT stored procedures were added into the sample DB init script; corresponding wrappers/DTOs are generated and ready to consume.
+  - Template strategy: v10+ relies on the embedded template engine (`ITemplateEngine`). Legacy `Output-*` folders are used as a fallback only.
 
-- [ ] Die Templates seit v10 sollen von hier aus entstehen: C:\Projekte\GitHub\spocr\src\CodeGenerators\Templates\ITemplateEngine.cs also kein Output Ordner mehr (Bitte Kommentare/Dokumentation anpassen, wenn das nicht klar erkenntlich war)
+- New Guide
+  - `.gitignore` recommendations: see `docs/content/guides/gitignore.md` for practical ignores for repo root, the sample web API, and the docs app.
 
-- [ ] Existiert in docs/content ein Abschnitt zu Empfehlungen der .gitignore?
-- [ ] Alle getätigten Änderungen auf diesem branch mit englischen Kommentaren/Dokumentation
-- [ ] Die Logik im FileManager zur ermittlung des Namespaces gibt es jetzt mehrfach in der Anwendung? Bzw. wie wird der Default auf der Property berechnet? Sollte die Logik ausgelagert werden?
+- Refactoring
+  - `ProjectNamespaceHelper` centralizes root namespace inference (from csproj `RootNamespace`/`AssemblyName` or folder name). `FileManager` now uses this helper during configuration save/cleanup to avoid duplicating logic.
+

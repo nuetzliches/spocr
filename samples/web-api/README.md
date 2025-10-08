@@ -31,6 +31,18 @@ dotnet run --project src/SpocR.csproj --framework net10.0 -- build  -p samples/w
 
 After a successful `build` you will see updated / newly created C# artifacts in `DataContext/`.
 
+Example SQL for OUTPUT parameters
+- Apply the scripts in `samples/web-api/sql/` to your sample database (e.g., via SSMS):
+  - `dbo.SampleCreateUserWithOutput.sql`
+  - `dbo.SampleSumWithOutput.sql`
+- Then run `spocr pull` + `spocr build` again to generate corresponding `Outputs` DTOs and (when applicable) procedure wrappers.
+
+Example usage in code (once generated):
+```csharp
+// var output = await db.CreateUserAsync(new CreateUserInput(name, email), cancellationToken);
+// return Results.Ok(new { userId = output.CreatedUserId });
+```
+
 ### 3. Running the API
 ```bash
 dotnet run

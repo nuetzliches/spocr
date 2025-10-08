@@ -4,7 +4,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace SpocR.Samples.WebApi.DataContext.Inputs.Samples;
 
-public record UserBioUpdateInput(
-    int? UserId,
-    [property: MaxLength(512)] string Bio
+public record CreateUserWithOutputInput(
+    [property: MaxLength(128)] string DisplayName,
+    [property: MaxLength(256)] string Email
 );

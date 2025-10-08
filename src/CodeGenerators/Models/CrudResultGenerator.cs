@@ -48,7 +48,10 @@ public class CrudResultGenerator(
         // Mirror behavior from other generators: <RootNamespace>.DataContext.Models
         var rootNs = ConfigFile.Config.Project.Output.Namespace?.Trim();
         if (string.IsNullOrWhiteSpace(rootNs)) rootNs = "Source"; // fallback
-        return rootNs + ".DataContext.Models";
+        var baseNs = rootNs.EndsWith(".DataContext", StringComparison.OrdinalIgnoreCase)
+            ? rootNs
+            : rootNs + ".DataContext";
+        return baseNs + ".Models";
     }
 
     private static string GetSource(string ns) => "" +

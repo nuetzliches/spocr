@@ -110,7 +110,56 @@ public class TableTypeGenerator(
         // Remove template placeholder property
         root = TemplateManager.RemoveTemplateProperty(root);
 
-        return TemplateManager.GenerateSourceText(root);
+        // Convert body-properties into positional record parameters (no blank lines between parameters)
+        var typeName = GetTypeNameForTableType(tableType);
+        var text = TemplateManager.GenerateSourceText(root).ToString();
+
+        try
+        {
+            // Ensure record keyword
+            text = System.Text.RegularExpressions.Regex.Replace(text,
+                $@"public\s+(partial\s+)?class\s+{System.Text.RegularExpressions.Regex.Escape(typeName)}",
+                match => match.Value.Replace("class", "record"));
+
+            // Extract property lines inside declaration
+            var declPattern = $@"public\s+(?:partial\s+)?record\s+{System.Text.RegularExpressions.Regex.Escape(typeName)}\s*\{{(?<body>[\s\S]*?)\}}";
+            var declMatch = System.Text.RegularExpressions.Regex.Match(text, declPattern);
+            if (declMatch.Success)
+            {
+                var body = declMatch.Groups["body"].Value;
+                var propPattern = @"(?:\[MaxLength\((?<len>\d+)\)\]\s*)?\s*public\s+(?<type>[^\s]+(?:\s*<[^>]+>)?\??)\s+(?<name>\w+)\s*\{\s*get;\s*set;\s*\}";
+                var props = System.Text.RegularExpressions.Regex.Matches(body, propPattern);
+                var segments = new System.Collections.Generic.List<string>();
+                foreach (System.Text.RegularExpressions.Match pm in props)
+                {
+                    var type = pm.Groups["type"].Value.Trim();
+                    var name = pm.Groups["name"].Value.Trim();
+                    var len = pm.Groups["len"].Success ? pm.Groups["len"].Value : null;
+                    var attr = len != null ? $"[property: MaxLength({len})] " : string.Empty;
+                    segments.Add($"{attr}{type} {name}");
+                }
+                // Fallback: build from metadata if regex didn't find any properties
+                if (segments.Count == 0 && tableType.Columns != null)
+                {
+                    foreach (var col in tableType.Columns)
+                    {
+                        var typeSyntax2 = ParseTypeFromSqlDbTypeName(col.SqlTypeName, col.IsNullable ?? false).ToString();
+                        string attr2 = null;
+                        if (col.SqlTypeName.Equals(SqlDbType.NVarChar.ToString(), StringComparison.InvariantCultureIgnoreCase) && col.MaxLength.HasValue)
+                        {
+                            attr2 = $"[property: MaxLength({col.MaxLength.Value})] ";
+                        }
+                        segments.Add($"{attr2}{typeSyntax2} {col.Name}".TrimStart());
+                    }
+                }
+                var paramBlock = segments.Count > 0 ? ("    " + string.Join(",\n    ", segments)) : string.Empty;
+                var newDecl = $"public record {typeName}(\n{paramBlock}\n) : ITableType;";
+                text = text.Substring(0, declMatch.Index) + newDecl + text.Substring(declMatch.Index + declMatch.Length);
+            }
+        }
+        catch { }
+
+        return SourceText.From(text);
     }
 
     public async Task GenerateDataContextTableTypesAsync(bool isDryRun)

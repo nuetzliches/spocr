@@ -73,6 +73,8 @@ public class TemplateManager
         {
             // Temporärer Minimal-Stub falls Legacy Generatoren noch aufrufen
             var ns = _configManager.Config.Project.Output.Namespace ?? "SpocR.Generated";
+            var nsEndsWithDataContext = ns.EndsWith(".DataContext", StringComparison.OrdinalIgnoreCase);
+            var baseNs = nsEndsWithDataContext ? ns : ns + ".DataContext";
             var segment = "Models";
             if (templateType.StartsWith("Inputs/", StringComparison.OrdinalIgnoreCase)) segment = "Inputs";
             else if (templateType.StartsWith("Outputs/", StringComparison.OrdinalIgnoreCase)) segment = "Outputs";
@@ -90,12 +92,12 @@ using System.Collections.Generic;
 using Microsoft.Data.SqlClient;
 using System.Threading;
 using System.Threading.Tasks;
-using {ns}.DataContext.Models;
-using {ns}.DataContext.Outputs;
-using {ns}.DataContext;
+using {baseNs}.Models;
+using {baseNs}.Outputs;
+using {baseNs};
 
-namespace {ns}.DataContext.{segment}{schemaPart}
-{{
+namespace {baseNs}.{segment}{schemaPart};
+
     public static class {className}
     {{
         public static Task<CrudResult> CrudActionAsync(this IAppDbContextPipe context, Input input, CancellationToken cancellationToken)
@@ -117,12 +119,11 @@ namespace {ns}.DataContext.{segment}{schemaPart}
         {{
             return context.CreatePipe().CrudActionAsync(input, cancellationToken);
         }}
-    }}
-}}";
+    }}";
             }
             else
             {
-                code = $@"namespace {ns}.DataContext.{segment}{schemaPart};
+                code = $@"namespace {baseNs}.{segment}{schemaPart};
 public class {className} {{ // modern stub
     // TODO: Replace with modern template content
 }}";
