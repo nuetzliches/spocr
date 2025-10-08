@@ -510,7 +510,6 @@ public class ConsoleService(
                 DefaultSchemaStatus = config.Project.DefaultSchemaStatus,
                 IgnoredSchemas = config.Project.IgnoredSchemas,
                 IgnoredProcedures = config.Project.IgnoredProcedures,
-                JsonTypeLogLevel = config.Project.JsonTypeLogLevel,
                 Role = config.Project.Role
             },
             Schema = config.Schema

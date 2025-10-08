@@ -301,7 +301,6 @@ public class SpocrManager(
                     }
                 }
 
-                var jsonTypeLogLevel = config.Project?.JsonTypeLogLevel ?? JsonTypeLogLevel.Detailed;
                 var enrichmentStats = new JsonTypeEnrichmentStats();
                 var enricher = new JsonResultTypeEnricher(dbContext, consoleService);
                 foreach (var schema in schemas)
@@ -309,7 +308,7 @@ public class SpocrManager(
                     if (schema?.StoredProcedures == null) continue;
                     foreach (var sp in schema.StoredProcedures)
                     {
-                        await enricher.EnrichAsync(sp, options.Verbose, jsonTypeLogLevel, enrichmentStats, System.Threading.CancellationToken.None);
+                        await enricher.EnrichAsync(sp, options.Verbose, enrichmentStats, System.Threading.CancellationToken.None);
                     }
                 }
 
@@ -445,12 +444,9 @@ public class SpocrManager(
                 consoleService.Verbose($"[snapshot] saved fingerprint={fingerprint} procs={procedures.Count} udtts={udtts.Count}");
                 // Informational migration note (legacy schema node removed)
                 consoleService.Verbose("[migration] Legacy 'schema' node removed; snapshot + IgnoredSchemas are now authoritative.");
-                // Always show run-level JSON enrichment summary (even if zero) unless logging is Off
-                if (jsonTypeLogLevel != JsonTypeLogLevel.Off)
-                {
-                    var summaryLine = $"[json-type-run-summary] procedures={procedures.Count(p => p.ResultSets.Any(rs => rs.Columns.Any()))} resolvedColumns={enrichmentStats.ResolvedColumns} new={enrichmentStats.NewConcrete} upgrades={enrichmentStats.Upgrades}";
-                    if (options.Verbose) consoleService.Verbose(summaryLine); else consoleService.Output(summaryLine);
-                }
+                // Always show run-level JSON enrichment summary (even if zero)
+                var summary = $"[json-type-run-summary] procedures={procedures.Count(p => p.ResultSets.Any(rs => rs.Columns.Any()))} resolvedColumns={enrichmentStats.ResolvedColumns} new={enrichmentStats.NewConcrete} upgrades={enrichmentStats.Upgrades}";
+                if (options.Verbose) consoleService.Verbose(summary); else consoleService.Output(summary);
             }
             catch (Exception sx)
             {

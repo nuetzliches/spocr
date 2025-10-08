@@ -58,15 +58,6 @@ public class ProjectModel
     public List<string> IgnoredSchemas { get; set; } = new();
     // New: list of fully-qualified procedure names (schema.name) to ignore even if schema is built
     public List<string> IgnoredProcedures { get; set; } = new();
-    // Controls verbosity of JSON/procedure typing logs: Detailed (default), SummaryOnly, Off
-    public JsonTypeLogLevel JsonTypeLogLevel { get; set; } = JsonTypeLogLevel.Detailed;
-}
-
-public enum JsonTypeLogLevel
-{
-    Detailed = 0,
-    SummaryOnly = 1,
-    Off = 2
 }
 
 public class RoleModel

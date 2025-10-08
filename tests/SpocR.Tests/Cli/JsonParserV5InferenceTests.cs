@@ -60,7 +60,7 @@ public class JsonParserV5InferenceTests
         await enricher.EnrichAsync(new SpocR.Models.StoredProcedureModel(new SpocR.DataContext.Models.StoredProcedure { Name = spModel.Name, SchemaName = "dbo", Modified = spModel.Modified })
         {
             Content = content
-        }, verbose: false, JsonTypeLogLevel.Detailed, new SpocR.Managers.JsonTypeEnrichmentStats(), System.Threading.CancellationToken.None);
+        }, verbose: false, new SpocR.Managers.JsonTypeEnrichmentStats(), System.Threading.CancellationToken.None);
     }
 
     [Fact]

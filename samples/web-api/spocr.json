@@ -9,7 +9,6 @@
     "Output": {},
     "DefaultSchemaStatus": "Build",
     "IgnoredSchemas": [],
-    "IgnoredProcedures": [],
-    "JsonTypeLogLevel": "Detailed"
+    "IgnoredProcedures": []
   }
 }

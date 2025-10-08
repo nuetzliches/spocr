@@ -38,7 +38,7 @@ public sealed class JsonResultTypeEnricher
     public JsonResultTypeEnricher(DbContext db, IConsoleService console)
     { _db = db; _console = console; }
 
-    public async Task EnrichAsync(StoredProcedureModel sp, bool verbose, JsonTypeLogLevel level, JsonTypeEnrichmentStats stats, System.Threading.CancellationToken ct)
+    public async Task EnrichAsync(StoredProcedureModel sp, bool verbose, JsonTypeEnrichmentStats stats, System.Threading.CancellationToken ct)
     {
         var sets = sp.Content?.ResultSets;
         if (sets == null || sets.Count == 0) return;
@@ -69,7 +69,7 @@ public sealed class JsonResultTypeEnricher
                         col.UserTypeSchemaName = contextInput.TableTypeSchemaName ?? "core"; // default schema fallback
                         col.UserTypeName = contextInput.TableTypeName;
                         modifiedLocal = true;
-                        if (verbose && level == JsonTypeLogLevel.Detailed)
+                        if (verbose)
                         {
                             _console.Verbose($"[json-type-udtt-ref] {sp.SchemaName}.{sp.Name} {col.Name} -> {col.UserTypeSchemaName}.{col.UserTypeName}");
                         }
@@ -81,7 +81,7 @@ public sealed class JsonResultTypeEnricher
                     col.SqlTypeName = "nvarchar(max)"; // JSON_QUERY always returns NVARCHAR(MAX)
                     if (col.IsNullable == null) col.IsNullable = true; // JSON_QUERY may yield NULL
                     modifiedLocal = true;
-                    if (verbose && level == JsonTypeLogLevel.Detailed)
+                    if (verbose)
                     {
                         _console.Verbose($"[json-type-jsonquery] {sp.SchemaName}.{sp.Name} {col.Name} -> nvarchar(max)");
                     }
@@ -90,7 +90,7 @@ public sealed class JsonResultTypeEnricher
                 {
                     col.IsNullable = true;
                     modifiedLocal = true;
-                    if (verbose && level == JsonTypeLogLevel.Detailed)
+                    if (verbose)
                     {
                         _console.Verbose($"[json-type-nullable-adjust] {sp.SchemaName}.{sp.Name} {col.Name} forced nullable (outer join)");
                     }
@@ -101,7 +101,7 @@ public sealed class JsonResultTypeEnricher
                     col.SqlTypeName = col.CastTargetType;
                     // Nullability not changed; size already embedded if present
                     modifiedLocal = true;
-                    if (verbose && level == JsonTypeLogLevel.Detailed)
+                    if (verbose)
                     {
                         _console.Verbose($"[json-type-cast] {sp.SchemaName}.{sp.Name} {col.Name} -> {col.SqlTypeName}");
                     }
@@ -124,7 +124,7 @@ public sealed class JsonResultTypeEnricher
                         modifiedLocal = true;
                         var logTag = hadFallback ? "[json-type-upgrade]" : "[json-type-table]";
                         var logKey = $"{sp.SchemaName}.{sp.Name}|{col.Name}->{match.SqlTypeName}";
-                        if (verbose && level == JsonTypeLogLevel.Detailed && !loggedColumnResolutions.Contains(logKey))
+                        if (verbose && !loggedColumnResolutions.Contains(logKey))
                         {
                             loggedColumnResolutions.Add(logKey);
                             if (hadFallback) loggedUpgrades++; else loggedNewConcrete++;
@@ -183,11 +183,11 @@ public sealed class JsonResultTypeEnricher
                 FirstParseError = sp.Content.FirstParseError
             };
         }
-        if (verbose && loggedColumnResolutions.Count > 0 && level != JsonTypeLogLevel.Off)
+        if (verbose && loggedColumnResolutions.Count > 0)
         {
             _console.Verbose($"[json-type-summary] {sp.SchemaName}.{sp.Name} resolved {loggedColumnResolutions.Count} columns (new={loggedNewConcrete}, upgrades={loggedUpgrades})");
         }
-        else if (verbose && level == JsonTypeLogLevel.Detailed)
+        else if (verbose)
         {
             // still emit a summary line even if no resolutions, to show nullable adjustments / jsonquery activity
             _console.Verbose($"[json-type-summary] {sp.SchemaName}.{sp.Name} no new resolutions");
