@@ -200,7 +200,7 @@ public class ModernDbContextGenerator : GeneratorBase
                     inputPlaceholders["Properties"] = sp.Input.Select(p => new Dictionary<string, object>
                     {
                         ["Name"] = p.Name,
-                        ["Type"] = MapClrType(p),
+                        ["Type"] = MapClrType(p as ColumnModel),
                         ["Description"] = p.Name
                     }).ToList();
 
@@ -308,13 +308,12 @@ public class ModernDbContextGenerator : GeneratorBase
         }
     }
 
-    private static string MapClrType(dynamic column)
+    private static string MapClrType(ColumnModel column)
     {
         // Vereinfachtes Mapping: Grundtyp bestimmen, Nullability einmalig anhängen
         try
         {
-            var raw = column.DataType?.ToString() ?? column.Type?.ToString() ?? "string";
-            var dbType = raw.ToLowerInvariant();
+            var dbType = column.SqlTypeName?.ToLowerInvariant() ?? "string";
             var baseType = dbType switch
             {
                 "int" => "int",
@@ -333,7 +332,6 @@ public class ModernDbContextGenerator : GeneratorBase
                 "json" => "string",
                 _ => "string"
             };
-            
             bool isNullable = column.IsNullable == true;
             return isNullable
                 ? $"{baseType}?"

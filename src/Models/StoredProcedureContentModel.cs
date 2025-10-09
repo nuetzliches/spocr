@@ -159,18 +159,12 @@ public class StoredProcedureContentModel
         };
     }
 
-    public class ResultColumn
+    public class ResultColumn : ColumnModel
     {
         public string JsonPath { get; set; }
-        public string Name { get; set; }
         public string SourceSchema { get; set; }
         public string SourceTable { get; set; }
         public string SourceColumn { get; set; }
-        // Added for unified non-JSON result typing (formerly from StoredProcedureOutputModel)
-        public string SqlTypeName { get; set; }
-        public bool? IsNullable { get; set; }
-        // Preserve original length metadata (was present on legacy output model & inputs)
-        public int? MaxLength { get; set; }
         // Advanced inference (parser v5)
         public string SourceAlias { get; set; }           // Table/CTE/UDTT alias origin when available
         public ResultColumnExpressionKind? ExpressionKind { get; set; } // Nature of the SELECT expression

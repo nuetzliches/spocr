@@ -24,11 +24,14 @@ BEGIN
 END
 GO
 
+/*
+*   [spocr] 
+*/
 CREATE OR ALTER PROCEDURE samples.OrderListAsJson
 AS
 BEGIN
     SET NOCOUNT ON;
-
+    -- asd
     SELECT
         u.UserId,
         u.DisplayName,

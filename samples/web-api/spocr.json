@@ -10,7 +10,7 @@
       "Namespace": "SpocR.Samples.WebApi.DataContext"
     },
     "DefaultSchemaStatus": "Build",
-    "IgnoredSchemas": [],
-    "IgnoredProcedures": []
+    "IgnoredSchemas": ["dbo"],
+    "IgnoredProcedures": ["dbo.UserList"]
   }
 }
