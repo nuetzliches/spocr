@@ -35,19 +35,38 @@ public abstract class GeneratorBase
 
     #region Type Helpers
 
+    [Obsolete("Use GetClrTypeNameFromSqlDbTypeName for modern stub generation (string-based). Will be removed in v5.")]
     protected TypeSyntax ParseTypeFromSqlDbTypeName(string sqlTypeName, bool isNullable)
     {
-        // temporary for #56: we should not abort execution if config is corrupt
-        if (string.IsNullOrEmpty(sqlTypeName))
-        {
-            ConsoleService.PrintCorruptConfigMessage($"Could not parse 'SqlTypeName' - setting the type to dynamic");
-            sqlTypeName = "Variant";
-        }
+        var name = GetClrTypeNameFromSqlDbTypeName(sqlTypeName, isNullable);
+        return SyntaxFactory.ParseTypeName(name);
+    }
 
-        sqlTypeName = sqlTypeName.Split('(')[0];
-        var sqlType = Enum.Parse<System.Data.SqlDbType>(sqlTypeName, true);
-        var clrType = SqlDbHelper.GetType(sqlType, isNullable);
-        return SyntaxFactory.ParseTypeName(clrType.ToGenericTypeString());
+    protected string GetClrTypeNameFromSqlDbTypeName(string sqlTypeName, bool isNullable)
+    {
+        // Graceful fallback on corrupt config (#56)
+        if (string.IsNullOrWhiteSpace(sqlTypeName))
+        {
+            ConsoleService.PrintCorruptConfigMessage("Could not parse 'SqlTypeName' - falling back to object");
+            return isNullable ? "object" : "object"; // object hat keine nullability Syntax (Referenztyp)
+        }
+        var core = sqlTypeName.Split('(')[0];
+        System.Data.SqlDbType dbType;
+        try
+        {
+            dbType = Enum.Parse<System.Data.SqlDbType>(core, true);
+        }
+        catch
+        {
+            ConsoleService.Verbose($"[type-map] Unknown sql type '{sqlTypeName}', using string");
+            return isNullable ? "string?" : "string";
+        }
+        var clr = SqlDbHelper.GetType(dbType, isNullable);
+        var name = clr.ToGenericTypeString();
+        // Für Referenztypen Nullability explizit anzeigen
+        if (isNullable && name == "string") return "string?";
+        if (isNullable && name == "byte[]") return "byte[]?";
+        return name;
     }
 
     protected static string GetIdentifierFromSqlInputTableType(string name)

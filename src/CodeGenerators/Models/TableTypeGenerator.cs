@@ -85,8 +85,9 @@ public class TableTypeGenerator(
 
                 var propertyIdentifier = SyntaxFactory.ParseToken($" {column.Name} ");
 
+                var mappedType = GetClrTypeNameFromSqlDbTypeName(column.SqlTypeName, column.IsNullable ?? false);
                 propertyNode = propertyNode
-                    .WithType(ParseTypeFromSqlDbTypeName(column.SqlTypeName, column.IsNullable ?? false));
+                    .WithType(SyntaxFactory.ParseTypeName(mappedType));
 
                 propertyNode = propertyNode
                     .WithIdentifier(propertyIdentifier);
@@ -143,7 +144,7 @@ public class TableTypeGenerator(
                 {
                     foreach (var col in tableType.Columns)
                     {
-                        var typeSyntax2 = ParseTypeFromSqlDbTypeName(col.SqlTypeName, col.IsNullable ?? false).ToString();
+                        var typeSyntax2 = GetClrTypeNameFromSqlDbTypeName(col.SqlTypeName, col.IsNullable ?? false);
                         string attr2 = null;
                         if (col.SqlTypeName.Equals(SqlDbType.NVarChar.ToString(), StringComparison.InvariantCultureIgnoreCase) && col.MaxLength.HasValue)
                         {

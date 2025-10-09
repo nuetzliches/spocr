@@ -75,7 +75,7 @@ public class InputGenerator(
             var isTableType = item.IsTableType ?? false;
             var typeSyntax = isTableType
                 ? GetTypeSyntaxForTableType(item).ToString()
-                : ParseTypeFromSqlDbTypeName(item.SqlTypeName, item.IsNullable ?? false).ToString();
+                : GetClrTypeNameFromSqlDbTypeName(item.SqlTypeName, item.IsNullable ?? false);
 
             // Property-/Parametername (PascalCase beibehalten)
             var propertyName = GetPropertyFromSqlInputTableType(item.Name);

@@ -82,6 +82,12 @@
               "MaxLength": 256
             },
             {
+              "Name": "Bio",
+              "SqlTypeName": "nvarchar",
+              "IsNullable": true,
+              "MaxLength": 512
+            },
+            {
               "Name": "OrderId",
               "SqlTypeName": "int",
               "IsNullable": false,

@@ -226,7 +226,8 @@ public class ModernDbContextGenerator : GeneratorBase
                     {
                         ["Name"] = c.Name,
                         ["Type"] = MapClrType(c),
-                        ["Description"] = c.Name
+                        ["Description"] = c.Name,
+                        ["Attribute"] = NeedsStringLengthAttribute(c) ? $"[StringLength({GetMaxLength(c)})] " : string.Empty
                     }).ToList();
 
                     var outputTemplate = await _templateEngine.GetProcessedTemplateAsync(
@@ -309,35 +310,64 @@ public class ModernDbContextGenerator : GeneratorBase
 
     private static string MapClrType(dynamic column)
     {
-        // Basic type mapping - TODO: refine with SqlDbTypes
+        // Vereinfachtes Mapping: Grundtyp bestimmen, Nullability einmalig anhängen
         try
         {
-            string dbType = column.DataType?.ToString() ?? column.Type?.ToString() ?? "string";
-            dbType = dbType.ToLowerInvariant();
-            return dbType switch
+            var raw = column.DataType?.ToString() ?? column.Type?.ToString() ?? "string";
+            var dbType = raw.ToLowerInvariant();
+            var baseType = dbType switch
             {
-                "int" => column.IsNullable ? "int?" : "int",
-                "bigint" => column.IsNullable ? "long?" : "long",
-                "smallint" => column.IsNullable ? "short?" : "short",
-                "tinyint" => column.IsNullable ? "byte?" : "byte",
-                "bit" => column.IsNullable ? "bool?" : "bool",
-                "decimal" or "numeric" => column.IsNullable ? "decimal?" : "decimal",
-                "money" or "smallmoney" => column.IsNullable ? "decimal?" : "decimal",
-                "float" => column.IsNullable ? "double?" : "double",
-                "real" => column.IsNullable ? "float?" : "float",
-                "date" or "datetime" or "datetime2" or "smalldatetime" => column.IsNullable ? "DateTime?" : "DateTime",
-                "datetimeoffset" => column.IsNullable ? "DateTimeOffset?" : "DateTimeOffset",
-                "time" => column.IsNullable ? "TimeSpan?" : "TimeSpan",
-                "uniqueidentifier" => column.IsNullable ? "Guid?" : "Guid",
+                "int" => "int",
+                "bigint" => "long",
+                "smallint" => "short",
+                "tinyint" => "byte",
+                "bit" => "bool",
+                "decimal" or "numeric" or "money" or "smallmoney" => "decimal",
+                "float" => "double",
+                "real" => "float",
+                "date" or "datetime" or "datetime2" or "smalldatetime" => "DateTime",
+                "datetimeoffset" => "DateTimeOffset",
+                "time" => "TimeSpan",
+                "uniqueidentifier" => "Guid",
                 "binary" or "varbinary" or "image" => "byte[]",
-                "json" => "string", // treat JSON as string
-                _ => column.IsNullable ? "string" : "string"
+                "json" => "string",
+                _ => "string"
             };
+            
+            bool isNullable = column.IsNullable == true;
+            return isNullable
+                ? $"{baseType}?"
+                : baseType;
         }
-        catch
+        catch { return "string"; }
+    }
+
+    private static bool NeedsStringLengthAttribute(dynamic column)
+    {
+        try
         {
-            return "string";
+            var typeName = (column.DataType?.ToString() ?? column.Type?.ToString() ?? string.Empty).ToLowerInvariant();
+            if (!typeName.StartsWith("nvarchar")) return false;
+            var max = GetMaxLength(column);
+            return max > 0;
         }
+        catch { return false; }
+    }
+
+    private static int GetMaxLength(dynamic column)
+    {
+        try
+        {
+            // MaxLength property may be named MaxLength or max_length depending on source
+            if (column == null) return -1;
+            var t = column.GetType();
+            var prop = t.GetProperty("MaxLength") ?? t.GetProperty("max_length");
+            if (prop == null) return -1;
+            var val = prop.GetValue(column);
+            if (val is int i) return i;
+            return -1;
+        }
+        catch { return -1; }
     }
 
     private Dictionary<string, object> CreateBasePlaceholders()

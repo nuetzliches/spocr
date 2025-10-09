@@ -9,6 +9,6 @@ public class {{Name}}Result
     /// <summary>
     /// {{Description}}
     /// </summary>
-    public {{Type}} {{Name}} { get; set; }
+    {{#if Attribute}}{{Attribute}}{{/if}}public {{Type}} {{Name}} { get; set; }
 {{/each}}
 }

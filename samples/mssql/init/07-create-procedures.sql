@@ -33,6 +33,7 @@ BEGIN
         u.UserId,
         u.DisplayName,
         u.Email,
+        u.Bio,
         o.OrderId,
         o.TotalAmount,
         o.PlacedAt,

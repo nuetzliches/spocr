@@ -54,8 +54,8 @@ public class ModelGenerator(
         // Local helpers
         string InferType(string sqlType, bool? nullable)
         {
-            if (string.IsNullOrWhiteSpace(sqlType)) return "string";
-            return ParseTypeFromSqlDbTypeName(sqlType, nullable ?? true).ToString();
+            var isNull = nullable ?? false;
+            return GetClrTypeNameFromSqlDbTypeName(sqlType, isNull);
         }
 
         ClassDeclarationSyntax AddProperty(ClassDeclarationSyntax cls, string name, string typeName)
