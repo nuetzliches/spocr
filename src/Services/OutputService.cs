@@ -36,12 +36,7 @@ public class OutputService(
         {
             desiredFolder = "Output-v9-0"; // net8 shares the v9 templates currently
         }
-        else if (int.TryParse(targetFramework.Replace("net", "").Split('.')[0], out var versionNumber) && versionNumber >= 10)
-        {
-            // Modern Mode: dedicated template folder name (if real templates land later). Currently a placeholder / minimal fallback.
-            desiredFolder = "Output-modern"; // reserved name for modern embedded templates
-        }
-        else if (int.TryParse(targetFramework.Replace("net", "").Split('.')[0], out versionNumber) && versionNumber >= 5)
+        else if (int.TryParse(targetFramework.Replace("net", "").Split('.')[0], out var versionNumber) && versionNumber >= 5)
         {
             desiredFolder = "Output-v5-0";
         }

@@ -97,7 +97,7 @@ public class TableTypeGenerator(
                 {
                     var attributes = propertyNode.AttributeLists.Add(
                         SyntaxFactory.AttributeList(SyntaxFactory.SingletonSeparatedList<AttributeSyntax>(
-                            SyntaxFactory.Attribute(SyntaxFactory.IdentifierName("MaxLength"), SyntaxFactory.ParseAttributeArgumentList($"({column.MaxLength})"))
+                            SyntaxFactory.Attribute(SyntaxFactory.IdentifierName("StringLength"), SyntaxFactory.ParseAttributeArgumentList($"({column.MaxLength})"))
                         )).NormalizeWhitespace());
 
                     propertyNode = propertyNode.WithAttributeLists(attributes);
@@ -135,7 +135,7 @@ public class TableTypeGenerator(
                     var type = pm.Groups["type"].Value.Trim();
                     var name = pm.Groups["name"].Value.Trim();
                     var len = pm.Groups["len"].Success ? pm.Groups["len"].Value : null;
-                    var attr = len != null ? $"[property: MaxLength({len})] " : string.Empty;
+                    var attr = len != null ? $"[property: StringLength({len})] " : string.Empty;
                     segments.Add($"{attr}{type} {name}");
                 }
                 // Fallback: build from metadata if regex didn't find any properties
@@ -147,7 +147,7 @@ public class TableTypeGenerator(
                         string attr2 = null;
                         if (col.SqlTypeName.Equals(SqlDbType.NVarChar.ToString(), StringComparison.InvariantCultureIgnoreCase) && col.MaxLength.HasValue)
                         {
-                            attr2 = $"[property: MaxLength({col.MaxLength.Value})] ";
+                            attr2 = $"[property: StringLength({col.MaxLength.Value})] ";
                         }
                         segments.Add($"{attr2}{typeSyntax2} {col.Name}".TrimStart());
                     }

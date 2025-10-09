@@ -85,8 +85,9 @@ public class InputGenerator(
                 && (item.SqlTypeName?.Equals(System.Data.SqlDbType.NVarChar.ToString(), StringComparison.InvariantCultureIgnoreCase) ?? false)
                 && item.MaxLength.HasValue)
             {
+                // Für Strings StringLength statt MaxLength verwenden
                 needsDataAnnotations = true;
-                attr = $"[property: MaxLength({item.MaxLength.Value})] ";
+                attr = $"[property: StringLength({item.MaxLength.Value})] ";
             }
             paramSegments.Add($"{attr}{typeSyntax} {propertyName}".TrimStart());
         }

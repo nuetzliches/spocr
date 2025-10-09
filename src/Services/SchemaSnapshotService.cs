@@ -72,8 +72,20 @@ public class SchemaSnapshotService : ISchemaSnapshotService
             var dir = EnsureDir();
             if (dir == null) return;
             var path = Path.Combine(dir, snapshot.Fingerprint + ".json");
+            // Serialize without volatile metadata (GeneratedUtc moved to cache meta)
             var json = JsonSerializer.Serialize(snapshot, _jsonOptions);
             File.WriteAllText(path, json);
+
+            // Write volatile meta (timestamp) into .spocr/cache (gitignored) to avoid diff noise
+            try
+            {
+                var cacheRoot = Path.Combine(Utils.DirectoryUtils.GetWorkingDirectory() ?? string.Empty, ".spocr", "cache");
+                Directory.CreateDirectory(cacheRoot);
+                var meta = new SchemaSnapshotMeta { Fingerprint = snapshot.Fingerprint, GeneratedUtc = DateTime.UtcNow };
+                var metaJson = JsonSerializer.Serialize(meta, _jsonOptions);
+                File.WriteAllText(Path.Combine(cacheRoot, snapshot.Fingerprint + ".meta.json"), metaJson);
+            }
+            catch { /* ignore cache meta failures */ }
         }
         catch { }
     }
@@ -83,13 +95,19 @@ public class SchemaSnapshot
 {
     public int SchemaVersion { get; set; } = 1;
     public string Fingerprint { get; set; }
-    public DateTime GeneratedUtc { get; set; } = DateTime.UtcNow;
+    [JsonIgnore] public DateTime GeneratedUtc { get; set; } = DateTime.UtcNow; // no longer persisted in snapshot file
     public SnapshotDatabase Database { get; set; }
     public List<SnapshotProcedure> Procedures { get; set; } = new();
     public List<SnapshotSchema> Schemas { get; set; } = new();
     public List<SnapshotUdtt> UserDefinedTableTypes { get; set; } = new();
     public SnapshotParserInfo Parser { get; set; }
     public SnapshotStats Stats { get; set; }
+}
+
+public class SchemaSnapshotMeta
+{
+    public string Fingerprint { get; set; }
+    public DateTime GeneratedUtc { get; set; }
 }
 
 public class SnapshotDatabase

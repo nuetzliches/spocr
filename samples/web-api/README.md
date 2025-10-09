@@ -10,7 +10,6 @@ This sample demonstrates how SpocR (v4 modern mode / implicit net10+) generates 
 |------|---------|
 | `DataContext/` | Generated types: Inputs, Models, TableTypes, StoredProcedure extension methods. |
 | `ManualData/` | Temporary hand-written minimal db context (`SpocRDbContext`) – will be removed once the modern generated context ships. |
-| `Output*` folders | Legacy template roots (kept for comparison / transition). `Output-modern` is a placeholder for future embedded templates. |
 | `.spocr/` | Snapshot metadata (schema/result set fingerprints). |
 | `spocr.json` | Minimal configuration (modern mode infers missing Output.* fields). |
 
@@ -115,7 +114,6 @@ See root `README.md` / `CHANGELOG.md` for full deprecation notes.
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
-| `Template source directory ... Output-modern` warning | Placeholder modern template folder not present | Safe to ignore – dynamic stubs used |
 | Empty / missing generated methods | Procedures not discoverable or snapshot outdated | Re-run `pull` (maybe with `--no-cache`) |
 | JSON model empty | Inference could not map columns | Check procedure FOR JSON shape / add stable column aliases |
 | Role warnings in console | `role.kind` still in config | Remove the `role` section if not needed |
