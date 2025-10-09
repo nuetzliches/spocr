@@ -66,6 +66,12 @@ public class ModernDbContextGenerator : GeneratorBase
         // Generate stored procedure specific extensions
         await GenerateStoredProcedureExtensionsAsync(outputPath, targetFramework, isDryRun);
 
+    // Generate input/output/entity models
+    await GenerateStoredProcedureModelsAsync(outputPath, targetFramework, isDryRun);
+
+    // Generate table types
+    await GenerateTableTypeModelsAsync(outputPath, targetFramework, isDryRun);
+
         ConsoleService.Success("Modern DbContext generation completed");
     }
 
@@ -159,6 +165,178 @@ public class ModernDbContextGenerator : GeneratorBase
             await Output.WriteAsync(filePath, template.GetText(), isDryRun);
 
             ConsoleService.Verbose($"Generated schema extensions: {filePath}");
+        }
+    }
+
+    private async Task GenerateStoredProcedureModelsAsync(
+        string outputPath,
+        TargetFrameworkEnum targetFramework,
+        bool isDryRun)
+    {
+        var schemas = _metadataProvider.GetSchemas().Where(s => s.Status == SchemaStatusEnum.Build);
+
+        foreach (var schema in schemas)
+        {
+            var schemaInputsPath = Path.Combine(outputPath, "Inputs", schema.Name);
+            var schemaOutputsPath = Path.Combine(outputPath, "Outputs", schema.Name);
+            var schemaModelsPath = Path.Combine(outputPath, "Models", schema.Name);
+
+            if (!isDryRun)
+            {
+                Directory.CreateDirectory(schemaInputsPath);
+                Directory.CreateDirectory(schemaOutputsPath);
+                Directory.CreateDirectory(schemaModelsPath);
+            }
+
+            foreach (var sp in schema.StoredProcedures ?? Enumerable.Empty<StoredProcedureModel>())
+            {
+                // Input model
+                if (sp.Input?.Any() == true)
+                {
+                    var inputPlaceholders = CreateBasePlaceholders();
+                    inputPlaceholders["Schema"] = schema.Name;
+                    inputPlaceholders["ProcedureName"] = sp.Name;
+                    inputPlaceholders["Name"] = sp.Name;
+                    inputPlaceholders["Properties"] = sp.Input.Select(p => new Dictionary<string, object>
+                    {
+                        ["Name"] = p.Name,
+                        ["Type"] = MapClrType(p),
+                        ["Description"] = p.Name
+                    }).ToList();
+
+                    var inputTemplate = await _templateEngine.GetProcessedTemplateAsync(
+                        TemplateType.InputModel,
+                        targetFramework,
+                        inputPlaceholders);
+
+                    var inputFile = Path.Combine(schemaInputsPath, sp.Name + "Input.cs");
+                    await Output.WriteAsync(inputFile, inputTemplate.GetText(), isDryRun);
+                    ConsoleService.Verbose($"Generated input model: {inputFile}");
+                }
+
+                // Output/result model (first result set for now)
+                var resultSet = sp.ResultSets?.FirstOrDefault();
+                if (resultSet?.Columns?.Any() == true)
+                {
+                    var outputPlaceholders = CreateBasePlaceholders();
+                    outputPlaceholders["Schema"] = schema.Name;
+                    outputPlaceholders["ProcedureName"] = sp.Name;
+                    outputPlaceholders["Name"] = sp.Name;
+                    outputPlaceholders["Properties"] = resultSet.Columns.Select(c => new Dictionary<string, object>
+                    {
+                        ["Name"] = c.Name,
+                        ["Type"] = MapClrType(c),
+                        ["Description"] = c.Name
+                    }).ToList();
+
+                    var outputTemplate = await _templateEngine.GetProcessedTemplateAsync(
+                        TemplateType.OutputModel,
+                        targetFramework,
+                        outputPlaceholders);
+
+                    var outputFile = Path.Combine(schemaOutputsPath, sp.Name + "Result.cs");
+                    await Output.WriteAsync(outputFile, outputTemplate.GetText(), isDryRun);
+                    ConsoleService.Verbose($"Generated output model: {outputFile}");
+                }
+
+                // Entity model(s) from each result set
+                if (sp.ResultSets?.Any() == true)
+                {
+                    var index = 1;
+                    foreach (var rs in sp.ResultSets)
+                    {
+                        if (rs.Columns?.Any() != true) continue;
+                        var entityPlaceholders = CreateBasePlaceholders();
+                        entityPlaceholders["Schema"] = schema.Name;
+                        entityPlaceholders["Source"] = sp.Name + (sp.ResultSets.Count > 1 ? $"[Set{index}]" : "");
+                        entityPlaceholders["Name"] = sp.Name + (sp.ResultSets.Count > 1 ? $"Set{index}" : "Entity");
+                        entityPlaceholders["Properties"] = rs.Columns.Select(c => new Dictionary<string, object>
+                        {
+                            ["Name"] = c.Name,
+                            ["Type"] = MapClrType(c)
+                        }).ToList();
+
+                        var entityTemplate = await _templateEngine.GetProcessedTemplateAsync(
+                            TemplateType.EntityModel,
+                            targetFramework,
+                            entityPlaceholders);
+
+                        var entityFileName = sp.Name + (sp.ResultSets.Count > 1 ? $"Set{index}" : "Entity") + ".cs";
+                        var entityFile = Path.Combine(schemaModelsPath, entityFileName);
+                        await Output.WriteAsync(entityFile, entityTemplate.GetText(), isDryRun);
+                        ConsoleService.Verbose($"Generated entity model: {entityFile}");
+                        index++;
+                    }
+                }
+            }
+        }
+    }
+
+    private async Task GenerateTableTypeModelsAsync(
+        string outputPath,
+        TargetFrameworkEnum targetFramework,
+        bool isDryRun)
+    {
+        var schemas = _metadataProvider.GetSchemas().Where(s => s.Status == SchemaStatusEnum.Build);
+        foreach (var schema in schemas)
+        {
+            var schemaTableTypesPath = Path.Combine(outputPath, "TableTypes", schema.Name);
+            if (!isDryRun) Directory.CreateDirectory(schemaTableTypesPath);
+
+            foreach (var tt in schema.TableTypes ?? Enumerable.Empty<TableTypeModel>())
+            {
+                if (tt.Columns?.Any() != true) continue;
+                var tableTypePlaceholders = CreateBasePlaceholders();
+                tableTypePlaceholders["Schema"] = schema.Name;
+                tableTypePlaceholders["Name"] = tt.Name;
+                tableTypePlaceholders["Columns"] = tt.Columns.Select(c => new Dictionary<string, object>
+                {
+                    ["Name"] = c.Name,
+                    ["Type"] = MapClrType(c)
+                }).ToList();
+
+                var tableTypeTemplate = await _templateEngine.GetProcessedTemplateAsync(
+                    TemplateType.TableType,
+                    targetFramework,
+                    tableTypePlaceholders);
+
+                var ttFile = Path.Combine(schemaTableTypesPath, tt.Name + "TableType.cs");
+                await Output.WriteAsync(ttFile, tableTypeTemplate.GetText(), isDryRun);
+                ConsoleService.Verbose($"Generated table type: {ttFile}");
+            }
+        }
+    }
+
+    private static string MapClrType(dynamic column)
+    {
+        // Basic type mapping - TODO: refine with SqlDbTypes
+        try
+        {
+            string dbType = column.DataType?.ToString() ?? column.Type?.ToString() ?? "string";
+            dbType = dbType.ToLowerInvariant();
+            return dbType switch
+            {
+                "int" => column.IsNullable ? "int?" : "int",
+                "bigint" => column.IsNullable ? "long?" : "long",
+                "smallint" => column.IsNullable ? "short?" : "short",
+                "tinyint" => column.IsNullable ? "byte?" : "byte",
+                "bit" => column.IsNullable ? "bool?" : "bool",
+                "decimal" or "numeric" => column.IsNullable ? "decimal?" : "decimal",
+                "money" or "smallmoney" => column.IsNullable ? "decimal?" : "decimal",
+                "float" => column.IsNullable ? "double?" : "double",
+                "real" => column.IsNullable ? "float?" : "float",
+                "date" or "datetime" or "datetime2" or "smalldatetime" => column.IsNullable ? "DateTime?" : "DateTime",
+                "datetimeoffset" => column.IsNullable ? "DateTimeOffset?" : "DateTimeOffset",
+                "time" => column.IsNullable ? "TimeSpan?" : "TimeSpan",
+                "uniqueidentifier" => column.IsNullable ? "Guid?" : "Guid",
+                "binary" or "varbinary" or "image" => "byte[]",
+                "json" => "string", // treat JSON as string
+                _ => column.IsNullable ? "string" : "string"
+            };
+        }
+        catch
+        {
+            return "string";
         }
     }
 

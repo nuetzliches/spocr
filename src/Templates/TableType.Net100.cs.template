@@ -1,0 +1,18 @@
+using System.Data;
+
+namespace {{Namespace}}.DataContext.TableTypes.{{Schema}};
+
+/// <summary>
+/// Table type wrapper for structured parameter {{Name}}
+/// </summary>
+public static class {{Name}}TableTypeFactory
+{
+    public static DataTable Create()
+    {
+        var table = new DataTable("{{Name}}");
+{{#each Columns}}
+        table.Columns.Add("{{Name}}", typeof({{Type}}));
+{{/each}}
+        return table;
+    }
+}

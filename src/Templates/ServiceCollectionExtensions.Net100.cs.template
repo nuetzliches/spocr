@@ -8,108 +8,49 @@ using Microsoft.AspNetCore.Http;
 
 namespace {{Namespace}}.DataContext.Extensions;
 
-/// <summary>
-/// Extension methods for registering SpocR services with dependency injection
-/// </summary>
 public static class SpocRServiceCollectionExtensions
 {
-    /// <summary>
-    /// Adds SpocR database context services to the DI container
-    /// </summary>
-    /// <param name="services">The service collection</param>
-    /// <param name="configure">Optional configuration delegate</param>
-    /// <returns>The service collection for chaining</returns>
     public static IServiceCollection AddSpocRDbContext(
         this IServiceCollection services,
         Action<SpocRDbContextOptions> configure = null)
     {
         return services.AddSpocRDbContext<SpocRDbContext>(configure);
     }
-
-    /// <summary>
-    /// Adds SpocR database context services with custom implementation
-    /// </summary>
-    /// <typeparam name="TContext">Custom context implementation</typeparam>
-    /// <param name="services">The service collection</param>
-    /// <param name="configure">Optional configuration delegate</param>
-    /// <returns>The service collection for chaining</returns>
     public static IServiceCollection AddSpocRDbContext<TContext>(
         this IServiceCollection services,
         Action<SpocRDbContextOptions> configure = null)
         where TContext : class, ISpocRDbContext
     {
-        // Configure options
-        if (configure != null)
-        {
-            services.Configure(configure);
-        }
-
-        // Register application context provider
+        if (configure != null) services.Configure(configure);
         services.TryAddScoped<IApplicationContext, HttpApplicationContext>();
-        
-        // Register the context
         services.AddScoped<ISpocRDbContext, TContext>();
         services.AddScoped<TContext>();
-
         return services;
     }
-
-    /// <summary>
-    /// Adds SpocR database context as singleton
-    /// </summary>
-    /// <param name="services">The service collection</param>
-    /// <param name="configure">Optional configuration delegate</param>
-    /// <returns>The service collection for chaining</returns>
     public static IServiceCollection AddSpocRDbContextSingleton(
         this IServiceCollection services,
         Action<SpocRDbContextOptions> configure = null)
     {
-        if (configure != null)
-        {
-            services.Configure(configure);
-        }
-
+        if (configure != null) services.Configure(configure);
         services.TryAddSingleton<IApplicationContext, HttpApplicationContext>();
         services.AddSingleton<ISpocRDbContext, SpocRDbContext>();
-
         return services;
     }
-
-    /// <summary>
-    /// Adds SpocR database context as transient
-    /// </summary>
-    /// <param name="services">The service collection</param>
-    /// <param name="configure">Optional configuration delegate</param>
-    /// <returns>The service collection for chaining</returns>
     public static IServiceCollection AddSpocRDbContextTransient(
         this IServiceCollection services,
         Action<SpocRDbContextOptions> configure = null)
     {
-        if (configure != null)
-        {
-            services.Configure(configure);
-        }
-
+        if (configure != null) services.Configure(configure);
         services.TryAddTransient<IApplicationContext, HttpApplicationContext>();
         services.AddTransient<ISpocRDbContext, SpocRDbContext>();
-
         return services;
     }
-
-    /// <summary>
-    /// Adds custom application context provider
-    /// </summary>
-    /// <typeparam name="TApplicationContext">Custom application context implementation</typeparam>
-    /// <param name="services">The service collection</param>
-    /// <param name="lifetime">Service lifetime (default: Scoped)</param>
-    /// <returns>The service collection for chaining</returns>
     public static IServiceCollection AddSpocRApplicationContext<TApplicationContext>(
         this IServiceCollection services,
         ServiceLifetime lifetime = ServiceLifetime.Scoped)
         where TApplicationContext : class, IApplicationContext
     {
         services.RemoveAll<IApplicationContext>();
-        
         return lifetime switch
         {
             ServiceLifetime.Singleton => services.AddSingleton<IApplicationContext, TApplicationContext>(),
@@ -117,21 +58,12 @@ public static class SpocRServiceCollectionExtensions
             _ => services.AddScoped<IApplicationContext, TApplicationContext>()
         };
     }
-
-    /// <summary>
-    /// Adds application context with factory function
-    /// </summary>
-    /// <param name="services">The service collection</param>
-    /// <param name="factory">Factory function to create application context</param>
-    /// <param name="lifetime">Service lifetime (default: Scoped)</param>
-    /// <returns>The service collection for chaining</returns>
     public static IServiceCollection AddSpocRApplicationContext(
         this IServiceCollection services,
         Func<IServiceProvider, IApplicationContext> factory,
         ServiceLifetime lifetime = ServiceLifetime.Scoped)
     {
         services.RemoveAll<IApplicationContext>();
-        
         return lifetime switch
         {
             ServiceLifetime.Singleton => services.AddSingleton(factory),
@@ -141,50 +73,34 @@ public static class SpocRServiceCollectionExtensions
     }
 }
 
-/// <summary>
-/// HTTP-aware application context that extracts user information from the current HTTP context
-/// </summary>
 public class HttpApplicationContext : IApplicationContext
 {
     public string UserId { get; }
     public string TenantId { get; }
     public IReadOnlyDictionary<string, object> Parameters { get; }
-
     public HttpApplicationContext(IHttpContextAccessor httpContextAccessor)
     {
         var httpContext = httpContextAccessor.HttpContext;
         var user = httpContext?.User;
-
-        // Extract UserId from JWT claims
         UserId = user?.FindFirst(ClaimTypes.NameIdentifier)?.Value 
                  ?? user?.FindFirst("sub")?.Value 
                  ?? user?.FindFirst("user_id")?.Value 
                  ?? string.Empty;
-
-        // Extract TenantId from JWT claims (common patterns)
         TenantId = user?.FindFirst("tenant_id")?.Value 
                   ?? user?.FindFirst("organization_id")?.Value 
                   ?? user?.FindFirst("org_id")?.Value 
                   ?? string.Empty;
-
-        // Extract additional parameters from headers or claims
         var parameters = new Dictionary<string, object>();
-        
         if (httpContext != null)
         {
-            // Add correlation ID if present
             if (httpContext.Request.Headers.TryGetValue("X-Correlation-ID", out var correlationId))
             {
                 parameters["CorrelationId"] = correlationId.ToString();
             }
-
-            // Add request ID
             if (httpContext.TraceIdentifier != null)
             {
                 parameters["RequestId"] = httpContext.TraceIdentifier;
             }
-
-            // Add custom claims as parameters
             if (user?.Claims != null)
             {
                 foreach (var claim in user.Claims.Where(c => c.Type.StartsWith("custom_")))
@@ -193,20 +109,15 @@ public class HttpApplicationContext : IApplicationContext
                 }
             }
         }
-
         Parameters = parameters;
     }
 }
 
-/// <summary>
-/// Static application context for scenarios without HTTP context
-/// </summary>
 public class StaticApplicationContext : IApplicationContext
 {
     public string UserId { get; init; } = string.Empty;
     public string TenantId { get; init; } = string.Empty;
     public IReadOnlyDictionary<string, object> Parameters { get; init; } = new Dictionary<string, object>();
-
     public static StaticApplicationContext Create(string userId, string tenantId = null, Dictionary<string, object> parameters = null)
     {
         return new StaticApplicationContext

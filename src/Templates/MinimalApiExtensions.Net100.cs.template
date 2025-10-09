@@ -13,15 +13,6 @@ namespace {{Namespace}}.DataContext.Extensions;
 /// </summary>
 public static class SpocRMinimalApiExtensions
 {
-    /// <summary>
-    /// Maps a stored procedure to a minimal API endpoint
-    /// </summary>
-    /// <typeparam name="TInput">Input parameter type</typeparam>
-    /// <typeparam name="TResult">Result type</typeparam>
-    /// <param name="app">The web application</param>
-    /// <param name="pattern">Route pattern</param>
-    /// <param name="procedureName">Name of the stored procedure</param>
-    /// <returns>Route handler builder for further configuration</returns>
     public static RouteHandlerBuilder MapStoredProcedure<TInput, TResult>(
         this WebApplication app,
         string pattern,
@@ -36,20 +27,10 @@ public static class SpocRMinimalApiExtensions
                 procedureName, 
                 input, 
                 cancellationToken: cancellationToken);
-            
             return Results.Ok(result);
         });
     }
 
-    /// <summary>
-    /// Maps a stored procedure with transaction to a minimal API endpoint
-    /// </summary>
-    /// <typeparam name="TInput">Input parameter type</typeparam>
-    /// <typeparam name="TResult">Result type</typeparam>
-    /// <param name="app">The web application</param>
-    /// <param name="pattern">Route pattern</param>
-    /// <param name="procedureName">Name of the stored procedure</param>
-    /// <returns>Route handler builder for further configuration</returns>
     public static RouteHandlerBuilder MapStoredProcedureWithTransaction<TInput, TResult>(
         this WebApplication app,
         string pattern,
@@ -61,7 +42,6 @@ public static class SpocRMinimalApiExtensions
             CancellationToken cancellationToken) =>
         {
             await using var transaction = await context.BeginTransactionAsync(cancellationToken: cancellationToken);
-            
             try
             {
                 var result = await context.ExecuteStoredProcedureAsync<TInput, TResult>(
@@ -69,7 +49,6 @@ public static class SpocRMinimalApiExtensions
                     input, 
                     transaction,
                     cancellationToken);
-                
                 await transaction.CommitAsync(cancellationToken);
                 return Results.Ok(result);
             }
@@ -81,14 +60,6 @@ public static class SpocRMinimalApiExtensions
         });
     }
 
-    /// <summary>
-    /// Maps a query stored procedure (GET) to a minimal API endpoint
-    /// </summary>
-    /// <typeparam name="TResult">Result type</typeparam>
-    /// <param name="app">The web application</param>
-    /// <param name="pattern">Route pattern</param>
-    /// <param name="procedureName">Name of the stored procedure</param>
-    /// <returns>Route handler builder for further configuration</returns>
     public static RouteHandlerBuilder MapStoredProcedureQuery<TResult>(
         this WebApplication app,
         string pattern,
@@ -102,20 +73,10 @@ public static class SpocRMinimalApiExtensions
                 procedureName, 
                 null, 
                 cancellationToken: cancellationToken);
-            
             return Results.Ok(result);
         });
     }
 
-    /// <summary>
-    /// Maps a parameterized query stored procedure (GET) to a minimal API endpoint
-    /// </summary>
-    /// <typeparam name="TInput">Input parameter type</typeparam>
-    /// <typeparam name="TResult">Result type</typeparam>
-    /// <param name="app">The web application</param>
-    /// <param name="pattern">Route pattern</param>
-    /// <param name="procedureName">Name of the stored procedure</param>
-    /// <returns>Route handler builder for further configuration</returns>
     public static RouteHandlerBuilder MapStoredProcedureQuery<TInput, TResult>(
         this WebApplication app,
         string pattern,
@@ -131,95 +92,48 @@ public static class SpocRMinimalApiExtensions
                 procedureName, 
                 input, 
                 cancellationToken: cancellationToken);
-            
             return Results.Ok(result);
         });
     }
 }
 
-/// <summary>
-/// Fluent API builder for configuring stored procedure endpoints
-/// </summary>
 public class SpocREndpointBuilder
 {
     private readonly WebApplication _app;
     private readonly string _procedureName;
-
     internal SpocREndpointBuilder(WebApplication app, string procedureName)
     {
         _app = app;
         _procedureName = procedureName;
     }
-
-    /// <summary>
-    /// Maps as a POST endpoint with request body
-    /// </summary>
-    /// <typeparam name="TInput">Input type</typeparam>
-    /// <typeparam name="TResult">Result type</typeparam>
-    /// <param name="pattern">Route pattern</param>
-    /// <param name="useTransaction">Whether to use a transaction</param>
-    /// <returns>Route handler builder</returns>
     public RouteHandlerBuilder AsPost<TInput, TResult>(string pattern, bool useTransaction = false)
     {
         return useTransaction 
             ? _app.MapStoredProcedureWithTransaction<TInput, TResult>(pattern, _procedureName)
             : _app.MapStoredProcedure<TInput, TResult>(pattern, _procedureName);
     }
-
-    /// <summary>
-    /// Maps as a GET endpoint with query parameters
-    /// </summary>
-    /// <typeparam name="TInput">Input type</typeparam>
-    /// <typeparam name="TResult">Result type</typeparam>
-    /// <param name="pattern">Route pattern</param>
-    /// <returns>Route handler builder</returns>
     public RouteHandlerBuilder AsGet<TInput, TResult>(string pattern)
         where TInput : class, new()
     {
         return _app.MapStoredProcedureQuery<TInput, TResult>(pattern, _procedureName);
     }
-
-    /// <summary>
-    /// Maps as a GET endpoint without parameters
-    /// </summary>
-    /// <typeparam name="TResult">Result type</typeparam>
-    /// <param name="pattern">Route pattern</param>
-    /// <returns>Route handler builder</returns>
     public RouteHandlerBuilder AsGet<TResult>(string pattern)
     {
         return _app.MapStoredProcedureQuery<TResult>(pattern, _procedureName);
     }
 }
 
-/// <summary>
-/// Extension methods for fluent stored procedure mapping
-/// </summary>
 public static class SpocRFluentApiExtensions
 {
-    /// <summary>
-    /// Starts a fluent configuration for a stored procedure
-    /// </summary>
-    /// <param name="app">The web application</param>
-    /// <param name="procedureName">Name of the stored procedure</param>
-    /// <returns>Endpoint builder for fluent configuration</returns>
     public static SpocREndpointBuilder MapSpocR(this WebApplication app, string procedureName)
     {
         return new SpocREndpointBuilder(app, procedureName);
     }
 }
 
-/// <summary>
-/// Example usage and generated extensions for specific stored procedures
-/// </summary>
 public static class GeneratedStoredProcedureExtensions
 {
     {{#each StoredProcedures}}
-    /// <summary>
-    /// Maps the {{Name}} stored procedure to minimal API endpoints
-    /// </summary>
-    /// <param name="app">The web application</param>
-    /// <param name="basePath">Base path for endpoints (default: "/api/{{Schema}}")</param>
-    /// <returns>Route handler builder for further configuration</returns>
     public static RouteHandlerBuilder Map{{Name}}(
         this WebApplication app, 
         string basePath = "/api/{{Schema}}")
@@ -234,17 +148,6 @@ public static class GeneratedStoredProcedureExtensions
             "{{FullName}}");
         {{/if}}
     }
-
-    /// <summary>
-    /// Executes {{Name}} stored procedure directly
-    /// </summary>
-    /// <param name="context">Database context</param>
-    {{#if HasInputs}}
-    /// <param name="input">Input parameters</param>
-    {{/if}}
-    /// <param name="transaction">Optional transaction</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Execution result</returns>
     public static Task<{{#if HasResults}}{{Name}}Result{{else}}int{{/if}}> {{Name}}Async(
         this ISpocRDbContext context,
         {{#if HasInputs}}{{Name}}Input input,{{/if}}

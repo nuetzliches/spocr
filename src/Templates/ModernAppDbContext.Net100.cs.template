@@ -10,46 +10,14 @@ using System.Text.Json;
 
 namespace {{Namespace}}.DataContext;
 
-/// <summary>
-/// Modern SpocR database context with improved transaction management and DI integration
-/// </summary>
 public interface ISpocRDbContext : IAsyncDisposable
 {
-    /// <summary>
-    /// Gets the configuration options for this context
-    /// </summary>
     SpocRDbContextOptions Options { get; }
-    
-    /// <summary>
-    /// Gets the underlying SQL connection
-    /// </summary>
     SqlConnection Connection { get; }
-    
-    /// <summary>
-    /// Gets the current application context parameters (e.g., UserId, TenantId)
-    /// </summary>
     IApplicationContext ApplicationContext { get; }
-    
-    /// <summary>
-    /// Begins a new database transaction
-    /// </summary>
-    /// <param name="isolationLevel">The isolation level for the transaction</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>A new transaction instance</returns>
     Task<ISpocRTransaction> BeginTransactionAsync(
         IsolationLevel isolationLevel = IsolationLevel.ReadCommitted,
         CancellationToken cancellationToken = default);
-    
-    /// <summary>
-    /// Executes a stored procedure with automatic parameter mapping
-    /// </summary>
-    /// <typeparam name="TInput">Input parameter type</typeparam>
-    /// <typeparam name="TResult">Result type</typeparam>
-    /// <param name="procedureName">Name of the stored procedure</param>
-    /// <param name="input">Input parameters</param>
-    /// <param name="transaction">Optional transaction</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Execution result</returns>
     Task<TResult> ExecuteStoredProcedureAsync<TInput, TResult>(
         string procedureName,
         TInput input,
@@ -57,82 +25,31 @@ public interface ISpocRDbContext : IAsyncDisposable
         CancellationToken cancellationToken = default);
 }
 
-/// <summary>
-/// Modern transaction interface with async disposal
-/// </summary>
 public interface ISpocRTransaction : IAsyncDisposable
 {
-    /// <summary>
-    /// Gets the underlying SQL transaction
-    /// </summary>
     SqlTransaction SqlTransaction { get; }
-    
-    /// <summary>
-    /// Commits the transaction
-    /// </summary>
-    /// <param name="cancellationToken">Cancellation token</param>
     Task CommitAsync(CancellationToken cancellationToken = default);
-    
-    /// <summary>
-    /// Rolls back the transaction
-    /// </summary>
-    /// <param name="cancellationToken">Cancellation token</param>
     Task RollbackAsync(CancellationToken cancellationToken = default);
 }
 
-/// <summary>
-/// Application context for passing user-specific parameters
-/// </summary>
 public interface IApplicationContext
 {
-    /// <summary>
-    /// Gets the current user ID
-    /// </summary>
     string UserId { get; }
-    
-    /// <summary>
-    /// Gets the current tenant ID (for multi-tenant applications)
-    /// </summary>
     string TenantId { get; }
-    
-    /// <summary>
-    /// Gets additional context parameters
-    /// </summary>
     IReadOnlyDictionary<string, object> Parameters { get; }
 }
 
-/// <summary>
-/// Configuration options for SpocR database context
-/// </summary>
 public class SpocRDbContextOptions
 {
-    /// <summary>
-    /// Command timeout in seconds (default: 30)
-    /// </summary>
     public int CommandTimeout { get; set; } = 30;
-    
-    /// <summary>
-    /// JSON serializer options for result deserialization
-    /// </summary>
     public JsonSerializerOptions JsonSerializerOptions { get; set; } = new()
     {
         PropertyNameCaseInsensitive = true
     };
-    
-    /// <summary>
-    /// Whether to automatically inject application context as first parameter
-    /// </summary>
     public bool InjectApplicationContext { get; set; } = true;
-    
-    /// <summary>
-    /// Name of the application context table type (if using structured parameters)
-    /// </summary>
     public string ApplicationContextTableType { get; set; } = "ApplicationContext";
 }
 
-/// <summary>
-/// Default implementation of application context
-/// </summary>
 public class ApplicationContext : IApplicationContext
 {
     public string UserId { get; init; } = string.Empty;
@@ -140,18 +57,13 @@ public class ApplicationContext : IApplicationContext
     public IReadOnlyDictionary<string, object> Parameters { get; init; } = new Dictionary<string, object>();
 }
 
-/// <summary>
-/// Modern SpocR database context implementation
-/// </summary>
 public class SpocRDbContext : ISpocRDbContext
 {
     private readonly List<ISpocRTransaction> _activeTransactions = new();
     private bool _disposed;
-
     public SpocRDbContextOptions Options { get; }
     public SqlConnection Connection { get; }
     public IApplicationContext ApplicationContext { get; }
-
     public SpocRDbContext(
         IConfiguration configuration,
         IOptions<SpocRDbContextOptions> options,
@@ -159,13 +71,10 @@ public class SpocRDbContext : ISpocRDbContext
     {
         Options = options.Value;
         ApplicationContext = applicationContext;
-        
         var connectionString = configuration.GetConnectionString("{{ConnectionStringName}}") 
             ?? throw new InvalidOperationException("Connection string '{{ConnectionStringName}}' not found");
-            
         Connection = new SqlConnection(connectionString);
     }
-
     public async Task<ISpocRTransaction> BeginTransactionAsync(
         IsolationLevel isolationLevel = IsolationLevel.ReadCommitted,
         CancellationToken cancellationToken = default)
@@ -174,16 +83,12 @@ public class SpocRDbContext : ISpocRDbContext
         {
             await Connection.OpenAsync(cancellationToken);
         }
-
         var sqlTransaction = (SqlTransaction)await Connection.BeginTransactionAsync(isolationLevel, cancellationToken);
         var transaction = new SpocRTransaction(sqlTransaction);
-        
         _activeTransactions.Add(transaction);
         transaction.Disposed += () => _activeTransactions.Remove(transaction);
-        
         return transaction;
     }
-
     public async Task<TResult> ExecuteStoredProcedureAsync<TInput, TResult>(
         string procedureName,
         TInput input,
@@ -194,42 +99,31 @@ public class SpocRDbContext : ISpocRDbContext
         {
             await Connection.OpenAsync(cancellationToken);
         }
-
         using var command = new SqlCommand(procedureName, Connection)
         {
             CommandType = CommandType.StoredProcedure,
             CommandTimeout = Options.CommandTimeout,
             Transaction = transaction?.SqlTransaction
         };
-
-        // Add application context parameter if enabled
         {{#if InjectApplicationContext}}
         if (Options.InjectApplicationContext)
         {
             command.Parameters.Add(CreateApplicationContextParameter());
         }
         {{/if}}
-
-        // Add input parameters using reflection or source generation
         AddInputParameters(command, input);
-
-        // Execute and map results
         return await ExecuteAndMapResultAsync<TResult>(command, cancellationToken);
     }
-
     {{#if InjectApplicationContext}}
     private SqlParameter CreateApplicationContextParameter()
     {
-        // Create structured parameter for application context
         var contextTable = new DataTable();
         contextTable.Columns.Add("UserId", typeof(string));
         contextTable.Columns.Add("TenantId", typeof(string));
-        
         var row = contextTable.NewRow();
         row["UserId"] = ApplicationContext.UserId ?? DBNull.Value;
         row["TenantId"] = ApplicationContext.TenantId ?? DBNull.Value;
         contextTable.Rows.Add(row);
-
         return new SqlParameter("@ApplicationContext", SqlDbType.Structured)
         {
             TypeName = Options.ApplicationContextTableType,
@@ -237,13 +131,9 @@ public class SpocRDbContext : ISpocRDbContext
         };
     }
     {{/if}}
-
     private void AddInputParameters<TInput>(SqlCommand command, TInput input)
     {
         if (input == null) return;
-
-        // This would be generated by SpocR for each stored procedure
-        // Example implementation using reflection (production code would be generated)
         var properties = typeof(TInput).GetProperties();
         foreach (var property in properties)
         {
@@ -251,120 +141,69 @@ public class SpocRDbContext : ISpocRDbContext
             command.Parameters.AddWithValue($"@{property.Name}", value);
         }
     }
-
     private async Task<TResult> ExecuteAndMapResultAsync<TResult>(SqlCommand command, CancellationToken cancellationToken)
     {
-        // This would be generated by SpocR for each result type
-        // Example implementation (production code would be generated and type-safe)
-        
         if (typeof(TResult) == typeof(int))
         {
             var result = await command.ExecuteScalarAsync(cancellationToken);
             return (TResult)(object)(result as int? ?? 0);
         }
-
         using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        
-        // For now, return default - this would be replaced with generated mapping code
         return default(TResult);
     }
-
     public async ValueTask DisposeAsync()
     {
         if (_disposed) return;
-
-        // Rollback any active transactions
         foreach (var transaction in _activeTransactions.ToArray())
         {
             await transaction.DisposeAsync();
         }
         _activeTransactions.Clear();
-
         if (Connection?.State == ConnectionState.Open)
         {
             await Connection.CloseAsync();
         }
-
         Connection?.Dispose();
         _disposed = true;
     }
 }
-
-/// <summary>
-/// Modern transaction implementation with async disposal
-/// </summary>
 internal class SpocRTransaction : ISpocRTransaction
 {
     private bool _disposed;
     private bool _completed;
-
     public SqlTransaction SqlTransaction { get; }
     public event Action Disposed;
-
     public SpocRTransaction(SqlTransaction sqlTransaction)
     {
         SqlTransaction = sqlTransaction ?? throw new ArgumentNullException(nameof(sqlTransaction));
     }
-
     public async Task CommitAsync(CancellationToken cancellationToken = default)
     {
         if (_disposed || _completed)
             throw new InvalidOperationException("Transaction has already been completed or disposed");
-
         await SqlTransaction.CommitAsync(cancellationToken);
         _completed = true;
     }
-
     public async Task RollbackAsync(CancellationToken cancellationToken = default)
     {
         if (_disposed || _completed)
-            return; // Already completed or disposed
-
-        try
-        {
-            await SqlTransaction.RollbackAsync(cancellationToken);
-        }
-        catch
-        {
-            // Ignore rollback errors on disposal
-        }
-        finally
-        {
-            _completed = true;
-        }
+            return;
+        try { await SqlTransaction.RollbackAsync(cancellationToken); }
+        catch { }
+        finally { _completed = true; }
     }
-
     public async ValueTask DisposeAsync()
     {
         if (_disposed) return;
-
-        if (!_completed)
-        {
-            await RollbackAsync();
-        }
-
+        if (!_completed) { await RollbackAsync(); }
         await SqlTransaction.DisposeAsync();
         _disposed = true;
         Disposed?.Invoke();
     }
 }
-
 {{#if ObsoleteOldClasses}}
-/// <summary>
-/// Legacy AppDbContext - use ISpocRDbContext instead
-/// </summary>
 [Obsolete("Use ISpocRDbContext and SpocRDbContext instead. This class will be removed in v6.0.", false)]
-public class AppDbContext : IAppDbContext
-{
-    // ... existing implementation remains for backward compatibility
-}
-
-/// <summary>
-/// Legacy IAppDbContext - use ISpocRDbContext instead
-/// </summary>
+public class AppDbContext : IAppDbContext { }
 [Obsolete("Use ISpocRDbContext instead. This interface will be removed in v6.0.", false)]
-public interface IAppDbContext
-{
-    // ... existing interface remains for backward compatibility
-}
+public interface IAppDbContext { }
 {{/if}}

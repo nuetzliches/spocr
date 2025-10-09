@@ -124,8 +124,8 @@ namespace {baseNs}.{segment}{schemaPart};
             else
             {
                 code = $@"namespace {baseNs}.{segment}{schemaPart};
-public class {className} {{ // modern stub
-    // TODO: Replace with modern template content
+public class {className} {{
+
 }}";
             }
             var treeStub = CSharpSyntaxTree.ParseText(code);

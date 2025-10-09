@@ -40,6 +40,10 @@
     <None Remove="Debug\**" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Embed code generation templates -->
+    <EmbeddedResource Include="Templates\**\*.cs.template" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="McMaster.Extensions.CommandLineUtils" Version="4.1.1" />
     <PackageReference Include="Microsoft.AspNet.WebApi.Client" Version="6.0.0" />
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />

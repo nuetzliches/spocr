@@ -25,11 +25,17 @@ Adjust the connection string in `spocr.json` (and optionally `appsettings.*.json
 You can run the generator from the repo root using the local source:
 
 ```bash
-dotnet run --project src/SpocR.csproj --framework net10.0 -- pull   -p samples/web-api/spocr.json --no-auto-update --verbose
-dotnet run --project src/SpocR.csproj --framework net10.0 -- build  -p samples/web-api/spocr.json --no-auto-update --verbose
+dotnet run --project src/SpocR.csproj -- rebuild  -p samples/web-api/spocr.json --no-auto-update
 ```
 
-After a successful `build` you will see updated / newly created C# artifacts in `DataContext/`.
+Or in single steps:
+
+```bash
+dotnet run --project src/SpocR.csproj -- pull   -p samples/web-api/spocr.json --no-auto-update
+dotnet run --project src/SpocR.csproj -- build  -p samples/web-api/spocr.json --no-auto-update
+```
+
+After a successful `(re)-build` you will see updated / newly created C# artifacts in `DataContext/`.
 
 Example SQL for OUTPUT parameters
 - Apply the scripts in `samples/web-api/sql/` to your sample database (e.g., via SSMS):

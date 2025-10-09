@@ -1,0 +1,14 @@
+namespace {{Namespace}}.DataContext.Outputs.{{Schema}};
+
+/// <summary>
+/// Output / result model for stored procedure {{ProcedureName}}
+/// </summary>
+public class {{Name}}Result
+{
+{{#each Properties}}
+    /// <summary>
+    /// {{Description}}
+    /// </summary>
+    public {{Type}} {{Name}} { get; set; }
+{{/each}}
+}

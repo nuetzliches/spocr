@@ -1,0 +1,11 @@
+namespace {{Namespace}}.DataContext.Models.{{Schema}};
+
+/// <summary>
+/// Entity model inferred from result set of {{Source}}
+/// </summary>
+public class {{Name}}
+{
+{{#each Properties}}
+    public {{Type}} {{Name}} { get; set; }
+{{/each}}
+}
