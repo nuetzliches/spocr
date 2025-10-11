@@ -63,6 +63,8 @@ public class TemplateManager
     /// </summary>
     public async Task<CompilationUnitSyntax> GetProcessedTemplateAsync(string templateType, string schemaName, string className)
     {
+        // Begin suppression for Role.Kind obsolete usage (centralized)
+#pragma warning disable CS0618
         if (!_templateCache.TryGetValue(templateType, out var template))
         {
             // Fallback to loading directly from disk if it is not in the cache
@@ -92,8 +94,10 @@ public class TemplateManager
 
         // Build namespace; if schemaName is empty (root-level artifacts like Outputs base files) avoid trailing dot
         string targetNamespace;
-        if (_configManager.Config.Project.Role.Kind == RoleKindEnum.Lib)
+        bool flatten = IsFlattenedDataContext();
+        if (_configManager.Config.Project.Role.Kind == RoleKindEnum.Lib || flatten)
         {
+            // Lib Rolle ODER Flatten: kein DataContext Segment
             targetNamespace = string.IsNullOrWhiteSpace(schemaName)
                 ? $"{configuredRootNs}.{nsSegment}"
                 : $"{configuredRootNs}.{nsSegment}.{schemaName}";
@@ -114,7 +118,16 @@ public class TemplateManager
         // Replace ClassName
         root = root.ReplaceClassName(ci => ci.Replace(templateFileName, className));
 
+#pragma warning restore CS0618
         return root;
+    }
+
+    private bool IsFlattenedDataContext()
+    {
+        var path = _configManager.Config.Project.Output?.DataContext?.Path;
+        if (string.IsNullOrWhiteSpace(path)) return true; // treat missing as flattened root
+        path = path.Trim().TrimEnd('/', '\\');
+        return path == "."; // explicit root marker
     }
 
     /// <summary>
@@ -164,6 +177,7 @@ public class TemplateManager
     /// </summary>
     public UsingDirectiveSyntax CreateImportForNamespace(string importNamespace, string suffix = null)
     {
+#pragma warning disable CS0618
         string fullNamespace;
 
         if (_configManager.Config.Project.Role.Kind == RoleKindEnum.Lib)
@@ -180,7 +194,9 @@ public class TemplateManager
             fullNamespace += $".{suffix}";
         }
 
-        return SyntaxFactory.UsingDirective(SyntaxFactory.ParseName(fullNamespace));
+        var result = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName(fullNamespace));
+#pragma warning restore CS0618
+        return result;
     }
 
     /// <summary>
@@ -188,6 +204,7 @@ public class TemplateManager
     /// </summary>
     public UsingDirectiveSyntax CreateTableTypeImport(string tableTypeSchema, SchemaModel tableTypeSchemaConfig)
     {
+#pragma warning disable CS0618
         // is schema of table type ignored and its an extension?
         var useFromLib = tableTypeSchemaConfig?.Status != SchemaStatusEnum.Build
             && _configManager.Config.Project.Role.Kind == RoleKindEnum.Extension;
@@ -207,6 +224,7 @@ public class TemplateManager
             return SyntaxFactory.UsingDirective(SyntaxFactory.ParseName(
                 $"{_configManager.Config.Project.Output.Namespace}.DataContext.TableTypes.{tableTypeSchema.FirstCharToUpper()}"));
         }
+#pragma warning restore CS0618
     }
 
     /// <summary>
