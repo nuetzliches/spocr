@@ -22,9 +22,15 @@ public class OutputService(
         // Determine desired versioned output folder name based on target framework.
         var cfg = configFile.Config; // may be null during early runs; guard below
         var targetFramework = cfg?.TargetFramework ?? Constants.DefaultTargetFramework.ToFrameworkString();
+        var compatibility = cfg?.Project?.Output?.CompatibilityMode;
         string desiredFolder;
 
-        if (string.IsNullOrWhiteSpace(targetFramework))
+        if (string.Equals(compatibility, "v4.5", StringComparison.OrdinalIgnoreCase))
+        {
+            // Force legacy v9 template source for compatibility mode
+            desiredFolder = "Output-v9-0";
+        }
+        else if (string.IsNullOrWhiteSpace(targetFramework))
         {
             desiredFolder = "Output";
         }
@@ -64,6 +70,14 @@ public class OutputService(
     public void GenerateCodeBase(OutputModel output, bool dryrun)
     {
         var dir = GetOutputRootDir();
+
+        // If modern layout (net10+) AND no compatibility mode specified -> skip DataContext entirely
+        bool modern = IsModern(configFile.Config?.TargetFramework) && !string.Equals(configFile.Config?.Project?.Output?.CompatibilityMode, "v4.5", StringComparison.OrdinalIgnoreCase);
+        if (modern && string.IsNullOrWhiteSpace(configFile.Config?.Project?.Output?.CompatibilityMode))
+        {
+            consoleService.Verbose("[codebase] Modern layout without compatibility mode: skipping DataContext base copy.");
+            return;
+        }
 
         // Defensive fallbacks – in case normalization (older versions) did not populate DataContext structure
         output ??= new OutputModel();
@@ -111,8 +125,13 @@ public class OutputService(
     private void CopyAllFiles(string sourceDir, string targetDir, string nameSpace, bool dryrun)
     {
         var baseFiles = new DirectoryInfo(sourceDir).GetFiles("*.base.cs", SearchOption.TopDirectoryOnly);
+        bool modern = IsModern(configFile.Config?.TargetFramework) && !string.Equals(configFile.Config?.Project?.Output?.CompatibilityMode, "v4.5", StringComparison.OrdinalIgnoreCase);
         foreach (var file in baseFiles)
         {
+            if (modern && file.Name.Contains("CrudResult", StringComparison.OrdinalIgnoreCase))
+            {
+                continue; // skip legacy CrudResult in modern layout
+            }
             CopyFile(file, Path.Combine(targetDir, file.Name.Replace(".base", "")), nameSpace, dryrun);
         }
     }
@@ -153,6 +172,7 @@ public class OutputService(
 
         // Avoid double "DataContext" when caller already provides a namespace ending with ".DataContext"
         var endsWithDataContext = nameSpace.EndsWith(".DataContext", System.StringComparison.OrdinalIgnoreCase);
+#pragma warning disable CS0618
         if (configFile.Config.Project.Role.Kind == RoleKindEnum.Lib || endsWithDataContext)
         {
             // Replace the exact Source.DataContext root with the provided namespace
@@ -165,6 +185,7 @@ public class OutputService(
             root = root.ReplaceUsings(u => u.Replace("Source.", nameSpace + "."));
             root = root.ReplaceNamespace(ns => ns.Replace("Source.", nameSpace + "."));
         }
+#pragma warning restore CS0618
 
         var targetDir = Path.GetDirectoryName(targetFileName);
         if (!Directory.Exists(targetDir))
@@ -191,15 +212,19 @@ public class OutputService(
         var fileAction = FileActionEnum.Created;
         var outputFileText = sourceText.ToString();
 
-        // Normalize to file-scoped namespaces and use records for DataContext types
+        // Normalize to file-scoped namespaces and (modern only) convert certain classes to records
         try
         {
-            // Convert classes to records ONLY for Inputs and TableTypes (keep Models/Outputs as classes)
+            // Convert classes to records ONLY for modern SpocR Inputs/TableTypes (keep Models/Outputs as classes)
             var recordFolders = new[] { "Inputs", "TableTypes" };
             var parentFolder = new DirectoryInfo(Path.GetDirectoryName(targetFileName)).Parent?.Name;
             var isRecordFolder = recordFolders.Any(f => string.Equals(folderName, f, StringComparison.OrdinalIgnoreCase))
                                  || recordFolders.Any(f => string.Equals(parentFolder, f, StringComparison.OrdinalIgnoreCase));
-            if (isRecordFolder)
+            var compatibility = configFile.Config.Project.Output?.CompatibilityMode;
+            var legacyActive = string.Equals(compatibility, "v4.5", StringComparison.OrdinalIgnoreCase);
+            var isInLegacyDataContext = targetFileName.Contains(Path.DirectorySeparatorChar + "DataContext" + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
+            var allowRecordTransform = isRecordFolder && (!legacyActive || !isInLegacyDataContext);
+            if (allowRecordTransform)
             {
                 // partial classes -> partial records
                 outputFileText = System.Text.RegularExpressions.Regex.Replace(outputFileText, @"\bpublic\s+partial\s+class\b", "public partial record");
@@ -211,9 +236,9 @@ public class OutputService(
 
         // Inject XML auto-generated header (similar style to DataContext.Models) if not already present.
         // We avoid duplicating when file already contains the marker 'Auto-generated by SpocR.'
-    const string headerMarker = "Auto-generated by SpocR.";
-    // Configuration flag (future): if disabled, we skip timestamp generation.
-    var suppressTimestamps = false; // TODO: make configurable via configFile.Config.Project?.Output?.SuppressTimestamps
+        const string headerMarker = "Auto-generated by SpocR.";
+        // Configuration flag (future): if disabled, we skip timestamp generation.
+        var suppressTimestamps = false; // TODO: make configurable via configFile.Config.Project?.Output?.SuppressTimestamps
         if (!outputFileText.Contains(headerMarker))
         {
             var header = "/// <summary>Auto-generated by SpocR. DO NOT EDIT. Changes will be overwritten on rebuild.</summary>\r\n";

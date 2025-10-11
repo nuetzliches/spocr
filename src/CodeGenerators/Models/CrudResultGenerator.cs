@@ -26,6 +26,12 @@ public class CrudResultGenerator(
     {
         try
         {
+            // Guard: do not generate in modern layout (net10+ without compatibility)
+            if (IsModernTfm(ConfigFile.Config.TargetFramework) && !string.Equals(ConfigFile.Config.Project.Output?.CompatibilityMode, "v4.5", StringComparison.OrdinalIgnoreCase))
+            {
+                ConsoleService.Verbose("[CrudResult] Skipped in modern layout");
+                return;
+            }
             var modelsRoot = DirectoryUtils.GetWorkingDirectory(ConfigFile.Config.Project.Output.DataContext.Path, ConfigFile.Config.Project.Output.DataContext.Models.Path);
             if (!Directory.Exists(modelsRoot) && !isDryRun)
             {

@@ -1,6 +1,6 @@
 using System.Data;
 
-namespace {{Namespace}}.DataContext.TableTypes.{{Schema}};
+namespace {{Namespace}}.SpocR.{{Schema}};
 
 /// <summary>
 /// Table type wrapper for structured parameter {{Name}}

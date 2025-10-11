@@ -248,8 +248,7 @@ public class HeuristicAndCacheTests
                     TableTypes = new DataContextTableTypesModel { Path = "./tables" },
                 }
             },
-            Role = new RoleModel { Kind = SpocR.Enums.RoleKindEnum.Default },
-            DefaultSchemaStatus = SchemaStatusEnum.Build
+            Role = new RoleModel(),
         },
         Schema = schemas.Select(s => new SchemaModel { Name = s, Status = SchemaStatusEnum.Build }).ToList()
     };

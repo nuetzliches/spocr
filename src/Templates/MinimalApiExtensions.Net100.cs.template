@@ -6,7 +6,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace {{Namespace}}.DataContext.Extensions;
+namespace {{Namespace}}.SpocR.Extensions;
 
 /// <summary>
 /// Extension methods for integrating SpocR with Minimal APIs
@@ -139,22 +139,22 @@ public static class GeneratedStoredProcedureExtensions
         string basePath = "/api/{{Schema}}")
     {
         {{#if HasInputs}}
-        return app.MapStoredProcedure<{{Name}}Input, {{#if HasResults}}{{Name}}Result{{else}}int{{/if}}>(
+    return app.MapStoredProcedure<{{Name}}Input, {{#if HasResults}}{{Name}}Output{{else}}int{{/if}}>(
             $"{basePath}/{{KebabCaseName}}", 
             "{{FullName}}");
         {{else}}
-        return app.MapStoredProcedureQuery<{{#if HasResults}}{{Name}}Result{{else}}int{{/if}}>(
+    return app.MapStoredProcedureQuery<{{#if HasResults}}{{Name}}Output{{else}}int{{/if}}>(
             $"{basePath}/{{KebabCaseName}}", 
             "{{FullName}}");
         {{/if}}
     }
-    public static Task<{{#if HasResults}}{{Name}}Result{{else}}int{{/if}}> {{Name}}Async(
+    public static Task<{{#if HasResults}}{{Name}}Output{{else}}int{{/if}}> {{Name}}Async(
         this ISpocRDbContext context,
         {{#if HasInputs}}{{Name}}Input input,{{/if}}
         ISpocRTransaction transaction = null,
         CancellationToken cancellationToken = default)
     {
-        return context.ExecuteStoredProcedureAsync<{{#if HasInputs}}{{Name}}Input{{else}}object{{/if}}, {{#if HasResults}}{{Name}}Result{{else}}int{{/if}}>(
+    return context.ExecuteStoredProcedureAsync<{{#if HasInputs}}{{Name}}Input{{else}}object{{/if}}, {{#if HasResults}}{{Name}}Output{{else}}int{{/if}}>(
             "{{FullName}}", 
             {{#if HasInputs}}input{{else}}null{{/if}}, 
             transaction, 

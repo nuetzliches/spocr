@@ -28,27 +28,32 @@ public class SchemaManager(
 
         var schemas = dbSchemas?.Select(i => new SchemaModel(i)).ToList();
 
-    // Legacy schema list (config.Schema) still present -> use its statuses first
+        // Legacy schema list (config.Schema) still present -> use its statuses first
         if (config?.Schema != null)
         {
             foreach (var schema in schemas)
             {
                 var currentSchema = config.Schema.SingleOrDefault(i => i.Name == schema.Name);
-                schema.Status = (currentSchema != null)
-                    ? currentSchema.Status
-                    : config.Project.DefaultSchemaStatus;
+                // Legacy branch: with explicit schema list we honor stored statuses; otherwise default depends on compatibility mode
+                if (currentSchema != null)
+                {
+                    schema.Status = currentSchema.Status;
+                }
+                else
+                {
+                    // If legacy compatibility mode active we fallback to Build else new default Ignore (opt-in Build)
+                    var legacy = string.Equals(config.Project.Output?.CompatibilityMode, "v4.5", StringComparison.OrdinalIgnoreCase);
+                    schema.Status = legacy ? SchemaStatusEnum.Build : SchemaStatusEnum.Ignore;
+                }
             }
         }
         else if (config?.Project != null)
         {
-            // Snapshot-only mode (legacy schema node removed).
-            // Revised semantics for DefaultSchemaStatus=Ignore:
-            //   - ONLY brand new schemas (not present in the latest snapshot) are auto-ignored and added to IgnoredSchemas.
-            //   - Previously known schemas default to Build unless explicitly ignored.
-            // For any other default value the prior fallback behavior applies.
+            // Snapshot-only mode (legacy schema node removed). Default = Ignore (opt-in Build) unless compatibility mode v4.5.
 
             var ignored = config.Project.IgnoredSchemas ?? new List<string>();
-            var defaultStatus = config.Project.DefaultSchemaStatus;
+            var legacy = string.Equals(config.Project.Output?.CompatibilityMode, "v4.5", StringComparison.OrdinalIgnoreCase);
+            var defaultStatus = legacy ? SchemaStatusEnum.Build : SchemaStatusEnum.Ignore;
 
             // Determine known schemas from latest snapshot (if present)
             var knownSchemas = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -155,7 +160,7 @@ public class SchemaManager(
             consoleService.Verbose($"[ignore] IgnoredSchemas override applied ({config.Project.IgnoredSchemas.Count})");
         }
 
-    // Reorder: ignored first (kept for legacy ordering expectations)
+        // Reorder: ignored first (kept for legacy ordering expectations)
         schemas = schemas.OrderByDescending(schema => schema.Status).ToList();
 
         var activeSchemas = schemas.Where(i => i.Status != SchemaStatusEnum.Ignore).ToList();
@@ -221,7 +226,7 @@ public class SchemaManager(
         }
         // Change detection now exclusively uses local cache snapshot (previous config ignore)
 
-    // NOTE: Current modification ticks are derived from sys.objects.modify_date (see StoredProcedure.Modified)
+        // NOTE: Current modification ticks are derived from sys.objects.modify_date (see StoredProcedure.Modified)
 
         // Build snapshot procedure lookup (latest snapshot) for hydration of skipped procedures
         Dictionary<string, Dictionary<string, SnapshotProcedure>> snapshotProcMap = null;

@@ -49,7 +49,6 @@ public class IgnoredProceduresTests
             {
                 DataBase = new DataBaseModel { ConnectionString = "Server=.;Database=Db;Trusted_Connection=True;" },
                 Output = new OutputModel { Namespace = "Test.Namespace", DataContext = new DataContextModel { Path = "out" } },
-                DefaultSchemaStatus = SchemaStatusEnum.Build,
                 IgnoredSchemas = ignoredSchemas?.ToList() ?? new List<string>(),
                 IgnoredProcedures = ignoredProcedures?.ToList() ?? new List<string>()
             }

@@ -1,0 +1,61 @@
+{{!-- Unified modern template: generates Input (record), Output (OUTPUT parameter DTO), Result (result set model) and DbContext partial method for one stored procedure. --}}
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+using System.ComponentModel.DataAnnotations;
+using Microsoft.Data.SqlClient;
+
+namespace {{Namespace}}.SpocR.{{SchemaName}};
+
+/// <summary>Auto-generated unified artifact for stored procedure {{FullSqlName}}. DO NOT EDIT.</summary>
+public partial class SpocRDbContext
+{
+    {{#if HasInputs}}
+    // Input DTO (IN / INOUT parameters excluding OUTPUT-only)
+    public readonly record struct {{Name}}Input(
+        {{#each InputParameters}}
+        {{#if IsTableType}}
+        IEnumerable<{{TableTypeClr}}> {{PropertyName}}{{#unless @last}},{{/unless}}
+        {{else}}
+        {{ClrType}} {{PropertyName}}{{#unless @last}},{{/unless}}
+        {{/if}}
+        {{/each}}
+    );
+    {{/if}}
+
+    {{#if HasOutputParams}}
+    // Output parameters DTO
+    public class {{Name}}Output
+    {
+        {{#each OutputParameters}}
+        public {{ClrType}}{{#if Nullable}}?{{/if}} {{PropertyName}} { get; set; }
+        {{/each}}
+    }
+    {{/if}}
+
+    {{#if HasResultSetModel}}
+    // Result set model (tabular / JSON)
+    public class {{Name}}Result
+    {
+        {{#each ResultColumns}}
+        public {{ClrType}}{{#if Nullable}}?{{/if}} {{PropertyName}} { get; set; }
+        {{/each}}
+    }
+    {{/if}}
+
+    /// <summary>Executes stored procedure {{FullSqlName}}</summary>
+    public async Task<{{MethodReturnType}}> {{Name}}Async({{#if HasInputs}}{{Name}}Input input, {{/if}}Action<SpocRStoredProcedureCallOptions> configure = null, ISpocRTransaction transaction = null, CancellationToken cancellationToken = default)
+    {
+        var opts = new SpocRStoredProcedureCallOptions();
+        configure?.Invoke(opts);
+        var effectiveTx = transaction ?? opts.Transaction;
+        {{#if HasInputs}}
+        var inputObj = new { {{#each InputParameters}}{{PropertyName}} = input.{{PropertyName}}{{#unless @last}}, {{/unless}}{{/each}} };
+        {{else}}
+        var inputObj = default(object);
+        {{/if}}
+        var result = await ExecuteStoredProcedureAsync<{{#if HasInputs}}object{{else}}object{{/if}}, {{MethodReturnType}}>("{{FullSqlName}}", {{#if HasInputs}}inputObj{{else}}default{{/if}}, effectiveTx, opts.CommandTimeout, cancellationToken);
+        return result;
+    }
+}

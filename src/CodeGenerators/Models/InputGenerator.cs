@@ -100,9 +100,87 @@ public class InputGenerator(
         }
 
         var paramBlock = "    " + string.Join(",\n    ", paramSegments);
-        var file = string.Join('\n', usingLines) + (usingLines.Count > 0 ? "\n\n" : string.Empty)
+        var compat = ConfigFile.Config.Project.Output?.CompatibilityMode;
+        var legacyActive = string.Equals(compat, "v4.5", StringComparison.OrdinalIgnoreCase);
+        // Emit class for legacy path (compat) or non-modern targets; record for modern unified SpocR
+        var modernTfm = IsModernTfm(ConfigFile.Config.TargetFramework);
+        var useRecord = modernTfm && !legacyActive;
+        string file;
+        if (useRecord)
+        {
+            file = string.Join('\n', usingLines) + (usingLines.Count > 0 ? "\n\n" : string.Empty)
                  + $"namespace {nsName};\n\n"
                  + $"public record {className}(\n{paramBlock}\n);\n";
+        }
+        else
+        {
+            // Backwards compatible class with auto-properties
+            var props = string.Join("\n        ", paramSegments.Select(p =>
+            {
+                // p may start with one or multiple attribute blocks: [Attr] [Attr2] Type Name
+                var working = p.Trim();
+                var attributesCollected = new List<string>();
+                while (working.StartsWith("["))
+                {
+                    var end = working.IndexOf(']');
+                    if (end < 0) break; // malformed
+                    var attr = working.Substring(0, end + 1);
+                    attributesCollected.Add(attr);
+                    working = working[(end + 1)..].TrimStart();
+                }
+                var lastSpace = working.LastIndexOf(' ');
+                if (lastSpace <= 0)
+                {
+                    // No proper split, just return it as a public property
+                    return $"public {working} {{ get; set; }}";
+                }
+                var typePart = working.Substring(0, lastSpace).Trim();
+                var propName = working[(lastSpace + 1)..].Trim();
+                for (int i = 0; i < attributesCollected.Count; i++)
+                {
+                    attributesCollected[i] = attributesCollected[i]
+                        .Replace("[property:", "[", StringComparison.OrdinalIgnoreCase)
+                        .Trim();
+                    // Collapse any '[  Attribute' -> '[Attribute'
+                    attributesCollected[i] = System.Text.RegularExpressions.Regex.Replace(attributesCollected[i], @"\[\s+", "[");
+                }
+                string attrsBlock = attributesCollected.Count > 0
+                    ? string.Join("\n    ", attributesCollected)
+                    : null;
+                if (attrsBlock != null)
+                {
+                    return $"{attrsBlock}\n        public {typePart} {propName} {{ get; set; }}";
+                }
+                return $"public {typePart} {propName} {{ get; set; }}";
+            }));
+            // Build constructors
+            // Extract property signatures again (type + name) without attributes
+            var ctorParams = new List<string>();
+            var assignments = new List<string>();
+            foreach (var segment in paramSegments)
+            {
+                var work = segment.Trim();
+                while (work.StartsWith("["))
+                {
+                    var end = work.IndexOf(']');
+                    if (end < 0) break;
+                    work = work[(end + 1)..].TrimStart();
+                }
+                var lastSpace = work.LastIndexOf(' ');
+                if (lastSpace <= 0) continue;
+                var typePart = work.Substring(0, lastSpace).Trim();
+                var propName = work[(lastSpace + 1)..].Trim();
+                var paramName = char.ToLowerInvariant(propName[0]) + propName.Substring(1);
+                ctorParams.Add($"{typePart} {paramName}");
+                assignments.Add($"            {propName} = {paramName};");
+            }
+            var fullCtor = ctorParams.Count > 0
+                ? $"        public {className}({string.Join(", ", ctorParams)})\n        {{\n{string.Join("\n", assignments)}\n        }}\n\n"
+                : string.Empty;
+            var parameterlessCtor = string.Empty; // removed obsolete empty ctor
+            file = string.Join('\n', usingLines) + (usingLines.Count > 0 ? "\n\n" : string.Empty)
+                 + $"namespace {nsName}\n{{\n    public class {className}\n    {{\n{parameterlessCtor}{fullCtor}        {props}\n    }}\n}}\n";
+        }
 
         return SourceText.From(file);
     }
@@ -120,16 +198,26 @@ public class InputGenerator(
             .Where(s => s.Status == SchemaStatusEnum.Build && (s.StoredProcedures?.Any() ?? false))
             .Select(Definition.ForSchema);
 
+        var useNewLayout = IsModernTfm(ConfigFile.Config.TargetFramework) && !string.Equals(ConfigFile.Config.Project.Output?.CompatibilityMode, "v4.5", StringComparison.OrdinalIgnoreCase);
+
         foreach (var schema in schemas)
         {
             var storedProcedures = schema.StoredProcedures;
             if (!storedProcedures.Any()) continue;
-
-            var dataContextInputPath = DirectoryUtils.GetWorkingDirectory(
-                ConfigFile.Config.Project.Output.DataContext.Path,
-                ConfigFile.Config.Project.Output.DataContext.Inputs.Path);
-
-            var schemaPath = Path.Combine(dataContextInputPath, schema.Path);
+            string schemaPath;
+            if (useNewLayout)
+            {
+                // New layout: SpocR/[schema]/<ProcName>Input.cs (flat per schema directory)
+                var root = DirectoryUtils.GetWorkingDirectory("SpocR");
+                schemaPath = Path.Combine(root, schema.Path);
+            }
+            else
+            {
+                var dataContextInputPath = DirectoryUtils.GetWorkingDirectory(
+                    ConfigFile.Config.Project.Output.DataContext.Path,
+                    ConfigFile.Config.Project.Output.DataContext.Inputs.Path);
+                schemaPath = Path.Combine(dataContextInputPath, schema.Path);
+            }
             if (!Directory.Exists(schemaPath) && !isDryRun)
             {
                 Directory.CreateDirectory(schemaPath);
@@ -138,9 +226,25 @@ public class InputGenerator(
             foreach (var sp in storedProcedures)
             {
                 if (!sp.HasInputs()) continue;
-                var fileName = $"{sp.Name}.cs";
+                var fileName = useNewLayout ? $"{sp.Name}Input.cs" : $"{sp.Name}.cs";
                 var fileNameWithPath = Path.Combine(schemaPath, fileName);
                 var sourceText = await GetInputTextForStoredProcedureAsync(schema, sp);
+                if (useNewLayout && sourceText != null)
+                {
+                    var rootNs = ConfigFile.Config.Project.Output.Namespace ?? "SpocR.Generated";
+                    if (rootNs.EndsWith(".DataContext", StringComparison.OrdinalIgnoreCase)) rootNs = rootNs[..^11];
+                    var modernNs = $"namespace {rootNs}.SpocR.{schema.Name};";
+                    var txt = sourceText.ToString();
+                    // Replace first namespace line (legacy DataContext pattern) with modern
+                    var replacedOnce = false;
+                    txt = System.Text.RegularExpressions.Regex.Replace(txt, @"namespace\s+.+?;", m =>
+                    {
+                        if (replacedOnce) return m.Value; // leave others
+                        replacedOnce = true;
+                        return modernNs;
+                    });
+                    sourceText = Microsoft.CodeAnalysis.Text.SourceText.From(txt);
+                }
                 await Output.WriteAsync(fileNameWithPath, sourceText, isDryRun);
             }
         }

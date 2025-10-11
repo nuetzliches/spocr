@@ -33,6 +33,21 @@ public abstract class GeneratorBase
         ConsoleService = consoleService;
     }
 
+    #region Layout Helpers
+    protected static bool IsModernTfm(string tfm)
+    {
+        if (string.IsNullOrWhiteSpace(tfm) || !tfm.StartsWith("net")) return false;
+        if (!int.TryParse(tfm.Substring(3).Split('.')[0], out var major)) return false;
+        return major >= 10; // net10+
+    }
+
+    protected bool UseNewSpocRLayout()
+    {
+        return IsModernTfm(ConfigFile.Config.TargetFramework)
+            && !string.Equals(ConfigFile.Config.Project.Output?.CompatibilityMode, "v4.5", StringComparison.OrdinalIgnoreCase);
+    }
+    #endregion
+
     #region Type Helpers
 
     [Obsolete("Use GetClrTypeNameFromSqlDbTypeName for modern stub generation (string-based). Will be removed in v5.")]

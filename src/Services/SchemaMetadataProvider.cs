@@ -62,12 +62,18 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
         _console.Verbose($"[snapshot-provider] using fingerprint={snapshot.Fingerprint} procs={snapshot.Procedures.Count} udtts={snapshot.UserDefinedTableTypes.Count}");
 
         // Load current config (best-effort) to derive IgnoredSchemas dynamically; if unavailable fallback to snapshot status field.
-        List<string> ignored = null; SchemaStatusEnum defaultStatus = SchemaStatusEnum.Build;
+        List<string> ignored = null;
+        // New default: Ignore (opt-in build) unless legacy compatibility mode active
+        var defaultStatus = SchemaStatusEnum.Ignore;
         try
         {
             var cfg = _configFile?.Config; // FileManager keeps last loaded config
             ignored = cfg?.Project?.IgnoredSchemas ?? new List<string>();
-            defaultStatus = cfg?.Project?.DefaultSchemaStatus ?? SchemaStatusEnum.Build;
+            // Legacy compatibility: if Output.CompatibilityMode == v4.5 retain previous default=Build behavior
+            if (string.Equals(cfg?.Project?.Output?.CompatibilityMode, "v4.5", System.StringComparison.OrdinalIgnoreCase))
+            {
+                defaultStatus = SchemaStatusEnum.Build;
+            }
         }
         catch { ignored = new List<string>(); }
 
@@ -97,10 +103,10 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
                         SchemaName = p.Schema,
                         Name = p.Name,
                         // ModifiedTicks nicht mehr Teil des Snapshots: Fallback auf GeneratedUtc / DateTime.MinValue
-                            Modified = DateTime.MinValue
+                        Modified = DateTime.MinValue
                     })
                     {
-                            ModifiedTicks = null,
+                        ModifiedTicks = null,
                         Input = p.Inputs.Select(i => new StoredProcedureInputModel(new DataContext.Models.StoredProcedureInput
                         {
                             Name = i.Name,
@@ -193,7 +199,7 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
             }).ToArray()
         }).ToList();
 
-    // Heuristic: Single result set, single legacy FOR JSON column -> mark as JSON
+        // Heuristic: Single result set, single legacy FOR JSON column -> mark as JSON
         if (sets.Count == 1)
         {
             var s = sets[0];

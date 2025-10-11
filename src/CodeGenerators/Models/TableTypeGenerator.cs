@@ -75,7 +75,7 @@ public class TableTypeGenerator(
                 {
                     propertyNode = SyntaxFactory.PropertyDeclaration(SyntaxFactory.ParseTypeName("string"), "_Stub")
                         .AddModifiers(SyntaxFactory.Token(Microsoft.CodeAnalysis.CSharp.SyntaxKind.PublicKeyword))
-                        .WithAccessorList(SyntaxFactory.AccessorList(SyntaxFactory.List(new [] {
+                        .WithAccessorList(SyntaxFactory.AccessorList(SyntaxFactory.List(new[] {
                             SyntaxFactory.AccessorDeclaration(Microsoft.CodeAnalysis.CSharp.SyntaxKind.GetAccessorDeclaration)
                                 .WithSemicolonToken(SyntaxFactory.Token(Microsoft.CodeAnalysis.CSharp.SyntaxKind.SemicolonToken)),
                             SyntaxFactory.AccessorDeclaration(Microsoft.CodeAnalysis.CSharp.SyntaxKind.SetAccessorDeclaration)
@@ -200,12 +200,22 @@ public class TableTypeGenerator(
             .Where(i => i.TableTypes?.Any() ?? false)
             .Select(Definition.ForSchema);
 
+        var useNewLayout = IsModernTfm(ConfigFile.Config.TargetFramework) && !string.Equals(ConfigFile.Config.Project.Output?.CompatibilityMode, "v4.5", StringComparison.OrdinalIgnoreCase);
+
         foreach (var schema in schemas)
         {
             var tableTypes = schema.TableTypes;
-
-            var dataContextTableTypesPath = DirectoryUtils.GetWorkingDirectory(ConfigFile.Config.Project.Output.DataContext.Path, ConfigFile.Config.Project.Output.DataContext.TableTypes.Path);
-            var path = Path.Combine(dataContextTableTypesPath, schema.Path);
+            string path;
+            if (useNewLayout)
+            {
+                var root = DirectoryUtils.GetWorkingDirectory("SpocR");
+                path = Path.Combine(root, schema.Path);
+            }
+            else
+            {
+                var dataContextTableTypesPath = DirectoryUtils.GetWorkingDirectory(ConfigFile.Config.Project.Output.DataContext.Path, ConfigFile.Config.Project.Output.DataContext.TableTypes.Path);
+                path = Path.Combine(dataContextTableTypesPath, schema.Path);
+            }
             if (!Directory.Exists(path) && !isDryRun)
             {
                 Directory.CreateDirectory(path);
@@ -213,7 +223,15 @@ public class TableTypeGenerator(
 
             foreach (var tableType in tableTypes)
             {
-                var fileName = $"{tableType.Name}TableType.cs";
+                // New layout: ensure filename ends with TableType.cs, but without duplicated 'Type'/'TableType'
+                string baseName = tableType.Name;
+                if (!baseName.EndsWith("TableType", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (baseName.EndsWith("Type", StringComparison.OrdinalIgnoreCase))
+                        baseName = baseName[..^4];
+                    baseName += "TableType";
+                }
+                var fileName = useNewLayout ? $"{baseName}.cs" : $"{tableType.Name}TableType.cs";
                 var fileNameWithPath = Path.Combine(path, fileName);
                 var sourceText = await GetTableTypeTextAsync(schema, tableType);
 

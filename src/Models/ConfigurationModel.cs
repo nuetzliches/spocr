@@ -53,7 +53,6 @@ public class ProjectModel
     public RoleModel Role { get; set; } = new RoleModel();
     public DataBaseModel DataBase { get; set; } = new DataBaseModel();
     public OutputModel Output { get; set; } = new OutputModel();
-    public SchemaStatusEnum DefaultSchemaStatus { get; set; } = SchemaStatusEnum.Build;
     // New: list of schema names that are explicitly ignored (migration target replacing legacy Schema list)
     public List<string> IgnoredSchemas { get; set; } = new();
     // New: list of fully-qualified procedure names (schema.name) to ignore even if schema is built
@@ -78,6 +77,8 @@ public class DataBaseModel
 public class OutputModel
 {
     public string Namespace { get; set; }
+    // New compatibility flag: when set to "v4.5" legacy DataContext output structure is generated
+    public string CompatibilityMode { get; set; } // accepted: null (modern), "v4.5" (legacy)
     public DataContextModel DataContext { get; set; }
 }
 

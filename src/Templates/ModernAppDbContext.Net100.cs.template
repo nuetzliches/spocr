@@ -8,7 +8,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Text.Json;
 
-namespace {{Namespace}}.DataContext;
+namespace {{Namespace}}.SpocR;
 
 public interface ISpocRDbContext : IAsyncDisposable
 {
@@ -22,6 +22,7 @@ public interface ISpocRDbContext : IAsyncDisposable
         string procedureName,
         TInput input,
         ISpocRTransaction transaction = null,
+        int? commandTimeoutOverride = null,
         CancellationToken cancellationToken = default);
 }
 
@@ -93,6 +94,7 @@ public class SpocRDbContext : ISpocRDbContext
         string procedureName,
         TInput input,
         ISpocRTransaction transaction = null,
+        int? commandTimeoutOverride = null,
         CancellationToken cancellationToken = default)
     {
         if (Connection.State != ConnectionState.Open)
@@ -102,7 +104,7 @@ public class SpocRDbContext : ISpocRDbContext
         using var command = new SqlCommand(procedureName, Connection)
         {
             CommandType = CommandType.StoredProcedure,
-            CommandTimeout = Options.CommandTimeout,
+            CommandTimeout = commandTimeoutOverride ?? Options.CommandTimeout,
             Transaction = transaction?.SqlTransaction
         };
         {{#if InjectApplicationContext}}

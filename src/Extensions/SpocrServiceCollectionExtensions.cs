@@ -114,6 +114,7 @@ namespace SpocR.Extensions
             services.AddSingleton<OutputGenerator>();
             services.AddSingleton<TableTypeGenerator>();
             services.AddSingleton<StoredProcedureGenerator>();
+            // CrudResultGenerator only needed for legacy / compatibility mode (removed in modern layout)
             services.AddSingleton<CrudResultGenerator>();
 
             // Register the orchestrator as the final component

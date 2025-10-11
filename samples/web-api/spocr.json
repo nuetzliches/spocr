@@ -7,10 +7,14 @@
       "ConnectionString": "Data Source=localhost;Initial Catalog=SpocRSample;User ID=sa;Password=SpocR@12345;Pooling=False;Connect Timeout=30;Encrypt=False;Trust Server Certificate=True;Authentication=SqlPassword;Application Name=vscode-mssql;Connect Retry Count=1;Connect Retry Interval=10;Command Timeout=30"
     },
     "Output": {
-      "Namespace": "SpocR.Samples.WebApi.DataContext"
+      "Namespace": "SpocR.Samples.WebApi",
+      "CompatibilityMode": "v4.5"
     },
-    "DefaultSchemaStatus": "Build",
-    "IgnoredSchemas": ["dbo"],
-    "IgnoredProcedures": ["dbo.UserList"]
+    "IgnoredSchemas": [
+      "dbo"
+    ],
+    "IgnoredProcedures": [
+      "dbo.UserList"
+    ]
   }
 }

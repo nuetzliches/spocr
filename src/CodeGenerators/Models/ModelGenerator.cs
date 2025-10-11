@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -30,9 +31,9 @@ public class ModelGenerator(
         var root = await templateManager.GetProcessedTemplateAsync("Models/Model.cs", schema.Name, storedProcedure.Name);
         var nsBase = root.Members[0] as BaseNamespaceDeclarationSyntax;
         if (nsBase == null) throw new System.InvalidOperationException("Template must contain a namespace.");
-    var classNode = nsBase.Members.OfType<ClassDeclarationSyntax>().First();
-    // Template placeholder Property kann bei modernen Stub-Templates fehlen -> defensiv prüfen
-    var templateProperty = classNode.Members.OfType<PropertyDeclarationSyntax>().FirstOrDefault();
+        var classNode = nsBase.Members.OfType<ClassDeclarationSyntax>().First();
+        // Template placeholder Property kann bei modernen Stub-Templates fehlen -> defensiv prüfen
+        var templateProperty = classNode.Members.OfType<PropertyDeclarationSyntax>().FirstOrDefault();
 
         // If the procedure returns no ResultSets at all we now SKIP generating a model entirely to avoid empty classes.
         if (storedProcedure.ResultSets == null || storedProcedure.ResultSets.Count == 0)
@@ -44,8 +45,6 @@ public class ModelGenerator(
         var currentSet = storedProcedure.ResultSets[0];
         var resultColumns = currentSet?.Columns?.ToList() ?? [];
         var hasResultColumns = resultColumns.Any();
-
-        // Heuristic: Legacy FOR JSON output (single synthetic column) -> treat as raw JSON
         // Detection: exactly one column, name = JSON_F52E2B61-18A1-11d1-B105-00805F49916B (case-insensitive), nvarchar(max)
         var currentSetReturnsJson = currentSet?.ReturnsJson ?? false;
         // Legacy single-column FOR JSON heuristic removed. Rely solely on parser FOR JSON detection.
@@ -199,8 +198,8 @@ public class ModelGenerator(
             }
         }
 
-    // Remove template placeholder property (nur falls vorhanden)
-    root = TemplateManager.RemoveTemplateProperty(root.ReplaceNode(nsBase, nsBase.WithMembers(SyntaxFactory.SingletonList<MemberDeclarationSyntax>(classNode))));
+        // Remove template placeholder property (nur falls vorhanden)
+        root = TemplateManager.RemoveTemplateProperty(root.ReplaceNode(nsBase, nsBase.WithMembers(SyntaxFactory.SingletonList<MemberDeclarationSyntax>(classNode))));
 
         // Insert standardized auto-generated header on class
         var suppressTimestamps = false; // TODO: expose via configuration
@@ -359,6 +358,8 @@ public class ModelGenerator(
             .Where(i => i.Status == SchemaStatusEnum.Build && (i.StoredProcedures?.Any() ?? false))
             .Select(Definition.ForSchema);
 
+        var useNewLayout = IsModernTfm(ConfigFile.Config.TargetFramework) && !string.Equals(ConfigFile.Config.Project.Output?.CompatibilityMode, "v4.5", StringComparison.OrdinalIgnoreCase);
+
         foreach (var schema in schemas)
         {
             var storedProcedures = schema.StoredProcedures.ToList();
@@ -368,8 +369,17 @@ public class ModelGenerator(
                 continue;
             }
 
-            var dataContextModelPath = DirectoryUtils.GetWorkingDirectory(ConfigFile.Config.Project.Output.DataContext.Path, ConfigFile.Config.Project.Output.DataContext.Models.Path);
-            var path = Path.Combine(dataContextModelPath, schema.Path);
+            string path;
+            if (useNewLayout)
+            {
+                var root = DirectoryUtils.GetWorkingDirectory("SpocR");
+                path = Path.Combine(root, schema.Path);
+            }
+            else
+            {
+                var dataContextModelPath = DirectoryUtils.GetWorkingDirectory(ConfigFile.Config.Project.Output.DataContext.Path, ConfigFile.Config.Project.Output.DataContext.Models.Path);
+                path = Path.Combine(dataContextModelPath, schema.Path);
+            }
             if (!Directory.Exists(path) && !isDryRun)
             {
                 Directory.CreateDirectory(path);
@@ -380,7 +390,7 @@ public class ModelGenerator(
                 var resultSets = storedProcedure.ResultSets;
                 if (resultSets == null || resultSets.Count == 0)
                 {
-                    await WriteSingleModelAsync(schema, storedProcedure, path, isDryRun);
+                    await WriteSingleModelAsync(schema, storedProcedure, path, isDryRun, useNewLayout);
                     continue;
                 }
 
@@ -400,7 +410,7 @@ public class ModelGenerator(
                         }
                     };
                     var modelSp = Definition.ForStoredProcedure(spModel, schema);
-                    await WriteSingleModelAsync(schema, modelSp, path, isDryRun);
+                    await WriteSingleModelAsync(schema, modelSp, path, isDryRun, useNewLayout);
                 }
             }
         }
@@ -444,7 +454,7 @@ public class ModelGenerator(
         }
     }
 
-    private async Task WriteSingleModelAsync(Definition.Schema schema, Definition.StoredProcedure storedProcedure, string path, bool isDryRun)
+    private async Task WriteSingleModelAsync(Definition.Schema schema, Definition.StoredProcedure storedProcedure, string path, bool isDryRun, bool useNewLayout)
     {
         if (storedProcedure.ResultSets == null || storedProcedure.ResultSets.Count == 0)
             return; // skip zero-result procedures completely
@@ -458,10 +468,31 @@ public class ModelGenerator(
         var isScalarResultCols = hasResultCols && !currentSetReturnsJson && currentSet.Columns.Count == 1;
         if (!currentSetReturnsJson && isScalarResultCols)
             return; // skip scalar tabular model (true single-value), but not legacy FOR JSON payload
-
-        var fileName = $"{storedProcedure.Name}.cs";
+        var suffix = useNewLayout ? "Output" : string.Empty;
+        var fileName = useNewLayout ? $"{storedProcedure.Name}Output.cs" : $"{storedProcedure.Name}.cs";
         var fileNameWithPath = Path.Combine(path, fileName);
         var sourceText = await GetModelTextForStoredProcedureAsync(schema, storedProcedure);
+        if (useNewLayout && sourceText != null)
+        {
+            var txt = sourceText.ToString();
+            // Remove stray backslashes introduced by previous escaped string generation mistakes
+            txt = txt.Replace(" \\", " ").Replace("\\n", System.Environment.NewLine);
+            if (!txt.Contains($"class {storedProcedure.Name}Output"))
+            {
+                // Ensure public modifier present
+                txt = txt.Replace($"class {storedProcedure.Name}", $"public class {storedProcedure.Name}Output");
+                if (!txt.Contains($"public class {storedProcedure.Name}Output"))
+                {
+                    // fallback simple replace if earlier tokenization differed
+                    txt = txt.Replace($"class {storedProcedure.Name}Output", $"public class {storedProcedure.Name}Output");
+                }
+            }
+            else if (!txt.Contains($"public class {storedProcedure.Name}Output"))
+            {
+                txt = txt.Replace($"class {storedProcedure.Name}Output", $"public class {storedProcedure.Name}Output");
+            }
+            sourceText = SourceText.From(txt);
+        }
         if (sourceText != null)
             await Output.WriteAsync(fileNameWithPath, sourceText, isDryRun);
     }

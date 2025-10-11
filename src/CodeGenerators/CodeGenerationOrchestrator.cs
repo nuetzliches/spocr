@@ -23,9 +23,20 @@ public class CodeGenerationOrchestrator(
     OutputGenerator outputGenerator,
     StoredProcedureGenerator storedProcedureGenerator,
     IConsoleService consoleService,
-    OutputService outputService
+    OutputService outputService,
+    SpocR.Managers.FileManager<ConfigurationModel> configFile
 )
 {
+    private bool IsModernTfmOnly()
+    {
+        var tfm = configFile.Config?.TargetFramework;
+        if (string.IsNullOrWhiteSpace(tfm) || !tfm.StartsWith("net")) return false;
+        if (!int.TryParse(tfm.Substring(3).Split('.')[0], out var major)) return false;
+        return major >= 10;
+    }
+
+    private bool HasCompatibility() => string.Equals(configFile.Config?.Project?.Output?.CompatibilityMode, "v4.5", StringComparison.OrdinalIgnoreCase);
+    private bool UseUnifiedModern() => IsModernTfmOnly(); // always for net10+, even with compatibility
     /// <summary>
     /// Indicates whether errors occurred during code generation
     /// </summary>
@@ -73,20 +84,32 @@ public class CodeGenerationOrchestrator(
 
             currentStep++;
             stopwatch.Restart();
-            consoleService.PrintSubTitle($"Generating Inputs (Step {currentStep}/{totalSteps})");
-            await GenerateDataContextInputsAsync(isDryRun);
+            var unified = UseUnifiedModern();
+            var compat = HasCompatibility();
+            consoleService.PrintSubTitle($"Generating Inputs (Step {currentStep}/{totalSteps}){(unified && !compat ? " (skipped unified)" : compat && unified ? " (legacy + unified)" : string.Empty)}");
+            // Legacy Inputs only when compatibility mode present
+            if (compat)
+            {
+                await GenerateDataContextInputsAsync(isDryRun);
+            }
             elapsed.Add("Inputs", stopwatch.ElapsedMilliseconds);
 
             currentStep++;
             stopwatch.Restart();
-            consoleService.PrintSubTitle($"Generating Outputs (Step {currentStep}/{totalSteps})");
-            await GenerateDataContextOutputsAsync(isDryRun);
+            consoleService.PrintSubTitle($"Generating Outputs (Step {currentStep}/{totalSteps}){(unified && !compat ? " (skipped unified)" : compat && unified ? " (legacy + unified)" : string.Empty)}");
+            if (compat)
+            {
+                await GenerateDataContextOutputsAsync(isDryRun);
+            }
             elapsed.Add("Outputs", stopwatch.ElapsedMilliseconds);
 
             currentStep++;
             stopwatch.Restart();
-            consoleService.PrintSubTitle($"Generating Output Models (Step {currentStep}/{totalSteps})");
-            await GenerateDataContextModelsAsync(isDryRun);
+            consoleService.PrintSubTitle($"Generating Output Models (Step {currentStep}/{totalSteps}){(unified && !compat ? " (skipped unified)" : compat && unified ? " (legacy + unified)" : string.Empty)}");
+            if (compat)
+            {
+                await GenerateDataContextModelsAsync(isDryRun);
+            }
             elapsed.Add("Models", stopwatch.ElapsedMilliseconds);
 
             currentStep++;
@@ -126,9 +149,14 @@ public class CodeGenerationOrchestrator(
             consoleService.StartProgress("Generating code...");
 
             await GenerateDataContextTableTypesAsync(isDryRun);
-            await GenerateDataContextInputsAsync(isDryRun);
-            await GenerateDataContextOutputsAsync(isDryRun);
-            await GenerateDataContextModelsAsync(isDryRun);
+            var compatAll = HasCompatibility();
+            // Always run legacy generators only if compatibility mode present
+            if (compatAll)
+            {
+                await GenerateDataContextInputsAsync(isDryRun);
+                await GenerateDataContextOutputsAsync(isDryRun);
+                await GenerateDataContextModelsAsync(isDryRun);
+            }
             await GenerateDataContextStoredProceduresAsync(isDryRun);
 
             consoleService.CompleteProgress();
@@ -161,13 +189,13 @@ public class CodeGenerationOrchestrator(
             if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.TableTypes))
                 await GenerateDataContextTableTypesAsync(isDryRun);
 
-            if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.Inputs))
+            if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.Inputs) && HasCompatibility())
                 await GenerateDataContextInputsAsync(isDryRun);
 
-            if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.Outputs))
+            if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.Outputs) && HasCompatibility())
                 await GenerateDataContextOutputsAsync(isDryRun);
 
-            if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.Models))
+            if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.Models) && HasCompatibility())
                 await GenerateDataContextModelsAsync(isDryRun);
 
             if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.StoredProcedures))
@@ -214,7 +242,22 @@ public class CodeGenerationOrchestrator(
     public async Task GenerateDataContextModelsAsync(bool isDryRun)
     {
         await modelGenerator.GenerateDataContextModels(isDryRun);
-        await crudResultGenerator.GenerateAsync(isDryRun);
+        // Skip CrudResult in modern layout (net10+ without compatibility mode)
+        bool ModernDetector(string tfm)
+        {
+            if (string.IsNullOrWhiteSpace(tfm) || !tfm.StartsWith("net")) return false;
+            var core = tfm.Substring(3).Split('.')[0];
+            return int.TryParse(core, out var major) && major >= 10;
+        }
+        // We don't have direct access to the full config here; infer from OutputService namespace heuristics:
+        // Approximation: if any generated versioned output root for modern TFMs would be net10+, rely on env var SPOCR_TARGET_FRAMEWORK or fallback to Constants.DefaultTargetFramework.
+        var inferredTfm = configFile.Config?.TargetFramework ?? Constants.DefaultTargetFramework.ToFrameworkString();
+        var compatibility = configFile.Config?.Project?.Output?.CompatibilityMode;
+        var modern = ModernDetector(inferredTfm) && !string.Equals(compatibility, "v4.5", StringComparison.OrdinalIgnoreCase);
+        if (!modern)
+        {
+            await crudResultGenerator.GenerateAsync(isDryRun);
+        }
     }
 
     /// <summary>

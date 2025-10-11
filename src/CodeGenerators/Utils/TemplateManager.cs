@@ -44,8 +44,8 @@ public class TemplateManager
 
     private void PreloadTemplates()
     {
-    // Modern Mode (net10+): uses embedded / dynamic templates – skip legacy preload
-        if (IsModern(_configManager.Config.TargetFramework))
+        // Modern Mode (net10+ without legacy compatibility): uses embedded / dynamic templates – skip legacy preload
+        if (IsModernEffective())
         {
             return; // kein Preload nötig
         }
@@ -68,74 +68,33 @@ public class TemplateManager
     /// </summary>
     public async Task<CompilationUnitSyntax> GetProcessedTemplateAsync(string templateType, string schemaName, string className)
     {
-    // Modern Mode: dynamic templates diverge strongly – placeholder path until full modern generator is integrated
-        if (IsModern(_configManager.Config.TargetFramework))
+        bool compatibility = string.Equals(_configManager.Config.Project.Output?.CompatibilityMode, "v4.5", StringComparison.OrdinalIgnoreCase);
+        // Modern Mode (no compatibility): dynamic templates
+        if (IsModernEffective() && !compatibility)
         {
-            // Temporärer Minimal-Stub falls Legacy Generatoren noch aufrufen
-            var ns = _configManager.Config.Project.Output.Namespace ?? "SpocR.Generated";
-            var nsEndsWithDataContext = ns.EndsWith(".DataContext", StringComparison.OrdinalIgnoreCase);
-            var baseNs = nsEndsWithDataContext ? ns : ns + ".DataContext";
-            var segment = "Models";
-            if (templateType.StartsWith("Inputs/", StringComparison.OrdinalIgnoreCase)) segment = "Inputs";
-            else if (templateType.StartsWith("Outputs/", StringComparison.OrdinalIgnoreCase)) segment = "Outputs";
-            else if (templateType.StartsWith("TableTypes/", StringComparison.OrdinalIgnoreCase)) segment = "TableTypes";
-            else if (templateType.StartsWith("StoredProcedures/", StringComparison.OrdinalIgnoreCase)) segment = "StoredProcedures";
-
+            // Modern Layout (net10+): unified namespace <RootNs>.SpocR[.<Schema>] regardless of segment
+            var rootNs = _configManager.Config.Project.Output.Namespace ?? "SpocR.Generated";
+            // Strip trailing .DataContext if legacy value present
+            if (rootNs.EndsWith(".DataContext", StringComparison.OrdinalIgnoreCase))
+                rootNs = rootNs[..^11];
             var schemaPart = string.IsNullOrWhiteSpace(schemaName) ? string.Empty : $".{schemaName}";
+            var targetNs = $"{rootNs}.SpocR{schemaPart}";
+
             string code;
-            if (segment == "StoredProcedures")
-            {
-                // Full placeholder mimicking legacy template (2 methods) – required so StoredProcedureGenerator detects placeholders.
-                // Verbatim string: double quotes must be doubled. Signatures/body intentionally minimal; generator replaces contents.
-                code = $@"using System;
-using System.Collections.Generic;
-using Microsoft.Data.SqlClient;
-using System.Threading;
-using System.Threading.Tasks;
-using {baseNs}.Models;
-using {baseNs}.Outputs;
-using {baseNs};
-
-namespace {baseNs}.{segment}{schemaPart};
-
-    public static class {className}
-    {{
-        public static Task<CrudResult> CrudActionAsync(this IAppDbContextPipe context, Input input, CancellationToken cancellationToken)
-        {{
-            if (context == null)
-            {{
-                throw new ArgumentNullException(nameof(context));
-            }}
-
-            var parameters = new List<SqlParameter>
-            {{
-                AppDbContext.GetParameter(""Parameter"", parameter),
-                AppDbContext.GetCollectionParameter(""TableType"", tableType)
-            }};
-            return context.ExecuteSingleAsync<CrudResult>(""schema.CrudAction"", parameters, cancellationToken);
-        }}
-
-        public static Task<CrudResult> CrudActionAsync(this IAppDbContext context, Input input, CancellationToken cancellationToken)
-        {{
-            return context.CreatePipe().CrudActionAsync(input, cancellationToken);
-        }}
-    }}";
-            }
-            else
-            {
-                code = $@"namespace {baseNs}.{segment}{schemaPart};
-public class {className} {{
-
-}}";
-            }
+            // We only need lightweight class shells; specialized SP generation handled elsewhere.
+            code = $@"namespace {targetNs};\npublic class {className} {{\n}}";
             var treeStub = CSharpSyntaxTree.ParseText(code);
             return treeStub.GetCompilationUnitRoot();
         }
+        // Legacy or compatibility: load from versioned Output* template source
         if (!_templateCache.TryGetValue(templateType, out var template))
         {
-            // Fallback to loading directly from disk if it is not in the cache
             var rootDir = _output.GetOutputRootDir();
-            var templatePath = Path.Combine(rootDir.FullName, "DataContext", templateType);
+            var templatePath = Path.Combine(rootDir.FullName, "DataContext", templateType.Replace('/', Path.DirectorySeparatorChar));
+            if (!File.Exists(templatePath))
+            {
+                throw new FileNotFoundException($"Legacy template '{templateType}' not found at '{templatePath}'.");
+            }
             var fileContent = await File.ReadAllTextAsync(templatePath);
             var tree = CSharpSyntaxTree.ParseText(fileContent);
             template = tree.GetCompilationUnitRoot();
@@ -161,6 +120,7 @@ public class {className} {{
         // Build namespace; if schemaName is empty (root-level artifacts like Outputs base files) avoid trailing dot
         string targetNamespace;
         var endsWithDataContext = configuredRootNs.EndsWith(".DataContext", StringComparison.OrdinalIgnoreCase);
+#pragma warning disable CS0618 // suppress deprecated Role.Kind usage until refactor
         if (_configManager.Config.Project.Role.Kind == RoleKindEnum.Lib)
         {
             targetNamespace = string.IsNullOrWhiteSpace(schemaName)
@@ -198,6 +158,46 @@ public class {className} {{
         if (string.IsNullOrWhiteSpace(tfm) || !tfm.StartsWith("net")) return false;
         var core = tfm.Substring(3).Split('.')[0];
         return int.TryParse(core, out var major) && major >= 10;
+    }
+
+    private bool IsModernEffective()
+    {
+        if (!IsModern(_configManager.Config.TargetFramework)) return false;
+        // Honor legacy compatibility mode even on modern TFM
+        return !string.Equals(_configManager.Config.Project?.Output?.CompatibilityMode, "v4.5", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Reads a template file from the embedded templates folder (modern unified raw access).
+    /// Falls back to disk relative to generator output directory if not embedded.
+    /// </summary>
+    public async Task<string> ReadTemplateRawAsync(string templateFileName)
+    {
+        // Look for file under src/Templates first (development scenario)
+        // We intentionally do not cache raw text to allow iterative edits during development.
+        // Provide minimal safety against path traversal.
+        if (templateFileName.IndexOf("..", StringComparison.Ordinal) >= 0)
+            throw new InvalidOperationException("Template file traversal detected.");
+
+        // Attempt relative path resolution from current working directory
+        var candidates = new List<string>();
+        try
+        {
+            var cwd = Directory.GetCurrentDirectory();
+            candidates.Add(Path.Combine(cwd, "src", "Templates", templateFileName));
+            candidates.Add(Path.Combine(cwd, "Templates", templateFileName));
+        }
+        catch { /* ignore cwd issues */ }
+
+        foreach (var path in candidates)
+        {
+            if (File.Exists(path))
+            {
+                return await File.ReadAllTextAsync(path);
+            }
+        }
+
+        throw new FileNotFoundException($"Unified template '{templateFileName}' not found in expected locations.");
     }
 
     /// <summary>
@@ -281,6 +281,7 @@ public class {className} {{
                 $"{_configManager.Config.Project.Role.LibNamespace}.TableTypes.{tableTypeSchema.FirstCharToUpper()}"));
         }
         else if (_configManager.Config.Project.Role.Kind == RoleKindEnum.Lib)
+#pragma warning restore CS0618
         {
             return SyntaxFactory.UsingDirective(SyntaxFactory.ParseName(
                 $"{_configManager.Config.Project.Output.Namespace}.TableTypes.{tableTypeSchema.FirstCharToUpper()}"));

@@ -507,7 +507,7 @@ public class ConsoleService(
             {
                 DataBase = config.Project.DataBase,
                 Output = config.Project.Output,
-                DefaultSchemaStatus = config.Project.DefaultSchemaStatus,
+                // DefaultSchemaStatus removed; implicit default now depends on Output.CompatibilityMode (v4.5 => Build, else Ignore)
                 IgnoredSchemas = config.Project.IgnoredSchemas,
                 IgnoredProcedures = config.Project.IgnoredProcedures,
                 Role = config.Project.Role
