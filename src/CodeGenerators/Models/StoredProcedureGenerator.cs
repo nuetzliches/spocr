@@ -76,7 +76,8 @@ public class StoredProcedureGenerator(
         var needsModelUsing = storedProcedures.Any(NeedsModel);
         if (needsModelUsing)
         {
-            var modelUsing = ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib
+            var flatten = string.IsNullOrWhiteSpace(ConfigFile.Config.Project.Output?.DataContext?.Path) || ConfigFile.Config.Project.Output.DataContext.Path.TrimEnd('/', '\\') == ".";
+            var modelUsing = (ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib || flatten)
                 ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.Models.{schema.Name}"))
                 : SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.DataContext.Models.{schema.Name}"));
             root = root.AddUsings(modelUsing).NormalizeWhitespace();
@@ -85,7 +86,8 @@ public class StoredProcedureGenerator(
         // Add Usings for Inputs
         if (storedProcedures.Any(s => s.HasInputs()))
         {
-            var inputUsingDirective = ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib
+            var flatten = string.IsNullOrWhiteSpace(ConfigFile.Config.Project.Output?.DataContext?.Path) || ConfigFile.Config.Project.Output.DataContext.Path.TrimEnd('/', '\\') == ".";
+            var inputUsingDirective = (ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib || flatten)
                 ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.Inputs.{schema.Name}"))
                 : SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.DataContext.Inputs.{schema.Name}"));
             root = root.AddUsings(inputUsingDirective.NormalizeWhitespace().WithLeadingTrivia(SyntaxFactory.CarriageReturnLineFeed)).WithTrailingTrivia(SyntaxFactory.CarriageReturnLineFeed);
@@ -115,13 +117,13 @@ public class StoredProcedureGenerator(
         bool HasCustomOutputs = storedProcedures.Any(sp => (sp.GetOutputs()?.Count(o => !baseOutputSkip.Contains(o.Name)) ?? 0) > 0);
         // For Extension role we do not generate local Outputs namespace; these come from Lib.
         // Skip adding DataContext Outputs usings entirely when role is Extension.
-#pragma warning disable CS0618
+        #pragma warning disable CS0618
         if (HasAnyOutputs && ConfigFile.Config.Project.Role.Kind != RoleKindEnum.Extension)
-#pragma warning restore CS0618
+        #pragma warning restore CS0618
         {
-#pragma warning disable CS0618
-            // Root outputs namespace
-            var outputsRootUsing = ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib
+            #pragma warning disable CS0618
+            var flatten = string.IsNullOrWhiteSpace(ConfigFile.Config.Project.Output?.DataContext?.Path) || ConfigFile.Config.Project.Output.DataContext.Path.TrimEnd('/', '\\') == ".";
+            var outputsRootUsing = (ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib || flatten)
                 ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.Outputs"))
                 : SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.DataContext.Outputs"));
             if (!root.Usings.Any(u => u.Name.ToString() == outputsRootUsing.Name.ToString()))
@@ -129,13 +131,13 @@ public class StoredProcedureGenerator(
 
             if (HasCustomOutputs)
             {
-                var outputsSchemaUsing = ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib
+                var outputsSchemaUsing = (ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib || flatten)
                     ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.Outputs.{schema.Name}"))
                     : SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.DataContext.Outputs.{schema.Name}"));
                 if (!root.Usings.Any(u => u.Name.ToString() == outputsSchemaUsing.Name.ToString()))
                     root = root.AddUsings(outputsSchemaUsing).NormalizeWhitespace();
             }
-#pragma warning restore CS0618
+            #pragma warning restore CS0618
         }
 
         var nsNode = (NamespaceDeclarationSyntax)root.Members[0];

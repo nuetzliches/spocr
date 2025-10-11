@@ -45,10 +45,11 @@ public class CrudResultGenerator(
 
     private string EnsureNamespace()
     {
-        // Mirror behavior from other generators: <RootNamespace>.DataContext.Models
         var rootNs = ConfigFile.Config.Project.Output.Namespace?.Trim();
         if (string.IsNullOrWhiteSpace(rootNs)) rootNs = "Source"; // fallback
-        return rootNs + ".DataContext.Models";
+        var dataContextPath = ConfigFile.Config.Project.Output?.DataContext?.Path?.Trim();
+        var flatten = string.IsNullOrWhiteSpace(dataContextPath) || dataContextPath.TrimEnd('/', '\\') == ".";
+        return flatten ? rootNs + ".Models" : rootNs + ".DataContext.Models";
     }
 
     private static string GetSource(string ns) => "" +
