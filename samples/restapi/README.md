@@ -19,16 +19,19 @@ The project contains the following files:
 To get started with this project, follow these steps:
 
 1. Clone the repository:
+
    ```
    git clone <repository-url>
    ```
 
 2. Navigate to the project directory:
+
    ```
-   cd samples/web-api
+   cd samples/restapi
    ```
 
 3. Restore the dependencies:
+
    ```
    dotnet restore
    ```
