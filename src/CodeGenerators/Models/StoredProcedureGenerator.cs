@@ -27,6 +27,7 @@ public class StoredProcedureGenerator(
     ISchemaMetadataProvider metadataProvider
 ) : GeneratorBase(configFile, output, consoleService)
 {
+#pragma warning disable CS0618 // Suppress obsolete warnings for Role.Kind until removal in v5
     public async Task<SourceText> GetStoredProcedureExtensionsCodeAsync(Definition.Schema schema, List<Definition.StoredProcedure> storedProcedures)
     {
         // Entity grouping previously relied on OperationKind-derived EntityName. Fallback: use first procedure name as grouping key.
@@ -112,8 +113,13 @@ public class StoredProcedureGenerator(
         var baseOutputSkip = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "@ResultId", "@RecordId", "@RowVersion", "@Result" };
         bool HasAnyOutputs = storedProcedures.Any(sp => sp.GetOutputs()?.Any() ?? false);
         bool HasCustomOutputs = storedProcedures.Any(sp => (sp.GetOutputs()?.Count(o => !baseOutputSkip.Contains(o.Name)) ?? 0) > 0);
-        if (HasAnyOutputs)
+        // For Extension role we do not generate local Outputs namespace; these come from Lib.
+        // Skip adding DataContext Outputs usings entirely when role is Extension.
+#pragma warning disable CS0618
+        if (HasAnyOutputs && ConfigFile.Config.Project.Role.Kind != RoleKindEnum.Extension)
+#pragma warning restore CS0618
         {
+#pragma warning disable CS0618
             // Root outputs namespace
             var outputsRootUsing = ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib
                 ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.Outputs"))
@@ -129,6 +135,7 @@ public class StoredProcedureGenerator(
                 if (!root.Usings.Any(u => u.Name.ToString() == outputsSchemaUsing.Name.ToString()))
                     root = root.AddUsings(outputsSchemaUsing).NormalizeWhitespace();
             }
+#pragma warning restore CS0618
         }
 
         var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
@@ -186,6 +193,7 @@ public class StoredProcedureGenerator(
 
         return TemplateManager.GenerateSourceText(root);
     }
+#pragma warning restore CS0618
 
     private enum StoredProcedureMethodKind { Raw, Deserialize }
 
@@ -462,46 +470,46 @@ public class StoredProcedureGenerator(
                     else
                     {
 
-                    // OBSOLETE Heuristic (scheduled for removal): List vs Single inference for *Find* / *List* names.
-                    // Maintained temporarily for backward compatibility. Will be replaced by explicit metadata.
-                    var nonOutputParams = storedProcedure.Input.Where(p => !p.IsOutput && !(p.IsTableType ?? false)).ToList();
-                    bool IsIdName(string n) => n.Equals("@Id", StringComparison.OrdinalIgnoreCase) || n.EndsWith("Id", StringComparison.OrdinalIgnoreCase);
-                    var idParams = nonOutputParams.Where(p => IsIdName(p.Name)).ToList();
-                    bool singleIdParam = idParams.Count == 1 && nonOutputParams.Count == 1;
-                    var nameLower = storedProcedure.Name.ToLowerInvariant();
-                    bool nameSuggestsFind = nameLower.Contains("find") && !nameLower.Contains("list");
-                    // Treat any pattern FindBy* as explicit single-row intent (not nur FindById)
-                    bool nameIsFindByPattern = nameLower.Contains("findby");
-                    bool fewParams = nonOutputParams.Count <= 2;
-                    // Force single row when:
-                    //  - Explicit *FindById* pattern (even if multiple Id-like params exist, e.g. UserId + ClaimId + ComparisonCalculationId)
-                    //  - Exactly one Id parameter and it is the only filter (legacy behaviour)
-                    //  - Generic *Find* pattern with few params (<=2) and at least one Id param (conservative to avoid list-breaking)
-                    bool forceSingle = nameIsFindByPattern || singleIdParam || (nameSuggestsFind && fewParams && idParams.Count >= 1);
+                        // OBSOLETE Heuristic (scheduled for removal): List vs Single inference for *Find* / *List* names.
+                        // Maintained temporarily for backward compatibility. Will be replaced by explicit metadata.
+                        var nonOutputParams = storedProcedure.Input.Where(p => !p.IsOutput && !(p.IsTableType ?? false)).ToList();
+                        bool IsIdName(string n) => n.Equals("@Id", StringComparison.OrdinalIgnoreCase) || n.EndsWith("Id", StringComparison.OrdinalIgnoreCase);
+                        var idParams = nonOutputParams.Where(p => IsIdName(p.Name)).ToList();
+                        bool singleIdParam = idParams.Count == 1 && nonOutputParams.Count == 1;
+                        var nameLower = storedProcedure.Name.ToLowerInvariant();
+                        bool nameSuggestsFind = nameLower.Contains("find") && !nameLower.Contains("list");
+                        // Treat any pattern FindBy* as explicit single-row intent (not nur FindById)
+                        bool nameIsFindByPattern = nameLower.Contains("findby");
+                        bool fewParams = nonOutputParams.Count <= 2;
+                        // Force single row when:
+                        //  - Explicit *FindById* pattern (even if multiple Id-like params exist, e.g. UserId + ClaimId + ComparisonCalculationId)
+                        //  - Exactly one Id parameter and it is the only filter (legacy behaviour)
+                        //  - Generic *Find* pattern with few params (<=2) and at least one Id param (conservative to avoid list-breaking)
+                        bool forceSingle = nameIsFindByPattern || singleIdParam || (nameSuggestsFind && fewParams && idParams.Count >= 1);
 
-                    var nameLower2All = storedProcedure.Name.ToLowerInvariant();
-                    var indicatesListGlobal = nameLower2All.Contains("list");
-                    if (indicatesListGlobal)
-                    {
-                        // Force list even if earlier single-row heuristics matched
-                        forceSingle = false;
-                    }
-                    var indicatesFind = nameLower2All.Contains("find") && !nameLower2All.Contains("list");
-                    // OBSOLETE naming heuristic (sunsetting once consumers migrate):
-                    //   - Default: single (ExecuteSingleAsync)
-                    //   - Only if procedure name contains "List" -> List<T>
-                    //   - "FindBy*" & other forceSingle signals enforce single even with multiple columns
-                    // Goal: explicit metadata will replace this. Do not add new special cases.
-                    if (!forceSingle && indicatesListGlobal)
-                    {
-                        returnType = $"Task<List<{returnModel}>>";
-                        returnExpression = ReplacePlaceholder(returnExpression, $"ExecuteListAsync<{returnModel}>");
-                    }
-                    else
-                    {
-                        returnType = $"Task<{returnModel}>";
-                        returnExpression = ReplacePlaceholder(returnExpression, $"ExecuteSingleAsync<{returnModel}>");
-                    }
+                        var nameLower2All = storedProcedure.Name.ToLowerInvariant();
+                        var indicatesListGlobal = nameLower2All.Contains("list");
+                        if (indicatesListGlobal)
+                        {
+                            // Force list even if earlier single-row heuristics matched
+                            forceSingle = false;
+                        }
+                        var indicatesFind = nameLower2All.Contains("find") && !nameLower2All.Contains("list");
+                        // OBSOLETE naming heuristic (sunsetting once consumers migrate):
+                        //   - Default: single (ExecuteSingleAsync)
+                        //   - Only if procedure name contains "List" -> List<T>
+                        //   - "FindBy*" & other forceSingle signals enforce single even with multiple columns
+                        // Goal: explicit metadata will replace this. Do not add new special cases.
+                        if (!forceSingle && indicatesListGlobal)
+                        {
+                            returnType = $"Task<List<{returnModel}>>";
+                            returnExpression = ReplacePlaceholder(returnExpression, $"ExecuteListAsync<{returnModel}>");
+                        }
+                        else
+                        {
+                            returnType = $"Task<{returnModel}>";
+                            returnExpression = ReplacePlaceholder(returnExpression, $"ExecuteSingleAsync<{returnModel}>");
+                        }
                     }
                 }
             }

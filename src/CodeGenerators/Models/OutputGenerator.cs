@@ -34,6 +34,17 @@ public class OutputGenerator(
 {
     public async Task GenerateDataContextOutputsAsync(bool isDryRun)
     {
+        // If project is an Extension, we do NOT generate DataContext Outputs models locally.
+        // Extension projects are expected to reference the Output models from the referenced Lib namespace.
+        // Suppress obsolete warning for Role.Kind usage (still required until v5 removal)
+#pragma warning disable CS0618
+        if (ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Extension)
+        {
+            ConsoleService.Verbose("[outputs] Skipping DataContext Outputs generation for Extension role (consumes Lib outputs).");
+            return; // nothing to do
+        }
+#pragma warning restore CS0618
+
         // Ensure single Outputs.cs (merging previous base/partial approach)
         try
         {
