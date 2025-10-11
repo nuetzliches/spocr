@@ -117,11 +117,11 @@ public class StoredProcedureGenerator(
         bool HasCustomOutputs = storedProcedures.Any(sp => (sp.GetOutputs()?.Count(o => !baseOutputSkip.Contains(o.Name)) ?? 0) > 0);
         // For Extension role we do not generate local Outputs namespace; these come from Lib.
         // Skip adding DataContext Outputs usings entirely when role is Extension.
-        #pragma warning disable CS0618
+#pragma warning disable CS0618
         if (HasAnyOutputs && ConfigFile.Config.Project.Role.Kind != RoleKindEnum.Extension)
-        #pragma warning restore CS0618
+#pragma warning restore CS0618
         {
-            #pragma warning disable CS0618
+#pragma warning disable CS0618
             var flatten = string.IsNullOrWhiteSpace(ConfigFile.Config.Project.Output?.DataContext?.Path) || ConfigFile.Config.Project.Output.DataContext.Path.TrimEnd('/', '\\') == ".";
             var outputsRootUsing = (ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib || flatten)
                 ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.Outputs"))
@@ -137,7 +137,7 @@ public class StoredProcedureGenerator(
                 if (!root.Usings.Any(u => u.Name.ToString() == outputsSchemaUsing.Name.ToString()))
                     root = root.AddUsings(outputsSchemaUsing).NormalizeWhitespace();
             }
-            #pragma warning restore CS0618
+#pragma warning restore CS0618
         }
 
         var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
