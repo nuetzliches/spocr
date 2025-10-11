@@ -57,3 +57,8 @@ debug/spocr.json
 debug/.env
 !debug/*.example
 !debug/README.md
+ 
+# Dev-only Markdown Dateien (sollen nicht in main/master landen)
+DeveloperBranchUseOnly.md
+DeveloperBranchUseOnly-*.md
+*.devonly.md
