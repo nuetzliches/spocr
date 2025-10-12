@@ -1,0 +1,4 @@
+Legacy DataContext generator freeze is ACTIVE.
+Only critical (security/stability) bug fixes allowed.
+Reference: CHANGELOG.md (Unreleased > Migration / Freeze) EPIC E001.
+Date: 2025-10-12

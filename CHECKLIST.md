@@ -204,4 +204,7 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] Issue Tracker Abgleich: Alle Items dieses Releases geschlossen oder verschoben
 - [ ] Technische Schuldenliste aktualisiert
 
+- [ ] (Regel) Implementierung IN CODE vollständig auf Englisch (Kommentare, öffentliche/ interne Bezeichner) – Ausnahme: `CHECKLIST.md` bleibt deutsch
+- [ ] (Regel) Keine "VNext" Namensbestandteile in Klassen / Dateien / Properties – Trennung ausschließlich über Ordner & Namespace `SpocRVNext`
+
 ... (bei Bedarf weiter ergänzen) ...
