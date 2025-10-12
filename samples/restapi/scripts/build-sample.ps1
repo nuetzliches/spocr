@@ -4,7 +4,7 @@ param(
 
 Write-Host "[build-sample] Start" -ForegroundColor Cyan
 
-$proj = Join-Path $PSScriptRoot "..\web-api.sln"
+$proj = Join-Path $PSScriptRoot "..\RestApi.sln"
 if (-not (Test-Path $proj)) {
     Write-Error "Solution nicht gefunden: $proj"
     exit 2

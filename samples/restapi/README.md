@@ -7,7 +7,7 @@ This project is a minimal API built using .NET 8. It serves as a starting point 
 The project contains the following files:
 
 - **Program.cs**: The entry point of the application. It configures the minimal API, defines endpoints, and starts the web server.
-- **WebApi.csproj**: The project file for the C# project. It includes information about dependencies, the target version of the .NET framework, and other project settings.
+- **RestApi.csproj**: The project file for the C# project. It includes information about dependencies, the target version of the .NET framework, and other project settings.
 - **Properties/launchSettings.json**: Contains configurations for the application's startup behavior, including environment variables and profiles for different launch options.
 - **appsettings.json**: General configuration settings for the application, such as connection strings and other configuration elements.
 - **appsettings.Development.json**: Contains specific configuration settings for the development environment, which can override settings in `appsettings.json`.

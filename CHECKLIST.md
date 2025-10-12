@@ -72,7 +72,7 @@ EPICS Übersicht (oberste Steuerungsebene)
       acceptance: - CHANGELOG Abschnitt "Removed" - Upgrade Guide Eintrag
       depends: [E004]
 
-- [ ] EPIC-E009 Auto Namespace Ermittlung
+- [x] EPIC-E009 Auto Namespace Ermittlung
       id: E009
       goal: Automatisierte Namespace Generierung + Fallback
       acceptance: - 90%+ Fälle ohne manuelle Angabe korrekt - Fallback Logik dokumentiert

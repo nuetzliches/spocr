@@ -11,7 +11,10 @@ Format loosely inspired by Keep a Changelog. Dates use ISO 8601 (UTC).
 
 ### Added
 
-- (placeholder)
+- Auto namespace resolution with deterministic precedence chain (ENV override > RootNamespace > AssemblyName > project filename > fallback). (EPIC E009)
+- Major version bridge policy enforcement (blocks direct jump without env override `SPOCR_ALLOW_DIRECT_MAJOR`).
+- Dual generation observability: SHA256 hashing + diff manifests + allow-list `.spocr-diff-allow` (informational mode).
+- Global nullable enabled; legacy nullability warnings broadly suppressed via `.editorconfig` (phase 1 of Nullability Debt plan).
 
 ### Changed
 
@@ -20,6 +23,7 @@ Format loosely inspired by Keep a Changelog. Dates use ISO 8601 (UTC).
 ### Migration / Freeze
 
 - Legacy generator freeze (EPIC E001): No further functional enhancements to the existing DataContext code after introduction of this note. Only security or stability critical bug fixes allowed. Sentinel file `legacy-freeze.txt` denotes active freeze.
+- Bridge Policy: Direct major upgrade attempts require transitional version path unless `SPOCR_ALLOW_DIRECT_MAJOR=1` is set. Documented to reduce accidental skipping of migration steps.
 
 ## [4.5.0-alpha.12] - 2025-10-07
 

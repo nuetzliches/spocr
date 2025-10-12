@@ -168,7 +168,8 @@ public class AutoUpdaterService(
     /// <summary>
     /// Determines whether an update should be offered
     /// </summary>
-    private bool ShouldOfferUpdate(Version latestVersion)
+    // Made protected internal virtual for testability (BridgePolicyTests)
+    protected internal virtual bool ShouldOfferUpdate(Version latestVersion)
     {
         var skipThisUpdate = latestVersion.ToVersionString() == _globalConfigFile.Config.AutoUpdate.SkipVersion;
         if (skipThisUpdate) return false;

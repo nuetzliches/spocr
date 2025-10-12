@@ -11,7 +11,7 @@ $ErrorActionPreference = 'Stop'
 Write-Host "[smoke] Starting sample smoke test (port=$Port path=$Path)" -ForegroundColor Cyan
 
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot '..\..\..')
-$solution = Join-Path $PSScriptRoot '..\web-api.sln'
+$solution = Join-Path $PSScriptRoot '..\RestApi.sln'
 
 if (-not $NoBuild) {
     & $PSScriptRoot/build-sample.ps1 || exit 20
@@ -23,7 +23,7 @@ $runLog = New-Item -ItemType File -Path (Join-Path $PSScriptRoot 'smoke-run.log'
 
 $psi = New-Object System.Diagnostics.ProcessStartInfo
 $psi.FileName = 'dotnet'
-$psi.Arguments = 'run --project ..\WebApi.csproj'
+$psi.Arguments = 'run --project ..\RestApi.csproj'
 $psi.WorkingDirectory = (Join-Path $PSScriptRoot '..')
 $psi.RedirectStandardOutput = $true
 $psi.RedirectStandardError = $true
