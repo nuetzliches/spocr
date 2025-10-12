@@ -149,7 +149,7 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] Referenzen (CLI, Konfiguration, API) aktualisiert
 - [ ] README Quick Start an neuen Generator angepasst
 - [ ] CHANGELOG.md Einträge für jede relevante Änderung ergänzt (Added/Changed/Removed/Deprecated/Migration Notes)
-- [ ] DEVELOPMENT.md um Build-/Test-Flows für neuen Generator erweitert
+- [ ] DEVELOPMENT.md enthält und pflegt kuratierte Entwicklungs-Commands (Build, Codegen, Tests, Diffs, Cleanup) – Liste aktuell und wird vor PR zum master bereinigt.
 - [ ] Samples/README verlinkt auf aktualisierte Doku
 
 ### Samples / Demo (samples/restapi)
