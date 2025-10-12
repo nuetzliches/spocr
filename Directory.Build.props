@@ -8,4 +8,5 @@
          env: SPOCR_STRICT_NULLABLE=1 -->
     <TreatWarningsAsErrors Condition="'$(SPOCR_STRICT_NULLABLE)' == '1'">true</TreatWarningsAsErrors>
   </PropertyGroup>
+  <!-- Nullable suppression moved to .editorconfig for finer-grained control (legacy broad suppression + vNext strict overrides). -->
 </Project>

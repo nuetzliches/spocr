@@ -18,7 +18,7 @@ using SpocRVNext.Configuration;
 
 namespace SpocR;
 
-[Command(UnrecognizedArgumentHandling = UnrecognizedArgumentHandling.Throw)]
+[Command(Name = "spocr", UnrecognizedArgumentHandling = UnrecognizedArgumentHandling.Throw)]
 [Subcommand(typeof(CreateCommand))]
 [Subcommand(typeof(PullCommand))]
 [Subcommand(typeof(BuildCommand))]
@@ -108,6 +108,16 @@ public class Program
            .UseDefaultConventions()
            .UseConstructorInjection(serviceProvider);
 
+        // Explicit root handler to avoid reflection lookup issues (fallback help)
+        app.OnExecute(() =>
+        {
+            Console.WriteLine("spocr - SpocR CLI");
+            Console.WriteLine();
+            Console.WriteLine("Usage: spocr <command> [options]");
+            Console.WriteLine("Try 'spocr --help' or 'spocr <command> --help' for more information.");
+            return ExitCodes.Success;
+        });
+
         await app.InitializeGlobalConfigAsync(serviceProvider);
 
         try
@@ -126,6 +136,26 @@ public class Program
             catch { }
             return ExitCodes.InternalError;
         }
+    }
+
+    // Root command fallback: show help if no subcommand provided (McMaster looks for parameterless OnExecute/OnExecuteAsync)
+    public Task<int> OnExecuteAsync()
+    {
+        Console.WriteLine("spocr - SpocR CLI");
+        Console.WriteLine();
+        Console.WriteLine("Usage: spocr <command> [options]");
+        Console.WriteLine("Try 'spocr --help' or 'spocr <command> --help' for more information.");
+        return Task.FromResult(ExitCodes.Success);
+    }
+
+    // Synchronous variant for McMaster default convention compatibility
+    public int OnExecute()
+    {
+        Console.WriteLine("spocr - SpocR CLI");
+        Console.WriteLine();
+        Console.WriteLine("Usage: spocr <command> [options]");
+        Console.WriteLine("Try 'spocr --help' or 'spocr <command> --help' for more information.");
+        return ExitCodes.Success;
     }
 
     static Task<int> Main(string[] args) => RunCliAsync(args);

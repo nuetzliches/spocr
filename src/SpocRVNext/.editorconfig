@@ -1,0 +1,11 @@
+# Re-enable nullable diagnostics for vNext code (strict zone)
+[*.cs]
+dotnet_diagnostic.CS8600.severity = warning
+dotnet_diagnostic.CS8601.severity = warning
+dotnet_diagnostic.CS8602.severity = warning
+dotnet_diagnostic.CS8603.severity = warning
+dotnet_diagnostic.CS8604.severity = warning
+dotnet_diagnostic.CS8618.severity = warning
+dotnet_diagnostic.CS8625.severity = warning
+dotnet_diagnostic.CS8765.severity = warning
+dotnet_diagnostic.CS8767.severity = warning
