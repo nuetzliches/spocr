@@ -1,0 +1,654 @@
+{
+  "SchemaVersion": 1,
+  "Fingerprint": "B42C616D466D452E",
+  "GeneratedUtc": "2025-10-12T23:41:04.2286151Z",
+  "Database": {
+    "ServerHash": "49960DE5880E8C68",
+    "Name": "SpocRSample"
+  },
+  "Procedures": [
+    {
+      "Schema": "samples",
+      "Name": "CreateUserWithOutput",
+      "Inputs": [
+        {
+          "Name": "@DisplayName",
+          "IsTableType": false,
+          "IsOutput": false,
+          "SqlTypeName": "nvarchar",
+          "IsNullable": false,
+          "MaxLength": 128
+        },
+        {
+          "Name": "@Email",
+          "IsTableType": false,
+          "IsOutput": false,
+          "SqlTypeName": "nvarchar",
+          "IsNullable": false,
+          "MaxLength": 256
+        },
+        {
+          "Name": "@UserId",
+          "IsTableType": false,
+          "IsOutput": true,
+          "SqlTypeName": "int",
+          "IsNullable": true,
+          "MaxLength": 4
+        }
+      ],
+      "ResultSets": [
+        {
+          "ReturnsJson": false,
+          "ReturnsJsonArray": false,
+          "ReturnsJsonWithoutArrayWrapper": false,
+          "Columns": [
+            {
+              "Name": "CreatedUserId",
+              "SqlTypeName": "int",
+              "IsNullable": true,
+              "MaxLength": 4
+            }
+          ],
+          "HasSelectStar": false
+        }
+      ]
+    },
+    {
+      "Schema": "samples",
+      "Name": "OrderListAsJson",
+      "Inputs": [],
+      "ResultSets": [
+        {
+          "ReturnsJson": true,
+          "ReturnsJsonArray": true,
+          "ReturnsJsonWithoutArrayWrapper": false,
+          "JsonRootProperty": "OrderSummaries",
+          "Columns": [
+            {
+              "Name": "UserId",
+              "SqlTypeName": "int",
+              "IsNullable": false,
+              "MaxLength": 4,
+              "JsonPath": "UserId"
+            },
+            {
+              "Name": "DisplayName",
+              "SqlTypeName": "nvarchar",
+              "IsNullable": false,
+              "MaxLength": 128,
+              "JsonPath": "DisplayName"
+            },
+            {
+              "Name": "Email",
+              "SqlTypeName": "nvarchar",
+              "IsNullable": false,
+              "MaxLength": 256,
+              "JsonPath": "Email"
+            },
+            {
+              "Name": "OrderId",
+              "SqlTypeName": "int",
+              "IsNullable": false,
+              "MaxLength": 4,
+              "JsonPath": "OrderId"
+            },
+            {
+              "Name": "TotalAmount",
+              "SqlTypeName": "decimal",
+              "IsNullable": false,
+              "MaxLength": 9,
+              "JsonPath": "TotalAmount"
+            },
+            {
+              "Name": "PlacedAt",
+              "SqlTypeName": "datetime2",
+              "IsNullable": false,
+              "MaxLength": 8,
+              "JsonPath": "PlacedAt"
+            },
+            {
+              "Name": "Notes",
+              "SqlTypeName": "nvarchar",
+              "IsNullable": true,
+              "MaxLength": 1024,
+              "JsonPath": "Notes"
+            }
+          ],
+          "HasSelectStar": false
+        }
+      ]
+    },
+    {
+      "Schema": "samples",
+      "Name": "OrderListByUserAsJson",
+      "Inputs": [
+        {
+          "Name": "@UserId",
+          "IsTableType": false,
+          "IsOutput": false,
+          "SqlTypeName": "int",
+          "IsNullable": true,
+          "MaxLength": 4
+        }
+      ],
+      "ResultSets": [
+        {
+          "ReturnsJson": true,
+          "ReturnsJsonArray": false,
+          "ReturnsJsonWithoutArrayWrapper": true,
+          "Columns": [
+            {
+              "Name": "UserId",
+              "SqlTypeName": "int",
+              "IsNullable": false,
+              "MaxLength": 4,
+              "JsonPath": "UserId"
+            },
+            {
+              "Name": "DisplayName",
+              "SqlTypeName": "nvarchar",
+              "IsNullable": false,
+              "MaxLength": 128,
+              "JsonPath": "DisplayName"
+            },
+            {
+              "Name": "Email",
+              "SqlTypeName": "nvarchar",
+              "IsNullable": false,
+              "MaxLength": 256,
+              "JsonPath": "Email"
+            },
+            {
+              "Name": "OrderId",
+              "SqlTypeName": "int",
+              "IsNullable": false,
+              "MaxLength": 4,
+              "JsonPath": "OrderId"
+            },
+            {
+              "Name": "TotalAmount",
+              "SqlTypeName": "decimal",
+              "IsNullable": false,
+              "MaxLength": 9,
+              "JsonPath": "TotalAmount"
+            },
+            {
+              "Name": "PlacedAt",
+              "SqlTypeName": "datetime2",
+              "IsNullable": false,
+              "MaxLength": 8,
+              "JsonPath": "PlacedAt"
+            },
+            {
+              "Name": "Notes",
+              "SqlTypeName": "nvarchar",
+              "IsNullable": true,
+              "MaxLength": 1024,
+              "JsonPath": "Notes"
+            }
+          ],
+          "HasSelectStar": false
+        }
+      ]
+    },
+    {
+      "Schema": "samples",
+      "Name": "SumWithOutput",
+      "Inputs": [
+        {
+          "Name": "@A",
+          "IsTableType": false,
+          "IsOutput": false,
+          "SqlTypeName": "int",
+          "IsNullable": true,
+          "MaxLength": 4
+        },
+        {
+          "Name": "@B",
+          "IsTableType": false,
+          "IsOutput": false,
+          "SqlTypeName": "int",
+          "IsNullable": true,
+          "MaxLength": 4
+        },
+        {
+          "Name": "@Sum",
+          "IsTableType": false,
+          "IsOutput": true,
+          "SqlTypeName": "int",
+          "IsNullable": true,
+          "MaxLength": 4
+        },
+        {
+          "Name": "@Success",
+          "IsTableType": false,
+          "IsOutput": true,
+          "SqlTypeName": "bit",
+          "IsNullable": true,
+          "MaxLength": 1
+        }
+      ],
+      "ResultSets": [
+        {
+          "ReturnsJson": false,
+          "ReturnsJsonArray": false,
+          "ReturnsJsonWithoutArrayWrapper": false,
+          "Columns": [
+            {
+              "Name": "Result",
+              "SqlTypeName": "int",
+              "IsNullable": true,
+              "MaxLength": 4
+            }
+          ],
+          "HasSelectStar": false
+        }
+      ]
+    },
+    {
+      "Schema": "samples",
+      "Name": "UserBioUpdate",
+      "Inputs": [
+        {
+          "Name": "@UserId",
+          "IsTableType": false,
+          "IsOutput": false,
+          "SqlTypeName": "int",
+          "IsNullable": true,
+          "MaxLength": 4
+        },
+        {
+          "Name": "@Bio",
+          "IsTableType": false,
+          "IsOutput": false,
+          "SqlTypeName": "nvarchar",
+          "IsNullable": true,
+          "MaxLength": 512
+        }
+      ],
+      "ResultSets": [
+        {
+          "ReturnsJson": false,
+          "ReturnsJsonArray": false,
+          "ReturnsJsonWithoutArrayWrapper": false,
+          "Columns": [
+            {
+              "Name": "UserId",
+              "SqlTypeName": "int",
+              "IsNullable": false,
+              "MaxLength": 4
+            },
+            {
+              "Name": "Bio",
+              "SqlTypeName": "nvarchar(512)",
+              "IsNullable": true,
+              "MaxLength": 512
+            }
+          ],
+          "HasSelectStar": false
+        }
+      ]
+    },
+    {
+      "Schema": "samples",
+      "Name": "UserContactSync",
+      "Inputs": [
+        {
+          "Name": "@Contacts",
+          "IsTableType": true,
+          "TableTypeSchema": "samples",
+          "TableTypeName": "UserContactTableType",
+          "IsOutput": false,
+          "IsNullable": false,
+          "MaxLength": 0
+        }
+      ],
+      "ResultSets": [
+        {
+          "ReturnsJson": false,
+          "ReturnsJsonArray": false,
+          "ReturnsJsonWithoutArrayWrapper": false,
+          "Columns": [
+            {
+              "Name": "UpdatedContacts",
+              "SqlTypeName": "int",
+              "IsNullable": true,
+              "MaxLength": 4
+            },
+            {
+              "Name": "MissingContacts",
+              "SqlTypeName": "int",
+              "IsNullable": true,
+              "MaxLength": 4
+            }
+          ],
+          "HasSelectStar": false
+        }
+      ]
+    },
+    {
+      "Schema": "samples",
+      "Name": "UserDetailsWithOrders",
+      "Inputs": [
+        {
+          "Name": "@UserId",
+          "IsTableType": false,
+          "IsOutput": false,
+          "SqlTypeName": "int",
+          "IsNullable": true,
+          "MaxLength": 4
+        }
+      ],
+      "ResultSets": [
+        {
+          "ReturnsJson": false,
+          "ReturnsJsonArray": false,
+          "ReturnsJsonWithoutArrayWrapper": false,
+          "Columns": [
+            {
+              "Name": "UserId",
+              "SqlTypeName": "int",
+              "IsNullable": false,
+              "MaxLength": 4
+            },
+            {
+              "Name": "DisplayName",
+              "SqlTypeName": "nvarchar(128)",
+              "IsNullable": false,
+              "MaxLength": 128
+            },
+            {
+              "Name": "Email",
+              "SqlTypeName": "nvarchar(256)",
+              "IsNullable": false,
+              "MaxLength": 256
+            },
+            {
+              "Name": "CreatedAt",
+              "SqlTypeName": "datetime2(7)",
+              "IsNullable": false,
+              "MaxLength": 8
+            },
+            {
+              "Name": "Bio",
+              "SqlTypeName": "nvarchar(512)",
+              "IsNullable": true,
+              "MaxLength": 512
+            }
+          ],
+          "HasSelectStar": false
+        }
+      ]
+    },
+    {
+      "Schema": "samples",
+      "Name": "UserFind",
+      "Inputs": [
+        {
+          "Name": "@UserId",
+          "IsTableType": false,
+          "IsOutput": false,
+          "SqlTypeName": "int",
+          "IsNullable": true,
+          "MaxLength": 4
+        }
+      ],
+      "ResultSets": [
+        {
+          "ReturnsJson": false,
+          "ReturnsJsonArray": false,
+          "ReturnsJsonWithoutArrayWrapper": false,
+          "Columns": [
+            {
+              "Name": "UserId",
+              "SqlTypeName": "int",
+              "IsNullable": false,
+              "MaxLength": 4
+            },
+            {
+              "Name": "Email",
+              "SqlTypeName": "nvarchar(256)",
+              "IsNullable": false,
+              "MaxLength": 256
+            },
+            {
+              "Name": "DisplayName",
+              "SqlTypeName": "nvarchar(128)",
+              "IsNullable": false,
+              "MaxLength": 128
+            },
+            {
+              "Name": "CreatedAt",
+              "SqlTypeName": "datetime2(7)",
+              "IsNullable": false,
+              "MaxLength": 8
+            },
+            {
+              "Name": "Bio",
+              "SqlTypeName": "nvarchar(512)",
+              "IsNullable": true,
+              "MaxLength": 512
+            }
+          ],
+          "HasSelectStar": false
+        }
+      ]
+    },
+    {
+      "Schema": "samples",
+      "Name": "UserList",
+      "Inputs": [],
+      "ResultSets": [
+        {
+          "ReturnsJson": false,
+          "ReturnsJsonArray": false,
+          "ReturnsJsonWithoutArrayWrapper": false,
+          "Columns": [
+            {
+              "Name": "UserId",
+              "SqlTypeName": "int",
+              "IsNullable": false,
+              "MaxLength": 4
+            },
+            {
+              "Name": "Email",
+              "SqlTypeName": "nvarchar(256)",
+              "IsNullable": false,
+              "MaxLength": 256
+            },
+            {
+              "Name": "DisplayName",
+              "SqlTypeName": "nvarchar(128)",
+              "IsNullable": false,
+              "MaxLength": 128
+            },
+            {
+              "Name": "CreatedAt",
+              "SqlTypeName": "datetime2(7)",
+              "IsNullable": false,
+              "MaxLength": 8
+            },
+            {
+              "Name": "Bio",
+              "SqlTypeName": "nvarchar(512)",
+              "IsNullable": true,
+              "MaxLength": 512
+            }
+          ],
+          "HasSelectStar": false
+        }
+      ]
+    },
+    {
+      "Schema": "samples",
+      "Name": "UserOrderHierarchyJson",
+      "Inputs": [],
+      "ResultSets": [
+        {
+          "ReturnsJson": true,
+          "ReturnsJsonArray": true,
+          "ReturnsJsonWithoutArrayWrapper": false,
+          "JsonRootProperty": "Users",
+          "Columns": [
+            {
+              "Name": "UserId",
+              "SqlTypeName": "int",
+              "IsNullable": false,
+              "MaxLength": 4,
+              "JsonPath": "UserId"
+            },
+            {
+              "Name": "DisplayName",
+              "SqlTypeName": "nvarchar",
+              "IsNullable": false,
+              "MaxLength": 128,
+              "JsonPath": "DisplayName"
+            },
+            {
+              "Name": "Email",
+              "SqlTypeName": "nvarchar",
+              "IsNullable": false,
+              "MaxLength": 256,
+              "JsonPath": "Email"
+            },
+            {
+              "Name": "Orders",
+              "SqlTypeName": "nvarchar(max)",
+              "IsNullable": false,
+              "MaxLength": 0,
+              "JsonPath": "Orders",
+              "JsonResult": {
+                "ReturnsJson": true,
+                "ReturnsJsonArray": true,
+                "ReturnsJsonWithoutArrayWrapper": false,
+                "Columns": [
+                  {
+                    "Name": "OrderId",
+                    "SqlTypeName": "nvarchar(max)",
+                    "IsNullable": false,
+                    "MaxLength": 0,
+                    "JsonPath": "OrderId"
+                  },
+                  {
+                    "Name": "TotalAmount",
+                    "SqlTypeName": "nvarchar(max)",
+                    "IsNullable": false,
+                    "MaxLength": 0,
+                    "JsonPath": "TotalAmount"
+                  },
+                  {
+                    "Name": "PlacedAt",
+                    "SqlTypeName": "nvarchar(max)",
+                    "IsNullable": false,
+                    "MaxLength": 0,
+                    "JsonPath": "PlacedAt"
+                  },
+                  {
+                    "Name": "Notes",
+                    "SqlTypeName": "nvarchar(max)",
+                    "IsNullable": false,
+                    "MaxLength": 0,
+                    "JsonPath": "Notes"
+                  }
+                ]
+              }
+            }
+          ],
+          "HasSelectStar": false
+        }
+      ]
+    }
+  ],
+  "Schemas": [
+    {
+      "Name": "dbo",
+      "TableTypeRefs": []
+    },
+    {
+      "Name": "samples",
+      "TableTypeRefs": [
+        "samples.OrderImportTableType",
+        "samples.UserContactTableType",
+        "samples.UserIdListTableType"
+      ]
+    }
+  ],
+  "UserDefinedTableTypes": [
+    {
+      "Schema": "samples",
+      "Name": "OrderImportTableType",
+      "UserTypeId": 264,
+      "Columns": [
+        {
+          "Name": "UserId",
+          "SqlTypeName": "int",
+          "IsNullable": true,
+          "MaxLength": 4
+        },
+        {
+          "Name": "TotalAmount",
+          "SqlTypeName": "decimal",
+          "IsNullable": false,
+          "MaxLength": 9
+        },
+        {
+          "Name": "PlacedAt",
+          "SqlTypeName": "datetime2",
+          "IsNullable": false,
+          "MaxLength": 8
+        }
+      ],
+      "Hash": "A469066DA51CEF71"
+    },
+    {
+      "Schema": "samples",
+      "Name": "UserContactTableType",
+      "UserTypeId": 263,
+      "Columns": [
+        {
+          "Name": "UserId",
+          "SqlTypeName": "int",
+          "IsNullable": true,
+          "MaxLength": 4
+        },
+        {
+          "Name": "Email",
+          "SqlTypeName": "nvarchar",
+          "IsNullable": false,
+          "MaxLength": 256
+        },
+        {
+          "Name": "DisplayName",
+          "SqlTypeName": "nvarchar",
+          "IsNullable": false,
+          "MaxLength": 128
+        }
+      ],
+      "Hash": "B05D32E6A988C66B"
+    },
+    {
+      "Schema": "samples",
+      "Name": "UserIdListTableType",
+      "UserTypeId": 265,
+      "Columns": [
+        {
+          "Name": "UserId",
+          "SqlTypeName": "int",
+          "IsNullable": true,
+          "MaxLength": 4
+        }
+      ],
+      "Hash": "9DF845D5C4D2444D"
+    }
+  ],
+  "Parser": {
+    "ToolVersion": "net9.0",
+    "ResultSetParserVersion": 5
+  },
+  "Stats": {
+    "ProcedureTotal": 10,
+    "ProcedureSkipped": 0,
+    "ProcedureLoaded": 10,
+    "UdttTotal": 3
+  }
+}

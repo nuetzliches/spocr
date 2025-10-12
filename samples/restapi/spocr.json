@@ -2,20 +2,32 @@
   "Version": "4.0.0",
   "TargetFramework": "net9.0",
   "Project": {
-    "Role": { "Kind": "Default" },
+    "Role": {
+      "Kind": "Default"
+    },
     "DataBase": {
       "RuntimeConnectionStringIdentifier": "DefaultConnection",
-      "ConnectionString": "Data Source=localhost;Initial Catalog=SpocRSample;User ID=sa;Password=CHANGE_ME;Pooling=False;Connect Timeout=30;Encrypt=False;Trust Server Certificate=True;Authentication=SqlPassword;Application Name=vscode-mssql;Connect Retry Count=1;Connect Retry Interval=10;Command Timeout=30"
+      "ConnectionString": "Data Source=localhost;Initial Catalog=SpocRSample;User ID=sa;Password=SpocR@12345;Pooling=False;Connect Timeout=30;Encrypt=False;Trust Server Certificate=True;Authentication=SqlPassword;Application Name=vscode-mssql;Connect Retry Count=1;Connect Retry Interval=10;Command Timeout=30"
     },
     "Output": {
       "Namespace": "SpocR.Samples.Mssql",
       "DataContext": {
         "Path": "./DataContext",
-        "Inputs": { "Path": "./Inputs" },
-        "Outputs": { "Path": "./Outputs" },
-        "Models": { "Path": "./Models" },
-        "StoredProcedures": { "Path": "./StoredProcedures" },
-        "TableTypes": { "Path": "./TableTypes" }
+        "Inputs": {
+          "Path": "./Inputs"
+        },
+        "Outputs": {
+          "Path": "./Outputs"
+        },
+        "Models": {
+          "Path": "./Models"
+        },
+        "StoredProcedures": {
+          "Path": "./StoredProcedures"
+        },
+        "TableTypes": {
+          "Path": "./TableTypes"
+        }
       }
     },
     "DefaultSchemaStatus": "Build"
