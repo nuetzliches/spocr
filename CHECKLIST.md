@@ -1,20 +1,110 @@
-- [ ] : offene Aufgabe
-- [x] : erledigte Aufgabe
+---
+version: 1
+schema: checklist/v1
+description: SpocR Entwicklungs- & Migrations-Checkliste für Übergang zu SpocRVNext
+generated_for: ai-agent
+branch_scope:
+      note: 'Branch-spezifisch (feature/vnext); vor Merge in master entfernen'
+status_conventions:
+	open: '[ ]'
+	done: '[x]'
+categories:
+	- epics
+	- quality
+	- migration
+	- documentation
+	- release
+	- automation
+depends_naming: 'ID Referenzen in depends Feld'
+---
 
-- [ ] LEGACY-FREEZE v4.5: Generator-Code für bisherigen DataContext einfrieren (nur kritische Bugfixes). Siehe Abschnitt "Migration / Breaking Changes".
-- [ ] SAMPLE-GATE: Referenz-Sample `samples/restapi` nutzt aktuelle Konfiguration (`spocr.json`) und wird in CI gebaut (Abschnitt "Samples / Demo").
-- [ ] NEUER GENERATOR: Ordner `src/SpocRVNext` angelegt + Grundstruktur (Abschnitt "Codegenerierung / SpocRVNext").
-- [ ] NEUER OUTPUT-ORDNER: Neuer Output-Pfad (Arbeitsname) erstellt; parallele Erzeugung aktiv (Abschnitt "Codegenerierung / SpocRVNext").
-- [ ] TEMPLATE ENGINE: Eigene Template Engine implementiert (kein Roslyn) – Abnahme-Kriterien in Abschnitt "Codegenerierung / SpocRVNext".
-- [ ] DUAL-GENERATION v4.5: Alter + neuer Output gleichzeitig generiert (Abschnitt "Codegenerierung / SpocRVNext").
-- [ ] MODERNER DBKONTEXT: `SpocRDbContext` + Minimal API Extensions vorhanden (Abschnitt "Codegenerierung / SpocRVNext").
-- [ ] HEURISTIK-ENTFALL: Restriktive Namens-/Strukturheuristiken entfernt; Regressionstests vorhanden (Abschnitt "Qualität & Tests").
-- [ ] KONFIG-BEREINIGUNG: Entfernte Properties aus `spocr.json` dokumentiert (Abschnitt "Migration / Breaking Changes").
-- [ ] AUTO-NAMESPACE: Namespace-Auto-Ermittlung implementiert + Fallback dokumentiert (Abschnitt "Codegenerierung / SpocRVNext").
-- [ ] CUTOVER PLAN v5.0: Entfernen DataContext + Verschieben neuer Generator Inhalt nach `/src` beschrieben (Abschnitt "Migration / Breaking Changes").
-- [ ] OBSOLETE-MARKER: Alte Outputs als [Obsolet] gekennzeichnet inkl. Migrationshinweis (Abschnitt "Migration / Breaking Changes").
-- [ ] DOKU-UPDATE: Relevante Doku-Abschnitte markiert/ergänzt (Abschnitt "Dokumentation").
-- [ ] TEST-UPDATE: Test-Suite an neuen Generator angepasst (Abschnitt "Qualität & Tests").
+> HINWEIS: Diese Checkliste ist BRANCH-SPEZIFISCH (`feature/vnext`) und soll VOR dem Merge in `master` GELÖSCHT oder ARCHIVIERT werden.
+
+Legende: `[ ]` offene Aufgabe · `[x]` erledigt
+
+EPICS Übersicht (oberste Steuerungsebene)
+
+- [ ] EPIC-E001 LEGACY-FREEZE v4.5
+      id: E001
+      goal: Generator-Code für bisherigen DataContext einfrieren (nur kritische Bugfixes)
+      acceptance: - Keine funktionalen Änderungen an Legacy-Generator nach Freeze-Datum - Nur sicherheits-/stabilitätsrelevante Fixes - Dokumentierter Freeze in CHANGELOG
+      depends: []
+
+- [ ] EPIC-E002 SAMPLE-GATE Referenz-Sample stabil
+      id: E002
+      goal: Referenz-Sample `samples/restapi` validiert jeden Entwicklungsschritt
+      acceptance: - Build + CRUD Smoke Test automatisiert - Nutzung aktueller `spocr.json` - Läuft in CI Pipeline
+      depends: []
+
+- [ ] EPIC-E003 Neuer Generator Grundstruktur
+      id: E003
+      goal: Ordner `src/SpocRVNext` + Basis-Architektur steht
+      acceptance: - Projektstruktur vorhanden - Einstiegspunkt Codegenerierung implementiert - Minimaler End-to-End Durchlauf erzeugt leeren oder Basis-Output
+      depends: [E001]
+
+- [ ] EPIC-E004 Neuer Output & Dual Generation
+      id: E004
+      goal: Neuer Output-Pfad + parallele Erzeugung mit Legacy
+      acceptance: - Neuer Output-Ordner erzeugt deterministische Dateien - Alter Output unverändert - Flag / Schalter aktiviert Dual Mode
+      depends: [E003]
+
+- [ ] EPIC-E005 Eigene Template Engine
+      id: E005
+      goal: Roslyn Unabhängigkeit & eigene schlanke Template Pipeline
+      acceptance: - Template Parser / Renderer modular - Unit Tests für Placeholder/Substitutions - Performance Messung dokumentiert
+      depends: [E003]
+
+- [ ] EPIC-E006 Moderner DbContext & APIs
+      id: E006
+      goal: `SpocRDbContext` + Minimal API Extensions
+      acceptance: - DI Registrierung (IServiceCollection) vorhanden - Minimal API Mappings generierbar - Beispiel-Endpunkt im Sample funktioniert
+      depends: [E003]
+
+- [ ] EPIC-E007 Heuristik-Abbau
+      id: E007
+      goal: Entfernung restriktiver Namens-/Strukturheuristiken
+      acceptance: - Liste entfernte Heuristiken dokumentiert - Regressionstests schützen kritische Fälle
+      depends: [E003]
+
+- [ ] EPIC-E008 Konfig-Bereinigung
+      id: E008
+      goal: Entfernte Properties aus `spocr.json` offiziell deklariert
+      acceptance: - CHANGELOG Abschnitt "Removed" - Upgrade Guide Eintrag
+      depends: [E004]
+
+- [ ] EPIC-E009 Auto Namespace Ermittlung
+      id: E009
+      goal: Automatisierte Namespace Generierung + Fallback
+      acceptance: - 90%+ Fälle ohne manuelle Angabe korrekt - Fallback Logik dokumentiert
+      depends: [E003]
+
+- [ ] EPIC-E010 Cutover Plan v5.0
+      id: E010
+      goal: Plan zur Entfernung Legacy DataContext
+      acceptance: - README / ROADMAP Eintrag - Timeline + Migrationsschritte
+      depends: [E004, E008]
+
+- [ ] EPIC-E011 Obsolete Markierungen
+      id: E011
+      goal: Alte Outputs als [Obsolet] markiert mit Klartext-Hinweis
+      acceptance: - Alle Legacy Artefakte dekoriert / kommentiert - Build Warnungen optional aktivierbar
+      depends: [E010]
+
+- [ ] EPIC-E012 Dokumentations-Update
+      id: E012
+      goal: Vollständige Doku für neuen Generator
+      acceptance: - Architektur, Migration, CLI Referenz - Samples verlinkt & aktuell
+      depends: [E004, E005, E006, E007, E008, E009]
+
+- [ ] EPIC-E013 Test-Suite Anpassung
+      id: E013
+      goal: Tests spiegeln neue Architektur & schützen Migration
+      acceptance: - Snapshot / Golden Master - Cover ≥ 80% Core
+      depends: [E005, E006, E007, E009]
+
+---
+
+### Operative Tasks aus EPICS (Detail-Aufgaben folgen unter thematischen Sektionen)
 
 ### Qualität & Tests
 
