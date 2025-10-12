@@ -132,6 +132,7 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] Alle als [Obsolet] markierten Typen enthalten klaren Hinweis & Migrationspfad
 - [ ] Dokumentierter Cut für v5.0 (Entfernung DataContext) in README / ROADMAP
 - [ ] Liste entfallener Konfig-Properties (Project.Role.Kind, RuntimeConnectionStringIdentifier, Project.Output) im Changelog
+- [ ] Migration von `spocr.json` auf `.env` / Environment Variablen dokumentiert (Mapping Tabelle)
 - [ ] Upgrade Guide (docs/5.roadmap oder eigener Pfad) erstellt
 - [ ] SemVer Bewertung durchgeführt (Minor vs. Major Bump begründet)
 
@@ -141,6 +142,9 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] Validierungsskript/Schema für spocr.json hinzugefügt oder aktualisiert
 - [ ] Debug-Konfigurationen (debug/\*.json) konsistent mit neuen Pfaden
 - [ ] Output-Pfade (Output/, Output-v5-0/, etc.) aufgeräumt / veraltete entfernt sofern Version >=5.0 (post-migration)
+- [ ] `.env` Beispieldatei hinzugefügt (Pfad: `samples/restapi/.env.example`) inkl. aller relevanten SPOCR\_\* Keys
+- [ ] Precedence dokumentiert: CLI > ENV > .env > (legacy) spocr.json (Fallback bis v5.0, danach entfernt)
+- [ ] `spocr pull` überschreibt lokale Konfiguration nicht mehr (nur interne Metadaten)
 
 ### Dokumentation
 
@@ -202,6 +206,8 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] CI Policy: Diffs sind informativ; Fail nur bei internen Fehlern (Nicht-Determinismus, Exceptions, fehlende erwartete Artefakte)
 - [ ] Diff Report erweitert um Sektion legacy vs. neuer Output
 - [ ] Exit Codes für Diff-Ergebnisse dokumentiert
+- [ ] Experimentelles System.CommandLine CLI Flag (`SPOCR_EXPERIMENTAL_CLI`) dokumentiert & getestet
+- [ ] Tests für EnvConfiguration Precedence & Invalid Mode vorhanden
 
 ### Sonstiges
 

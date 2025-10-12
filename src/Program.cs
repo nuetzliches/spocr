@@ -14,6 +14,7 @@ using SpocR.AutoUpdater;
 using System.IO;
 using SpocR.Services;
 using SpocR.Infrastructure;
+using SpocRVNext.Configuration;
 
 namespace SpocR;
 
@@ -48,6 +49,13 @@ public class Program
     /// </summary>
     public static async Task<int> RunCliAsync(string[] args)
     {
+        // Experimental vNext CLI (System.CommandLine) short-circuit if enabled
+        var experimentalExit = await ProgramVNextCLI.TryRunAsync(args);
+        if (experimentalExit != -999)
+        {
+            return experimentalExit;
+        }
+
         // Determine environment from environment variables
         string environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ??
                              Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ??
@@ -66,7 +74,19 @@ public class Program
         // Register configuration as a service
         services.AddSingleton<IConfiguration>(configuration);
 
-        // Register SpocR services
+        // Register EnvConfiguration (vNext config model – still coexists with legacy spocr.json consumers)
+        try
+        {
+            var envCfg = EnvConfiguration.Load();
+            services.AddSingleton(envCfg);
+        }
+        catch (Exception ex)
+        {
+            // Non-fatal: keep legacy path working even if env config incomplete
+            Console.Error.WriteLine($"[spocr vNext config warning] {ex.Message}");
+        }
+
+        // Register SpocR services (legacy + shared)
         services.AddSpocR();
         services.AddDbContext();
 
