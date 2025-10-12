@@ -110,7 +110,7 @@ EPICS Übersicht (oberste Steuerungsebene)
 
 - [ ] Alle bestehenden Unit- & Integrationstests grün (Tests.sln)
 - [ ] Neue Tests für SpocRVNext (Happy Path + Fehlerfälle + Regression für entfernte Heuristiken)
-- [ ] Snapshot-/Golden-Master-Vergleich für generierten Code (alter DataContext vs. neuer Output) aktualisiert
+- [ ] (Optional) Info-Diff zwischen Legacy und neuem Output generiert (kein Paritäts-Zwang)
 - [ ] Automatisierte Qualitäts-Gates (eng/quality-gates.ps1) lokal und in CI erfolgreich
 - [ ] Test-Hosts nach Läufen bereinigt (eng/kill-testhosts.ps1) – kein Leak mehr
 - [ ] Code Coverage Mindestschwelle definiert und erreicht (Ziel: >80% Core-Logik)
@@ -124,7 +124,7 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] Neuer `SpocRDbContext` implementiert inkl. moderner DI Patterns & Minimal API Extensions
 - [ ] Parallel-Erzeugung alter (DataContext) und neuer (SpocRVNext) Outputs in v4.5 stabil
 - [ ] Schalter/Feature-Flag zum Aktivieren des neuen Outputs vorhanden (CLI Parameter oder Konfig)
-- [ ] Konsistenz-Check für generierte Dateien (deterministische Generierung: gleiche Eingabe => gleiche Ausgabe)
+- [ ] Konsistenz-Check für generierte Dateien (Determinismus pro Generator; keine Legacy-Paritäts-Pflicht)
 - [ ] Performance Messung: Generierungsdauer dokumentiert (Baseline vs. Neuer Ansatz)
 
 ### Migration / Breaking Changes
@@ -196,6 +196,12 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] Fail-Fast bei unerwarteten Generator-Änderungen (Diff Threshold)
 - [ ] QA Skripte (eng/\*.ps1) in README oder DEVELOPMENT.md referenziert
 - [ ] Caching/Restore Mechanismen (NuGet, Bun) effizient konfiguriert
+- [ ] ENV/CLI Flag für Generation definiert (`SPOCR_GENERATOR_MODE=dual|legacy|next` + `spocr generate --mode`) – Default in v4.5 = `dual`
+- [ ] Allow-List Datei `.spocr-diff-allow` existiert (Zweck: bewusst erlaubte Abweichungen / transiente Differences whitelisten, um CI Lärm zu reduzieren)
+- [ ] SHA256 Hashing der generierten Dateien implementiert (Determinismus-Nachweis)
+- [ ] CI Policy: Diffs sind informativ; Fail nur bei internen Fehlern (Nicht-Determinismus, Exceptions, fehlende erwartete Artefakte)
+- [ ] Diff Report erweitert um Sektion legacy vs. neuer Output
+- [ ] Exit Codes für Diff-Ergebnisse dokumentiert
 
 ### Sonstiges
 
@@ -203,8 +209,8 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] Offene TODO Kommentare bewertet / priorisiert / entfernt falls nicht mehr nötig
 - [ ] Issue Tracker Abgleich: Alle Items dieses Releases geschlossen oder verschoben
 - [ ] Technische Schuldenliste aktualisiert
-
 - [ ] (Regel) Implementierung IN CODE vollständig auf Englisch (Kommentare, öffentliche/ interne Bezeichner) – Ausnahme: `CHECKLIST.md` bleibt deutsch
 - [ ] (Regel) Keine "VNext" Namensbestandteile in Klassen / Dateien / Properties – Trennung ausschließlich über Ordner & Namespace `SpocRVNext`
+- [ ] (Prinzip) Qualität & Wartbarkeit des neuen Outputs > strikte Rückwärtskompatibilität (Breaking Changes sind erlaubt, sofern dokumentiert und migrierbar)
 
 ... (bei Bedarf weiter ergänzen) ...

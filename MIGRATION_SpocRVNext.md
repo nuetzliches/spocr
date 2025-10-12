@@ -33,12 +33,22 @@ Fallback: Default namespace `SpocR.Generated` (tbd).
 ## Dual Generation
 
 - Legacy output remains deterministic (no refactoring)
-- New output generated in parallel and validated via snapshot diffs
+- New output is generated in parallel for observability (not to enforce bit‑for‑bit parity)
+- Principle: Quality & improved design of new output > strict non‑breaking parity. Breaking changes are acceptable when documented & justified.
+- Guard rails / Tasks (updated):
+  - Feature flag: env `SPOCR_GENERATOR_MODE=dual|legacy|next` (default in v4.5 = `dual`)
+  - CLI flag: `spocr generate --mode <mode>` (falls back to env)
+  - Idempotency focus applies only to each generator individually (legacy determinism, new determinism) – no requirement for cross-generator identical hash
+  - Diff report may highlight differences but is informational; CI must NOT fail solely on semantic/structural improvements
+  - Allow‑list file `.spocr-diff-allow` (glob) optional; can silence known churn while refactoring internals (purely advisory now)
+  - Document every intentional breaking change in CHANGELOG (Added/Changed/Removed/Deprecated) and migration guide
+  - Failure policy: CI fails if new files missing or structural drift detected (hash mismatch & not in allow-list)
+  - Logging: Summarize counts (added/removed/changed) with exit code mapping
 
 ## Tests
 
-- Snapshot / golden master ensures functional parity
-- Regression tests for removed heuristics
+- Focus: Functional correctness and stability of new generator (not legacy parity)
+- Regression tests for removed heuristics (ensure no unintended fallback regressions)
 - Coverage target: >= 80% core components (template engine, parser, orchestrator)
 
 ## Risks & Mitigation
