@@ -5,6 +5,7 @@ using Microsoft.CodeAnalysis.Text;
 using SpocR.CodeGenerators.Base;
 using SpocR.CodeGenerators.Utils;
 using SpocR.Contracts;
+using SpocR.Enums;
 using SpocR.Managers;
 using SpocR.Models;
 using SpocR.Services;
@@ -24,6 +25,14 @@ public class CrudResultGenerator(
 {
     public async Task GenerateAsync(bool isDryRun)
     {
+        // Für Extension-Rollen keine lokale CrudResult.cs mehr erzeugen – Extensions sollen OUTPUT Modelle verwenden.
+#pragma warning disable CS0618
+        if (ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Extension)
+        {
+            ConsoleService.Verbose("[CrudResult] Skipping generation for Extension role (use <ProcName>Output models instead).");
+            return;
+        }
+#pragma warning restore CS0618
         try
         {
             var modelsRoot = DirectoryUtils.GetWorkingDirectory(ConfigFile.Config.Project.Output.DataContext.Path, ConfigFile.Config.Project.Output.DataContext.Models.Path);
