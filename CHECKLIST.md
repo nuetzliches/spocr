@@ -155,6 +155,12 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] CHANGELOG.md Einträge für jede relevante Änderung ergänzt (Added/Changed/Removed/Deprecated/Migration Notes)
 - [ ] DEVELOPMENT.md enthält und pflegt kuratierte Entwicklungs-Commands (Build, Codegen, Tests, Diffs, Cleanup) – Liste aktuell und wird vor PR zum master bereinigt.
 - [ ] Samples/README verlinkt auf aktualisierte Doku
+- [ ] Docs aktualisiert für v4.5 als Übergangsrelease (Kennzeichnung 'v4.5 (Bridge Phase)')
+- [ ] Version-Schalter (docs/content config) vorbereitet: aktuelle v4.5 + zukünftige v5 Platzhalter
+- [ ] Inhalte mit Versions-Hinweisen versehen (Abschnitt 'Gilt für: v4.5' / 'Ändert sich in v5')
+- [ ] Platzhalter-Seiten für v5 Unterschiede angelegt (Migration, API Changes, Entfernte Heuristiken)
+- [ ] content.config.ts erweitert um Versions-Metadaten (z.B. versions: ['4.5','5.0'])
+- [ ] Hinweisbanner in v4.5 Seiten: "Sie lesen die v4.5 Dokumentation – v5 in Vorbereitung"
 
 ### Samples / Demo (samples/restapi)
 
@@ -211,10 +217,27 @@ EPICS Übersicht (oberste Steuerungsebene)
 ### Auto-Update / Upgrade Safety
 
 - [x] Major-Bridge Policy implementiert (Block direkte Major-Sprünge ohne `SPOCR_ALLOW_DIRECT_MAJOR`)
-- [ ] README / CHANGELOG Hinweis zur Bridge Policy ergänzen
-- [ ] Testfall für geblocktes Major Update + Override hinzufügen
+- [ ] README Hinweis zur Bridge Policy ergänzen (CHANGELOG Eintrag vorhanden)
+- [x] Testfall für geblocktes Major Update + Override hinzugefügt (`BridgePolicyTests`)
+- [ ] Weitere Tests: Minor Update erlaubt, SkipVersion respektiert, Direkt-Major mit Override protokolliert
+- [ ] Dokumentation Env Override Beispiele (`SPOCR_ALLOW_DIRECT_MAJOR=1`) in README / MIGRATION Guide
 
-- [ ] Tests für EnvConfiguration Precedence & Invalid Mode vorhanden
+- [ ] Tests für EnvConfiguration Precedence & Invalid Mode vorhanden - [ ] Test: CLI > ENV > .env > spocr.json Fallback greift - [ ] Test: Ungültiger Mode in `SPOCR_GENERATOR_MODE` führt zu sinnvollem Fehler / Fallback - [ ] Test: Experimental CLI Flag (`SPOCR_EXPERIMENTAL_CLI`) aktiviert neuen Parser nur bei gesetztem Flag
+
+### Nullable & Codequalität (Ergänzung)
+
+- [x] Globale Nullable aktiviert + Legacy-Unterdrückung via `.editorconfig`
+- [x] Selektive Reaktivierung für `SpocRVNext` und neue CLI Entry Points
+- [ ] Phase 2: Schrittweises Entfernen alter Suppressions (Tracking Liste)
+- [ ] Phase 3: CI Eskalation (`SPOCR_STRICT_NULLABLE=1`) dokumentiert & aktiviert
+
+### Observability / Diff (Ergänzung)
+
+- [x] Hash-Manifeste erzeugt (SHA256) pro Output
+- [x] Diff-Report + Allow-List Mechanismus vorhanden
+- [ ] Aktivierung reservierter Exit Codes (21–23) bei Policy-Eskalation implementieren
+- [ ] Dokumentation: Anleitung zur Pflege der Allow-List (`.spocr-diff-allow`)
+- [ ] Optionaler "strict-diff" Modus über ENV / CLI Flag getestet
 
 ### Sonstiges
 
