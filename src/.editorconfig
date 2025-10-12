@@ -2,3 +2,14 @@
 
 # CS9107: Parameter is captured into the state of the enclosing type and its value is also passed to the base constructor. The value might be captured by the base class as well.
 dotnet_diagnostic.CS9107.severity = none
+
+# Nullable flow analysis baseline: keep warnings as warnings (not errors yet)
+# To escalate specific warnings later, uncomment and adjust below:
+# dotnet_analyzer_diagnostic.category-NullableAnalysis.severity = warning
+# Example targeted escalation (once codebase is clean):
+# dotnet_diagnostic.CS8602.severity = error   # Dereference of a possibly null reference
+# dotnet_diagnostic.CS8603.severity = error   # Possible null reference return
+# dotnet_diagnostic.CS8618.severity = warning # Non-nullable field uninitialized (could escalate later)
+
+# Suppress redundant suggestions if needed (example):
+# dotnet_diagnostic.IDE0044.severity = silent

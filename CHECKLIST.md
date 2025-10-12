@@ -119,12 +119,12 @@ EPICS Übersicht (oberste Steuerungsebene)
 ### Codegenerierung / SpocRVNext
 
 - [ ] Template Engine Grundgerüst fertig (ohne Roslyn Abhängigkeiten)
-- [ ] Ermittlung des Namespaces automatisiert und dokumentierte Fallback-Strategie vorhanden
+- [x] Ermittlung des Namespaces automatisiert und dokumentierte Fallback-Strategie vorhanden
 - [ ] Entfernte Spezifikationen/Heuristiken sauber entfernt und CHANGELOG Eintrag erstellt
 - [ ] Neuer `SpocRDbContext` implementiert inkl. moderner DI Patterns & Minimal API Extensions
-- [ ] Parallel-Erzeugung alter (DataContext) und neuer (SpocRVNext) Outputs in v4.5 stabil
-- [ ] Schalter/Feature-Flag zum Aktivieren des neuen Outputs vorhanden (CLI Parameter oder Konfig)
-- [ ] Konsistenz-Check für generierte Dateien (Determinismus pro Generator; keine Legacy-Paritäts-Pflicht)
+- [x] Parallel-Erzeugung alter (DataContext) und neuer (SpocRVNext) Outputs in v4.5 (Demo/Beobachtungsmodus) implementiert
+- [x] Schalter/Feature-Flag zum Aktivieren des neuen Outputs vorhanden (CLI Parameter oder Konfig)
+- [x] Konsistenz-Check für generierte Dateien (Determinismus pro Generator; keine Legacy-Paritäts-Pflicht) – Hash Manifeste vorhanden (noch keine harte Policy)
 - [ ] Performance Messung: Generierungsdauer dokumentiert (Baseline vs. Neuer Ansatz)
 
 ### Migration / Breaking Changes
@@ -201,12 +201,19 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] QA Skripte (eng/\*.ps1) in README oder DEVELOPMENT.md referenziert
 - [ ] Caching/Restore Mechanismen (NuGet, Bun) effizient konfiguriert
 - [ ] ENV/CLI Flag für Generation definiert (`SPOCR_GENERATOR_MODE=dual|legacy|next` + `spocr generate --mode`) – Default in v4.5 = `dual`
-- [ ] Allow-List Datei `.spocr-diff-allow` existiert (Zweck: bewusst erlaubte Abweichungen / transiente Differences whitelisten, um CI Lärm zu reduzieren)
-- [ ] SHA256 Hashing der generierten Dateien implementiert (Determinismus-Nachweis)
-- [ ] CI Policy: Diffs sind informativ; Fail nur bei internen Fehlern (Nicht-Determinismus, Exceptions, fehlende erwartete Artefakte)
-- [ ] Diff Report erweitert um Sektion legacy vs. neuer Output
-- [ ] Exit Codes für Diff-Ergebnisse dokumentiert
-- [ ] Experimentelles System.CommandLine CLI Flag (`SPOCR_EXPERIMENTAL_CLI`) dokumentiert & getestet
+- [x] Allow-List Datei `.spocr-diff-allow` unterstützt (Glob) – optional, nur Noise-Reduktion
+- [x] SHA256 Hashing der generierten Dateien implementiert (Determinismus-Nachweis)
+- [x] CI Policy: Diffs aktuell rein informativ (Relaxed Mode) – zukünftige Eskalation geplant
+- [x] Diff Report erweitert (diff-summary.txt) legacy vs. neuer Output
+- [x] Exit Codes für Diff-/Integritäts-Ergebnisse reserviert (21–23) & dokumentiert (noch nicht aktiviert im Relaxed Mode)
+- [x] Experimentelles System.CommandLine CLI Flag (`SPOCR_EXPERIMENTAL_CLI`) dokumentiert & getestet
+
+### Auto-Update / Upgrade Safety
+
+- [x] Major-Bridge Policy implementiert (Block direkte Major-Sprünge ohne `SPOCR_ALLOW_DIRECT_MAJOR`)
+- [ ] README / CHANGELOG Hinweis zur Bridge Policy ergänzen
+- [ ] Testfall für geblocktes Major Update + Override hinzufügen
+
 - [ ] Tests für EnvConfiguration Precedence & Invalid Mode vorhanden
 
 ### Sonstiges

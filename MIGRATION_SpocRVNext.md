@@ -90,8 +90,20 @@ Notes:
 
 ## Namespace Resolution
 
-Automatic derivation from project root & (if present) explicit overrides.
-Fallback: Default namespace `SpocR.Generated` (tbd).
+Implemented via `NamespaceResolver` (v4.5).
+
+Resolution order:
+
+1. Explicit environment variable `SPOCR_NAMESPACE`
+2. `<RootNamespace>` from the primary csproj (if defined)
+3. `<AssemblyName>` from the primary csproj (if defined)
+4. Project file name (sans extension)
+5. Fallback constant `SpocR.Generated`
+
+Notes:
+
+- A warning is logged if the final fallback (5) is used – treat this as a configuration smell.
+- Future: fine‑grained per‑module overrides (post cutover) – out of current scope.
 
 ## Dual Generation
 
@@ -158,9 +170,26 @@ Fallback: Default namespace `SpocR.Generated` (tbd).
 
 ### Diff / Observability Policy
 
-- Diff reports are informational; they do not gate merges unless integrity violations occur (missing expected output, non-deterministic generation, unhandled exceptions).
-- Allow-list only suppresses known transient noise (formatting, comment headers) – not a substitute for documenting breaking changes.
-- Hashing used to prove intra-generator determinism; no cross-generator hash comparison mandated.
+Status: Relaxed ("weiter-relaxed" selection) – implemented in `DualGenerationDispatcher` + `DirectoryDiff`.
+
+Principles:
+
+1. Informational first: structural differences (added/removed/changed counts) are reported, not failed.
+2. Determinism focus: Each generator must be individually deterministic (hash manifest per run) – non-determinism MAY raise dedicated exit code once enforcement added.
+3. Allow-list: `.spocr-diff-allow` (glob patterns) filters known/accepted churn from the "changed" set for noise reduction only.
+4. Exit Codes reserved (21–23) for future enforcement (non-determinism, missing artifacts, diff anomalies) – currently not triggered in relaxed mode.
+5. Documentation > Parity: Breaking functional improvements proceed with clear CHANGELOG/Migration entries; we do not chase cosmetic parity.
+
+Artifacts:
+
+- `debug/codegen-demo/manifest-legacy.json` and `manifest-next.json` (SHA256 per file + aggregate hash)
+- `debug/codegen-demo/diff-summary.txt` (counts + allow-list info)
+
+Planned escalation path:
+
+- Phase 1 (current): Informational only
+- Phase 2: Warn on non-determinism or missing expected core artifacts
+- Phase 3 (opt-in): Fail CI for integrity violations (not semantic diffs)
 
 ### Future Enhancements (Tracked Separately)
 
@@ -170,3 +199,28 @@ Fallback: Default namespace `SpocR.Generated` (tbd).
 
 Last updated: 2025-10-12 (decisions section added)
 Last updated: 2025-10-12
+
+## Auto-Update Gating (Major Bridge Policy)
+
+Implemented: Direct major jumps are suppressed unless explicitly allowed.
+
+Logic (in `AutoUpdaterService.ShouldOfferUpdate`):
+
+1. If latest version <= current: no offer.
+2. If `SkipVersion` matches latest: no offer.
+3. If `latest.Major > current.Major` and env `SPOCR_ALLOW_DIRECT_MAJOR` is NOT truthy (1/true/yes/on) → suppress offer and emit guidance to first upgrade to the latest minor of the current major (bridge release).
+4. Otherwise: offer update.
+
+Rationale:
+
+- Encourages incremental adoption & migration steps, reducing support risk.
+- Ensures users encounter deprecation warnings before disruptive jumps.
+
+Override:
+
+- Set `SPOCR_ALLOW_DIRECT_MAJOR=1` (or true/yes/on) to bypass (e.g. for automated integration testing or controlled environments).
+
+Documentation TODO:
+
+- Add CHANGELOG entry once released.
+- Add brief note to README upgrade section.

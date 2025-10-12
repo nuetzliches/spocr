@@ -7,6 +7,9 @@ namespace SpocR.Infrastructure;
 ///  0   : Success
 /// 10   : Validation/User Error
 /// 20   : Generation Error
+/// 21   : Generation Non-Deterministic (hash drift)
+/// 22   : Generation Missing Artifact
+/// 23   : Generation Diff Anomaly (unexpected structural diff)
 /// 30   : Dependency / External Error
 /// 40   : Test Failure (aggregate; future: 41 unit, 42 integration, 43 validation)
 /// 41   : Unit Test Failure
@@ -28,6 +31,15 @@ public static class ExitCodes
 
     /// <summary>Code generation pipeline error.</summary>
     public const int GenerationError = 20;
+
+    /// <summary>Code generation produced non-deterministic output (hash mismatch across runs).</summary>
+    public const int GenerationNonDeterministic = 21;
+
+    /// <summary>Expected generated artifact missing.</summary>
+    public const int GenerationMissingArtifact = 22;
+
+    /// <summary>Unexpected structural diff detected (outside allow-list / policy).</summary>
+    public const int GenerationDiffAnomaly = 23;
 
     /// <summary>External dependency / environment / network / database failure.</summary>
     public const int DependencyError = 30;

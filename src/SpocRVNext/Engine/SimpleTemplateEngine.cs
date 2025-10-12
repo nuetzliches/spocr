@@ -3,8 +3,6 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace SpocR.SpocRVNext.Engine;
-
-#nullable enable
 /// <summary>
 /// Very small placeholder engine: {{ PropertyName }} is replaced by its value.
 /// Not meant for complex logic; intentionally minimal.
@@ -53,4 +51,3 @@ public sealed class SimpleTemplateEngine : ITemplateRenderer
         return true;
     }
 }
-#nullable restore

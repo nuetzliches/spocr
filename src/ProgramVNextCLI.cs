@@ -8,8 +8,6 @@ using SpocR.SpocRVNext;
 using SpocRVNext.Configuration;
 using SpocR.Telemetry;
 
-#nullable enable
-
 namespace SpocR;
 
 /// <summary>
@@ -64,6 +62,25 @@ internal static class ProgramVNextCLI
         }, modeOption);
 
         root.Add(demoCommand);
+
+        var generateNextCommand = new Command("generate-next", "Generate demo outputs (legacy/next) and hash manifest (experimental)")
+        {
+            modeOption
+        };
+        generateNextCommand.SetHandler((string? mode) =>
+        {
+            var services = new ServiceCollection();
+            services.AddSingleton<SpocR.SpocRVNext.Engine.ITemplateRenderer, SpocR.SpocRVNext.Engine.SimpleTemplateEngine>();
+            using var provider = services.BuildServiceProvider();
+            var envOverrides = new System.Collections.Generic.Dictionary<string, string?>();
+            if (!string.IsNullOrWhiteSpace(mode)) envOverrides["SPOCR_GENERATOR_MODE"] = mode;
+            var cfg = EnvConfiguration.Load(cliOverrides: envOverrides);
+            var dispatcher = new SpocR.SpocRVNext.DualGenerationDispatcher(cfg, provider.GetRequiredService<SpocR.SpocRVNext.Engine.ITemplateRenderer>());
+            var message = dispatcher.ExecuteDemo();
+            Console.WriteLine(message);
+            Console.WriteLine("Hash manifest (if next output) written under debug/codegen-demo/next/manifest.hash.json");
+        }, modeOption);
+        root.Add(generateNextCommand);
 
         var builder = new CommandLineBuilder(root)
             .UseDefaults();

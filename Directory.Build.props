@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project>
+  <!-- Central build customizations.
+       Nullable is already enabled in SpocR.csproj. This file prepares optional escalation to treat
+       nullable warnings as errors in CI without impacting local dev (opt-in via environment variable). -->
+  <PropertyGroup>
+    <!-- When set (e.g. in CI), convert all nullable warnings to errors. Example in GitHub Actions:
+         env: SPOCR_STRICT_NULLABLE=1 -->
+    <TreatWarningsAsErrors Condition="'$(SPOCR_STRICT_NULLABLE)' == '1'">true</TreatWarningsAsErrors>
+  </PropertyGroup>
+</Project>

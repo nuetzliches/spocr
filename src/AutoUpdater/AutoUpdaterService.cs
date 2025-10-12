@@ -157,13 +157,31 @@ public class AutoUpdaterService(
         return false;
     }
 
+    private bool AllowDirectMajor()
+    {
+        var val = Environment.GetEnvironmentVariable("SPOCR_ALLOW_DIRECT_MAJOR");
+        if (string.IsNullOrWhiteSpace(val)) return false;
+        val = val.Trim().ToLowerInvariant();
+        return val is "1" or "true" or "yes" or "on";
+    }
+
     /// <summary>
     /// Determines whether an update should be offered
     /// </summary>
     private bool ShouldOfferUpdate(Version latestVersion)
     {
         var skipThisUpdate = latestVersion.ToVersionString() == _globalConfigFile.Config.AutoUpdate.SkipVersion;
-        return !skipThisUpdate && latestVersion.IsGreaterThan(_spocrService.Version);
+        if (skipThisUpdate) return false;
+        if (!latestVersion.IsGreaterThan(_spocrService.Version)) return false;
+
+        // Bridge policy: require latest minor of current major before offering next major unless override
+        if (!AllowDirectMajor() && latestVersion.Major > _spocrService.Version.Major)
+        {
+            _consoleService.Info($"Major upgrade {latestVersion.Major}.x detected. Please first update to the latest {_spocrService.Version.Major}.x (bridge release) before moving to {latestVersion.Major}.x.");
+            _consoleService.Info("Set SPOCR_ALLOW_DIRECT_MAJOR=1 to override this policy (not recommended).\n");
+            return false;
+        }
+        return true;
     }
 
     /// <summary>

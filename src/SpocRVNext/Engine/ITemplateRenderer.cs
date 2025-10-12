@@ -1,6 +1,5 @@
 namespace SpocR.SpocRVNext.Engine;
 
-#nullable enable
 public interface ITemplateRenderer
 {
     /// <summary>
@@ -11,4 +10,3 @@ public interface ITemplateRenderer
     /// <returns>Rendered text.</returns>
     string Render(string template, object? model);
 }
-#nullable restore
