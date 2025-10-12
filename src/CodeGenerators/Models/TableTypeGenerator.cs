@@ -83,35 +83,46 @@ public class TableTypeGenerator(
 
     public async Task GenerateDataContextTableTypesAsync(bool isDryRun)
     {
-        // Ensure ITableType interface (template: ITableType.base.cs) is materialized once into DataContext/TableTypes root (drop .base)
-        try
+        // Ensure ITableType interface nur für Nicht-Extension Rollen.
+        // Extensions sollen die Definition aus dem LibNamespace referenzieren und keine lokale Kopie erzeugen.
+        var skipITableType = false;
+#pragma warning disable CS0618
+        if (ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Extension)
         {
-            var tableTypesRoot = DirectoryUtils.GetWorkingDirectory(ConfigFile.Config.Project.Output.DataContext.Path, ConfigFile.Config.Project.Output.DataContext.TableTypes.Path);
-            if (!Directory.Exists(tableTypesRoot) && !isDryRun)
+            skipITableType = true;
+            ConsoleService.Verbose("[tabletypes] Skipping ITableType.cs generation for Extension role (uses Lib namespace).");
+        }
+#pragma warning restore CS0618
+        if (!skipITableType)
+        {
+            try
             {
-                Directory.CreateDirectory(tableTypesRoot);
-            }
-            var interfaceTemplatePath = Path.Combine(Output.GetOutputRootDir().FullName, "DataContext", "TableTypes", "ITableType.base.cs");
-            var interfaceTargetPath = Path.Combine(tableTypesRoot, "ITableType.cs");
-            if (File.Exists(interfaceTemplatePath))
-            {
-                if (!File.Exists(interfaceTargetPath))
+                var tableTypesRoot = DirectoryUtils.GetWorkingDirectory(ConfigFile.Config.Project.Output.DataContext.Path, ConfigFile.Config.Project.Output.DataContext.TableTypes.Path);
+                if (!Directory.Exists(tableTypesRoot) && !isDryRun)
                 {
-                    var raw = await File.ReadAllTextAsync(interfaceTemplatePath);
-                    // Replace Source.DataContext with configured namespace (root, no schema segment)
-                    var configuredRootNs = ConfigFile.Config.Project.Output.Namespace?.Trim();
-                    if (string.IsNullOrWhiteSpace(configuredRootNs)) throw new InvalidOperationException("Missing Project.Output.Namespace");
-                    var targetNs = ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib
-                        ? $"{configuredRootNs}.TableTypes"
-                        : $"{configuredRootNs}.DataContext.TableTypes";
-                    raw = raw.Replace("namespace Source.DataContext.TableTypes", $"namespace {targetNs}");
-                    await Output.WriteAsync(interfaceTargetPath, SourceText.From(raw), isDryRun);
+                    Directory.CreateDirectory(tableTypesRoot);
+                }
+                var interfaceTemplatePath = Path.Combine(Output.GetOutputRootDir().FullName, "DataContext", "TableTypes", "ITableType.base.cs");
+                var interfaceTargetPath = Path.Combine(tableTypesRoot, "ITableType.cs");
+                if (File.Exists(interfaceTemplatePath))
+                {
+                    if (!File.Exists(interfaceTargetPath))
+                    {
+                        var raw = await File.ReadAllTextAsync(interfaceTemplatePath);
+                        var configuredRootNs = ConfigFile.Config.Project.Output.Namespace?.Trim();
+                        if (string.IsNullOrWhiteSpace(configuredRootNs)) throw new InvalidOperationException("Missing Project.Output.Namespace");
+                        var targetNs = ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib
+                            ? $"{configuredRootNs}.TableTypes"
+                            : $"{configuredRootNs}.DataContext.TableTypes";
+                        raw = raw.Replace("namespace Source.DataContext.TableTypes", $"namespace {targetNs}");
+                        await Output.WriteAsync(interfaceTargetPath, SourceText.From(raw), isDryRun);
+                    }
                 }
             }
-        }
-        catch (Exception itx)
-        {
-            ConsoleService.Verbose($"[tabletypes] Skipped ITableType generation: {itx.Message}");
+            catch (Exception itx)
+            {
+                ConsoleService.Verbose($"[tabletypes] Skipped ITableType generation: {itx.Message}");
+            }
         }
 
         var schemas = metadataProvider.GetSchemas()

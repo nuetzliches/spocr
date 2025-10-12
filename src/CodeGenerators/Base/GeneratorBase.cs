@@ -114,16 +114,41 @@ public abstract class GeneratorBase
     protected CompilationUnitSyntax AddTableTypeImport(CompilationUnitSyntax root, string tableTypeSchema)
     {
         var tableTypeSchemaConfig = ConfigFile.Config.Schema.Find(s => s.Name.Equals(tableTypeSchema));
-        // is schema of table type ignored and its an extension?
-        var useFromLib = tableTypeSchemaConfig?.Status != SchemaStatusEnum.Build
-            && ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Extension;
+        // Entscheidungslogik:
+        // 1. Lib-Projekte: <OutputNs>.TableTypes.<Schema>
+        // 2. Nicht-Lib (Default/Extension) Build-Schema: <OutputNs>.DataContext.TableTypes.<Schema>
+        // 3. Extension + Nicht-Build-Schema (wird aus Lib konsumiert): <LibNamespace>.TableTypes.<Schema>
+        bool isBuild = tableTypeSchemaConfig?.Status == SchemaStatusEnum.Build;
+#pragma warning disable CS0618
+        bool isExtension = ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Extension;
+        bool isLib = ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib;
+#pragma warning restore CS0618
 
-        var paramUsingDirective = useFromLib
-                            ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Role.LibNamespace}.TableTypes.{tableTypeSchema.FirstCharToUpper()}"))
-                            : ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib
-                                ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.TableTypes.{tableTypeSchema.FirstCharToUpper()}"))
-                                : SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.DataContext.TableTypes.{tableTypeSchema.FirstCharToUpper()}"));
-        return root.AddUsings(paramUsingDirective);
+        UsingDirectiveSyntax paramUsingDirective;
+        if (isLib)
+        {
+            paramUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.TableTypes.{tableTypeSchema.FirstCharToUpper()}"));
+            return root.AddUsings(paramUsingDirective);
+        }
+
+        if (isExtension)
+        {
+            // Für Extensions ausschliesslich das lokale DataContext TableTypes Namespace importieren
+            var localUsing = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.DataContext.TableTypes.{tableTypeSchema.FirstCharToUpper()}"));
+            if (!root.Usings.Any(u => u.Name.ToString() == localUsing.Name.ToString()))
+            {
+                root = root.AddUsings(localUsing);
+            }
+            return root;
+        }
+
+        // Default (nicht Lib, nicht Extension)
+        paramUsingDirective = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.DataContext.TableTypes.{tableTypeSchema.FirstCharToUpper()}"));
+        if (!root.Usings.Any(u => u.Name.ToString() == paramUsingDirective.Name.ToString()))
+        {
+            root = root.AddUsings(paramUsingDirective);
+        }
+        return root;
     }
 
     /// <summary>

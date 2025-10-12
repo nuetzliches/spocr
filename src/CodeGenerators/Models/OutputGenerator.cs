@@ -34,46 +34,53 @@ public class OutputGenerator(
 {
     public async Task GenerateDataContextOutputsAsync(bool isDryRun)
     {
-        // If project is an Extension, we do NOT generate DataContext Outputs models locally.
-        // Extension projects are expected to reference the Output models from the referenced Lib namespace.
         // Suppress obsolete warning for Role.Kind usage (still required until v5 removal)
+#pragma warning disable CS0618
+        // if (ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Extension) { ... } // (Intentional no-op: we now allow generation.)
+#pragma warning restore CS0618
+
+        // Ensure single Outputs.cs nur für Nicht-Extension-Rollen.
+        // Extensions referenzieren die gemeinsame Outputs-Basisklasse aus dem LibNamespace und erzeugen deshalb keine lokale Sammeldatei.
+        var skipBootstrap = false;
 #pragma warning disable CS0618
         if (ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Extension)
         {
-            ConsoleService.Verbose("[outputs] Skipping DataContext Outputs generation for Extension role (consumes Lib outputs).");
-            return; // nothing to do
+            skipBootstrap = true;
+            ConsoleService.Verbose("[outputs] Skipping Outputs.cs bootstrap generation for Extension role (uses Lib namespace).");
         }
 #pragma warning restore CS0618
 
-        // Ensure single Outputs.cs (merging previous base/partial approach)
-        try
+        if (!skipBootstrap)
         {
-            var outputsRoot = DirectoryUtils.GetWorkingDirectory(ConfigFile.Config.Project.Output.DataContext.Path, ConfigFile.Config.Project.Output.DataContext.Outputs.Path);
-            if (!Directory.Exists(outputsRoot) && !isDryRun)
+            try
             {
-                Directory.CreateDirectory(outputsRoot);
-            }
+                var outputsRoot = DirectoryUtils.GetWorkingDirectory(ConfigFile.Config.Project.Output.DataContext.Path, ConfigFile.Config.Project.Output.DataContext.Outputs.Path);
+                if (!Directory.Exists(outputsRoot) && !isDryRun)
+                {
+                    Directory.CreateDirectory(outputsRoot);
+                }
 
-            var outputsFilePath = Path.Combine(outputsRoot, "Outputs.cs");
-            var templatePath = File.Exists(Path.Combine(outputsRoot, "Outputs.base.cs")) ? "Outputs/Outputs.base.cs" : "Outputs/Outputs.base.cs"; // fallback always the same for now
-            var outputsTemplate = await templateManager.GetProcessedTemplateAsync(templatePath, string.Empty, "Outputs");
-            await Output.WriteAsync(outputsFilePath, TemplateManager.GenerateSourceText(outputsTemplate), isDryRun);
+                var outputsFilePath = Path.Combine(outputsRoot, "Outputs.cs");
+                var templatePath = File.Exists(Path.Combine(outputsRoot, "Outputs.base.cs")) ? "Outputs/Outputs.base.cs" : "Outputs/Outputs.base.cs"; // fallback always the same for now
+                var outputsTemplate = await templateManager.GetProcessedTemplateAsync(templatePath, string.Empty, "Outputs");
+                await Output.WriteAsync(outputsFilePath, TemplateManager.GenerateSourceText(outputsTemplate), isDryRun);
 
-            // Remove legacy files if present
-            var legacyBase = Path.Combine(outputsRoot, "Outputs.base.cs");
-            if (File.Exists(legacyBase) && !isDryRun)
-            {
-                try { File.Delete(legacyBase); ConsoleService.Verbose("[outputs] Removed legacy Outputs.base.cs"); } catch { /* ignore */ }
+                // Remove legacy files if present
+                var legacyBase = Path.Combine(outputsRoot, "Outputs.base.cs");
+                if (File.Exists(legacyBase) && !isDryRun)
+                {
+                    try { File.Delete(legacyBase); ConsoleService.Verbose("[outputs] Removed legacy Outputs.base.cs"); } catch { /* ignore */ }
+                }
+                var legacyPartial = Path.Combine(outputsRoot, "Outputs.partial.cs");
+                if (File.Exists(legacyPartial) && !isDryRun)
+                {
+                    try { File.Delete(legacyPartial); ConsoleService.Verbose("[outputs] Removed legacy Outputs.partial.cs"); } catch { /* ignore */ }
+                }
             }
-            var legacyPartial = Path.Combine(outputsRoot, "Outputs.partial.cs");
-            if (File.Exists(legacyPartial) && !isDryRun)
+            catch (Exception ex)
             {
-                try { File.Delete(legacyPartial); ConsoleService.Verbose("[outputs] Removed legacy Outputs.partial.cs"); } catch { /* ignore */ }
+                ConsoleService.Warn($"[outputs] Failed ensuring Outputs.cs file: {ex.Message}");
             }
-        }
-        catch (Exception ex)
-        {
-            ConsoleService.Warn($"[outputs] Failed ensuring Outputs.cs file: {ex.Message}");
         }
 
         // Iterate schemas that are in build scope and actually have SPs with output params
@@ -125,6 +132,17 @@ public class OutputGenerator(
                     ConsoleService.Warn($"[outputs] Template root for {className} missing namespace – skipping.");
                     continue;
                 }
+                // Add lib outputs using when we are in an Extension role so that the base Output type
+                // is resolved from the referenced Lib namespace (instead of a locally generated one)
+#pragma warning disable CS0618
+                if (ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Extension && !root.Usings.Any(u => u.Name.ToString().Equals($"{ConfigFile.Config.Project.Role.LibNamespace}.Outputs", StringComparison.Ordinal)))
+                {
+                    var libOutputsUsing = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Role.LibNamespace}.Outputs"));
+                    root = root.AddUsings(libOutputsUsing).NormalizeWhitespace();
+                    // Refresh nsNode reference after mutation
+                    nsNode = root.Members[0] as BaseNamespaceDeclarationSyntax;
+                }
+#pragma warning restore CS0618
                 var classNode = nsNode.Members.OfType<ClassDeclarationSyntax>().FirstOrDefault();
                 if (classNode == null)
                 {

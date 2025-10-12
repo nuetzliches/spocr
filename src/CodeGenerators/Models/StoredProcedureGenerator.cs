@@ -115,30 +115,42 @@ public class StoredProcedureGenerator(
         var baseOutputSkip = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "@ResultId", "@RecordId", "@RowVersion", "@Result" };
         bool HasAnyOutputs = storedProcedures.Any(sp => sp.GetOutputs()?.Any() ?? false);
         bool HasCustomOutputs = storedProcedures.Any(sp => (sp.GetOutputs()?.Count(o => !baseOutputSkip.Contains(o.Name)) ?? 0) > 0);
-        // For Extension role we do not generate local Outputs namespace; these come from Lib.
-        // Skip adding DataContext Outputs usings entirely when role is Extension.
+        // Für Extension-Rollen werden zwar keine Bootstrap-Outputs.cs Dateien erzeugt, aber individuelle Output-Klassen (Schema) werden generiert.
+        // Daher benötigen die StoredProcedure-Extensions auch bei Extension-Rollen ein using auf das lokale Schema-Outputs-Namespace, damit
+        // z.B. OrganizationUpdateIsDeletedOutput aufgelöst wird.
 #pragma warning disable CS0618
-        if (HasAnyOutputs && ConfigFile.Config.Project.Role.Kind != RoleKindEnum.Extension)
-#pragma warning restore CS0618
+        if (HasAnyOutputs)
         {
-#pragma warning disable CS0618
             var flatten = string.IsNullOrWhiteSpace(ConfigFile.Config.Project.Output?.DataContext?.Path) || ConfigFile.Config.Project.Output.DataContext.Path.TrimEnd('/', '\\') == ".";
-            var outputsRootUsing = (ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib || flatten)
-                ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.Outputs"))
-                : SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.DataContext.Outputs"));
-            if (!root.Usings.Any(u => u.Name.ToString() == outputsRootUsing.Name.ToString()))
-                root = root.AddUsings(outputsRootUsing).NormalizeWhitespace();
+            // Root Outputs using (nur wenn nicht Extension ODER falls wir es explizit trotzdem wollen – optional)
+            if (ConfigFile.Config.Project.Role.Kind != RoleKindEnum.Extension)
+            {
+                var outputsRootUsing = (ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib || flatten)
+                    ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.Outputs"))
+                    : SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.DataContext.Outputs"));
+                if (!root.Usings.Any(u => u.Name.ToString() == outputsRootUsing.Name.ToString()))
+                    root = root.AddUsings(outputsRootUsing).NormalizeWhitespace();
+            }
 
             if (HasCustomOutputs)
             {
-                var outputsSchemaUsing = (ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib || flatten)
-                    ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.Outputs.{schema.Name}"))
-                    : SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.DataContext.Outputs.{schema.Name}"));
+                // Für Extension-Rollen immer DataContext.Outputs.<Schema> (keine Outputs.cs nötig)
+                UsingDirectiveSyntax outputsSchemaUsing;
+                if (ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Extension)
+                {
+                    outputsSchemaUsing = SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.DataContext.Outputs.{schema.Name}"));
+                }
+                else
+                {
+                    outputsSchemaUsing = (ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Lib || flatten)
+                        ? SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.Outputs.{schema.Name}"))
+                        : SyntaxFactory.UsingDirective(SyntaxFactory.ParseName($"{ConfigFile.Config.Project.Output.Namespace}.DataContext.Outputs.{schema.Name}"));
+                }
                 if (!root.Usings.Any(u => u.Name.ToString() == outputsSchemaUsing.Name.ToString()))
                     root = root.AddUsings(outputsSchemaUsing).NormalizeWhitespace();
             }
-#pragma warning restore CS0618
         }
+#pragma warning restore CS0618
 
         var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
         var classNode = (ClassDeclarationSyntax)nsNode.Members[0];
