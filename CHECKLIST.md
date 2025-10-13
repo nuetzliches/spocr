@@ -153,6 +153,7 @@ EPICS Übersicht (oberste Steuerungsebene)
       - [ ] Template + Generator: Results (Operation Result Types)
       - [ ] Template + Generator: StoredProcedure Wrapper (Execution Stubs)
       - [ ] Sample nutzt mindestens eine generierte Stored Procedure
+      - [ ] ResultSet Naming Strategie dokumentiert (Prefix + Fallback)
 
       TODO entfernt: Performance Messung (nicht mehr erforderlich)
 
