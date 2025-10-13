@@ -90,6 +90,21 @@ public class Program
         services.AddSpocR();
         services.AddDbContext();
 
+        // vNext Template Engine (für DbContextGenerator Abhängigkeiten falls Flag aktiv)
+        try
+        {
+            var templateRoot = Path.Combine(Directory.GetCurrentDirectory(), "src", "SpocRVNext", "Templates");
+            if (Directory.Exists(templateRoot))
+            {
+                services.AddSingleton<SpocR.SpocRVNext.Engine.ITemplateRenderer, SpocR.SpocRVNext.Engine.SimpleTemplateEngine>();
+                services.AddSingleton<SpocR.SpocRVNext.Engine.ITemplateLoader>(_ => new SpocR.SpocRVNext.Engine.FileSystemTemplateLoader(templateRoot));
+            }
+        }
+        catch (Exception tex)
+        {
+            Console.Error.WriteLine($"[spocr templates warn] {tex.Message}");
+        }
+
         // Register auto update services
         services.AddTransient<AutoUpdaterService>();
         services.AddTransient<IPackageManager, NugetService>();
