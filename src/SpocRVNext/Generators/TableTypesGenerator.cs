@@ -45,9 +45,18 @@ public sealed class TableTypesGenerator
             header = headerTpl.TrimEnd() + Environment.NewLine; // ensure newline
         }
 
-        // Ensure interface exists once (ITableType)
+        // Ensure interface exists (ITableType) and has correct namespace; rewrite if outdated
         var interfacePath = Path.Combine(rootOut, "ITableType.cs");
-        if (!File.Exists(interfacePath))
+        bool mustWriteInterface = true;
+        if (File.Exists(interfacePath))
+        {
+            var existing = File.ReadAllText(interfacePath);
+            if (existing.Contains($"namespace {ns};"))
+            {
+                mustWriteInterface = false; // already correct
+            }
+        }
+        if (mustWriteInterface)
         {
             string ifaceCode;
             if (_loader != null && _loader.TryLoad("ITableType", out var ifaceTpl))
