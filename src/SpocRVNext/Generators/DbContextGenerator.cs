@@ -12,7 +12,7 @@ namespace SpocR.SpocRVNext.Generators;
 
 /// <summary>
 /// Generates the DbContext related artifacts from templates (interface, context, options, DI extension, endpoints).
-/// Generation is gated behind env flag SPOCR_GENERATE_DBCTX=1 (defaults off to avoid churn).
+/// Generation is enabled automatically when SPOCR_GENERATOR_MODE is 'dual' or 'next'; skipped in 'legacy' mode.
 /// </summary>
 public class DbContextGenerator
 {
@@ -31,8 +31,13 @@ public class DbContextGenerator
         _loader = loader;
     }
 
-    private static bool IsEnabled() =>
-        string.Equals(Environment.GetEnvironmentVariable("SPOCR_GENERATE_DBCTX"), "1", StringComparison.OrdinalIgnoreCase);
+    private static bool IsEnabled()
+    {
+        var mode = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant();
+        // default (null/empty) treated like dual upstream, but be explicit here
+        if (string.IsNullOrWhiteSpace(mode)) mode = "dual";
+        return mode is "dual" or "next";
+    }
 
     public Task GenerateAsync(bool isDryRun) => GenerateInternalAsync(isDryRun);
 
@@ -40,7 +45,7 @@ public class DbContextGenerator
     {
         if (!IsEnabled())
         {
-            _console.Verbose("[dbctx] Skipped (SPOCR_GENERATE_DBCTX != 1)");
+            _console.Verbose("[dbctx] Skipped (generator mode is 'legacy')");
             return;
         }
 
@@ -51,27 +56,28 @@ public class DbContextGenerator
             return;
         }
 
-        // Decide target root path (DataContext root or flattened)
+        // New placement: DbContext artifacts always at output root /SpocR (NOT inside DataContext) for clearer consumption.
         var dataContextPath = _configFile.Config.Project.Output.DataContext.Path;
-        var baseDir = DirectoryUtils.GetWorkingDirectory(dataContextPath);
-        var spocrDir = Path.Combine(baseDir, "SpocR");
+        var dataContextDir = DirectoryUtils.GetWorkingDirectory(dataContextPath);
+        var rootDir = dataContextDir;
+        if (!string.IsNullOrWhiteSpace(dataContextPath) && dataContextPath.Trim('.', ' ', '/', '\\').Length > 0)
+        {
+            var parent = Directory.GetParent(dataContextDir);
+            if (parent != null) rootDir = parent.FullName;
+        }
+        var spocrDir = Path.Combine(rootDir, "SpocR");
         if (!Directory.Exists(spocrDir) && !isDryRun) Directory.CreateDirectory(spocrDir);
 
-        string ResolveNamespace()
-        {
-            var flatten = string.IsNullOrWhiteSpace(dataContextPath) || dataContextPath.Trim().TrimEnd('/', '\\') == ".";
-            return flatten ? nsRoot + ".SpocR" : nsRoot + ".DataContext.SpocR";
-        }
-
-        var finalNs = ResolveNamespace();
+        // Namespace now consistently Root.SpocR (without .DataContext) to match new directory layout.
+        var finalNs = nsRoot + ".SpocR";
 
         // Try template-based generation first
         var model = new { Namespace = finalNs };
         await WriteAsync(spocrDir, "ISpocRDbContext.cs", Render("ISpocRDbContext", GetTemplate_Interface(finalNs), model), isDryRun);
         await WriteAsync(spocrDir, "SpocRDbContextOptions.cs", Render("SpocRDbContextOptions", GetTemplate_Options(finalNs), model), isDryRun);
         await WriteAsync(spocrDir, "SpocRDbContext.cs", Render("SpocRDbContext", GetTemplate_Context(finalNs), model), isDryRun);
-            await WriteAsync(spocrDir, "SpocRDbContextServiceCollectionExtensions.cs", Render("SpocRDbContextServiceCollectionExtensions", GetTemplate_Di(finalNs), model), isDryRun);
-            await WriteAsync(spocrDir, "SpocRDbContextEndpoints.cs", Render("SpocRDbContextEndpoints", GetTemplate_Endpoints(finalNs), model), isDryRun);
+        await WriteAsync(spocrDir, "SpocRDbContextServiceCollectionExtensions.cs", Render("SpocRDbContextServiceCollectionExtensions", GetTemplate_Di(finalNs), model), isDryRun);
+        await WriteAsync(spocrDir, "SpocRDbContextEndpoints.cs", Render("SpocRDbContextEndpoints", GetTemplate_Endpoints(finalNs), model), isDryRun);
     }
 
     private string Render(string logicalName, SourceText fallback, object model)

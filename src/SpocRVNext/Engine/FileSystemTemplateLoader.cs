@@ -21,11 +21,22 @@ public sealed class FileSystemTemplateLoader : ITemplateLoader
         _root = Path.GetFullPath(rootDirectory);
         if (!Directory.Exists(_root))
             throw new DirectoryNotFoundException(_root);
+        // Load top-level templates
         _cache = Directory.EnumerateFiles(_root, "*.spt", SearchOption.TopDirectoryOnly)
             .ToDictionary(
                 f => Path.GetFileNameWithoutExtension(f),
                 f => File.ReadAllText(f),
                 StringComparer.OrdinalIgnoreCase);
+
+        // Additionally load one level of subdirectory templates (names remain file name without extension, duplicates last-in wins)
+        foreach (var subDir in Directory.EnumerateDirectories(_root))
+        {
+            foreach (var file in Directory.EnumerateFiles(subDir, "*.spt", SearchOption.TopDirectoryOnly))
+            {
+                var key = Path.GetFileNameWithoutExtension(file);
+                _cache[key] = File.ReadAllText(file);
+            }
+        }
     }
 
     public bool TryLoad(string name, out string content)

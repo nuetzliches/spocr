@@ -49,7 +49,9 @@ public class CodeGenerationOrchestrator(
         var stopwatch = new Stopwatch();
         var elapsed = new Dictionary<string, long>();
         // Steps: CodeBase (lib only), TableTypes, Inputs, Outputs, Models, StoredProcedures
-    var dbCtxEnabled = string.Equals(Environment.GetEnvironmentVariable("SPOCR_GENERATE_DBCTX"), "1", StringComparison.OrdinalIgnoreCase);
+    var genMode = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant();
+    if (string.IsNullOrWhiteSpace(genMode)) genMode = "dual"; // default
+    var dbCtxEnabled = genMode is "dual" or "next";
     var totalSteps = roleKind == RoleKindEnum.Extension ? 5 : 6;
     if (dbCtxEnabled) totalSteps += 1; // additional optional step
         var currentStep = 0;
@@ -142,7 +144,9 @@ public class CodeGenerationOrchestrator(
             await GenerateDataContextOutputsAsync(isDryRun);
             await GenerateDataContextModelsAsync(isDryRun);
             await GenerateDataContextStoredProceduresAsync(isDryRun);
-            var dbCtxEnabled = string.Equals(Environment.GetEnvironmentVariable("SPOCR_GENERATE_DBCTX"), "1", StringComparison.OrdinalIgnoreCase);
+            var genMode = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant();
+            if (string.IsNullOrWhiteSpace(genMode)) genMode = "dual";
+            var dbCtxEnabled = genMode is "dual" or "next";
             if (dbCtxEnabled)
                 await dbContextGenerator.GenerateAsync(isDryRun);
 

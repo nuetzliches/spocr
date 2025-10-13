@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
+using RestApi.SpocR; // generated DbContext extensions
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,6 +15,14 @@ builder.Services.AddOpenApi();
 
 // No direct SpocR library reference: generated code (if any) would live under Spocr/.
 // This sample stays framework-agnostic regarding the generator implementation.
+
+// Register generated lightweight DbContext (explicit connection override to ensure startup succeeds)
+builder.Services.AddSpocRDbContext(o =>
+{
+    // Local dev fallback: adjust to your SQL Server or LocalDB instance
+    o.ConnectionString = "Server=localhost;Database=SpocRSample;Trusted_Connection=True;TrustServerCertificate=True;";
+    // o.ValidateOnBuild = true; // enable if you want fast-fail on unreachable DB
+});
 
 var app = builder.Build();
 
@@ -30,22 +39,7 @@ app.MapGet("/", () => "Hello World!")
     .WithSummary("Returns a simple greeting.")
     .WithDescription("Minimal root endpoint to verify the API is running.");
 
-// Simple health check using raw ADO.NET (keine Library-Abhängigkeit)
-app.MapGet("/health/db", (IConfiguration config) =>
-{
-    var cs = config.GetConnectionString("DefaultConnection") ?? Environment.GetEnvironmentVariable("SPOCR_DB_DEFAULT");
-    if (string.IsNullOrWhiteSpace(cs))
-        return Results.Problem(title: "Missing connection string", detail: "Provide DefaultConnection or SPOCR_DB_DEFAULT.");
-    try
-    {
-        using var conn = new SqlConnection(cs);
-        conn.Open();
-        return Results.Ok(new { status = "ok", db = conn.State.ToString() });
-    }
-    catch (Exception ex)
-    {
-        return Results.Problem(title: "Database connection failed", detail: ex.Message);
-    }
-}).WithSummary("Database connectivity health check").WithDescription("Opens a SQL connection using configured connection string.");
+// Map generated health endpoint (GET /spocr/health/db)
+app.MapSpocRDbContextEndpoints();
 
 app.Run();

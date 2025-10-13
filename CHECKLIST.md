@@ -127,11 +127,11 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [x] Ermittlung des Namespaces automatisiert und dokumentierte Fallback-Strategie vorhanden
 - [ ] Entfernte Spezifikationen/Heuristiken sauber entfernt und CHANGELOG Eintrag erstellt
 - [ ] Neuer `SpocRDbContext` implementiert inkl. moderner DI Patterns & Minimal API Extensions
-      - [x] Grundgerüst via Template-Generator (Interface, Context, Options, DI) – Flag `SPOCR_GENERATE_DBCTX`
-      - [ ] DbContext Optionen (konfigurierbare Connection / Retry / Timeout erweitern)
-      - [ ] Scoped Registration Validierung (Retry / Logging Hooks)
-      - [ ] Minimal API Mapper Beispiel (Health / Echo)
-      - [ ] Integration ins Sample (Feature Flag Doku)
+      - [x] Grundgerüst via Template-Generator (Interface, Context, Options, DI) – aktiviert in `SPOCR_GENERATOR_MODE=dual|next` (ehem. Flag `SPOCR_GENERATE_DBCTX` entfernt)
+      - [x] DbContext Optionen (ConnectionString / Name / Timeout / Retry / Diagnostics / ValidateOnBuild) implementiert
+      - [x] Scoped Registration Validierung (Connection Open Probe optional via `ValidateOnBuild`)
+      - [x] Minimal API Mapper Beispiel (Health Endpoint `/spocr/health/db`)
+      - [~] Integration ins Sample (Code registriert & Endpoint gemappt; laufender Prozess beendet sich noch früh – Stabilisierung ausstehend / Doku fehlt)
 - [x] Parallel-Erzeugung alter (DataContext) und neuer (SpocRVNext) Outputs in v4.5 (Demo/Beobachtungsmodus) implementiert
 - [x] Legacy CLI ruft bei `SPOCR_GENERATOR_MODE=dual` zusätzlich vNext Dispatcher (nur .env / EnvConfiguration, ohne spocr.json Nutzung) auf
 - [x] Schalter/Feature-Flag zum Aktivieren des neuen Outputs vorhanden (CLI Parameter oder Konfig)

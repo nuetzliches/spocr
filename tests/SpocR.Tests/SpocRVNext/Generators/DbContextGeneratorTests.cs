@@ -14,17 +14,18 @@ namespace SpocR.Tests.SpocRVNext.Generators;
 public class DbContextGeneratorTests
 {
     [Fact]
-    public async Task DbContextGenerator_Skips_Without_Flag()
+    public async Task DbContextGenerator_Skips_In_Legacy_Mode()
     {
+        Environment.SetEnvironmentVariable("SPOCR_GENERATOR_MODE", "legacy");
         var gen = CreateGenerator();
         await gen.GenerateAsync(isDryRun: false);
         Assert.False(File.Exists(Path.Combine(GetOutputRoot(), "SpocR", "SpocRDbContext.cs")));
     }
 
     [Fact]
-    public async Task DbContextGenerator_Generates_With_Flag()
+    public async Task DbContextGenerator_Generates_In_Dual_Mode()
     {
-        Environment.SetEnvironmentVariable("SPOCR_GENERATE_DBCTX", "1");
+        Environment.SetEnvironmentVariable("SPOCR_GENERATOR_MODE", "dual");
         try
         {
             var gen = CreateGenerator();
@@ -33,7 +34,7 @@ public class DbContextGeneratorTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("SPOCR_GENERATE_DBCTX", null);
+            Environment.SetEnvironmentVariable("SPOCR_GENERATOR_MODE", null);
         }
     }
 
@@ -56,6 +57,7 @@ public class DbContextGeneratorTests
         var provider = services.BuildServiceProvider();
         var outputService = provider.GetRequiredService<SpocR.Services.OutputService>();
         var dir = outputService.GetOutputRootDir().FullName;
-        return Path.Combine(dir, "DataContext", "SpocR");
+        // DbContext artifacts now reside directly under root/SpocR
+        return Path.Combine(dir, "SpocR");
     }
 }
