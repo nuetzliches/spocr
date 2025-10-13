@@ -5,6 +5,8 @@ using System.Linq;
 using SpocR.SpocRVNext.Engine;
 using SpocR.SpocRVNext.Utils;
 using SpocRVNext.Configuration;
+using SpocRVNext.Metadata;
+using SpocR.SpocRVNext.Generators;
 
 namespace SpocR.SpocRVNext;
 
@@ -45,22 +47,40 @@ public sealed class DualGenerationDispatcher
                 File.WriteAllText(Path.Combine(legacyDir, "DemoLegacy.cs"), legacyContent);
                 break;
             case "next":
-                var genNext = new SpocRGenerator(_renderer); // loader not yet injected here
-                nextContent = genNext.RenderDemo();
-                Directory.CreateDirectory(nextDir);
-                File.WriteAllText(Path.Combine(nextDir, "DemoNext.cs"), nextContent);
-                // Minimal future path: attempt DbContext generation into nested folder
-                genNext.GenerateMinimalDbContext(Path.Combine(nextDir, "generated"));
+                {
+                    // Instantiate template loader (filesystem) pointing to Templates folder
+                    var templatesDir = Path.Combine(Directory.GetCurrentDirectory(), "src", "SpocRVNext", "Templates");
+                    ITemplateLoader? loader = Directory.Exists(templatesDir)
+                        ? new FileSystemTemplateLoader(templatesDir)
+                        : null;
+                    var genNext = new SpocRGenerator(_renderer, loader);
+                    nextContent = genNext.RenderDemo();
+                    Directory.CreateDirectory(nextDir);
+                    File.WriteAllText(Path.Combine(nextDir, "DemoNext.cs"), nextContent);
+                    genNext.GenerateMinimalDbContext(Path.Combine(nextDir, "generated"));
+                    // vNext real output: TableTypes
+                    var ttGen = new TableTypesGenerator(_cfg, new TableTypeMetadataProvider(), _renderer, loader);
+                    var count = ttGen.Generate();
+                    File.WriteAllText(Path.Combine(nextDir, "_tabletypes.info"), $"Generated {count} table type record structs");
+                }
                 break;
             case "dual":
                 legacyContent = "// legacy demo placeholder";
-                var gen = new SpocRGenerator(_renderer);
+                var templatesDirDual = Path.Combine(Directory.GetCurrentDirectory(), "src", "SpocRVNext", "Templates");
+                ITemplateLoader? loaderDual = Directory.Exists(templatesDirDual)
+                    ? new FileSystemTemplateLoader(templatesDirDual)
+                    : null;
+                var gen = new SpocRGenerator(_renderer, loaderDual);
                 nextContent = gen.RenderDemo();
                 Directory.CreateDirectory(legacyDir);
                 Directory.CreateDirectory(nextDir);
                 File.WriteAllText(Path.Combine(legacyDir, "DemoLegacy.cs"), legacyContent);
                 File.WriteAllText(Path.Combine(nextDir, "DemoNext.cs"), nextContent);
                 gen.GenerateMinimalDbContext(Path.Combine(nextDir, "generated"));
+                // vNext real output: TableTypes
+                var ttGenDual = new TableTypesGenerator(_cfg, new TableTypeMetadataProvider(), _renderer, loaderDual);
+                var countDual = ttGenDual.Generate();
+                File.WriteAllText(Path.Combine(nextDir, "_tabletypes.info"), $"Generated {countDual} table type record structs");
                 // Diff step (allow-list reading optional future extension)
                 var diff = DirectoryDiff.Compare(legacyDir, nextDir, allowListGlobs: ReadAllowList(baseOutputDir));
                 var summaryPath = Path.Combine(baseOutputDir, "diff-summary.txt");
