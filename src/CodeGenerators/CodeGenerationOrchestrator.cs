@@ -22,6 +22,7 @@ public class CodeGenerationOrchestrator(
     TableTypeGenerator tableTypeGenerator,
     OutputGenerator outputGenerator,
     StoredProcedureGenerator storedProcedureGenerator,
+    SpocR.SpocRVNext.Generators.DbContextGenerator dbContextGenerator,
     IConsoleService consoleService,
     OutputService outputService
 )
@@ -48,7 +49,9 @@ public class CodeGenerationOrchestrator(
         var stopwatch = new Stopwatch();
         var elapsed = new Dictionary<string, long>();
         // Steps: CodeBase (lib only), TableTypes, Inputs, Outputs, Models, StoredProcedures
-        var totalSteps = roleKind == RoleKindEnum.Extension ? 5 : 6;
+    var dbCtxEnabled = string.Equals(Environment.GetEnvironmentVariable("SPOCR_GENERATE_DBCTX"), "1", StringComparison.OrdinalIgnoreCase);
+    var totalSteps = roleKind == RoleKindEnum.Extension ? 5 : 6;
+    if (dbCtxEnabled) totalSteps += 1; // additional optional step
         var currentStep = 0;
 
         HasErrors = false;
@@ -94,6 +97,15 @@ public class CodeGenerationOrchestrator(
             consoleService.PrintSubTitle($"Generating StoredProcedures (Step {currentStep}/{totalSteps})");
             await GenerateDataContextStoredProceduresAsync(isDryRun);
             elapsed.Add("StoredProcedures", stopwatch.ElapsedMilliseconds);
+
+            if (dbCtxEnabled)
+            {
+                currentStep++;
+                stopwatch.Restart();
+                consoleService.PrintSubTitle($"Generating DbContext (Step {currentStep}/{totalSteps})");
+                await dbContextGenerator.GenerateAsync(isDryRun);
+                elapsed.Add("DbContext", stopwatch.ElapsedMilliseconds);
+            }
         }
         catch (Exception ex)
         {
@@ -130,6 +142,9 @@ public class CodeGenerationOrchestrator(
             await GenerateDataContextOutputsAsync(isDryRun);
             await GenerateDataContextModelsAsync(isDryRun);
             await GenerateDataContextStoredProceduresAsync(isDryRun);
+            var dbCtxEnabled = string.Equals(Environment.GetEnvironmentVariable("SPOCR_GENERATE_DBCTX"), "1", StringComparison.OrdinalIgnoreCase);
+            if (dbCtxEnabled)
+                await dbContextGenerator.GenerateAsync(isDryRun);
 
             consoleService.CompleteProgress();
         }
@@ -172,6 +187,9 @@ public class CodeGenerationOrchestrator(
 
             if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.StoredProcedures))
                 await GenerateDataContextStoredProceduresAsync(isDryRun);
+
+            if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.DbContext))
+                await dbContextGenerator.GenerateAsync(isDryRun);
 
             consoleService.CompleteProgress();
         }
@@ -238,5 +256,6 @@ public enum GeneratorTypes
     Outputs = 4,
     Models = 8,
     StoredProcedures = 16,
-    All = TableTypes | Inputs | Outputs | Models | StoredProcedures
+    DbContext = 32,
+    All = TableTypes | Inputs | Outputs | Models | StoredProcedures | DbContext
 }

@@ -24,11 +24,12 @@ Legende: `[ ]` offene Aufgabe · `[x]` erledigt
 
 EPICS Übersicht (oberste Steuerungsebene)
 
-- [ ] EPIC-E001 LEGACY-FREEZE v4.5
+- [x] EPIC-E001 LEGACY-FREEZE v4.5
       id: E001
       goal: Generator-Code für bisherigen DataContext einfrieren (nur kritische Bugfixes)
       acceptance: - Keine funktionalen Änderungen an Legacy-Generator nach Freeze-Datum - Nur sicherheits-/stabilitätsrelevante Fixes - Dokumentierter Freeze in CHANGELOG
       depends: []
+      note: Freeze-Datum & Sentinel (legacy-freeze.txt) gesetzt; CHANGELOG Eintrag vorhanden
 
 - [ ] EPIC-E002 SAMPLE-GATE Referenz-Sample stabil
       id: E002
@@ -36,17 +37,19 @@ EPICS Übersicht (oberste Steuerungsebene)
       acceptance: - Build + CRUD Smoke Test automatisiert - Nutzung aktueller `spocr.json` - Läuft in CI Pipeline
       depends: []
 
-- [ ] EPIC-E003 Neuer Generator Grundstruktur
+- [x] EPIC-E003 Neuer Generator Grundstruktur
       id: E003
       goal: Ordner `src/SpocRVNext` + Basis-Architektur steht
       acceptance: - Projektstruktur vorhanden - Einstiegspunkt Codegenerierung implementiert - Minimaler End-to-End Durchlauf erzeugt leeren oder Basis-Output
       depends: [E001]
+      note: Ordner + Einstieg (DualGenerationDispatcher, Generator) + Template Engine initial vorhanden
 
-- [ ] EPIC-E004 Neuer Output & Dual Generation
+- [x] EPIC-E004 Neuer Output & Dual Generation
       id: E004
       goal: Neuer Output-Pfad + parallele Erzeugung mit Legacy
       acceptance: - Neuer Output-Ordner erzeugt deterministische Dateien - Alter Output unverändert - Flag / Schalter aktiviert Dual Mode
       depends: [E003]
+      note: Dual Mode via ENV Flag SPOCR_GENERATOR_MODE=dual; Timestamp neutralisiert; Doppel-Write entfernt
 
 - [ ] EPIC-E005 Eigene Template Engine
       id: E005
@@ -118,14 +121,19 @@ EPICS Übersicht (oberste Steuerungsebene)
 
 ### Codegenerierung / SpocRVNext
 
-- [ ] Template Engine Grundgerüst fertig (ohne Roslyn Abhängigkeiten)
+- [x] Template Engine Grundgerüst fertig (ohne Roslyn Abhängigkeiten)
 - [x] Ermittlung des Namespaces automatisiert und dokumentierte Fallback-Strategie vorhanden
 - [ ] Entfernte Spezifikationen/Heuristiken sauber entfernt und CHANGELOG Eintrag erstellt
 - [ ] Neuer `SpocRDbContext` implementiert inkl. moderner DI Patterns & Minimal API Extensions
+      - [x] Grundgerüst via Template-Generator (Interface, Context, Options, DI) – Flag `SPOCR_GENERATE_DBCTX`
+      - [ ] DbContext Optionen (konfigurierbare Connection / Retry / Timeout erweitern)
+      - [ ] Scoped Registration Validierung (Retry / Logging Hooks)
+      - [ ] Minimal API Mapper Beispiel (Health / Echo)
+      - [ ] Integration ins Sample (Feature Flag Doku)
 - [x] Parallel-Erzeugung alter (DataContext) und neuer (SpocRVNext) Outputs in v4.5 (Demo/Beobachtungsmodus) implementiert
 - [x] Schalter/Feature-Flag zum Aktivieren des neuen Outputs vorhanden (CLI Parameter oder Konfig)
-- [x] Konsistenz-Check für generierte Dateien (Determinismus pro Generator; keine Legacy-Paritäts-Pflicht) – Hash Manifeste vorhanden (noch keine harte Policy)
-- [ ] Performance Messung: Generierungsdauer dokumentiert (Baseline vs. Neuer Ansatz)
+- [x] Konsistenz-Check für generierte Dateien (Determinismus pro Generator; keine Legacy-Paritäts-Pflicht) – Hash Manifeste vorhanden (noch keine harte Policy) - [x] Timestamp-Zeile neutralisiert (Regex Normalisierung) - [x] Doppelter Schreibpfad Outputs/CrudResult entfernt (Skip base copy)
+- [ ] Performance Messung: Generierungsdauer dokumentiert (Baseline vs. Neuer Ansatz) - [ ] Legacy (Ø 3 Runs) - [ ] Dual Mode - [ ] vNext only - [ ] Tabelle + Abschnitt in DEVELOPMENT.md
 
 ### Migration / Breaking Changes
 
@@ -142,7 +150,8 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] Validierungsskript/Schema für spocr.json hinzugefügt oder aktualisiert
 - [ ] Debug-Konfigurationen (debug/\*.json) konsistent mit neuen Pfaden
 - [ ] Output-Pfade (Output/, Output-v5-0/, etc.) aufgeräumt / veraltete entfernt sofern Version >=5.0 (post-migration)
-- [ ] `.env` Beispieldatei hinzugefügt (Pfad: `samples/restapi/.env.example`) inkl. aller relevanten SPOCR\_\* Keys
+- [x] `.env` Beispieldatei hinzugefügt (Pfad: `samples/restapi/.env.example`) inkl. aller relevanten SPOCR\_\* Keys
+      note: Enthält SPOCR_GENERATOR_MODE, SPOCR_EXPERIMENTAL_CLI, Bridge Policy Flags
 - [ ] Precedence dokumentiert: CLI > ENV > .env > (legacy) spocr.json (Fallback bis v5.0, danach entfernt)
 - [ ] `spocr pull` überschreibt lokale Konfiguration nicht mehr (nur interne Metadaten)
 
@@ -206,7 +215,7 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] Fail-Fast bei unerwarteten Generator-Änderungen (Diff Threshold)
 - [ ] QA Skripte (eng/\*.ps1) in README oder DEVELOPMENT.md referenziert
 - [ ] Caching/Restore Mechanismen (NuGet, Bun) effizient konfiguriert
-- [ ] ENV/CLI Flag für Generation definiert (`SPOCR_GENERATOR_MODE=dual|legacy|next` + `spocr generate --mode`) – Default in v4.5 = `dual`
+- [ ] ENV/CLI Flag für Generation definiert (`SPOCR_GENERATOR_MODE=dual|legacy|next` + `spocr generate --mode`) – Default in v4.5 = `dual` (README Abschnitt "Configuration Precedence" ergänzt; CLI Param-Doku noch offen)
 - [x] Allow-List Datei `.spocr-diff-allow` unterstützt (Glob) – optional, nur Noise-Reduktion
 - [x] SHA256 Hashing der generierten Dateien implementiert (Determinismus-Nachweis)
 - [x] CI Policy: Diffs aktuell rein informativ (Relaxed Mode) – zukünftige Eskalation geplant
@@ -217,12 +226,12 @@ EPICS Übersicht (oberste Steuerungsebene)
 ### Auto-Update / Upgrade Safety
 
 - [x] Major-Bridge Policy implementiert (Block direkte Major-Sprünge ohne `SPOCR_ALLOW_DIRECT_MAJOR`)
-- [ ] README Hinweis zur Bridge Policy ergänzen (CHANGELOG Eintrag vorhanden)
+- [x] README Hinweis zur Bridge Policy ergänzen (CHANGELOG Eintrag vorhanden)
 - [x] Testfall für geblocktes Major Update + Override hinzugefügt (`BridgePolicyTests`)
 - [ ] Weitere Tests: Minor Update erlaubt, SkipVersion respektiert, Direkt-Major mit Override protokolliert
 - [ ] Dokumentation Env Override Beispiele (`SPOCR_ALLOW_DIRECT_MAJOR=1`) in README / MIGRATION Guide
 
-- [ ] Tests für EnvConfiguration Precedence & Invalid Mode vorhanden - [ ] Test: CLI > ENV > .env > spocr.json Fallback greift - [ ] Test: Ungültiger Mode in `SPOCR_GENERATOR_MODE` führt zu sinnvollem Fehler / Fallback - [ ] Test: Experimental CLI Flag (`SPOCR_EXPERIMENTAL_CLI`) aktiviert neuen Parser nur bei gesetztem Flag
+- [x] Tests für EnvConfiguration Precedence & Invalid Mode vorhanden - [ ] Test: Experimental CLI Flag (`SPOCR_EXPERIMENTAL_CLI`) aktiviert neuen Parser nur bei gesetztem Flag
 
 ### Nullable & Codequalität (Ergänzung)
 

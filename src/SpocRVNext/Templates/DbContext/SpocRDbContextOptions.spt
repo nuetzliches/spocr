@@ -1,10 +1,11 @@
-using System.Text.Json;
+namespace {{ Namespace }};
 
-namespace SpocR.SpocRVNext.Data;
+using System.Text.Json;
 
 public sealed class SpocRDbContextOptions
 {
     public string? ConnectionString { get; set; }
-    public int? CommandTimeout { get; set; }
+    public int? CommandTimeoutSeconds { get; set; }
     public JsonSerializerOptions? JsonSerializerOptions { get; set; }
+    public bool EnableDiagnostics { get; set; } = true;
 }

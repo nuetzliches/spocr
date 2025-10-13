@@ -1,0 +1,36 @@
+namespace {{ Namespace }};
+
+using System;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+
+public static class SpocRDbContextServiceCollectionExtensions
+{
+    /// <summary>Register generated SpocRDbContext and its options.
+    /// Connection string precedence:
+    /// 1) options.ConnectionString (delegate)
+    /// 2) IConfiguration.GetConnectionString("DefaultConnection")
+    /// 3) Environment variable SPOCR_DB_DEFAULT
+    /// </summary>
+    public static IServiceCollection AddSpocRDbContext(this IServiceCollection services, Action<SpocRDbContextOptions>? configure = null)
+    {
+        var explicitOptions = new SpocRDbContextOptions();
+        configure?.Invoke(explicitOptions);
+
+        services.AddSingleton(provider =>
+        {
+            var cfg = provider.GetService<IConfiguration>();
+            var conn = explicitOptions.ConnectionString
+                       ?? cfg?.GetConnectionString("DefaultConnection")
+                       ?? Environment.GetEnvironmentVariable("SPOCR_DB_DEFAULT");
+            if (string.IsNullOrWhiteSpace(conn))
+                throw new InvalidOperationException("No connection string resolved for SpocRDbContext (options, DefaultConnection, or SPOCR_DB_DEFAULT).");
+            explicitOptions.ConnectionString = conn;
+            if (explicitOptions.CommandTimeoutSeconds is null or <= 0) explicitOptions.CommandTimeoutSeconds = 30;
+            return explicitOptions;
+        });
+
+        services.AddScoped<ISpocRDbContext>(sp => new SpocRDbContext(sp.GetRequiredService<SpocRDbContextOptions>()));
+        return services;
+    }
+}

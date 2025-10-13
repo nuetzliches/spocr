@@ -115,6 +115,8 @@ namespace SpocR.Extensions
             services.AddSingleton<TableTypeGenerator>();
             services.AddSingleton<StoredProcedureGenerator>();
             services.AddSingleton<CrudResultGenerator>();
+            // vNext Generators (feature gated)
+            services.AddSingleton<SpocR.SpocRVNext.Generators.DbContextGenerator>();
 
             // Register the orchestrator as the final component
             services.AddSingleton<CodeGenerationOrchestrator>();

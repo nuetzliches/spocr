@@ -93,16 +93,16 @@ public class OutputService(
         var baseFiles = new DirectoryInfo(sourceDir).GetFiles("*.base.cs", SearchOption.TopDirectoryOnly);
         foreach (var file in baseFiles)
         {
-            // Einige *.base.cs Dateien besitzen eine eigenständige Generator-Pipeline (z.B. Outputs.base.cs / CrudResult.base.cs),
-            // die später im Ablauf (Outputs- bzw. Models-Step) eine konsolidierte Datei erzeugt.
-            // Wenn wir sie hier ebenfalls kopieren, unterscheiden sich Formatierung / Trivia (Roslyn vs. TemplateManager)
-            // und die Datei wird bei jedem Rebuild erneut als "modified" gemeldet, obwohl nur der Timestamp wechselt.
-            // Zur Sicherstellung deterministischer Builds überspringen wir diese Dateien im CodeBase-Schritt.
+            // Certain *.base.cs files are owned by dedicated generators (e.g. Outputs.base.cs / CrudResult.base.cs)
+            // which later consolidate into their final single-file form (Outputs.cs / CrudResult.cs).
+            // Copying them here would introduce a double write (template copy + Roslyn/generated rewrite)
+            // causing persistent "modified" noise due to formatting / trivia and timestamp differences.
+            // To keep builds deterministic, we skip those here and let the specialized generators handle them.
             var fileName = file.Name;
             if (fileName.Equals("Outputs.base.cs", System.StringComparison.OrdinalIgnoreCase) ||
                 fileName.Equals("CrudResult.base.cs", System.StringComparison.OrdinalIgnoreCase))
             {
-                continue; // überspringen – spezialisierter Generator übernimmt
+                continue; // skip – specialized generator will produce the consolidated file
             }
 
             CopyFile(file, Path.Combine(targetDir, file.Name.Replace(".base", "")), nameSpace, dryrun);
@@ -184,31 +184,31 @@ public class OutputService(
         {
             var existingFileText = await File.ReadAllTextAsync(targetFileName);
 
-            // Normalisiere volatile Remark-Zeile mit Timestamp, damit nur inhaltliche Änderungen zählen.
+            // Normalize volatile timestamp remark line so only semantic changes produce a diff.
             static string NormalizeForComparison(string text)
             {
                 if (string.IsNullOrEmpty(text)) return text;
-                // 1) Timestamp neutralisieren (ganze Zeile entfernen/ersetzen)
+                // 1) Neutralize timestamp (replace whole line with placeholder)
                 text = System.Text.RegularExpressions.Regex.Replace(
                     text,
                     @"^.*///\s<remarks>Generated at .*?</remarks>.*$",
                     "/// <remarks>Generated at <normalized></remarks>",
                     System.Text.RegularExpressions.RegexOptions.Multiline);
-                // Fallback falls Format minimal anders ist (z.B. ohne führende Spaces)
+                // Fallback in case formatting differs slightly (leading/trailing spaces, etc.)
                 text = System.Text.RegularExpressions.Regex.Replace(
                     text,
                     @"/// <remarks>Generated at .*?</remarks>",
                     "/// <remarks>Generated at <normalized></remarks>");
-                // 2) Zeilenenden vereinheitlichen (\n)
+                // 2) Normalize line endings to \n
                 text = text.Replace("\r\n", "\n");
-                // 3) Trailing Whitespaces pro Zeile entfernen
+                // 3) Trim trailing whitespace per line
                 var lines = text.Split('\n');
                 for (int i = 0; i < lines.Length; i++)
                 {
                     lines[i] = lines[i].TrimEnd();
                 }
                 text = string.Join("\n", lines);
-                // 4) Abschließenden Newline sicherstellen
+                // 4) Ensure final newline for stable hashing
                 if (!text.EndsWith("\n")) text += "\n";
                 return text;
             }

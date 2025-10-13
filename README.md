@@ -71,6 +71,59 @@ For comprehensive documentation, examples, and advanced configuration:
 >
 > Recommended now: inspect the future output, and open issues for gaps / blockers you discover.
 
+### Major Version Bridge Policy (Upgrade Safety)
+
+To reduce accidental skips over required transitional releases, SpocR enforces a *bridge policy* for major upgrades:
+
+1. When a newer **major** version is detected, direct upgrade offers are suppressed unless you are already on the latest minor of your current major.
+2. The tool prints guidance to first move to the highest available minor ("bridge release") before crossing the major boundary.
+3. You can explicitly override (NOT generally recommended) via environment variable:
+
+```bash
+# Linux/macOS
+export SPOCR_ALLOW_DIRECT_MAJOR=1
+
+# Windows (cmd)
+set SPOCR_ALLOW_DIRECT_MAJOR=1
+
+# Windows (PowerShell)
+$env:SPOCR_ALLOW_DIRECT_MAJOR=1
+```
+
+Accepted truthy values: `1`, `true`, `yes`, `on` (case‑insensitive). The override is intended only for CI experiments, controlled integration test matrices, or when you have validated migration steps manually.
+
+Rationale: Major releases may remove deprecated configuration or legacy generation paths (e.g. DataContext v4 → v5). A mandatory bridge minimizes silent breakage and gives you a well-documented cutover point.
+
+Tracking: See CHANGELOG ("Bridge Policy") and `MIGRATION_SpocRVNext.md` for the detailed logic.
+
+### Configuration Precedence
+
+Configuration values are resolved using a clear, deterministic order:
+
+```
+CLI arguments  >  Explicit --set / parser overrides  >  Environment variables  >  .env file  >  spocr.json (legacy fallback)  >  Internal defaults
+```
+
+Illustrated example (Namespace resolution):
+
+1. `spocr generate --namespace My.Root` (highest) → wins
+2. Else `SPOCR_NAMESPACE=EnvValue` → wins
+3. Else `.env` line `SPOCR_NAMESPACE=DotEnvValue` → wins
+4. Else `project.output.namespace` inside `spocr.json`
+5. Else inferred from directory name (auto namespace feature)
+
+Generator mode precedence is analogous (`--mode` / `SPOCR_GENERATOR_MODE` / `.env` / default = `dual` during v4.5 bridge).
+
+Invalid modes (anything not `legacy|dual|next`) trigger an exception early with a clear message (tested in `EnvConfigurationTests`).
+
+Benefits:
+
+- Predictable overrides in CI pipelines
+- Safe experimentation via ephemeral CLI flags
+- Gradual deprecation path for `spocr.json` fields targeted for removal in v5
+
+Referenced Tests: `EnvConfigurationTests` (precedence + invalid mode) and `BridgePolicyTests` (upgrade gating & override variable).
+
 ### Migration Note: Removal of Legacy `Output`
 
 Older snapshots exposed a root-level `Output` array for JSON-returning procedures. This was removed in favor of a unified `ResultSets` model. Update any tooling referencing `Output` to:
