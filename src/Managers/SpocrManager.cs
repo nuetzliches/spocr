@@ -15,6 +15,9 @@ using SpocR.Models;
 using SpocR.Services;
 using SpocR.DataContext.Queries;
 using SpocR.DataContext.Models;
+using SpocR.SpocRVNext.Engine; // vNext template engine
+using SpocR.SpocRVNext; // dispatcher & generator
+using SpocRVNext.Configuration; // EnvConfiguration
 
 namespace SpocR.Managers;
 
@@ -528,6 +531,10 @@ public class SpocrManager(
 
     public async Task<ExecuteResultEnum> BuildAsync(ICommandOptions options)
     {
+        // Detect dual/next mode early (do not impact legacy build logic until after legacy generation for dual)
+        var genMode = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(genMode)) genMode = "dual"; // default bridge phase behavior
+
         if (!configFile.Exists())
         {
             consoleService.Error("Configuration file not found");
@@ -628,6 +635,27 @@ public class SpocrManager(
 
             var totalElapsed = elapsed.Values.Sum();
             consoleService.PrintTotal($"Total elapsed time: {totalElapsed} ms.");
+
+            // Invoke vNext pipeline in dual mode WITHOUT using legacy ConfigurationModel / FileManager
+            // Only .env + environment variables are considered for vNext (EnvConfiguration).
+            if (genMode == "dual")
+            {
+                try
+                {
+                    consoleService.PrintSubTitle("vNext (dual mode) – executing experimental pipeline");
+                    // Use working directory (potentially overridden by -p path) as project root for .env discovery
+                    var projectRoot = Utils.DirectoryUtils.GetWorkingDirectory();
+                    var cfg = EnvConfiguration.Load(projectRoot: projectRoot); // reads .env + env, no spocr.json usage
+                    var renderer = new SimpleTemplateEngine();
+                    var dispatcher = new DualGenerationDispatcher(cfg, renderer);
+                    var msg = dispatcher.ExecuteDemo();
+                    consoleService.Gray(msg);
+                }
+                catch (Exception vx)
+                {
+                    consoleService.Warn($"[vnext-dual-warning] vNext experimental pipeline failed: {vx.Message}");
+                }
+            }
 
             if (options.DryRun)
             {

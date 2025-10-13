@@ -131,6 +131,7 @@ EPICS Übersicht (oberste Steuerungsebene)
       - [ ] Minimal API Mapper Beispiel (Health / Echo)
       - [ ] Integration ins Sample (Feature Flag Doku)
 - [x] Parallel-Erzeugung alter (DataContext) und neuer (SpocRVNext) Outputs in v4.5 (Demo/Beobachtungsmodus) implementiert
+- [x] Legacy CLI ruft bei `SPOCR_GENERATOR_MODE=dual` zusätzlich vNext Dispatcher (nur .env / EnvConfiguration, ohne spocr.json Nutzung) auf
 - [x] Schalter/Feature-Flag zum Aktivieren des neuen Outputs vorhanden (CLI Parameter oder Konfig)
 - [x] Konsistenz-Check für generierte Dateien (Determinismus pro Generator; keine Legacy-Paritäts-Pflicht) – Hash Manifeste vorhanden (noch keine harte Policy) - [x] Timestamp-Zeile neutralisiert (Regex Normalisierung) - [x] Doppelter Schreibpfad Outputs/CrudResult entfernt (Skip base copy)
 - [ ] Performance Messung: Generierungsdauer dokumentiert (Baseline vs. Neuer Ansatz) - [ ] Legacy (Ø 3 Runs) - [ ] Dual Mode - [ ] vNext only - [ ] Tabelle + Abschnitt in DEVELOPMENT.md

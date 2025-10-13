@@ -15,6 +15,7 @@ public sealed class EnvConfiguration
     public string GeneratorMode { get; init; } = "dual"; // legacy | dual | next
     public string? DefaultConnection { get; init; }
     public string? NamespaceRoot { get; init; }
+    public string? OutputDir { get; init; }
 
     public static EnvConfiguration Load(string? projectRoot = null, IDictionary<string, string?>? cliOverrides = null)
     {
@@ -41,8 +42,36 @@ public sealed class EnvConfiguration
         {
             GeneratorMode = NormalizeMode(Get("SPOCR_GENERATOR_MODE")),
             DefaultConnection = NullIfEmpty(Get("SPOCR_DB_DEFAULT")),
-            NamespaceRoot = NullIfEmpty(Get("SPOCR_NAMESPACE"))
+            NamespaceRoot = NullIfEmpty(Get("SPOCR_NAMESPACE")),
+            OutputDir = NullIfEmpty(Get("SPOCR_OUTPUT_DIR"))
         };
+
+        // Apply default for OutputDir
+        if (string.IsNullOrWhiteSpace(cfg.OutputDir))
+        {
+            cfg = new EnvConfiguration
+            {
+                GeneratorMode = cfg.GeneratorMode,
+                DefaultConnection = cfg.DefaultConnection,
+                NamespaceRoot = cfg.NamespaceRoot,
+                OutputDir = "SpocR"
+            };
+        }
+
+        // Fallback: derive namespace if not provided
+        if (string.IsNullOrWhiteSpace(cfg.NamespaceRoot))
+        {
+            var resolver = new NamespaceResolver(cfg, msg => Console.Error.WriteLine(msg));
+            var resolved = resolver.Resolve(projectRoot);
+            cfg = new EnvConfiguration
+            {
+                GeneratorMode = cfg.GeneratorMode,
+                DefaultConnection = cfg.DefaultConnection,
+                NamespaceRoot = resolved,
+                OutputDir = cfg.OutputDir
+            };
+            Console.Out.WriteLine($"[spocr vNext] Info: Namespace for generated files: '{cfg.NamespaceRoot}' (auto-derived; set SPOCR_NAMESPACE to override)");
+        }
 
         Validate(cfg, envFilePath);
         return cfg;
@@ -61,19 +90,18 @@ public sealed class EnvConfiguration
 
     private static void Validate(EnvConfiguration cfg, string? envFilePath)
     {
-        // Requirement: at least one source must exist (.env or environment) for dual/next modes for NamespaceRoot (soft warning for now)
         if (cfg.GeneratorMode is "dual" or "next")
         {
-            if (string.IsNullOrWhiteSpace(cfg.NamespaceRoot))
+            if (string.IsNullOrEmpty(envFilePath) || !File.Exists(envFilePath))
             {
-                // For now do not throw; future versions might enforce.
-                Console.Error.WriteLine("[spocr vNext] Warning: SPOCR_NAMESPACE not set. Falling back to legacy namespace resolution if available.");
+                throw new InvalidOperationException("In modes 'dual' or 'next' a .env file must exist containing at least one SPOCR_ marker line.");
             }
-        }
-
-        if (!string.IsNullOrEmpty(envFilePath) && !File.Exists(envFilePath))
-        {
-            // Accept absence silently; config may be provided through environment or CLI.
+            // Accept any occurrence of "SPOCR_" (even commented) to allow placeholder only .env
+            var hasMarker = File.ReadLines(envFilePath).Any(l => l.Contains("SPOCR_", StringComparison.OrdinalIgnoreCase));
+            if (!hasMarker)
+            {
+                throw new InvalidOperationException(".env file found but contains no SPOCR_ marker lines; add at least a commented SPOCR_ entry (e.g. '# SPOCR_NAMESPACE=Your.Namespace').");
+            }
         }
     }
 
@@ -114,4 +142,6 @@ public sealed class EnvConfiguration
     }
 
     private static string? NullIfEmpty(string value) => string.IsNullOrWhiteSpace(value) ? null : value;
+
+    // Removed previous DeriveNamespace & ToPascalCase (now handled by NamespaceResolver)
 }
