@@ -29,8 +29,10 @@ public sealed class TableTypesGenerator
     {
         var types = _provider.GetAll();
         var resolver = new NamespaceResolver(_cfg);
-        var ns = resolver.Resolve();
+        var resolvedBase = resolver.Resolve();
         var rootOut = Path.Combine(_projectRoot, _cfg.OutputDir ?? "SpocR");
+        // Generic rule: place table types under BaseNamespace + ".SpocR" segment unless already ends with it.
+        var ns = resolvedBase.EndsWith(".SpocR", StringComparison.Ordinal) ? resolvedBase : resolvedBase + ".SpocR";
         Directory.CreateDirectory(rootOut);
         var written = 0;
         string? tableTypeTemplate = null;
