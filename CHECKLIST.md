@@ -118,6 +118,8 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] Test-Hosts nach Läufen bereinigt (eng/kill-testhosts.ps1) – kein Leak mehr
 - [ ] Code Coverage Mindestschwelle definiert und erreicht (Ziel: >80% Core-Logik)
 - [ ] Negative Tests für ungültige spocr.json Konfigurationen
+- [x] Test: TableTypes Name Preservation (`PreservesOriginalNames_NoRenaming`) sichert unveränderte UDTT Bezeichner
+- [x] Entfernte Suffix-Normalisierung für TableTypes (Regression abgesichert)
 
 ### Codegenerierung / SpocRVNext
 
@@ -134,6 +136,10 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [x] Legacy CLI ruft bei `SPOCR_GENERATOR_MODE=dual` zusätzlich vNext Dispatcher (nur .env / EnvConfiguration, ohne spocr.json Nutzung) auf
 - [x] Schalter/Feature-Flag zum Aktivieren des neuen Outputs vorhanden (CLI Parameter oder Konfig)
 - [x] Konsistenz-Check für generierte Dateien (Determinismus pro Generator; keine Legacy-Paritäts-Pflicht) – Hash Manifeste vorhanden (noch keine harte Policy) - [x] Timestamp-Zeile neutralisiert (Regex Normalisierung) - [x] Doppelter Schreibpfad Outputs/CrudResult entfernt (Skip base copy)
+      note: Konsistenz-Check für generierte Dateien (Determinismus pro Generator; keine Legacy-Paritäts-Pflicht) – Hash Manifeste vorhanden (noch keine harte Policy); Timestamp-Zeile neutralisiert (Regex Normalisierung); Doppelter Schreibpfad Outputs/CrudResult entfernt (Skip base copy)
+- [x] TableTypes: Always-On Generation (Interface `ITableType` einmalig, Records je Schema unter `SpocR/<schema>/`) integriert in Build (dual|next)
+- [x] TableTypes: Timestamp `<remarks>` Zeile eingefügt und beim Hashing ignoriert (DirectoryHasher Filter)
+- [x] TableTypes: Original Snapshot Namen vollständig beibehalten (nur Sanitizing) – keine erzwungene *TableType Suffix Ergänzung
 - [ ] Performance Messung: Generierungsdauer dokumentiert (Baseline vs. Neuer Ansatz) - [ ] Legacy (Ø 3 Runs) - [ ] Dual Mode - [ ] vNext only - [ ] Tabelle + Abschnitt in DEVELOPMENT.md
 
 ### Migration / Breaking Changes
@@ -232,7 +238,8 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] Weitere Tests: Minor Update erlaubt, SkipVersion respektiert, Direkt-Major mit Override protokolliert
 - [ ] Dokumentation Env Override Beispiele (`SPOCR_ALLOW_DIRECT_MAJOR=1`) in README / MIGRATION Guide
 
-- [x] Tests für EnvConfiguration Precedence & Invalid Mode vorhanden - [ ] Test: Experimental CLI Flag (`SPOCR_EXPERIMENTAL_CLI`) aktiviert neuen Parser nur bei gesetztem Flag
+- [x] Tests für EnvConfiguration Precedence & Invalid Mode vorhanden
+- [ ] Test: Experimental CLI Flag (`SPOCR_EXPERIMENTAL_CLI`) aktiviert neuen Parser nur bei gesetztem Flag
 
 ### Nullable & Codequalität (Ergänzung)
 
@@ -249,6 +256,7 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] Dokumentation: Anleitung zur Pflege der Allow-List (`.spocr-diff-allow`)
 - [ ] Optionaler "strict-diff" Modus über ENV / CLI Flag getestet
 - [x] Snapshot-Timestamp (`GeneratedUtc`) aus Persistenz entfernt (deterministische Hashes / keine Timestamp-Diffs)
+- [x] Hash-Filter erweitert: Ignoriere dynamische `Generated at` Zeilen aus vNext Output-Dateien
 
 ### Sonstiges
 
