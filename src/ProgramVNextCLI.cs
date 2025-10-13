@@ -50,7 +50,7 @@ internal static class ProgramVNextCLI
             var cfg = EnvConfiguration.Load(cliOverrides: envOverrides);
             resolvedMode = cfg.GeneratorMode;
             var renderer = provider.GetRequiredService<SpocR.SpocRVNext.Engine.ITemplateRenderer>();
-            var gen = new SpocRGenerator(renderer);
+            var gen = new SpocRGenerator(renderer, schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider());
             var output = gen.RenderDemo();
             Console.WriteLine($"[mode={cfg.GeneratorMode}] {output}");
             success = true;

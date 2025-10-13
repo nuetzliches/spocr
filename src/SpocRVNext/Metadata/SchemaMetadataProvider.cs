@@ -19,6 +19,7 @@ public interface ISchemaMetadataProvider
     IReadOnlyList<InputDescriptor> GetInputs();
     IReadOnlyList<OutputDescriptor> GetOutputs();
     IReadOnlyList<ResultSetDescriptor> GetResultSets();
+    IReadOnlyList<ResultDescriptor> GetResults();
 }
 
 internal sealed class SchemaMetadataProvider : ISchemaMetadataProvider
@@ -29,6 +30,7 @@ internal sealed class SchemaMetadataProvider : ISchemaMetadataProvider
     private List<InputDescriptor> _inputs = new();
     private List<OutputDescriptor> _outputs = new();
     private List<ResultSetDescriptor> _resultSets = new();
+    private List<ResultDescriptor> _results = new();
 
     public SchemaMetadataProvider(string? projectRoot = null)
     {
@@ -39,6 +41,7 @@ internal sealed class SchemaMetadataProvider : ISchemaMetadataProvider
     public IReadOnlyList<InputDescriptor> GetInputs() { EnsureLoaded(); return _inputs; }
     public IReadOnlyList<OutputDescriptor> GetOutputs() { EnsureLoaded(); return _outputs; }
     public IReadOnlyList<ResultSetDescriptor> GetResultSets() { EnsureLoaded(); return _resultSets; }
+    public IReadOnlyList<ResultDescriptor> GetResults() { EnsureLoaded(); return _results; }
 
     private void EnsureLoaded()
     {
@@ -62,6 +65,7 @@ internal sealed class SchemaMetadataProvider : ISchemaMetadataProvider
         var inputList = new List<InputDescriptor>();
         var outputList = new List<OutputDescriptor>();
         var rsList = new List<ResultSetDescriptor>();
+        var resultDescriptors = new List<ResultDescriptor>();
 
         foreach (var p in procsEl.EnumerateArray())
         {
@@ -117,14 +121,24 @@ internal sealed class SchemaMetadataProvider : ISchemaMetadataProvider
                 }
             }
 
-            procList.Add(new ProcedureDescriptor(
+            var procDescriptor = new ProcedureDescriptor(
                 ProcedureName: name,
                 Schema: schema,
                 OperationName: operationName,
                 InputParameters: inputParams,
                 OutputFields: outputParams,
                 ResultSets: resultSetDescriptors
-            ));
+            );
+            procList.Add(procDescriptor);
+
+            // ResultDescriptor strategy: choose first result set (if any) as primary payload type name.
+            if (resultSetDescriptors.Count > 0)
+            {
+                var primary = resultSetDescriptors[0];
+                // Build a synthetic payload type name (Operation + primary set name + "Row") for future model (even if not yet generated)
+                var payloadType = NamePolicy.Sanitize(operationName) + NamePolicy.Sanitize(primary.Name) + "Row";
+                resultDescriptors.Add(new ResultDescriptor(operationName, payloadType));
+            }
 
             if (inputParams.Count > 0)
             {
@@ -147,6 +161,7 @@ internal sealed class SchemaMetadataProvider : ISchemaMetadataProvider
         _inputs = inputList.OrderBy(i => i.OperationName).ToList();
         _outputs = outputList.OrderBy(o => o.OperationName).ToList();
         _resultSets = rsList.OrderBy(r => r.Name).ToList();
+        _results = resultDescriptors.OrderBy(r => r.OperationName).ToList();
     }
 
     private static string MapSqlToClr(string sql, bool nullable)

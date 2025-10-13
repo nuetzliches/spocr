@@ -115,7 +115,7 @@ public sealed class SpocRGenerator
             var outputsGen = new OutputsGenerator(_renderer, () => schema.GetOutputs(), _loader, projectRoot);
             total += outputsGen.Generate(ns);
             // Result type generation may rely on result sets; for now feed empty until ResultDescriptor strategy defined
-            var resultsGen = new ResultsGenerator(_renderer, () => Array.Empty<ResultDescriptor>(), _loader, projectRoot);
+            var resultsGen = new ResultsGenerator(_renderer, () => schema.GetResults(), _loader, projectRoot);
             total += resultsGen.Generate(ns);
             var procsGen = new ProceduresGenerator(_renderer, () => schema.GetProcedures(), _loader, projectRoot);
             total += procsGen.Generate(ns);

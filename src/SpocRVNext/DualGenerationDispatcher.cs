@@ -53,7 +53,7 @@ public sealed class DualGenerationDispatcher
                     ITemplateLoader? loader = Directory.Exists(templatesDir)
                         ? new FileSystemTemplateLoader(templatesDir)
                         : null;
-                    var genNext = new SpocRGenerator(_renderer, loader);
+                    var genNext = new SpocRGenerator(_renderer, loader, schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider());
                     nextContent = genNext.RenderDemo();
                     Directory.CreateDirectory(nextDir);
                     File.WriteAllText(Path.Combine(nextDir, "DemoNext.cs"), nextContent);
@@ -70,7 +70,7 @@ public sealed class DualGenerationDispatcher
                 ITemplateLoader? loaderDual = Directory.Exists(templatesDirDual)
                     ? new FileSystemTemplateLoader(templatesDirDual)
                     : null;
-                var gen = new SpocRGenerator(_renderer, loaderDual);
+                var gen = new SpocRGenerator(_renderer, loaderDual, schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider());
                 nextContent = gen.RenderDemo();
                 Directory.CreateDirectory(legacyDir);
                 Directory.CreateDirectory(nextDir);
