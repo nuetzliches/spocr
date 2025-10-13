@@ -1,6 +1,14 @@
+// NOTE: This modern extension scaffold references future health check & metrics APIs
+// and additional internal service abstractions not yet available in the sample.
+// It is excluded from the current build by default to keep the sample minimal.
+// Enable by defining the compilation symbol FUTURE_SPOCR_EXTENSIONS in the project file.
+
+#if FUTURE_SPOCR_EXTENSIONS
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using System.Diagnostics.Metrics;
 using SpocR.Models;
 using SpocR.Services;
 
@@ -202,3 +210,4 @@ public class SpocRMetrics
         _operationDuration.Record(duration, new("operation_type", operationType));
     }
 }
+#endif

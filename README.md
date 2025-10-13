@@ -59,6 +59,18 @@ For comprehensive documentation, examples, and advanced configuration:
 
 **[Visit the SpocR Documentation](https://nuetzliches.github.io/spocr/)**
 
+> Bridge Phase (v4.5 → v5)
+>
+> The project is currently in a transitional "Bridge Phase" (planned final minor before v5). A legacy DataContext generator is still present while the new `SpocRVNext` pipeline matures. Unless you explicitly opt in, behavior remains stable.
+>
+> Key points:
+> - Legacy Freeze: Non-critical functional changes to the legacy generator are frozen (only security / stability fixes). 
+> - Dual Generation: You can run both pipelines in parallel (`SPOCR_GENERATOR_MODE=dual` - DEFAULT in v4.5) to observe new output without impacting existing code.
+> - Opt-In Flags: New CLI parser & strict modes are guarded behind environment variables / flags (see `samples/restapi/.env.example`).
+> - Cutover Plan: v5 will remove the legacy DataContext and obsolete configuration properties. Migration notes will be published ahead of the release.
+>
+> Recommended now: inspect the future output, and open issues for gaps / blockers you discover.
+
 ### Migration Note: Removal of Legacy `Output`
 
 Older snapshots exposed a root-level `Output` array for JSON-returning procedures. This was removed in favor of a unified `ResultSets` model. Update any tooling referencing `Output` to:

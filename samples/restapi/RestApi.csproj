@@ -8,6 +8,10 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0-rc.1.25451.107" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.1" />
   </ItemGroup>
+
+  <!-- Intentionally no ProjectReference to SpocR.
+       The sample is meant to consume only generated code + CLI outputs (standalone generation model). -->
 
 </Project>

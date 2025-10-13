@@ -22,7 +22,7 @@ Format loosely inspired by Keep a Changelog. Dates use ISO 8601 (UTC).
 
 ### Migration / Freeze
 
-- Legacy generator freeze (EPIC E001): No further functional enhancements to the existing DataContext code after introduction of this note. Only security or stability critical bug fixes allowed. Sentinel file `legacy-freeze.txt` denotes active freeze.
+- Legacy generator freeze (EPIC E001): No further functional enhancements to the existing DataContext code after introduction of this note. Only security or stability critical bug fixes allowed. Sentinel file `legacy-freeze.txt` denotes active freeze. Freeze effective date: 2025-10-13 (previous internal draft 2025-10-12 updated).
 - Bridge Policy: Direct major upgrade attempts require transitional version path unless `SPOCR_ALLOW_DIRECT_MAJOR=1` is set. Documented to reduce accidental skipping of migration steps.
 
 ## [4.5.0-alpha.12] - 2025-10-07

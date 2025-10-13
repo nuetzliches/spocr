@@ -93,6 +93,18 @@ public class OutputService(
         var baseFiles = new DirectoryInfo(sourceDir).GetFiles("*.base.cs", SearchOption.TopDirectoryOnly);
         foreach (var file in baseFiles)
         {
+            // Einige *.base.cs Dateien besitzen eine eigenständige Generator-Pipeline (z.B. Outputs.base.cs / CrudResult.base.cs),
+            // die später im Ablauf (Outputs- bzw. Models-Step) eine konsolidierte Datei erzeugt.
+            // Wenn wir sie hier ebenfalls kopieren, unterscheiden sich Formatierung / Trivia (Roslyn vs. TemplateManager)
+            // und die Datei wird bei jedem Rebuild erneut als "modified" gemeldet, obwohl nur der Timestamp wechselt.
+            // Zur Sicherstellung deterministischer Builds überspringen wir diese Dateien im CodeBase-Schritt.
+            var fileName = file.Name;
+            if (fileName.Equals("Outputs.base.cs", System.StringComparison.OrdinalIgnoreCase) ||
+                fileName.Equals("CrudResult.base.cs", System.StringComparison.OrdinalIgnoreCase))
+            {
+                continue; // überspringen – spezialisierter Generator übernimmt
+            }
+
             CopyFile(file, Path.Combine(targetDir, file.Name.Replace(".base", "")), nameSpace, dryrun);
         }
     }
@@ -171,8 +183,39 @@ public class OutputService(
         if (File.Exists(targetFileName))
         {
             var existingFileText = await File.ReadAllTextAsync(targetFileName);
-            var upToDate = string.Equals(existingFileText, outputFileText);
 
+            // Normalisiere volatile Remark-Zeile mit Timestamp, damit nur inhaltliche Änderungen zählen.
+            static string NormalizeForComparison(string text)
+            {
+                if (string.IsNullOrEmpty(text)) return text;
+                // 1) Timestamp neutralisieren (ganze Zeile entfernen/ersetzen)
+                text = System.Text.RegularExpressions.Regex.Replace(
+                    text,
+                    @"^.*///\s<remarks>Generated at .*?</remarks>.*$",
+                    "/// <remarks>Generated at <normalized></remarks>",
+                    System.Text.RegularExpressions.RegexOptions.Multiline);
+                // Fallback falls Format minimal anders ist (z.B. ohne führende Spaces)
+                text = System.Text.RegularExpressions.Regex.Replace(
+                    text,
+                    @"/// <remarks>Generated at .*?</remarks>",
+                    "/// <remarks>Generated at <normalized></remarks>");
+                // 2) Zeilenenden vereinheitlichen (\n)
+                text = text.Replace("\r\n", "\n");
+                // 3) Trailing Whitespaces pro Zeile entfernen
+                var lines = text.Split('\n');
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    lines[i] = lines[i].TrimEnd();
+                }
+                text = string.Join("\n", lines);
+                // 4) Abschließenden Newline sicherstellen
+                if (!text.EndsWith("\n")) text += "\n";
+                return text;
+            }
+
+            var normExisting = NormalizeForComparison(existingFileText);
+            var normNew = NormalizeForComparison(outputFileText);
+            var upToDate = string.Equals(normExisting, normNew, System.StringComparison.Ordinal);
             fileAction = upToDate ? FileActionEnum.UpToDate : FileActionEnum.Modified;
         }
 

@@ -1,0 +1,7 @@
+// Example template (preview). Uses {{ Namespace }} and {{ ClassName }} placeholders.
+namespace {{ Namespace }};
+
+public partial class {{ ClassName }}
+{
+    // Generated at build time; extend via partial methods.
+}

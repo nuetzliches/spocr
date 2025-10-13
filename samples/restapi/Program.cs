@@ -1,42 +1,19 @@
+using System;
 using System.Data.Common;
+using System.Text.Json;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add minimal OpenAPI support
 builder.Services.AddOpenApi();
 
-builder.Services.AddSpocRDbContext(options =>
-{
-    // etwa so?
-    // wenn die Connection gesetzt wird, muss AddSpocRDbContext einen Service providen ISpocRDbConnection
-    // in den alten Role.Kind = "Lib" soll dann dieser Service injected werden (bzw. generell als optionaler Default)
-    options.Connection = Connection.FromConnectionString("DefaultConnection");
-    // oder ?
-    options.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-    options.CommandTimeout = 45;
-    options.JsonSerializerOptions = new JsonSerializerOptions
-    {
-        PropertyNameCaseInsensitive = true,
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    };
-
-    // wir benötigen konfigurierbare AutoMapper für Input TableTypes
-    // z.B. soll ein [sample].[PrincipalTableType] in mit dem Namen @Principal gefüllt werden können
-    // z.B. UserId aus dem BearerToken extrahieren und zuweisen
-    // die Herausforderung: daraufhin sollen die InputModels (DTOs) dieses Feld nicht mehr im Konstruktor haben
-
-    // Wie handhaben wir z.B. ein AutoTrim für Strings?
-    // Wie handhaben wir z.B. DateTimeKind (z.B. UTC)?
-    // options.InputConverter = ...
-
-    // zu planen, wie wir einzelne Stored Procedures konfigurieren können
-    // options.StoredProcedures.UserFind.Timeout = 60; // Override specific stored procedure timeout
-    // options.StoredProcedures.UserFind.JsonSerializerOptions = new JsonSerializerOptions
-    // {
-    //     PropertyNameCaseInsensitive = true,
-    //     PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-    // };
-});
+// No direct SpocR library reference: generated code (if any) would live under Spocr/.
+// This sample stays framework-agnostic regarding the generator implementation.
 
 var app = builder.Build();
 
@@ -52,5 +29,23 @@ app.MapGet("/", () => "Hello World!")
     .WithName("Root")
     .WithSummary("Returns a simple greeting.")
     .WithDescription("Minimal root endpoint to verify the API is running.");
+
+// Simple health check using raw ADO.NET (keine Library-Abhängigkeit)
+app.MapGet("/health/db", (IConfiguration config) =>
+{
+    var cs = config.GetConnectionString("DefaultConnection") ?? Environment.GetEnvironmentVariable("SPOCR_DB_DEFAULT");
+    if (string.IsNullOrWhiteSpace(cs))
+        return Results.Problem(title: "Missing connection string", detail: "Provide DefaultConnection or SPOCR_DB_DEFAULT.");
+    try
+    {
+        using var conn = new SqlConnection(cs);
+        conn.Open();
+        return Results.Ok(new { status = "ok", db = conn.State.ToString() });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(title: "Database connection failed", detail: ex.Message);
+    }
+}).WithSummary("Database connectivity health check").WithDescription("Opens a SQL connection using configured connection string.");
 
 app.Run();

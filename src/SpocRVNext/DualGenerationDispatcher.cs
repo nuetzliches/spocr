@@ -45,17 +45,22 @@ public sealed class DualGenerationDispatcher
                 File.WriteAllText(Path.Combine(legacyDir, "DemoLegacy.cs"), legacyContent);
                 break;
             case "next":
-                nextContent = new SpocRGenerator(_renderer).RenderDemo();
+                var genNext = new SpocRGenerator(_renderer); // loader not yet injected here
+                nextContent = genNext.RenderDemo();
                 Directory.CreateDirectory(nextDir);
                 File.WriteAllText(Path.Combine(nextDir, "DemoNext.cs"), nextContent);
+                // Minimal future path: attempt DbContext generation into nested folder
+                genNext.GenerateMinimalDbContext(Path.Combine(nextDir, "generated"));
                 break;
             case "dual":
                 legacyContent = "// legacy demo placeholder";
-                nextContent = new SpocRGenerator(_renderer).RenderDemo();
+                var gen = new SpocRGenerator(_renderer);
+                nextContent = gen.RenderDemo();
                 Directory.CreateDirectory(legacyDir);
                 Directory.CreateDirectory(nextDir);
                 File.WriteAllText(Path.Combine(legacyDir, "DemoLegacy.cs"), legacyContent);
                 File.WriteAllText(Path.Combine(nextDir, "DemoNext.cs"), nextContent);
+                gen.GenerateMinimalDbContext(Path.Combine(nextDir, "generated"));
                 // Diff step (allow-list reading optional future extension)
                 var diff = DirectoryDiff.Compare(legacyDir, nextDir, allowListGlobs: ReadAllowList(baseOutputDir));
                 var summaryPath = Path.Combine(baseOutputDir, "diff-summary.txt");

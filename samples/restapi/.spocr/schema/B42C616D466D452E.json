@@ -1,7 +1,7 @@
 {
   "SchemaVersion": 1,
   "Fingerprint": "B42C616D466D452E",
-  "GeneratedUtc": "2025-10-13T09:48:53.7341082Z",
+  "GeneratedUtc": "2025-10-13T11:06:27.0119995Z",
   "Database": {
     "ServerHash": "49960DE5880E8C68",
     "Name": "SpocRSample"
@@ -68,50 +68,43 @@
               "Name": "UserId",
               "SqlTypeName": "int",
               "IsNullable": false,
-              "MaxLength": 4,
-              "JsonPath": "UserId"
+              "MaxLength": 4
             },
             {
               "Name": "DisplayName",
               "SqlTypeName": "nvarchar",
               "IsNullable": false,
-              "MaxLength": 128,
-              "JsonPath": "DisplayName"
+              "MaxLength": 128
             },
             {
               "Name": "Email",
               "SqlTypeName": "nvarchar",
               "IsNullable": false,
-              "MaxLength": 256,
-              "JsonPath": "Email"
+              "MaxLength": 256
             },
             {
               "Name": "OrderId",
               "SqlTypeName": "int",
               "IsNullable": false,
-              "MaxLength": 4,
-              "JsonPath": "OrderId"
+              "MaxLength": 4
             },
             {
               "Name": "TotalAmount",
               "SqlTypeName": "decimal",
               "IsNullable": false,
-              "MaxLength": 9,
-              "JsonPath": "TotalAmount"
+              "MaxLength": 9
             },
             {
               "Name": "PlacedAt",
               "SqlTypeName": "datetime2",
               "IsNullable": false,
-              "MaxLength": 8,
-              "JsonPath": "PlacedAt"
+              "MaxLength": 8
             },
             {
               "Name": "Notes",
               "SqlTypeName": "nvarchar",
               "IsNullable": true,
-              "MaxLength": 1024,
-              "JsonPath": "Notes"
+              "MaxLength": 1024
             }
           ],
           "HasSelectStar": false
@@ -141,50 +134,43 @@
               "Name": "UserId",
               "SqlTypeName": "int",
               "IsNullable": false,
-              "MaxLength": 4,
-              "JsonPath": "UserId"
+              "MaxLength": 4
             },
             {
               "Name": "DisplayName",
               "SqlTypeName": "nvarchar",
               "IsNullable": false,
-              "MaxLength": 128,
-              "JsonPath": "DisplayName"
+              "MaxLength": 128
             },
             {
               "Name": "Email",
               "SqlTypeName": "nvarchar",
               "IsNullable": false,
-              "MaxLength": 256,
-              "JsonPath": "Email"
+              "MaxLength": 256
             },
             {
               "Name": "OrderId",
               "SqlTypeName": "int",
               "IsNullable": false,
-              "MaxLength": 4,
-              "JsonPath": "OrderId"
+              "MaxLength": 4
             },
             {
               "Name": "TotalAmount",
               "SqlTypeName": "decimal",
               "IsNullable": false,
-              "MaxLength": 9,
-              "JsonPath": "TotalAmount"
+              "MaxLength": 9
             },
             {
               "Name": "PlacedAt",
               "SqlTypeName": "datetime2",
               "IsNullable": false,
-              "MaxLength": 8,
-              "JsonPath": "PlacedAt"
+              "MaxLength": 8
             },
             {
               "Name": "Notes",
               "SqlTypeName": "nvarchar",
               "IsNullable": true,
-              "MaxLength": 1024,
-              "JsonPath": "Notes"
+              "MaxLength": 1024
             }
           ],
           "HasSelectStar": false
@@ -494,64 +480,25 @@
               "Name": "UserId",
               "SqlTypeName": "int",
               "IsNullable": false,
-              "MaxLength": 4,
-              "JsonPath": "UserId"
+              "MaxLength": 4
             },
             {
               "Name": "DisplayName",
               "SqlTypeName": "nvarchar",
               "IsNullable": false,
-              "MaxLength": 128,
-              "JsonPath": "DisplayName"
+              "MaxLength": 128
             },
             {
               "Name": "Email",
               "SqlTypeName": "nvarchar",
               "IsNullable": false,
-              "MaxLength": 256,
-              "JsonPath": "Email"
+              "MaxLength": 256
             },
             {
               "Name": "Orders",
               "SqlTypeName": "nvarchar(max)",
               "IsNullable": false,
-              "MaxLength": 0,
-              "JsonPath": "Orders",
-              "JsonResult": {
-                "ReturnsJson": true,
-                "ReturnsJsonArray": true,
-                "ReturnsJsonWithoutArrayWrapper": false,
-                "Columns": [
-                  {
-                    "Name": "OrderId",
-                    "SqlTypeName": "nvarchar(max)",
-                    "IsNullable": false,
-                    "MaxLength": 0,
-                    "JsonPath": "OrderId"
-                  },
-                  {
-                    "Name": "TotalAmount",
-                    "SqlTypeName": "nvarchar(max)",
-                    "IsNullable": false,
-                    "MaxLength": 0,
-                    "JsonPath": "TotalAmount"
-                  },
-                  {
-                    "Name": "PlacedAt",
-                    "SqlTypeName": "nvarchar(max)",
-                    "IsNullable": false,
-                    "MaxLength": 0,
-                    "JsonPath": "PlacedAt"
-                  },
-                  {
-                    "Name": "Notes",
-                    "SqlTypeName": "nvarchar(max)",
-                    "IsNullable": false,
-                    "MaxLength": 0,
-                    "JsonPath": "Notes"
-                  }
-                ]
-              }
+              "MaxLength": 0
             }
           ],
           "HasSelectStar": false
