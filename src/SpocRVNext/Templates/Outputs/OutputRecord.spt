@@ -1,0 +1,9 @@
+{{ HEADER }}
+namespace {{ Namespace }}.Outputs;
+
+/// <summary>
+/// Output model for {{ OperationName }} ({{ FieldCount }} fields)
+/// </summary>
+public readonly record struct {{ TypeName }}(
+{{#each Fields}}    {{ ClrType }} {{ PropertyName }}{{ Separator }}
+{{/each}});

@@ -1,0 +1,7 @@
+{{ HEADER }}
+namespace {{ Namespace }}.Results;
+
+/// <summary>
+/// Result model for {{ OperationName }} (Success + optional payload)
+/// </summary>
+public readonly record struct {{ TypeName }}(bool Success, string? Error, {{ PayloadType }}? Value);

@@ -1,0 +1,11 @@
+{{ HEADER }}
+namespace {{ Namespace }}.Procedures;
+
+/// <summary>
+/// Stored Procedure wrapper for {{ ProcedureName }}
+/// </summary>
+public static class {{ TypeName }}
+{
+    public static string Name => "{{ ProcedureName }}";
+    // TODO: execution stub (will be implemented later)
+}
