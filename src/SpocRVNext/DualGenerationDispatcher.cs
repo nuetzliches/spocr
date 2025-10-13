@@ -59,7 +59,7 @@ public sealed class DualGenerationDispatcher
                     File.WriteAllText(Path.Combine(nextDir, "DemoNext.cs"), nextContent);
                     genNext.GenerateMinimalDbContext(Path.Combine(nextDir, "generated"));
                     // vNext real output: TableTypes
-                    var ttGen = new TableTypesGenerator(_cfg, new TableTypeMetadataProvider(), _renderer, loader);
+                    var ttGen = new TableTypesGenerator(_cfg, new TableTypeMetadataProvider(Directory.GetCurrentDirectory()), _renderer, loader);
                     var count = ttGen.Generate();
                     File.WriteAllText(Path.Combine(nextDir, "_tabletypes.info"), $"Generated {count} table type record structs");
                 }
@@ -78,7 +78,7 @@ public sealed class DualGenerationDispatcher
                 File.WriteAllText(Path.Combine(nextDir, "DemoNext.cs"), nextContent);
                 gen.GenerateMinimalDbContext(Path.Combine(nextDir, "generated"));
                 // vNext real output: TableTypes
-                var ttGenDual = new TableTypesGenerator(_cfg, new TableTypeMetadataProvider(), _renderer, loaderDual);
+                var ttGenDual = new TableTypesGenerator(_cfg, new TableTypeMetadataProvider(Directory.GetCurrentDirectory()), _renderer, loaderDual);
                 var countDual = ttGenDual.Generate();
                 File.WriteAllText(Path.Combine(nextDir, "_tabletypes.info"), $"Generated {countDual} table type record structs");
                 // Diff step (allow-list reading optional future extension)

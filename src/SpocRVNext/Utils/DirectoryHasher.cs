@@ -48,9 +48,25 @@ public static class DirectoryHasher
 
     private static string ComputeFileHash(string path)
     {
+        // For source files, strip volatile timestamp lines (Generated at ...)
+        bool isText = path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".txt", StringComparison.OrdinalIgnoreCase) || path.EndsWith(".json", StringComparison.OrdinalIgnoreCase);
+        if (!isText)
+        {
+            using var shaBin = SHA256.Create();
+            using var fsBin = File.OpenRead(path);
+            var hBin = shaBin.ComputeHash(fsBin);
+            return Convert.ToHexString(hBin).ToLowerInvariant();
+        }
+        var lines = File.ReadAllLines(path)
+            .Where(l => !l.Contains("Generated at ")) // ignore timestamp line
+            .ToArray();
         using var sha = SHA256.Create();
-        using var fs = File.OpenRead(path);
-        var hash = sha.ComputeHash(fs);
-        return Convert.ToHexString(hash).ToLowerInvariant();
+        foreach (var line in lines)
+        {
+            var bytes = System.Text.Encoding.UTF8.GetBytes(line + "\n");
+            sha.TransformBlock(bytes, 0, bytes.Length, null, 0);
+        }
+        sha.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
+        return Convert.ToHexString(sha.Hash!).ToLowerInvariant();
     }
 }

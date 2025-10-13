@@ -18,6 +18,8 @@ using SpocR.DataContext.Models;
 using SpocR.SpocRVNext.Engine; // vNext template engine
 using SpocR.SpocRVNext; // dispatcher & generator
 using SpocRVNext.Configuration; // EnvConfiguration
+using SpocRVNext.Metadata; // vNext TableType metadata provider
+using SpocR.SpocRVNext.Generators; // vNext TableTypesGenerator
 
 namespace SpocR.Managers;
 
@@ -636,24 +638,25 @@ public class SpocrManager(
             var totalElapsed = elapsed.Values.Sum();
             consoleService.PrintTotal($"Total elapsed time: {totalElapsed} ms.");
 
-            // Invoke vNext pipeline in dual mode WITHOUT using legacy ConfigurationModel / FileManager
-            // Only .env + environment variables are considered for vNext (EnvConfiguration).
-            if (genMode == "dual")
+            // Invoke vNext pipeline in dual/next mode: real TableTypes generation (always-on)
+            if (genMode == "dual" || genMode == "next")
             {
                 try
                 {
-                    consoleService.PrintSubTitle("vNext (dual mode) – executing experimental pipeline");
-                    // Use working directory (potentially overridden by -p path) as project root for .env discovery
+                    consoleService.PrintSubTitle($"vNext ({genMode}) – TableTypes");
                     var projectRoot = Utils.DirectoryUtils.GetWorkingDirectory();
-                    var cfg = EnvConfiguration.Load(projectRoot: projectRoot); // reads .env + env, no spocr.json usage
+                    var cfg = EnvConfiguration.Load(projectRoot: projectRoot);
                     var renderer = new SimpleTemplateEngine();
-                    var dispatcher = new DualGenerationDispatcher(cfg, renderer);
-                    var msg = dispatcher.ExecuteDemo();
-                    consoleService.Gray(msg);
+                    var templatesDir = System.IO.Path.Combine(projectRoot, "src", "SpocRVNext", "Templates");
+                    ITemplateLoader? loader = System.IO.Directory.Exists(templatesDir) ? new FileSystemTemplateLoader(templatesDir) : null;
+                    var metadata = new TableTypeMetadataProvider(projectRoot);
+                    var generator = new TableTypesGenerator(cfg, metadata, renderer, loader, projectRoot);
+                    var count = generator.Generate();
+                    consoleService.Gray($"[vnext] TableTypes generated: {count} artifacts (includes interface)");
                 }
                 catch (Exception vx)
                 {
-                    consoleService.Warn($"[vnext-dual-warning] vNext experimental pipeline failed: {vx.Message}");
+                    consoleService.Warn($"[vnext-warning] TableTypes generation failed: {vx.Message}");
                 }
             }
 

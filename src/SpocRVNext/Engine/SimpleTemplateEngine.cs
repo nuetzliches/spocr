@@ -11,6 +11,7 @@ public sealed class SimpleTemplateEngine : ITemplateRenderer
 {
     // Regex: {{ Name }} oder {{  complex.path_value  }}
     private static readonly Regex Placeholder = new(@"\{\{\s*(?<name>[A-Za-z0-9_\.]+)\s*\}\}", RegexOptions.Compiled);
+    private static readonly Regex EachBlock = new(@"\{\{#each\s+(?<path>[A-Za-z0-9_\.]+)\s*\}\}(?<body>[\s\S]*?)\{\{/each\}\}", RegexOptions.Compiled);
 
     public string Render(string template, object? model)
     {
@@ -22,6 +23,35 @@ public sealed class SimpleTemplateEngine : ITemplateRenderer
         var json = JsonSerializer.SerializeToElement(model, new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true
+        });
+        // Process each blocks first
+        template = EachBlock.Replace(template, m =>
+        {
+            var pathSegs = m.Groups["path"].Value.Split('.');
+            if (!TryResolve(json, pathSegs, out var arr) || arr.ValueKind != JsonValueKind.Array)
+                return string.Empty;
+            var body = m.Groups["body"].Value;
+            var sb = new System.Text.StringBuilder();
+            foreach (var element in arr.EnumerateArray())
+            {
+                // For body rendering allow {{this.Property}} or {{Property}}
+                sb.Append(Placeholder.Replace(body, pm =>
+                {
+                    var name = pm.Groups["name"].Value;
+                    JsonElement resolved;
+                    if (name.Equals("this", StringComparison.OrdinalIgnoreCase)) return element.ToString() ?? string.Empty;
+                    var parts = name.StartsWith("this.", StringComparison.OrdinalIgnoreCase)
+                        ? name.Substring(5).Split('.')
+                        : name.Split('.');
+                    if (TryResolve(element, parts, out resolved) && resolved.ValueKind != JsonValueKind.Undefined && resolved.ValueKind != JsonValueKind.Null)
+                        return resolved.ToString() ?? string.Empty;
+                    // Fallback: try root json (outer scope) for placeholder not found in element
+                    if (TryResolve(json, name.Split('.'), out resolved) && resolved.ValueKind != JsonValueKind.Undefined && resolved.ValueKind != JsonValueKind.Null)
+                        return resolved.ToString() ?? string.Empty;
+                    return string.Empty;
+                }));
+            }
+            return sb.ToString();
         });
 
         return Placeholder.Replace(template, m =>
