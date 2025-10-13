@@ -83,6 +83,7 @@ public class SchemaSnapshot
 {
     public int SchemaVersion { get; set; } = 1;
     public string Fingerprint { get; set; }
+    [JsonIgnore] // Excluded from persisted snapshot to avoid nondeterministic Git diffs
     public DateTime GeneratedUtc { get; set; } = DateTime.UtcNow;
     public SnapshotDatabase Database { get; set; }
     public List<SnapshotProcedure> Procedures { get; set; } = new();

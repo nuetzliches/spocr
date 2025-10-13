@@ -247,6 +247,7 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] Aktivierung reservierter Exit Codes (21–23) bei Policy-Eskalation implementieren
 - [ ] Dokumentation: Anleitung zur Pflege der Allow-List (`.spocr-diff-allow`)
 - [ ] Optionaler "strict-diff" Modus über ENV / CLI Flag getestet
+- [x] Snapshot-Timestamp (`GeneratedUtc`) aus Persistenz entfernt (deterministische Hashes / keine Timestamp-Diffs)
 
 ### Sonstiges
 
