@@ -38,7 +38,8 @@ public sealed class ResultsGenerator
         foreach (var res in results.OrderBy(r => r.OperationName))
         {
             var typeName = NamePolicy.Result(res.OperationName);
-            var model = new {
+            var model = new
+            {
                 Namespace = ns,
                 OperationName = res.OperationName,
                 TypeName = typeName,

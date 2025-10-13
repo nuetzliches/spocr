@@ -38,12 +38,13 @@ public sealed class InputsGenerator
         foreach (var input in inputs.OrderBy(i => i.OperationName))
         {
             var typeName = NamePolicy.Input(input.OperationName);
-            var model = new {
+            var model = new
+            {
                 Namespace = ns,
                 OperationName = input.OperationName,
                 TypeName = typeName,
                 ParameterCount = input.Fields.Count,
-                Parameters = input.Fields.Select((f,idx) => new { f.ClrType, f.PropertyName, Separator = idx == input.Fields.Count - 1 ? string.Empty : "," }).ToList(),
+                Parameters = input.Fields.Select((f, idx) => new { f.ClrType, f.PropertyName, Separator = idx == input.Fields.Count - 1 ? string.Empty : "," }).ToList(),
                 HEADER = header
             };
             string code;
@@ -56,7 +57,7 @@ public sealed class InputsGenerator
                 sb.AppendLine($"namespace {ns}.Inputs;");
                 sb.AppendLine();
                 sb.AppendLine($"public readonly record struct {typeName}(");
-                for (int i=0;i<input.Fields.Count;i++)
+                for (int i = 0; i < input.Fields.Count; i++)
                 {
                     var f = input.Fields[i];
                     var comma = i == input.Fields.Count - 1 ? string.Empty : ",";

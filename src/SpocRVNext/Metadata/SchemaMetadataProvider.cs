@@ -85,9 +85,10 @@ internal sealed class SchemaMetadataProvider : ISchemaMetadataProvider
                     if (string.IsNullOrWhiteSpace(raw)) continue;
                     var clean = raw.TrimStart('@');
                     var sqlType = ip.GetPropertyOrDefault("SqlTypeName") ?? string.Empty;
+                    var maxLen = ip.GetPropertyOrDefaultInt("MaxLength");
                     var isNullable = ip.GetPropertyOrDefaultBool("IsNullable");
                     var clr = MapSqlToClr(sqlType, isNullable);
-                    var fd = new FieldDescriptor(clean, NamePolicy.Sanitize(clean), clr, isNullable, sqlType);
+                    var fd = new FieldDescriptor(clean, NamePolicy.Sanitize(clean), clr, isNullable, sqlType, maxLen);
                     var isOutput = ip.GetPropertyOrDefaultBool("IsOutput");
                     if (isOutput) outputParams.Add(fd); else inputParams.Add(fd);
                 }
@@ -109,9 +110,10 @@ internal sealed class SchemaMetadataProvider : ISchemaMetadataProvider
                             var colName = c.GetPropertyOrDefault("Name") ?? string.Empty;
                             if (string.IsNullOrWhiteSpace(colName)) continue;
                             var sqlType = c.GetPropertyOrDefault("SqlTypeName") ?? string.Empty;
+                            var maxLen = c.GetPropertyOrDefaultInt("MaxLength");
                             var isNullable = c.GetPropertyOrDefaultBool("IsNullable");
                             var clr = MapSqlToClr(sqlType, isNullable);
-                            columns.Add(new FieldDescriptor(colName, NamePolicy.Sanitize(colName), clr, isNullable, sqlType));
+                            columns.Add(new FieldDescriptor(colName, NamePolicy.Sanitize(colName), clr, isNullable, sqlType, maxLen));
                         }
                     }
                     var rsName = ResultSetNaming.DeriveName(idx, columns, usedNames);

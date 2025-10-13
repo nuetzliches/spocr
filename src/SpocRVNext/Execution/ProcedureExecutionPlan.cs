@@ -16,6 +16,7 @@ public sealed class ProcedureExecutionPlan
     public IReadOnlyList<ProcedureParameter> Parameters { get; }
     public IReadOnlyList<ResultSetMapping> ResultSets { get; }
     public Func<IReadOnlyDictionary<string, object?>, object?>? OutputFactory { get; }
+    public Action<DbCommand, object?>? InputBinder { get; }
     public Func<bool, string?, object?, IReadOnlyDictionary<string, object?>, object[], object> AggregateFactory { get; }
 
     public ProcedureExecutionPlan(
@@ -23,13 +24,15 @@ public sealed class ProcedureExecutionPlan
         IReadOnlyList<ProcedureParameter> parameters,
         IReadOnlyList<ResultSetMapping> resultSets,
         Func<IReadOnlyDictionary<string, object?>, object?>? outputFactory,
-        Func<bool, string?, object?, IReadOnlyDictionary<string, object?>, object[], object> aggregateFactory)
+        Func<bool, string?, object?, IReadOnlyDictionary<string, object?>, object[], object> aggregateFactory,
+        Action<DbCommand, object?>? inputBinder = null)
     {
         ProcedureName = procedureName;
         Parameters = parameters;
         ResultSets = resultSets;
         OutputFactory = outputFactory;
         AggregateFactory = aggregateFactory;
+        InputBinder = inputBinder;
     }
 }
 
@@ -39,7 +42,7 @@ public sealed record ResultSetMapping(string Name, Func<DbDataReader, Cancellati
 
 public static class ProcedureExecutor
 {
-    public static async Task<TAggregate> ExecuteAsync<TAggregate>(DbConnection connection, ProcedureExecutionPlan plan, CancellationToken cancellationToken = default)
+    public static async Task<TAggregate> ExecuteAsync<TAggregate>(DbConnection connection, ProcedureExecutionPlan plan, object? state = null, CancellationToken cancellationToken = default)
     {
         await using var cmd = connection.CreateCommand();
         cmd.CommandText = plan.ProcedureName;
@@ -61,6 +64,8 @@ public static class ProcedureExecutor
         try
         {
             if (connection.State != ConnectionState.Open) await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+            // Bind input values (if any) before execution
+            plan.InputBinder?.Invoke(cmd, state); // wrapper supplies state (input record) if available
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
             var resultSetResults = new List<object>(plan.ResultSets.Count);
             for (int i = 0; i < plan.ResultSets.Count; i++)

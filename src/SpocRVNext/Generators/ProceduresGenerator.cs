@@ -119,19 +119,21 @@ public sealed class ProceduresGenerator
             planSb.AppendLine("        var parameters = new SpocR.SpocRVNext.Execution.ProcedureParameter[] {");
             foreach (var ip in proc.InputParameters)
             {
-                planSb.AppendLine($"            new(\"@{ip.Name}\", null, null, false, {ip.IsNullable.ToString().ToLowerInvariant()}),");
+                planSb.AppendLine($"            new(\"@{ip.Name}\", {MapDbType(ip.SqlTypeName)}, {EmitSize(ip)}, false, {ip.IsNullable.ToString().ToLowerInvariant()}),");
             }
             foreach (var op in proc.OutputFields)
             {
-                planSb.AppendLine($"            new(\"@{op.Name}\", null, null, true, {op.IsNullable.ToString().ToLowerInvariant()}),");
+                planSb.AppendLine($"            new(\"@{op.Name}\", {MapDbType(op.SqlTypeName)}, {EmitSize(op)}, true, {op.IsNullable.ToString().ToLowerInvariant()}),");
             }
             planSb.AppendLine("        };\n");
-            // ResultSet materializers
+            // ResultSet materializers (with ordinal caching)
             planSb.AppendLine("        var resultSets = new SpocR.SpocRVNext.Execution.ResultSetMapping[] {");
             foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
             {
                 var rowTypeName = NamePolicy.Row(proc.OperationName, rs.Name);
-                planSb.AppendLine("            new(\"" + rs.Name + "\", async (r, ct) => { var list = new System.Collections.Generic.List<object>(); while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new " + rowTypeName + "(" + string.Join(", ", rs.Fields.Select(f => MaterializeFieldExpression(f))) + ")); } return list; }),");
+                var ordinalDecls = string.Join(" ", rs.Fields.Select((f, idx) => $"int o{idx}=r.GetOrdinal(\"{f.Name}\");"));
+                var fieldExprs = string.Join(", ", rs.Fields.Select((f, idx) => MaterializeFieldExpressionCached(f, idx)));
+                planSb.AppendLine("            new(\"" + rs.Name + "\", async (r, ct) => { var list = new System.Collections.Generic.List<object>(); " + ordinalDecls + " while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new " + rowTypeName + "(" + fieldExprs + ")); } return list; }),");
             }
             planSb.AppendLine("        };\n");
             // Output factory
@@ -160,8 +162,23 @@ public sealed class ProceduresGenerator
             }
             planSb.Append("};\n");
             planSb.AppendLine();
-            planSb.AppendLine("        return new SpocR.SpocRVNext.Execution.ProcedureExecutionPlan(\"");
-            planSb.AppendLine($"            \"{proc.Schema}.{proc.ProcedureName}\", parameters, resultSets, OutputFactory, AggregateFactory);\n    }}\n}}");
+            // Input binder lambda (object? state expected to be input record)
+            if (proc.InputParameters.Count > 0)
+            {
+                var inputType = NamePolicy.Input(proc.OperationName);
+                planSb.AppendLine($"        void Binder(DbCommand cmd, object? state) {{ var input = ({inputType})state!; ");
+                foreach (var ip in proc.InputParameters)
+                {
+                    planSb.AppendLine($"            cmd.Parameters[\"@{ip.Name}\"].Value = input.{ip.PropertyName};");
+                }
+                planSb.AppendLine("        }");
+            }
+            else
+            {
+                planSb.AppendLine("        void Binder(DbCommand cmd, object? state) { }");
+            }
+            planSb.AppendLine("        return new SpocR.SpocRVNext.Execution.ProcedureExecutionPlan(");
+            planSb.AppendLine($"            \"{proc.Schema}.{proc.ProcedureName}\", parameters, resultSets, OutputFactory, AggregateFactory, Binder);\n    }}\n}}");
             File.WriteAllText(Path.Combine(rsDir, planTypeName + ".cs"), planSb.ToString());
             written++;
 
@@ -177,11 +194,15 @@ public sealed class ProceduresGenerator
             var inputParamSignature = proc.InputParameters.Count > 0 ? $", {NamePolicy.Input(proc.OperationName)} input" : string.Empty;
             wrapperSb.AppendLine($"    public static Task<{aggregateResultType}> ExecuteAsync(DbConnection connection{inputParamSignature}, CancellationToken cancellationToken = default)\n    {{");
             // Parameter value binding (override defaults)
+            var stateArg = proc.InputParameters.Count > 0 ? "input" : "null";
             if (proc.InputParameters.Count > 0)
             {
-                // NOTE: Actual parameter value assignment will be injected in a later iteration.
+                wrapperSb.AppendLine($"        return ProcedureExecutor.ExecuteAsync<{aggregateResultType}>(connection, {planTypeName}.Instance, input, cancellationToken);");
             }
-            wrapperSb.AppendLine($"        return ProcedureExecutor.ExecuteAsync<{aggregateResultType}>(connection, {planTypeName}.Instance, cancellationToken);");
+            else
+            {
+                wrapperSb.AppendLine($"        return ProcedureExecutor.ExecuteAsync<{aggregateResultType}>(connection, {planTypeName}.Instance, null, cancellationToken);");
+            }
             wrapperSb.AppendLine("    }");
             wrapperSb.AppendLine("}");
             File.WriteAllText(Path.Combine(rsDir, procedureTypeName + ".cs"), wrapperSb.ToString());
@@ -189,6 +210,35 @@ public sealed class ProceduresGenerator
         }
         return written;
     }
+
+    private static string MapDbType(string sqlType)
+    {
+        if (string.IsNullOrWhiteSpace(sqlType)) return "null";
+        var t = sqlType.ToLowerInvariant();
+        // normalize common parentheses like nvarchar(50)
+        if (t.Contains('(')) t = t[..t.IndexOf('(')];
+        return t switch
+        {
+            "int" => "System.Data.DbType.Int32",
+            "bigint" => "System.Data.DbType.Int64",
+            "smallint" => "System.Data.DbType.Int16",
+            "tinyint" => "System.Data.DbType.Byte",
+            "bit" => "System.Data.DbType.Boolean",
+            "decimal" or "numeric" or "money" or "smallmoney" => "System.Data.DbType.Decimal",
+            "float" => "System.Data.DbType.Double",
+            "real" => "System.Data.DbType.Single",
+            "date" or "datetime" or "datetime2" or "smalldatetime" or "datetimeoffset" or "time" => "System.Data.DbType.DateTime2",
+            "uniqueidentifier" => "System.Data.DbType.Guid",
+            "varbinary" or "binary" or "image" => "System.Data.DbType.Binary",
+            "xml" => "System.Data.DbType.Xml",
+            // treat all character & text types as string
+            "varchar" or "nvarchar" or "char" or "nchar" or "text" or "ntext" => "System.Data.DbType.String",
+            _ => "System.Data.DbType.String"
+        };
+    }
+
+    private static string EmitSize(FieldDescriptor f)
+        => f.MaxLength.HasValue && f.MaxLength.Value > 0 ? f.MaxLength.Value.ToString() : "null";
 
     private static string MaterializeFieldExpression(FieldDescriptor f)
     {
@@ -233,5 +283,37 @@ public sealed class ProceduresGenerator
             "string" => $"values.TryGetValue(\"{name}\", out var v_{name}) ? (string?)v_{name} ?? string.Empty : string.Empty",
             _ => $"values.TryGetValue(\"{name}\", out var v_{name}) ? ({target})v_{name} : default"
         };
+    }
+
+    private static string MaterializeFieldExpressionCached(FieldDescriptor f, int ordinalIndex)
+    {
+        var accessor = f.ClrType switch
+        {
+            "int" or "int?" => "GetInt32",
+            "long" or "long?" => "GetInt64",
+            "short" or "short?" => "GetInt16",
+            "byte" or "byte?" => "GetByte",
+            "bool" or "bool?" => "GetBoolean",
+            "decimal" or "decimal?" => "GetDecimal",
+            "double" or "double?" => "GetDouble",
+            "float" or "float?" => "GetFloat",
+            "DateTime" or "DateTime?" => "GetDateTime",
+            "Guid" or "Guid?" => "GetGuid",
+            _ => null
+        };
+        if (accessor == null)
+        {
+            if (f.ClrType.StartsWith("byte[]"))
+                return $"r.IsDBNull(o{ordinalIndex}) ? System.Array.Empty<byte>() : (byte[])r.GetValue(o{ordinalIndex})";
+            if (f.ClrType == "string")
+                return $"r.IsDBNull(o{ordinalIndex}) ? string.Empty : r.GetString(o{ordinalIndex})";
+            if (f.ClrType == "string?")
+                return $"r.IsDBNull(o{ordinalIndex}) ? null : r.GetString(o{ordinalIndex})";
+            return $"r.GetValue(o{ordinalIndex})";
+        }
+        var nullable = f.IsNullable && !f.ClrType.EndsWith("?") ? true : f.ClrType.EndsWith("?");
+        if (nullable)
+            return $"r.IsDBNull(o{ordinalIndex}) ? null : ({f.ClrType})r.{accessor}(o{ordinalIndex})";
+        return $"r.{accessor}(o{ordinalIndex})";
     }
 }

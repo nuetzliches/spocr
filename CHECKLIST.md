@@ -20,6 +20,18 @@ depends_naming: 'ID Referenzen in depends Feld'
 
 > HINWEIS: Diese Checkliste ist BRANCH-SPEZIFISCH (`feature/vnext`) und soll VOR dem Merge in `master` GELÖSCHT oder ARCHIVIERT werden.
 
+# Testing
+
+Das Testing erfolgt aktuell aus den SQL-Daten: samples\mssql\init
+Daraus wird mit dem Befehl:
+
+```bash
+dotnet run --project src/SpocR.csproj -- rebuild -p samples/restapi/spocr.json --no-auto-update
+```
+
+das Schema samples\restapi.spocr\schema produziert.
+Daraus ensteht dann der Output in samples\restapi\SpocR
+
 Legende: `[ ]` offene Aufgabe · `[x]` erledigt
 
 EPICS Übersicht (oberste Steuerungsebene)
@@ -296,7 +308,9 @@ EPICS Übersicht (oberste Steuerungsebene)
 
 ... (bei Bedarf weiter ergänzen) ...
 
-in Checkliste aufnehmen:
+# Fixes für zwischendurch
 
-- [ ] samples\restapi\SpocR\samples müssen den Namespace RestApi.SpocR.samples erhalten.
-- [ ] samples\restapi\SpocR\ITableType.cs muss den Namespace RestApi.SpocR erhalten.
+- [x] samples\restapi\SpocR\samples müssen den Namespace RestApi.SpocR.samples erhalten.
+- [x] samples\restapi\SpocR\ITableType.cs muss den Namespace RestApi.SpocR erhalten.
+- [ ] Wie handhaben wir Datums-/Zeitangaben. (z.B. UTC, lokale Zeit, Formatierung)
+- [ ] Wie bringen wir standard/custom Converters unter? (z.B. JsonConverter Attribute, AutoTrimmed Properties, andere Property oder Class Level Converters)

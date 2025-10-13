@@ -38,12 +38,13 @@ public sealed class OutputsGenerator
         foreach (var output in outputs.OrderBy(o => o.OperationName))
         {
             var typeName = NamePolicy.Output(output.OperationName);
-            var model = new {
+            var model = new
+            {
                 Namespace = ns,
                 OperationName = output.OperationName,
                 TypeName = typeName,
                 FieldCount = output.Fields.Count,
-                Fields = output.Fields.Select((f,idx) => new { f.ClrType, f.PropertyName, Separator = idx == output.Fields.Count - 1 ? string.Empty : "," }).ToList(),
+                Fields = output.Fields.Select((f, idx) => new { f.ClrType, f.PropertyName, Separator = idx == output.Fields.Count - 1 ? string.Empty : "," }).ToList(),
                 HEADER = header
             };
             string code;
@@ -56,7 +57,7 @@ public sealed class OutputsGenerator
                 sb.AppendLine($"namespace {ns}.Outputs;");
                 sb.AppendLine();
                 sb.AppendLine($"public readonly record struct {typeName}(");
-                for (int i=0;i<output.Fields.Count;i++)
+                for (int i = 0; i < output.Fields.Count; i++)
                 {
                     var f = output.Fields[i];
                     var comma = i == output.Fields.Count - 1 ? string.Empty : ",";

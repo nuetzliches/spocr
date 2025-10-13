@@ -76,8 +76,8 @@ public class DbContextGenerator
         var spocrDir = Path.Combine(rootDir, "SpocR");
         if (!Directory.Exists(spocrDir) && !isDryRun) Directory.CreateDirectory(spocrDir);
 
-    // Append .SpocR suffix only if not already present.
-    var finalNs = baseNs.EndsWith(".SpocR", StringComparison.Ordinal) ? baseNs : baseNs + ".SpocR";
+        // Append .SpocR suffix only if not already present.
+        var finalNs = baseNs.EndsWith(".SpocR", StringComparison.Ordinal) ? baseNs : baseNs + ".SpocR";
 
         // Try template-based generation first
         var model = new { Namespace = finalNs };
