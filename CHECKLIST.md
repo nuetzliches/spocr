@@ -140,7 +140,8 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [x] TableTypes: Always-On Generation (Interface `ITableType` einmalig, Records je Schema unter `SpocR/<schema>/`) integriert in Build (dual|next)
 - [x] TableTypes: Timestamp `<remarks>` Zeile eingefügt und beim Hashing ignoriert (DirectoryHasher Filter)
 - [x] TableTypes: Original Snapshot Namen vollständig beibehalten (nur Sanitizing) – keine erzwungene *TableType Suffix Ergänzung
-- [ ] Performance Messung: Generierungsdauer dokumentiert (Baseline vs. Neuer Ansatz) - [ ] Legacy (Ø 3 Runs) - [ ] Dual Mode - [ ] vNext only - [ ] Tabelle + Abschnitt in DEVELOPMENT.md
+
+      TODO entfernt: Performance Messung (nicht mehr erforderlich)
 
 ### Migration / Breaking Changes
 
@@ -168,6 +169,7 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] Neue Seiten für SpocRVNext (Architektur, Unterschiede, Migration) hinzugefügt
 - [ ] Referenzen (CLI, Konfiguration, API) aktualisiert
 - [ ] README Quick Start an neuen Generator angepasst
+- [ ] Doku: TableTypes Abschnitt (Naming-Preservation, Timestamp `<remarks>` & Hash-Ignore, Interface `ITableType`, Schema-Unterordnerstruktur) in docs/3.reference oder 2.cli verlinkt
 - [ ] CHANGELOG.md Einträge für jede relevante Änderung ergänzt (Added/Changed/Removed/Deprecated/Migration Notes)
 - [ ] DEVELOPMENT.md enthält und pflegt kuratierte Entwicklungs-Commands (Build, Codegen, Tests, Diffs, Cleanup) – Liste aktuell und wird vor PR zum master bereinigt.
 - [ ] Samples/README verlinkt auf aktualisierte Doku
