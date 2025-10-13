@@ -29,6 +29,12 @@ internal static class ProgramVNextCLI
         var modeOption = new Option<string>(
             name: "--mode",
             description: "Generator mode (legacy|dual|next). Overrides SPOCR_GENERATOR_MODE if supplied.");
+        var pathOption = new Option<string>(
+            name: "--path",
+            description: "Execution / project path to operate on (for init-env). Defaults to current directory.");
+        var forceOption = new Option<bool>(
+            name: "--force",
+            description: "Force overwrite existing target file (for init-env)");
 
         var demoCommand = new Command("generate-demo", "Run a demo template render using the vNext generator")
         {
@@ -81,6 +87,22 @@ internal static class ProgramVNextCLI
             Console.WriteLine("Hash manifest (if next output) written under debug/codegen-demo/next/manifest.hash.json");
         }, modeOption);
         root.Add(generateNextCommand);
+
+        // init-env command
+        var initEnv = new Command("init-env", "Create or update a .env in the target path (non-interactive unless --no-auto).")
+        {
+            pathOption,
+            forceOption,
+            modeOption
+        };
+        initEnv.SetHandler(async (string? path, bool force, string? mode) =>
+        {
+            var target = string.IsNullOrWhiteSpace(path) ? System.IO.Directory.GetCurrentDirectory() : System.IO.Path.GetFullPath(path!);
+            var desiredMode = string.IsNullOrWhiteSpace(mode) ? (Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE") ?? "dual") : mode!;
+            var envPath = await SpocR.SpocRVNext.Cli.EnvBootstrapper.EnsureEnvAsync(target, desiredMode, autoApprove: true, force: force);
+            Console.WriteLine($"Initialized .env at: {envPath}");
+        }, pathOption, forceOption, modeOption);
+        root.Add(initEnv);
 
         var builder = new CommandLineBuilder(root)
             .UseDefaults();

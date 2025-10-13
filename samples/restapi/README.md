@@ -59,13 +59,13 @@ cp .env.example .env
 
 Relevant keys:
 
-| Variable | Purpose | Typical Value |
-|----------|---------|---------------|
-| `SPOCR_GENERATOR_MODE` | Controls generation pipeline | `legacy` / `dual` (DEFAULT) / `next` |
-| `SPOCR_EXPERIMENTAL_CLI` | Enables new System.CommandLine parser | `1` to enable |
-| `SPOCR_DB_DEFAULT` | Connection string used at runtime | `Server=localhost;...` |
-| `SPOCR_STRICT_NULLABLE` | Escalate nullable warnings | `1` optional |
-| `SPOCR_STRICT_DIFF` | Activate strict diff policy (future) | `1` optional |
+| Variable                 | Purpose                               | Typical Value                        |
+| ------------------------ | ------------------------------------- | ------------------------------------ |
+| `SPOCR_GENERATOR_MODE`   | Controls generation pipeline          | `legacy` / `dual` (DEFAULT) / `next` |
+| `SPOCR_EXPERIMENTAL_CLI` | Enables new System.CommandLine parser | `1` to enable                        |
+| `SPOCR_DB_DEFAULT`       | Connection string used at runtime     | `Server=localhost;...`               |
+| `SPOCR_STRICT_NULLABLE`  | Escalate nullable warnings            | `1` optional                         |
+| `SPOCR_STRICT_DIFF`      | Activate strict diff policy (future)  | `1` optional                         |
 
 Recommended for local exploration:
 
@@ -93,11 +93,11 @@ set SPOCR_GENERATOR_MODE=dual & dotnet tool run spocr generate
 
 ### Switching Modes
 
-| Mode | Effect |
-|------|--------|
+| Mode     | Effect                                         |
+| -------- | ---------------------------------------------- |
 | `legacy` | Only legacy DataContext generated (status quo) |
-| `dual` | Legacy + next output (observation mode) |
-| `next` | Only new pipeline output (preview) |
+| `dual`   | Legacy + next output (observation mode)        |
+| `next`   | Only new pipeline output (preview)             |
 
 Mode defaults to `dual` in the bridge phase for internal test environments (subject to change before v5 release).
 

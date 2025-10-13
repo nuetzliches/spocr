@@ -24,7 +24,7 @@ public sealed class OutputsGenerator
         _projectRoot = projectRoot ?? Directory.GetCurrentDirectory();
     }
 
-    public int Generate(string ns, string outputSubDir = "Outputs")
+    public int Generate(string ns, string baseOutputDir)
     {
         var outputs = _provider();
         if (outputs.Count == 0) return 0;
@@ -32,16 +32,25 @@ public sealed class OutputsGenerator
         if (_loader != null && _loader.TryLoad("_Header", out var headerTpl)) header = headerTpl.TrimEnd() + Environment.NewLine;
         string? template = null;
         if (_loader != null && _loader.TryLoad("OutputRecord", out var tpl)) template = tpl;
-        var outDir = Path.Combine(_projectRoot, ns.Split('.').First(), outputSubDir);
-        Directory.CreateDirectory(outDir);
         var written = 0;
         foreach (var output in outputs.OrderBy(o => o.OperationName))
         {
-            var typeName = NamePolicy.Output(output.OperationName);
+            var op = output.OperationName;
+            string schemaPart = "dbo";
+            string procPart = op;
+            var idx = op.IndexOf('.');
+            if (idx > 0)
+            {
+                schemaPart = op.Substring(0, idx);
+                procPart = op[(idx + 1)..];
+            }
+            var schemaDir = Path.Combine(baseOutputDir, schemaPart);
+            Directory.CreateDirectory(schemaDir);
+            var typeName = NamePolicy.Output(procPart);
             var model = new
             {
                 Namespace = ns,
-                OperationName = output.OperationName,
+                OperationName = procPart,
                 TypeName = typeName,
                 FieldCount = output.Fields.Count,
                 Fields = output.Fields.Select((f, idx) => new { f.ClrType, f.PropertyName, Separator = idx == output.Fields.Count - 1 ? string.Empty : "," }).ToList(),
@@ -54,7 +63,7 @@ public sealed class OutputsGenerator
             {
                 var sb = new StringBuilder();
                 sb.Append(header);
-                sb.AppendLine($"namespace {ns}.Outputs;");
+                sb.AppendLine($"namespace {ns}.{schemaPart};");
                 sb.AppendLine();
                 sb.AppendLine($"public readonly record struct {typeName}(");
                 for (int i = 0; i < output.Fields.Count; i++)
@@ -66,7 +75,7 @@ public sealed class OutputsGenerator
                 sb.AppendLine(");");
                 code = sb.ToString();
             }
-            File.WriteAllText(Path.Combine(outDir, typeName + ".cs"), code);
+            File.WriteAllText(Path.Combine(schemaDir, procPart + "Output.cs"), code);
             written++;
         }
         return written;

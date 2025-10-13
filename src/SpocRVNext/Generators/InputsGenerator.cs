@@ -24,7 +24,7 @@ public sealed class InputsGenerator
         _projectRoot = projectRoot ?? Directory.GetCurrentDirectory();
     }
 
-    public int Generate(string ns, string outputSubDir = "Inputs")
+    public int Generate(string ns, string baseOutputDir)
     {
         var inputs = _provider();
         if (inputs.Count == 0) return 0;
@@ -32,19 +32,29 @@ public sealed class InputsGenerator
         if (_loader != null && _loader.TryLoad("_Header", out var headerTpl)) header = headerTpl.TrimEnd() + Environment.NewLine;
         string? template = null;
         if (_loader != null && _loader.TryLoad("InputRecord", out var tpl)) template = tpl;
-        var outDir = Path.Combine(_projectRoot, ns.Split('.').First(), outputSubDir); // simple path base
-        Directory.CreateDirectory(outDir);
         var written = 0;
         foreach (var input in inputs.OrderBy(i => i.OperationName))
         {
-            var typeName = NamePolicy.Input(input.OperationName);
+            // Expect OperationName encoded as Schema.ProcName or store schema separately (here assume Schema__Proc fallback)
+            var op = input.OperationName;
+            string schemaPart = "dbo";
+            string procPart = op;
+            var idx = op.IndexOf('.');
+            if (idx > 0)
+            {
+                schemaPart = op.Substring(0, idx);
+                procPart = op[(idx + 1)..];
+            }
+            var schemaDir = Path.Combine(baseOutputDir, schemaPart);
+            Directory.CreateDirectory(schemaDir);
+            var typeName = NamePolicy.Input(procPart);
             var model = new
             {
                 Namespace = ns,
-                OperationName = input.OperationName,
+                OperationName = procPart,
                 TypeName = typeName,
                 ParameterCount = input.Fields.Count,
-                Parameters = input.Fields.Select((f, idx) => new { f.ClrType, f.PropertyName, Separator = idx == input.Fields.Count - 1 ? string.Empty : "," }).ToList(),
+                Parameters = input.Fields.Select((f, idx2) => new { f.ClrType, f.PropertyName, Separator = idx2 == input.Fields.Count - 1 ? string.Empty : "," }).ToList(),
                 HEADER = header
             };
             string code;
@@ -54,7 +64,7 @@ public sealed class InputsGenerator
             {
                 var sb = new StringBuilder();
                 sb.Append(header);
-                sb.AppendLine($"namespace {ns}.Inputs;");
+                sb.AppendLine($"namespace {ns}.{schemaPart};");
                 sb.AppendLine();
                 sb.AppendLine($"public readonly record struct {typeName}(");
                 for (int i = 0; i < input.Fields.Count; i++)
@@ -66,7 +76,8 @@ public sealed class InputsGenerator
                 sb.AppendLine(");");
                 code = sb.ToString();
             }
-            File.WriteAllText(Path.Combine(outDir, typeName + ".cs"), code);
+            // File pattern: [sp-name]Input.cs
+            File.WriteAllText(Path.Combine(schemaDir, procPart + "Input.cs"), code);
             written++;
         }
         return written;

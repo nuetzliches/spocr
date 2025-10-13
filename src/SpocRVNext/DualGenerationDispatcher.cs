@@ -53,7 +53,7 @@ public sealed class DualGenerationDispatcher
                     ITemplateLoader? loader = Directory.Exists(templatesDir)
                         ? new FileSystemTemplateLoader(templatesDir)
                         : null;
-                    var genNext = new SpocRGenerator(_renderer, loader, schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider());
+                    var genNext = new SpocRGenerator(_renderer, loader, schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider(Path.Combine(Directory.GetCurrentDirectory(), "samples", "restapi")));
                     nextContent = genNext.RenderDemo();
                     Directory.CreateDirectory(nextDir);
                     File.WriteAllText(Path.Combine(nextDir, "DemoNext.cs"), nextContent);
@@ -70,13 +70,27 @@ public sealed class DualGenerationDispatcher
                 ITemplateLoader? loaderDual = Directory.Exists(templatesDirDual)
                     ? new FileSystemTemplateLoader(templatesDirDual)
                     : null;
-                var gen = new SpocRGenerator(_renderer, loaderDual, schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider());
+                var gen = new SpocRGenerator(_renderer, loaderDual, schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider(Path.Combine(Directory.GetCurrentDirectory(), "samples", "restapi")));
                 nextContent = gen.RenderDemo();
                 Directory.CreateDirectory(legacyDir);
                 Directory.CreateDirectory(nextDir);
                 File.WriteAllText(Path.Combine(legacyDir, "DemoLegacy.cs"), legacyContent);
                 File.WriteAllText(Path.Combine(nextDir, "DemoNext.cs"), nextContent);
-                gen.GenerateMinimalDbContext(Path.Combine(nextDir, "generated"));
+                // Determine sample RestApi root (heuristic: look for samples/restapi relative to CWD)
+                var cwd = Directory.GetCurrentDirectory();
+                var sampleRoot = Path.Combine(cwd, "samples", "restapi");
+                if (Directory.Exists(sampleRoot))
+                {
+                    var spocrOut = Path.Combine(sampleRoot, "SpocR");
+                    Directory.CreateDirectory(spocrOut);
+                    // Run full vNext generation with base path = samples/restapi/SpocR
+                    gen.GenerateAll(_cfg, spocrOut);
+                }
+                else
+                {
+                    // Fallback: minimal DbContext only
+                    gen.GenerateMinimalDbContext(Path.Combine(nextDir, "generated"));
+                }
                 // vNext real output: TableTypes
                 var ttGenDual = new TableTypesGenerator(_cfg, new TableTypeMetadataProvider(Directory.GetCurrentDirectory()), _renderer, loaderDual);
                 var countDual = ttGenDual.Generate();

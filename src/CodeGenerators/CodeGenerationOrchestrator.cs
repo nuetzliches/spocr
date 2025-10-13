@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Threading.Tasks;
 using SpocR.CodeGenerators.Models;
+using SpocRVNext.Configuration; // for EnvConfiguration
 using SpocR.Enums;
 using SpocR.Models;
 using SpocR.Services;
@@ -49,11 +50,11 @@ public class CodeGenerationOrchestrator(
         var stopwatch = new Stopwatch();
         var elapsed = new Dictionary<string, long>();
         // Steps: CodeBase (lib only), TableTypes, Inputs, Outputs, Models, StoredProcedures
-    var genMode = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant();
-    if (string.IsNullOrWhiteSpace(genMode)) genMode = "dual"; // default
-    var dbCtxEnabled = genMode is "dual" or "next";
-    var totalSteps = roleKind == RoleKindEnum.Extension ? 5 : 6;
-    if (dbCtxEnabled) totalSteps += 1; // additional optional step
+        var genMode = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(genMode)) genMode = "dual"; // default
+        var dbCtxEnabled = genMode is "dual" or "next";
+        var totalSteps = roleKind == RoleKindEnum.Extension ? 5 : 6;
+        if (dbCtxEnabled) totalSteps += 1; // additional optional step
         var currentStep = 0;
 
         HasErrors = false;
@@ -108,6 +109,30 @@ public class CodeGenerationOrchestrator(
                 await dbContextGenerator.GenerateAsync(isDryRun);
                 elapsed.Add("DbContext", stopwatch.ElapsedMilliseconds);
             }
+
+            // vNext extended generation (Inputs/Outputs/Results/Procedures) when dual|next mode for sample parity observation
+            if (dbCtxEnabled && !isDryRun)
+            {
+                try
+                {
+                    stopwatch.Restart();
+                    consoleService.PrintSubTitle("[vNext] Generating extended artifacts (Inputs/Outputs/Results/Procedures)");
+                    var templatesDir = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "src", "SpocRVNext", "Templates");
+                    SpocR.SpocRVNext.Engine.ITemplateLoader? loader = System.IO.Directory.Exists(templatesDir)
+                        ? new SpocR.SpocRVNext.Engine.FileSystemTemplateLoader(templatesDir)
+                        : null;
+                    var vnextGen = new SpocR.SpocRVNext.SpocRGenerator(new SpocR.SpocRVNext.Engine.SimpleTemplateEngine(), loader, schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider(System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "samples", "restapi")));
+                    var cwd = System.IO.Directory.GetCurrentDirectory();
+                    var sampleRestApi = System.IO.Path.Combine(cwd, "samples", "restapi", "SpocR");
+                    if (!System.IO.Directory.Exists(sampleRestApi)) System.IO.Directory.CreateDirectory(sampleRestApi);
+                    vnextGen.GenerateAll(EnvConfiguration.Load(), sampleRestApi);
+                    elapsed.Add("vNext", stopwatch.ElapsedMilliseconds);
+                }
+                catch (Exception vx)
+                {
+                    consoleService.Warn($"vNext generation skipped due to error: {vx.Message}");
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -149,6 +174,26 @@ public class CodeGenerationOrchestrator(
             var dbCtxEnabled = genMode is "dual" or "next";
             if (dbCtxEnabled)
                 await dbContextGenerator.GenerateAsync(isDryRun);
+
+            if (dbCtxEnabled && !isDryRun)
+            {
+                try
+                {
+                    var templatesDir = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "src", "SpocRVNext", "Templates");
+                    SpocR.SpocRVNext.Engine.ITemplateLoader? loader = System.IO.Directory.Exists(templatesDir)
+                        ? new SpocR.SpocRVNext.Engine.FileSystemTemplateLoader(templatesDir)
+                        : null;
+                    var vnextGen = new SpocR.SpocRVNext.SpocRGenerator(new SpocR.SpocRVNext.Engine.SimpleTemplateEngine(), loader, schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider(System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "samples", "restapi")));
+                    var cwd2 = System.IO.Directory.GetCurrentDirectory();
+                    var sampleRestApi2 = System.IO.Path.Combine(cwd2, "samples", "restapi", "SpocR");
+                    if (!System.IO.Directory.Exists(sampleRestApi2)) System.IO.Directory.CreateDirectory(sampleRestApi2);
+                    vnextGen.GenerateAll(EnvConfiguration.Load(), sampleRestApi2);
+                }
+                catch (Exception vx)
+                {
+                    consoleService.Warn($"vNext generation skipped due to error: {vx.Message}");
+                }
+            }
 
             consoleService.CompleteProgress();
         }
@@ -194,6 +239,23 @@ public class CodeGenerationOrchestrator(
 
             if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.DbContext))
                 await dbContextGenerator.GenerateAsync(isDryRun);
+
+            if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.DbContext) && !isDryRun)
+            {
+                try
+                {
+                    var templatesDir = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "src", "SpocRVNext", "Templates");
+                    SpocR.SpocRVNext.Engine.ITemplateLoader? loader = System.IO.Directory.Exists(templatesDir)
+                        ? new SpocR.SpocRVNext.Engine.FileSystemTemplateLoader(templatesDir)
+                        : null;
+                    var vnextGen = new SpocR.SpocRVNext.SpocRGenerator(new SpocR.SpocRVNext.Engine.SimpleTemplateEngine(), loader, schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider());
+                    vnextGen.GenerateAll(EnvConfiguration.Load(), System.IO.Directory.GetCurrentDirectory());
+                }
+                catch (Exception vx)
+                {
+                    consoleService.Warn($"vNext generation skipped due to error: {vx.Message}");
+                }
+            }
 
             consoleService.CompleteProgress();
         }

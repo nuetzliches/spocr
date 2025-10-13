@@ -26,7 +26,7 @@ public sealed class ProceduresGenerator
         _projectRoot = projectRoot ?? Directory.GetCurrentDirectory();
     }
 
-    public int Generate(string ns, string outputSubDir = "Procedures")
+    public int Generate(string ns, string baseOutputDir)
     {
         var procs = _provider();
         if (procs.Count == 0) return 0;
@@ -34,21 +34,31 @@ public sealed class ProceduresGenerator
         if (_loader != null && _loader.TryLoad("_Header", out var headerTpl)) header = headerTpl.TrimEnd() + Environment.NewLine;
         string? procedureTemplate = null;
         if (_loader != null && _loader.TryLoad("StoredProcedure", out var spTpl)) procedureTemplate = spTpl;
-        var rootDir = Path.Combine(_projectRoot, ns.Split('.').First(), outputSubDir);
-        Directory.CreateDirectory(rootDir);
         var written = 0;
         foreach (var proc in procs.OrderBy(p => p.OperationName))
         {
-            var aggregateResultType = NamePolicy.Result(proc.OperationName) + "Aggregate"; // separate from simple Result record
-            var procedureTypeName = NamePolicy.Procedure(proc.OperationName);
+            var op = proc.OperationName;
+            string schemaPart = proc.Schema ?? "dbo";
+            string procPart = op;
+            var idx = op.IndexOf('.');
+            if (idx > 0)
+            {
+                schemaPart = op.Substring(0, idx);
+                procPart = op[(idx + 1)..];
+            }
+            var schemaDir = Path.Combine(baseOutputDir, schemaPart);
+            Directory.CreateDirectory(schemaDir);
+            var aggregateResultType = NamePolicy.Result(procPart) + "Aggregate"; // separate from simple Result record
+            var procedureTypeName = NamePolicy.Procedure(procPart);
             // Generate row records per ResultSet
-            var rsDir = rootDir; // same folder for now
+            var rsDir = schemaDir;
             foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
             {
-                var rowTypeName = NamePolicy.Row(proc.OperationName, rs.Name);
+                // Row type name keeps existing logic (Proc + RsName + Row)
+                var rowTypeName = NamePolicy.Row(procPart, rs.Name);
                 var sbRow = new StringBuilder();
                 sbRow.Append(header);
-                sbRow.AppendLine($"namespace {ns}.Procedures;");
+                sbRow.AppendLine($"namespace {ns}.{schemaPart};");
                 sbRow.AppendLine();
                 sbRow.AppendLine($"public readonly record struct {rowTypeName}(");
                 for (int i = 0; i < rs.Fields.Count; i++)
@@ -58,16 +68,24 @@ public sealed class ProceduresGenerator
                     sbRow.AppendLine($"    {f.ClrType} {f.PropertyName}{comma}");
                 }
                 sbRow.AppendLine(");");
-                File.WriteAllText(Path.Combine(rsDir, rowTypeName + ".cs"), sbRow.ToString());
+                // File name rule refinement:
+                // Old: _[ResultSetName]Result.cs
+                // New: [ProcName][ResultSetNameOrIndex].cs (no leading underscore, no 'ResultSet' text in fallback)
+                // If rs.Name was an auto fallback like ResultSet1 keep only the index portion (1)
+                string simplifiedRsName = rs.Name.StartsWith("ResultSet", StringComparison.OrdinalIgnoreCase)
+                    ? rs.Name.Substring("ResultSet".Length) // e.g. ResultSet1 -> 1
+                    : rs.Name;
+                var fileBase = procPart + simplifiedRsName + "Result"; // ensure distinct from high-level [Proc]Result and includes 'Result' suffix
+                File.WriteAllText(Path.Combine(rsDir, fileBase + ".cs"), sbRow.ToString());
                 written++;
             }
             // Optional Output record
             if (proc.OutputFields.Count > 0)
             {
-                var outputTypeName = NamePolicy.Output(proc.OperationName);
+                var outputTypeName = NamePolicy.Output(procPart);
                 var sbOut = new StringBuilder();
                 sbOut.Append(header);
-                sbOut.AppendLine($"namespace {ns}.Procedures;");
+                sbOut.AppendLine($"namespace {ns}.{schemaPart};");
                 sbOut.AppendLine();
                 sbOut.AppendLine($"public readonly record struct {outputTypeName}(");
                 for (int i = 0; i < proc.OutputFields.Count; i++)
@@ -77,13 +95,13 @@ public sealed class ProceduresGenerator
                     sbOut.AppendLine($"    {f.ClrType} {f.PropertyName}{comma}");
                 }
                 sbOut.AppendLine(");");
-                File.WriteAllText(Path.Combine(rsDir, outputTypeName + ".cs"), sbOut.ToString());
+                File.WriteAllText(Path.Combine(rsDir, procPart + "Output.cs"), sbOut.ToString());
                 written++;
             }
             // Aggregate result class
             var aggSb = new StringBuilder();
             aggSb.Append(header);
-            aggSb.AppendLine($"namespace {ns}.Procedures;");
+            aggSb.AppendLine($"namespace {ns}.{schemaPart};");
             aggSb.AppendLine();
             aggSb.AppendLine($"public sealed class {aggregateResultType}");
             aggSb.AppendLine("{");
@@ -91,23 +109,23 @@ public sealed class ProceduresGenerator
             aggSb.AppendLine("    public string? Error { get; init; }");
             if (proc.OutputFields.Count > 0)
             {
-                var outputTypeName = NamePolicy.Output(proc.OperationName);
+                var outputTypeName = NamePolicy.Output(procPart);
                 aggSb.AppendLine($"    public {outputTypeName}? Output {{ get; init; }}");
             }
             foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
             {
-                var rowTypeName = NamePolicy.Row(proc.OperationName, rs.Name);
+                var rowTypeName = NamePolicy.Row(procPart, rs.Name);
                 aggSb.AppendLine($"    public System.Collections.Generic.IReadOnlyList<{rowTypeName}> {rs.Name} {{ get; init; }} = System.Array.Empty<{rowTypeName}>();");
             }
             aggSb.AppendLine("}");
-            File.WriteAllText(Path.Combine(rsDir, aggregateResultType + ".cs"), aggSb.ToString());
+            File.WriteAllText(Path.Combine(rsDir, procPart + "Aggregate.cs"), aggSb.ToString());
             written++;
             // Procedure wrapper
             // Execution plan + wrapper
             var planTypeName = procedureTypeName + "Plan";
             var planSb = new StringBuilder();
             planSb.Append(header);
-            planSb.AppendLine($"namespace {ns}.Procedures;");
+            planSb.AppendLine($"namespace {ns}.{schemaPart};");
             planSb.AppendLine();
             planSb.AppendLine("using System;\nusing System.Collections.Generic;\nusing System.Data;\nusing System.Data.Common;\nusing System.Threading;\nusing System.Threading.Tasks;\nusing SpocR.SpocRVNext.Execution;");
             // Build parameters array
@@ -121,16 +139,16 @@ public sealed class ProceduresGenerator
             {
                 planSb.AppendLine($"            new(\"@{ip.Name}\", {MapDbType(ip.SqlTypeName)}, {EmitSize(ip)}, false, {ip.IsNullable.ToString().ToLowerInvariant()}),");
             }
-            foreach (var op in proc.OutputFields)
+            foreach (var outParam in proc.OutputFields)
             {
-                planSb.AppendLine($"            new(\"@{op.Name}\", {MapDbType(op.SqlTypeName)}, {EmitSize(op)}, true, {op.IsNullable.ToString().ToLowerInvariant()}),");
+                planSb.AppendLine($"            new(\"@{outParam.Name}\", {MapDbType(outParam.SqlTypeName)}, {EmitSize(outParam)}, true, {outParam.IsNullable.ToString().ToLowerInvariant()}),");
             }
             planSb.AppendLine("        };\n");
             // ResultSet materializers (with ordinal caching)
             planSb.AppendLine("        var resultSets = new SpocR.SpocRVNext.Execution.ResultSetMapping[] {");
             foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
             {
-                var rowTypeName = NamePolicy.Row(proc.OperationName, rs.Name);
+                var rowTypeName = NamePolicy.Row(procPart, rs.Name);
                 var ordinalDecls = string.Join(" ", rs.Fields.Select((f, idx) => $"int o{idx}=r.GetOrdinal(\"{f.Name}\");"));
                 var fieldExprs = string.Join(", ", rs.Fields.Select((f, idx) => MaterializeFieldExpressionCached(f, idx)));
                 planSb.AppendLine("            new(\"" + rs.Name + "\", async (r, ct) => { var list = new System.Collections.Generic.List<object>(); " + ordinalDecls + " while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new " + rowTypeName + "(" + fieldExprs + ")); } return list; }),");
@@ -139,7 +157,7 @@ public sealed class ProceduresGenerator
             // Output factory
             if (proc.OutputFields.Count > 0)
             {
-                var outputTypeName = NamePolicy.Output(proc.OperationName);
+                var outputTypeName = NamePolicy.Output(procPart);
                 planSb.AppendLine($"        object? OutputFactory(System.Collections.Generic.IReadOnlyDictionary<string, object?> values) => new {outputTypeName}(" + string.Join(", ", proc.OutputFields.Select(f => CastOutputValue(f))) + ");");
             }
             else
@@ -151,12 +169,12 @@ public sealed class ProceduresGenerator
             planSb.Append(aggregateResultType + " { Success = success, Error = error");
             if (proc.OutputFields.Count > 0)
             {
-                planSb.Append(", Output = (" + NamePolicy.Output(proc.OperationName) + "?)output");
+                planSb.Append(", Output = (" + NamePolicy.Output(procPart) + "?)output");
             }
             int rsCounter = 0;
             foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
             {
-                var rowTypeName = NamePolicy.Row(proc.OperationName, rs.Name);
+                var rowTypeName = NamePolicy.Row(procPart, rs.Name);
                 planSb.Append($", {rs.Name} = rs.Length > {rsCounter} ? System.Array.ConvertAll(rs[{rsCounter}].ToArray(), o => ({rowTypeName})o).ToList() : System.Array.Empty<{rowTypeName}>() ");
                 rsCounter++;
             }
@@ -165,7 +183,7 @@ public sealed class ProceduresGenerator
             // Input binder lambda (object? state expected to be input record)
             if (proc.InputParameters.Count > 0)
             {
-                var inputType = NamePolicy.Input(proc.OperationName);
+                var inputType = NamePolicy.Input(procPart);
                 planSb.AppendLine($"        void Binder(DbCommand cmd, object? state) {{ var input = ({inputType})state!; ");
                 foreach (var ip in proc.InputParameters)
                 {
@@ -179,19 +197,19 @@ public sealed class ProceduresGenerator
             }
             planSb.AppendLine("        return new SpocR.SpocRVNext.Execution.ProcedureExecutionPlan(");
             planSb.AppendLine($"            \"{proc.Schema}.{proc.ProcedureName}\", parameters, resultSets, OutputFactory, AggregateFactory, Binder);\n    }}\n}}");
-            File.WriteAllText(Path.Combine(rsDir, planTypeName + ".cs"), planSb.ToString());
+            File.WriteAllText(Path.Combine(rsDir, procPart + "Plan.cs"), planSb.ToString());
             written++;
 
             // Wrapper
             var wrapperSb = new StringBuilder();
             wrapperSb.Append(header);
-            wrapperSb.AppendLine($"namespace {ns}.Procedures;");
+            wrapperSb.AppendLine($"namespace {ns}.{schemaPart};");
             wrapperSb.AppendLine();
             wrapperSb.AppendLine("using System.Data.Common;\nusing System.Threading;\nusing System.Threading.Tasks;\nusing SpocR.SpocRVNext.Execution;");
             wrapperSb.AppendLine($"public static class {procedureTypeName}\n{{");
             wrapperSb.AppendLine($"    public const string Name = \"{proc.Schema}.{proc.ProcedureName}\";");
             // ExecuteAsync with input record (if any)
-            var inputParamSignature = proc.InputParameters.Count > 0 ? $", {NamePolicy.Input(proc.OperationName)} input" : string.Empty;
+            var inputParamSignature = proc.InputParameters.Count > 0 ? $", {NamePolicy.Input(procPart)} input" : string.Empty;
             wrapperSb.AppendLine($"    public static Task<{aggregateResultType}> ExecuteAsync(DbConnection connection{inputParamSignature}, CancellationToken cancellationToken = default)\n    {{");
             // Parameter value binding (override defaults)
             var stateArg = proc.InputParameters.Count > 0 ? "input" : "null";
@@ -205,7 +223,7 @@ public sealed class ProceduresGenerator
             }
             wrapperSb.AppendLine("    }");
             wrapperSb.AppendLine("}");
-            File.WriteAllText(Path.Combine(rsDir, procedureTypeName + ".cs"), wrapperSb.ToString());
+            File.WriteAllText(Path.Combine(rsDir, procPart + "Procedure.cs"), wrapperSb.ToString());
             written++;
         }
         return written;

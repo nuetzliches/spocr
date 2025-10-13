@@ -57,6 +57,7 @@ internal sealed class SchemaMetadataProvider : ISchemaMetadataProvider
         var files = Directory.GetFiles(schemaDir, "*.json");
         if (files.Length == 0) return;
         var latest = files.Select(f => new FileInfo(f)).OrderByDescending(fi => fi.LastWriteTimeUtc).First();
+        try { Console.Out.WriteLine($"[spocr vNext] Using schema snapshot: {latest.FullName}"); } catch { }
         using var fs = File.OpenRead(latest.FullName);
         using var doc = JsonDocument.Parse(fs);
         if (!doc.RootElement.TryGetProperty("Procedures", out var procsEl) || procsEl.ValueKind != JsonValueKind.Array) return;
@@ -72,7 +73,9 @@ internal sealed class SchemaMetadataProvider : ISchemaMetadataProvider
             var schema = p.GetPropertyOrDefault("Schema") ?? "dbo";
             var name = p.GetPropertyOrDefault("Name") ?? string.Empty;
             if (string.IsNullOrWhiteSpace(name)) continue;
-            var operationName = NamePolicy.Sanitize(name);
+            var sanitized = NamePolicy.Sanitize(name);
+            // Include schema prefix so downstream generators can split schema reliably
+            var operationName = $"{schema}.{sanitized}";
 
             // Inputs (includes potential output parameters flagged IsOutput true)
             var inputParams = new List<FieldDescriptor>();

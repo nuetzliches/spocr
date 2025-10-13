@@ -5,6 +5,7 @@ using SpocR.SpocRVNext.Metadata;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 
 namespace SpocR.SpocRVNext;
 
@@ -91,34 +92,96 @@ public sealed class SpocRGenerator
             // Instead of attempting to mutate delegates, we will bypass and instantiate generators directly with schema collections when factory is present.
         }
 
-        // DbContext (if template present)
-        var dbCtxOutDir = Path.Combine(projectRoot, cfg.OutputDir ?? "SpocR");
-        GenerateMinimalDbContext(dbCtxOutDir, ns, "SpocRDbContext");
+        // Determine whether to emit minimal DbContext stub:
+        // If a full vNext/legacy DbContext already exists under sample (e.g., SpocRDbContext.cs in any child 'SpocR' folder with endpoints/options), skip stub.
+        bool dbContextAlreadyPresent = false;
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(projectRoot, "SpocRDbContext.cs", SearchOption.AllDirectories))
+            {
+                // Heuristic: if sibling file 'SpocRDbContextOptions.cs' exists, treat as full context
+                var dir = Path.GetDirectoryName(file)!;
+                if (File.Exists(Path.Combine(dir, "SpocRDbContextOptions.cs")))
+                {
+                    dbContextAlreadyPresent = true;
+                    break;
+                }
+            }
+        }
+        catch { }
 
+        if (!dbContextAlreadyPresent)
+        {
+            string dbCtxOutDir;
+            if (string.IsNullOrWhiteSpace(cfg.OutputDir))
+            {
+                dbCtxOutDir = Path.Combine(projectRoot, "SpocR");
+            }
+            else if (Path.IsPathRooted(cfg.OutputDir))
+            {
+                dbCtxOutDir = cfg.OutputDir;
+            }
+            else
+            {
+                dbCtxOutDir = Path.Combine(projectRoot, cfg.OutputDir);
+            }
+            GenerateMinimalDbContext(dbCtxOutDir, ns, "SpocRDbContext");
+        }
+        else
+        {
+            Console.Out.WriteLine("[spocr vNext] Info: Skipping minimal DbContext generation (full DbContext already present).");
+        }
+
+        // Mode-specific messaging if legacy config file still present
+        try
+        {
+            var hasLegacyConfig = Directory.EnumerateFiles(projectRoot, "spocr.json", SearchOption.AllDirectories).Any();
+            if (hasLegacyConfig)
+            {
+                if (cfg.GeneratorMode == "dual")
+                    Console.Out.WriteLine("[spocr vNext] Info: spocr.json detected (dual mode) – legacy + vNext coexist.");
+                else if (cfg.GeneratorMode == "next")
+                    Console.Error.WriteLine("[spocr vNext] Warning: spocr.json detected while running in 'next' mode – consider removing or migrating configuration.");
+            }
+        }
+        catch { }
+
+        // Base output directory: ensure we point at .../SpocR for sample so schema folders appear beneath it
+        var baseStructuredOut = projectRoot.EndsWith(Path.DirectorySeparatorChar + "SpocR", StringComparison.OrdinalIgnoreCase)
+            ? projectRoot
+            : Path.Combine(projectRoot, "SpocR");
+        Directory.CreateDirectory(baseStructuredOut);
         if (_schemaProviderFactory is null)
         {
-            // Legacy path using provided delegates
             var inputsGen = new InputsGenerator(_renderer, _inputs ?? (() => Array.Empty<InputDescriptor>()), _loader, projectRoot);
-            total += inputsGen.Generate(ns);
+            total += inputsGen.Generate(ns, baseStructuredOut);
             var outputsGen = new OutputsGenerator(_renderer, _outputs, _loader, projectRoot);
-            total += outputsGen.Generate(ns);
+            total += outputsGen.Generate(ns, baseStructuredOut);
             var resultsGen = new ResultsGenerator(_renderer, _results, _loader, projectRoot);
-            total += resultsGen.Generate(ns);
+            total += resultsGen.Generate(ns, baseStructuredOut);
             var procsGen = new ProceduresGenerator(_renderer, _procedures, _loader, projectRoot);
-            total += procsGen.Generate(ns);
+            total += procsGen.Generate(ns, baseStructuredOut);
         }
         else
         {
             var schema = _schemaProviderFactory();
+            try
+            {
+                var dbgInputs = schema.GetInputs().Count;
+                var dbgOutputs = schema.GetOutputs().Count;
+                var dbgResults = schema.GetResults().Count;
+                var dbgProcs = schema.GetProcedures().Count;
+                Console.Out.WriteLine($"[spocr vNext] descriptor counts: inputs={dbgInputs} outputs={dbgOutputs} results={dbgResults} procedures={dbgProcs}");
+            }
+            catch { }
             var inputsGen = new InputsGenerator(_renderer, () => schema.GetInputs(), _loader, projectRoot);
-            total += inputsGen.Generate(ns);
+            total += inputsGen.Generate(ns, baseStructuredOut);
             var outputsGen = new OutputsGenerator(_renderer, () => schema.GetOutputs(), _loader, projectRoot);
-            total += outputsGen.Generate(ns);
-            // Result type generation may rely on result sets; for now feed empty until ResultDescriptor strategy defined
+            total += outputsGen.Generate(ns, baseStructuredOut);
             var resultsGen = new ResultsGenerator(_renderer, () => schema.GetResults(), _loader, projectRoot);
-            total += resultsGen.Generate(ns);
+            total += resultsGen.Generate(ns, baseStructuredOut);
             var procsGen = new ProceduresGenerator(_renderer, () => schema.GetProcedures(), _loader, projectRoot);
-            total += procsGen.Generate(ns);
+            total += procsGen.Generate(ns, baseStructuredOut);
         }
 
         return total;

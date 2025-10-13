@@ -18,6 +18,17 @@ public static class NamePolicy
     public static string Procedure(string operation) => Sanitize(operation) + "Procedure";
     public static string Row(string operation, string setName) => Sanitize(operation) + Sanitize(setName) + "Row";
 
+    public static (string Schema, string Operation) SplitSchema(string operationName)
+    {
+        if (string.IsNullOrWhiteSpace(operationName)) return ("dbo", "Procedure");
+        var parts = operationName.Split('.', 2);
+        if (parts.Length == 2)
+        {
+            return (Sanitize(parts[0]), Sanitize(parts[1]));
+        }
+        return ("dbo", Sanitize(operationName));
+    }
+
     public static string Sanitize(string raw)
     {
         if (string.IsNullOrWhiteSpace(raw)) return "Name";

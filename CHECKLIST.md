@@ -164,12 +164,15 @@ EPICS Übersicht (oberste Steuerungsebene)
       - [x] Template + Generator: Outputs (DTO/Records)
       - [x] Template + Generator: Results (Operation Result Types)
       - [x] Template + Generator: StoredProcedure Wrapper (Execution Stubs Grundgerüst)
-      - [ ] Execution Logic ADO.NET (ResultSets Mapping) implementiert
-      - [ ] Metadata Provider Implementierung (DB Schema → Descriptors) produktiv
-      - [ ] CLI Integration (`spocr generate` nutzt neue Generatoren)
+      - [x] Per-Schema Dateilayout für neue Artefakte umgesetzt (`samples/restapi/[schema]/[Proc]Input.cs|Output.cs|Result.cs|Aggregate.cs|Plan.cs|Procedure.cs` + Row Sets `_ResultSetNameResult.cs`)
+      - [x] High-Level Result Records in per-Schema Layout verschoben (`[Proc]Result.cs`)
+      - [x] Execution Logic ADO.NET (ResultSets Mapping) implementiert (ProcedureExecutionPlan + ProcedureExecutor)
+      - [x] Metadata Provider Implementierung (DB Schema → Descriptors) produktiv (SchemaMetadataProvider)
+      - [~] CLI Integration (`spocr generate` nutzt neue Generatoren) – Legacy Orchestrator ruft vNext Generator jetzt in dual|next auf; eigene vNext CLI Ergänzungen folgen
       - [ ] Sample nutzt mindestens eine generierte Stored Procedure (End-to-End)
       - [ ] ResultSet Naming Strategie dokumentiert (Prefix + Fallback) (Doku)
       - [ ] Tests: Snapshot / Determinismus für neue Artefakte
+      - [ ] Interaktive .env Bootstrap CLI (separate vNext Kommando) – Basis EnvBootstrapper vorhanden, noch kein dedizierter Befehl
 
       TODO entfernt: Performance Messung (nicht mehr erforderlich)
 
@@ -189,8 +192,7 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] Debug-Konfigurationen (debug/\*.json) konsistent mit neuen Pfaden
 - [ ] Output-Pfade (Output/, Output-v5-0/, etc.) aufgeräumt / veraltete entfernt sofern Version >=5.0 (post-migration)
 - [x] `.env` Beispieldatei hinzugefügt (Pfad: `samples/restapi/.env.example`) inkl. aller relevanten SPOCR\_\* Keys
-      note: Enthält SPOCR_GENERATOR_MODE, SPOCR_EXPERIMENTAL_CLI, Bridge Policy Flags
-- [ ] Precedence dokumentiert: CLI > ENV > .env > (legacy) spocr.json (Fallback bis v5.0, danach entfernt)
+      note: Enthält SPOCR_GENERATOR_MODE, SPOCR_EXPERIMENTAL_CLI, Bridge Policy Flags - [ ] Precedence dokumentiert: CLI > ENV > .env > (legacy) spocr.json (Fallback bis v5.0, danach entfernt) - [x] Neue ENV Variablen eingeführt: `SPOCR_GENERATOR_DB`, `SPOCR_DB_IDENTIFIER` (Alias zu früherem Default), Namespace / Output Dir Prefill via `.env` Bootstrap
       note: Reihenfolge bestätigt; Umsetzung & README Abschnitt ausstehend.
 - [ ] `spocr pull` überschreibt lokale Konfiguration nicht mehr (nur interne Metadaten)
 
@@ -312,5 +314,14 @@ EPICS Übersicht (oberste Steuerungsebene)
 
 - [x] samples\restapi\SpocR\samples müssen den Namespace RestApi.SpocR.samples erhalten.
 - [x] samples\restapi\SpocR\ITableType.cs muss den Namespace RestApi.SpocR erhalten.
+- [ ] samples\restapi\.env eventuell auch aus Template mit Kommentaren generieren
+- [ ] samples\restapi\SpocR\samples\CreateUserWithOutputResult.cs diese Datei soll nicht erzeugt werden (wozu ist sie gedacht?). Dafür soll diese Datei samples\restapi\SpocR\samples\CreateUserWithOutput1Result.cs in CreateUserWithOutputResult.cs umbenannt werden, da sie dem ersten ResultSet entspricht (Namen werden erst mit dem 2. ResultSet erweitert - spricht was dagegen?).
+- [ ] Namespace fest verdrahten/override via .env (SPOCR_NAMESPACE).
+- [ ] Einheitliche Klein-/Großschreibung der Schema-Ordner (aktuell Samples durch Sanitize).
+- [ ] Tests für Dateinamen & Determinismus hinzufügen.
+- [ ] Aktivierung derselben Full-Generation auch im next-only Pfad im Dispatcher (steht noch halb-offen).
+
+# Zu planende Entscheidungen
+
 - [ ] Wie handhaben wir Datums-/Zeitangaben. (z.B. UTC, lokale Zeit, Formatierung)
 - [ ] Wie bringen wir standard/custom Converters unter? (z.B. JsonConverter Attribute, AutoTrimmed Properties, andere Property oder Class Level Converters)

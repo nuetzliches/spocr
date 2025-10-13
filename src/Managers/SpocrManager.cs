@@ -660,6 +660,8 @@ public class SpocrManager(
                 }
             }
 
+            // (Removed) manager-level .env prefill: now handled centrally inside EnvConfiguration for consistency.
+
             if (options.DryRun)
             {
                 consoleService.PrintDryRunMessage();
