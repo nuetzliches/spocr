@@ -25,48 +25,80 @@ public partial class SpocRDbContext : ISpocRDbContext
     public DbConnection OpenConnection()
     {
         var sw = _options.EnableDiagnostics ? Stopwatch.StartNew() : null;
-        try
+        int attempt = 0;
+        int max = _options.MaxOpenRetries.GetValueOrDefault(0);
+        int delay = _options.RetryDelayMs.GetValueOrDefault(200);
+        while (true)
         {
-            var conn = new SqlConnection(_options.ConnectionString);
-            conn.Open();
-            if (_options.EnableDiagnostics)
+            try
             {
-                sw!.Stop();
-                System.Diagnostics.Debug.WriteLine($"[SpocRDbContext] OpenConnection latency={sw.ElapsedMilliseconds}ms");
+                var conn = new SqlConnection(_options.ConnectionString);
+                conn.Open();
+                if (_options.EnableDiagnostics)
+                {
+                    sw!.Stop();
+                    System.Diagnostics.Debug.WriteLine($"[SpocRDbContext] OpenConnection latency={sw.ElapsedMilliseconds}ms attempts={attempt+1}");
+                }
+                return conn;
             }
-            return conn;
-        }
-        catch (SqlException ex)
-        {
-            if (_options.EnableDiagnostics)
+            catch (SqlException ex) when (attempt < max)
             {
-                System.Diagnostics.Debug.WriteLine($"[SpocRDbContext] OpenConnection failed: {ex.Message}");
+                attempt++;
+                if (_options.EnableDiagnostics)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[SpocRDbContext] OpenConnection retry {attempt}/{max} after error: {ex.Message}");
+                }
+                Thread.Sleep(delay);
+                continue;
             }
-            throw;
+            catch (SqlException ex)
+            {
+                if (_options.EnableDiagnostics)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[SpocRDbContext] OpenConnection failed: {ex.Message}");
+                }
+                throw;
+            }
         }
     }
 
     public async Task<DbConnection> OpenConnectionAsync(CancellationToken cancellationToken = default)
     {
         var sw = _options.EnableDiagnostics ? Stopwatch.StartNew() : null;
-        try
+        int attempt = 0;
+        int max = _options.MaxOpenRetries.GetValueOrDefault(0);
+        int delay = _options.RetryDelayMs.GetValueOrDefault(200);
+        while (true)
         {
-            var conn = new SqlConnection(_options.ConnectionString);
-            await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
-            if (_options.EnableDiagnostics)
+            try
             {
-                sw!.Stop();
-                System.Diagnostics.Debug.WriteLine($"[SpocRDbContext] OpenConnectionAsync latency={sw.ElapsedMilliseconds}ms");
+                var conn = new SqlConnection(_options.ConnectionString);
+                await conn.OpenAsync(cancellationToken).ConfigureAwait(false);
+                if (_options.EnableDiagnostics)
+                {
+                    sw!.Stop();
+                    System.Diagnostics.Debug.WriteLine($"[SpocRDbContext] OpenConnectionAsync latency={sw.ElapsedMilliseconds}ms attempts={attempt+1}");
+                }
+                return conn;
             }
-            return conn;
-        }
-        catch (SqlException ex)
-        {
-            if (_options.EnableDiagnostics)
+            catch (SqlException ex) when (attempt < max)
             {
-                System.Diagnostics.Debug.WriteLine($"[SpocRDbContext] OpenConnectionAsync failed: {ex.Message}");
+                attempt++;
+                if (_options.EnableDiagnostics)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[SpocRDbContext] OpenConnectionAsync retry {attempt}/{max} after error: {ex.Message}");
+                }
+                await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                continue;
             }
-            throw;
+            catch (SqlException ex)
+            {
+                if (_options.EnableDiagnostics)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[SpocRDbContext] OpenConnectionAsync failed: {ex.Message}");
+                }
+                throw;
+            }
         }
     }
 

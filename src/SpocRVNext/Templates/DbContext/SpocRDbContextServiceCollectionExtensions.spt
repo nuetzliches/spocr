@@ -20,13 +20,30 @@ public static class SpocRDbContextServiceCollectionExtensions
         services.AddSingleton(provider =>
         {
             var cfg = provider.GetService<IConfiguration>();
+            var name = explicitOptions.ConnectionStringName ?? "DefaultConnection";
             var conn = explicitOptions.ConnectionString
-                       ?? cfg?.GetConnectionString("DefaultConnection")
+                       ?? cfg?.GetConnectionString(name)
                        ?? Environment.GetEnvironmentVariable("SPOCR_DB_DEFAULT");
             if (string.IsNullOrWhiteSpace(conn))
-                throw new InvalidOperationException("No connection string resolved for SpocRDbContext (options, DefaultConnection, or SPOCR_DB_DEFAULT).");
+                throw new InvalidOperationException($"No connection string resolved for SpocRDbContext (options, {name}, or SPOCR_DB_DEFAULT).");
             explicitOptions.ConnectionString = conn;
             if (explicitOptions.CommandTimeoutSeconds is null or <= 0) explicitOptions.CommandTimeoutSeconds = 30;
+            if (explicitOptions.MaxOpenRetries is not null and < 0)
+                throw new InvalidOperationException("MaxOpenRetries must be >= 0");
+            if (explicitOptions.RetryDelayMs is not null and <= 0)
+                throw new InvalidOperationException("RetryDelayMs must be > 0");
+            if (explicitOptions.ValidateOnBuild)
+            {
+                try
+                {
+                    using var probe = new Microsoft.Data.SqlClient.SqlConnection(conn);
+                    probe.Open();
+                }
+                catch (Exception ex)
+                {
+                    throw new InvalidOperationException("SpocRDbContext ValidateOnBuild failed to open connection", ex);
+                }
+            }
             return explicitOptions;
         });
 

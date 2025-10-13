@@ -6,11 +6,12 @@ using SpocR.Managers;
 using SpocR.Models;
 using SpocR.Services;
 using SpocR.Utils;
+using SpocR.SpocRVNext.Engine;
 
 namespace SpocR.SpocRVNext.Generators;
 
 /// <summary>
-/// Generates the DbContext related artifacts from templates (interface, context, options, DI extension).
+/// Generates the DbContext related artifacts from templates (interface, context, options, DI extension, endpoints).
 /// Generation is gated behind env flag SPOCR_GENERATE_DBCTX=1 (defaults off to avoid churn).
 /// </summary>
 public class DbContextGenerator
@@ -18,12 +19,16 @@ public class DbContextGenerator
     private readonly FileManager<ConfigurationModel> _configFile;
     private readonly OutputService _outputService;
     private readonly IConsoleService _console;
+    private readonly ITemplateRenderer _renderer;
+    private readonly ITemplateLoader? _loader;
 
-    public DbContextGenerator(FileManager<ConfigurationModel> configFile, OutputService outputService, IConsoleService console)
+    public DbContextGenerator(FileManager<ConfigurationModel> configFile, OutputService outputService, IConsoleService console, ITemplateRenderer renderer, ITemplateLoader? loader = null)
     {
         _configFile = configFile;
         _outputService = outputService;
         _console = console;
+        _renderer = renderer;
+        _loader = loader;
     }
 
     private static bool IsEnabled() =>
@@ -60,10 +65,29 @@ public class DbContextGenerator
 
         var finalNs = ResolveNamespace();
 
-        await WriteAsync(spocrDir, "ISpocRDbContext.cs", GetTemplate_Interface(finalNs), isDryRun);
-        await WriteAsync(spocrDir, "SpocRDbContextOptions.cs", GetTemplate_Options(finalNs), isDryRun);
-        await WriteAsync(spocrDir, "SpocRDbContext.cs", GetTemplate_Context(finalNs), isDryRun);
-        await WriteAsync(spocrDir, "SpocRDbContextServiceCollectionExtensions.cs", GetTemplate_Di(finalNs), isDryRun);
+        // Try template-based generation first
+        var model = new { Namespace = finalNs };
+        await WriteAsync(spocrDir, "ISpocRDbContext.cs", Render("ISpocRDbContext", GetTemplate_Interface(finalNs), model), isDryRun);
+        await WriteAsync(spocrDir, "SpocRDbContextOptions.cs", Render("SpocRDbContextOptions", GetTemplate_Options(finalNs), model), isDryRun);
+        await WriteAsync(spocrDir, "SpocRDbContext.cs", Render("SpocRDbContext", GetTemplate_Context(finalNs), model), isDryRun);
+            await WriteAsync(spocrDir, "SpocRDbContextServiceCollectionExtensions.cs", Render("SpocRDbContextServiceCollectionExtensions", GetTemplate_Di(finalNs), model), isDryRun);
+            await WriteAsync(spocrDir, "SpocRDbContextEndpoints.cs", Render("SpocRDbContextEndpoints", GetTemplate_Endpoints(finalNs), model), isDryRun);
+    }
+
+    private string Render(string logicalName, SourceText fallback, object model)
+    {
+        if (_loader != null && _loader.TryLoad(Path.GetFileNameWithoutExtension(logicalName), out var tpl))
+        {
+            try
+            {
+                return _renderer.Render(tpl, model);
+            }
+            catch (Exception ex)
+            {
+                _console.Warn($"[dbctx] Template render failed for {logicalName}, using fallback. Error: {ex.Message}");
+            }
+        }
+        return fallback.ToString();
     }
 
     private static SourceText GetTemplate_Interface(string ns) => SourceText.From($"" +
@@ -82,7 +106,11 @@ public class DbContextGenerator
         "using System.Text.Json;\n\n" +
         "public sealed class SpocRDbContextOptions\n{\n" +
         "    public string? ConnectionString { get; set; }\n" +
+        "    public string? ConnectionStringName { get; set; }\n" +
         "    public int? CommandTimeoutSeconds { get; set; }\n" +
+        "    public int? MaxOpenRetries { get; set; }\n" +
+        "    public int? RetryDelayMs { get; set; }\n" +
+        "    public bool ValidateOnBuild { get; set; } = false;\n" +
         "    public JsonSerializerOptions? JsonSerializerOptions { get; set; }\n" +
         "    public bool EnableDiagnostics { get; set; } = true;\n" +
         "}\n");
@@ -102,14 +130,14 @@ public class DbContextGenerator
         "    public DbConnection OpenConnection()\n" +
         "    {\n" +
         "        var sw = _options.EnableDiagnostics ? Stopwatch.StartNew() : null;\n" +
-        "        try { var conn = new SqlConnection(_options.ConnectionString); conn.Open(); if (_options.EnableDiagnostics) { sw!.Stop(); System.Diagnostics.Debug.WriteLine(\"[SpocRDbContext] OpenConnection latency=\" + sw.ElapsedMilliseconds + \"ms\"); } return conn; }\n" +
-        "        catch (SqlException ex) { if (_options.EnableDiagnostics) System.Diagnostics.Debug.WriteLine(\"[SpocRDbContext] OpenConnection failed: \" + ex.Message); throw; }\n" +
+        "        int attempt = 0; int max = _options.MaxOpenRetries.GetValueOrDefault(0); int delay = _options.RetryDelayMs.GetValueOrDefault(200);\n" +
+        "        while (true) { try { var conn = new SqlConnection(_options.ConnectionString); conn.Open(); if (_options.EnableDiagnostics) { sw!.Stop(); System.Diagnostics.Debug.WriteLine(\"[SpocRDbContext] OpenConnection latency=\" + sw.ElapsedMilliseconds + \"ms attempts=\" + (attempt+1)); } return conn; } catch (SqlException ex) when (attempt < max) { attempt++; if (_options.EnableDiagnostics) { System.Diagnostics.Debug.WriteLine(\"[SpocRDbContext] OpenConnection retry \" + attempt + \"/\" + max + \" after error: \" + ex.Message); } Thread.Sleep(delay); continue; } catch (SqlException ex) { if (_options.EnableDiagnostics) { System.Diagnostics.Debug.WriteLine(\"[SpocRDbContext] OpenConnection failed: \" + ex.Message); } throw; } }\n" +
         "    }\n" +
         "    public async Task<DbConnection> OpenConnectionAsync(CancellationToken cancellationToken = default)\n" +
         "    {\n" +
         "        var sw = _options.EnableDiagnostics ? Stopwatch.StartNew() : null;\n" +
-        "        try { var conn = new SqlConnection(_options.ConnectionString); await conn.OpenAsync(cancellationToken).ConfigureAwait(false); if (_options.EnableDiagnostics) { sw!.Stop(); System.Diagnostics.Debug.WriteLine(\"[SpocRDbContext] OpenConnectionAsync latency=\" + sw.ElapsedMilliseconds + \"ms\"); } return conn; }\n" +
-        "        catch (SqlException ex) { if (_options.EnableDiagnostics) System.Diagnostics.Debug.WriteLine(\"[SpocRDbContext] OpenConnectionAsync failed: \" + ex.Message); throw; }\n" +
+        "        int attempt = 0; int max = _options.MaxOpenRetries.GetValueOrDefault(0); int delay = _options.RetryDelayMs.GetValueOrDefault(200);\n" +
+        "        while (true) { try { var conn = new SqlConnection(_options.ConnectionString); await conn.OpenAsync(cancellationToken).ConfigureAwait(false); if (_options.EnableDiagnostics) { sw!.Stop(); System.Diagnostics.Debug.WriteLine(\"[SpocRDbContext] OpenConnectionAsync latency=\" + sw.ElapsedMilliseconds + \"ms attempts=\" + (attempt+1)); } return conn; } catch (SqlException ex) when (attempt < max) { attempt++; if (_options.EnableDiagnostics) { System.Diagnostics.Debug.WriteLine(\"[SpocRDbContext] OpenConnectionAsync retry \" + attempt + \"/\" + max + \" after error: \" + ex.Message); } await Task.Delay(delay, cancellationToken).ConfigureAwait(false); continue; } catch (SqlException ex) { if (_options.EnableDiagnostics) { System.Diagnostics.Debug.WriteLine(\"[SpocRDbContext] OpenConnectionAsync failed: \" + ex.Message); } throw; } }\n" +
         "    }\n" +
         "    public async Task<bool> HealthCheckAsync(CancellationToken cancellationToken = default)\n" +
         "    {\n" +
@@ -119,19 +147,30 @@ public class DbContextGenerator
 
     private static SourceText GetTemplate_Di(string ns) => SourceText.From($"namespace {ns};\n\n" +
         "using System;\nusing Microsoft.Extensions.Configuration;\nusing Microsoft.Extensions.DependencyInjection;\n\n" +
-        "public static class SpocRDbContextServiceCollectionExtensions\n{\n" +
+        "public static class SpocRDbContextServiceCollectionExtensions\n" +
+        "{\n" +
         "    public static IServiceCollection AddSpocRDbContext(this IServiceCollection services, Action<SpocRDbContextOptions>? configure = null)\n" +
         "    {\n" +
         "        var explicitOptions = new SpocRDbContextOptions(); configure?.Invoke(explicitOptions);\n" +
-        "        services.AddSingleton(provider => { var cfg = provider.GetService<IConfiguration>(); var conn = explicitOptions.ConnectionString ?? cfg?.GetConnectionString(\"DefaultConnection\") ?? Environment.GetEnvironmentVariable(\"SPOCR_DB_DEFAULT\"); if (string.IsNullOrWhiteSpace(conn)) throw new InvalidOperationException(\"No connection string resolved for SpocRDbContext (options, DefaultConnection, or SPOCR_DB_DEFAULT).\"); explicitOptions.ConnectionString = conn; if (explicitOptions.CommandTimeoutSeconds is null or <= 0) explicitOptions.CommandTimeoutSeconds = 30; return explicitOptions; });\n" +
+        "        services.AddSingleton(provider => { var cfg = provider.GetService<IConfiguration>(); var name = explicitOptions.ConnectionStringName ?? \"DefaultConnection\"; var conn = explicitOptions.ConnectionString ?? cfg?.GetConnectionString(name) ?? Environment.GetEnvironmentVariable(\"SPOCR_DB_DEFAULT\"); if (string.IsNullOrWhiteSpace(conn)) throw new InvalidOperationException(\"No connection string resolved for SpocRDbContext (options, \" + name + \", or SPOCR_DB_DEFAULT).\"); explicitOptions.ConnectionString = conn; if (explicitOptions.CommandTimeoutSeconds is null or <= 0) explicitOptions.CommandTimeoutSeconds = 30; if (explicitOptions.MaxOpenRetries is not null and < 0) throw new InvalidOperationException(\"MaxOpenRetries must be >= 0\"); if (explicitOptions.RetryDelayMs is not null and <= 0) throw new InvalidOperationException(\"RetryDelayMs must be > 0\"); if (explicitOptions.ValidateOnBuild) { try { using var probe = new Microsoft.Data.SqlClient.SqlConnection(conn); probe.Open(); } catch (Exception ex) { throw new InvalidOperationException(\"SpocRDbContext ValidateOnBuild failed to open connection\", ex); } } return explicitOptions; });\n" +
         "        services.AddScoped<ISpocRDbContext>(sp => new SpocRDbContext(sp.GetRequiredService<SpocRDbContextOptions>()));\n" +
         "        return services;\n" +
         "    }\n" +
         "}\n");
 
-    private async Task WriteAsync(string dir, string fileName, SourceText source, bool isDryRun)
+    private static SourceText GetTemplate_Endpoints(string ns) => SourceText.From($"namespace {ns};\n\n" +
+        "using Microsoft.AspNetCore.Builder;\nusing Microsoft.AspNetCore.Http;\nusing Microsoft.Extensions.DependencyInjection;\nusing System.Threading;\nusing System.Threading.Tasks;\n\n" +
+        "public static class SpocRDbContextEndpointRouteBuilderExtensions\n" +
+        "{\n" +
+        "    public static IEndpointRouteBuilder MapSpocRDbContextEndpoints(this IEndpointRouteBuilder endpoints)\n" +
+        "    {\n" +
+        "        endpoints.MapGet(\"/spocr/health/db\", async (ISpocRDbContext db, CancellationToken ct) => { var healthy = await db.HealthCheckAsync(ct).ConfigureAwait(false); return healthy ? Results.Ok(new { status = \"ok\" }) : Results.Problem(\"database unavailable\", statusCode: 503); });\n" +
+        "        return endpoints;\n" +
+        "    }\n" +
+        "}\n");
+    private async Task WriteAsync(string dir, string fileName, string source, bool isDryRun)
     {
         var path = Path.Combine(dir, fileName);
-        await _outputService.WriteAsync(path, source, isDryRun);
+        await _outputService.WriteAsync(path, SourceText.From(source), isDryRun);
     }
 }
