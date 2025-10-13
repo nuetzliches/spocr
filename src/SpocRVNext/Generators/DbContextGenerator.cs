@@ -49,10 +49,18 @@ public class DbContextGenerator
             return;
         }
 
-        var nsRoot = _configFile.Config.Project.Output.Namespace?.Trim();
-        if (string.IsNullOrWhiteSpace(nsRoot))
+        // Resolve base namespace via configuration / project structure (unified approach)
+        var explicitNs = _configFile.Config.Project.Output.Namespace?.Trim();
+        string baseNs;
+        if (!string.IsNullOrWhiteSpace(explicitNs))
         {
-            _console.Warn("[dbctx] Missing Project.Output.Namespace – aborting DbContext generation.");
+            baseNs = explicitNs!;
+        }
+        else
+        {
+            // Fallback: try to infer from current working directory using NamespaceResolver-like heuristic.
+            // For vNext generator we minimize duplication; if missing we warn and bail.
+            _console.Warn("[dbctx] Missing Project.Output.Namespace – aborting DbContext generation (no inference path implemented).");
             return;
         }
 
@@ -68,8 +76,8 @@ public class DbContextGenerator
         var spocrDir = Path.Combine(rootDir, "SpocR");
         if (!Directory.Exists(spocrDir) && !isDryRun) Directory.CreateDirectory(spocrDir);
 
-        // Namespace now consistently Root.SpocR (without .DataContext) to match new directory layout.
-        var finalNs = nsRoot + ".SpocR";
+    // Append .SpocR suffix only if not already present.
+    var finalNs = baseNs.EndsWith(".SpocR", StringComparison.Ordinal) ? baseNs : baseNs + ".SpocR";
 
         // Try template-based generation first
         var model = new { Namespace = finalNs };
