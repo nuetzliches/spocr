@@ -87,7 +87,7 @@ internal sealed class SchemaMetadataProvider : ISchemaMetadataProvider
                     var sqlType = ip.GetPropertyOrDefault("SqlTypeName") ?? string.Empty;
                     var isNullable = ip.GetPropertyOrDefaultBool("IsNullable");
                     var clr = MapSqlToClr(sqlType, isNullable);
-                    var fd = new FieldDescriptor(clean, NamePolicy.Sanitize(clean), clr, isNullable);
+                    var fd = new FieldDescriptor(clean, NamePolicy.Sanitize(clean), clr, isNullable, sqlType);
                     var isOutput = ip.GetPropertyOrDefaultBool("IsOutput");
                     if (isOutput) outputParams.Add(fd); else inputParams.Add(fd);
                 }
@@ -111,7 +111,7 @@ internal sealed class SchemaMetadataProvider : ISchemaMetadataProvider
                             var sqlType = c.GetPropertyOrDefault("SqlTypeName") ?? string.Empty;
                             var isNullable = c.GetPropertyOrDefaultBool("IsNullable");
                             var clr = MapSqlToClr(sqlType, isNullable);
-                            columns.Add(new FieldDescriptor(colName, NamePolicy.Sanitize(colName), clr, isNullable));
+                            columns.Add(new FieldDescriptor(colName, NamePolicy.Sanitize(colName), clr, isNullable, sqlType));
                         }
                     }
                     var rsName = ResultSetNaming.DeriveName(idx, columns, usedNames);

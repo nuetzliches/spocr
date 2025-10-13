@@ -7,6 +7,7 @@ public sealed record FieldDescriptor(
     string PropertyName,
     string ClrType,
     bool IsNullable,
+    string SqlTypeName,
     string? Documentation = null,
     IReadOnlyList<string>? Attributes = null
 );
