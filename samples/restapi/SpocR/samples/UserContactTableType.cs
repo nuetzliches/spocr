@@ -3,7 +3,7 @@ namespace RestApi.samples;
 
 /// <summary>
 /// User Defined Table Type samples.UserContactTableTypeTableType
-/// <remarks>Generated at 2025-10-13T17:23:19.0214602Z</remarks>
+/// <remarks>Generated at 2025-10-13T19:39:55.2776177Z</remarks>
 /// </summary>
 public readonly record struct UserContactTableTypeTableType(
     int? UserId,
