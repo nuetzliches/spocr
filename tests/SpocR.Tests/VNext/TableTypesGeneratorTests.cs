@@ -55,4 +55,46 @@ public class TableTypesGeneratorTests
             Directory.SetCurrentDirectory(original);
         }
     }
+
+    [Fact]
+    public void PreservesOriginalNames_NoRenaming()
+    {
+        var root = Directory.CreateTempSubdirectory();
+        File.WriteAllText(Path.Combine(root.FullName, ".env"), "SPOCR_GENERATOR_MODE=next\n# SPOCR_NAMESPACE placeholder\n");
+        var cfg = EnvConfiguration.Load(projectRoot: root.FullName);
+
+        // Stub provider with synthetic names covering all suffix cases
+        var stub = new StubProvider(
+            ("dbo", "CustomerTT"),
+            ("dbo", "ImportUDTT"),
+            ("dbo", "PriceType"),
+            ("dbo", "AlreadyTableType")
+        );
+
+        var gen = new TableTypesGenerator(cfg, stub, new SpocR.SpocRVNext.Engine.SimpleTemplateEngine(), null, root.FullName);
+        var count = gen.Generate();
+    Assert.Equal(5, count); // 4 types + interface
+        var outDir = Path.Combine(root.FullName, cfg.OutputDir!, "dbo");
+        Assert.True(Directory.Exists(outDir));
+        var files = Directory.GetFiles(outDir, "*.cs");
+    Assert.Contains(files, f => f.EndsWith("CustomerTT.cs"));
+    Assert.Contains(files, f => f.EndsWith("ImportUDTT.cs"));
+    Assert.Contains(files, f => f.EndsWith("PriceType.cs"));
+    Assert.Contains(files, f => f.EndsWith("AlreadyTableType.cs"));
+    }
+
+    private sealed class StubProvider : ITableTypeMetadataProvider
+    {
+        private readonly IReadOnlyList<TableTypeInfo> _items;
+        public StubProvider(params (string Schema, string Name)[] names)
+        {
+            _items = names.Select(n => new TableTypeInfo
+            {
+                Schema = n.Schema,
+                Name = n.Name,
+                Columns = new[] { new ColumnInfo { Name = "Id", SqlType = "int", IsNullable = false } }
+            }).ToList();
+        }
+        public IReadOnlyList<TableTypeInfo> GetAll() => _items;
+    }
 }
