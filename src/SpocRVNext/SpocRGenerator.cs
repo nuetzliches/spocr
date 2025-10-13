@@ -19,6 +19,7 @@ public sealed class SpocRGenerator
     private readonly Func<IReadOnlyList<OutputDescriptor>> _outputs;
     private readonly Func<IReadOnlyList<ResultDescriptor>> _results;
     private readonly Func<IReadOnlyList<ProcedureDescriptor>> _procedures;
+    private readonly Func<ISchemaMetadataProvider>? _schemaProviderFactory;
 
     public SpocRGenerator(
         ITemplateRenderer renderer,
@@ -26,7 +27,8 @@ public sealed class SpocRGenerator
         Func<IReadOnlyList<InputDescriptor>>? inputsProvider = null,
         Func<IReadOnlyList<OutputDescriptor>>? outputsProvider = null,
         Func<IReadOnlyList<ResultDescriptor>>? resultsProvider = null,
-        Func<IReadOnlyList<ProcedureDescriptor>>? proceduresProvider = null)
+        Func<IReadOnlyList<ProcedureDescriptor>>? proceduresProvider = null,
+        Func<ISchemaMetadataProvider>? schemaProviderFactory = null)
     {
         _renderer = renderer;
         _loader = loader; // optional until full wiring
@@ -34,6 +36,7 @@ public sealed class SpocRGenerator
         _outputs = outputsProvider ?? (() => Array.Empty<OutputDescriptor>());
         _results = resultsProvider ?? (() => Array.Empty<ResultDescriptor>());
         _procedures = proceduresProvider ?? (() => Array.Empty<ProcedureDescriptor>());
+        _schemaProviderFactory = schemaProviderFactory;
     }
 
     /// <summary>
@@ -77,25 +80,46 @@ public sealed class SpocRGenerator
         var ns = cfg.NamespaceRoot ?? "SpocR.Generated";
         var total = 0;
 
+        // If a schema provider factory is supplied and no explicit delegates were provided, use it to populate metadata.
+        if (_schemaProviderFactory != null)
+        {
+            var schema = _schemaProviderFactory();
+            if (_inputs == null || ReferenceEquals(_inputs, (Func<IReadOnlyList<InputDescriptor>>)(() => Array.Empty<InputDescriptor>())))
+            {
+                // no op - existing delegate already returns empty; we can't reassign readonly field, so rely on direct usage below
+            }
+            // Instead of attempting to mutate delegates, we will bypass and instantiate generators directly with schema collections when factory is present.
+        }
+
         // DbContext (if template present)
         var dbCtxOutDir = Path.Combine(projectRoot, cfg.OutputDir ?? "SpocR");
         GenerateMinimalDbContext(dbCtxOutDir, ns, "SpocRDbContext");
 
-        // Inputs
-        var inputsGen = new InputsGenerator(_renderer, _inputs, _loader, projectRoot);
-        total += inputsGen.Generate(ns);
-
-        // Outputs
-        var outputsGen = new OutputsGenerator(_renderer, _outputs, _loader, projectRoot);
-        total += outputsGen.Generate(ns);
-
-        // Results
-        var resultsGen = new ResultsGenerator(_renderer, _results, _loader, projectRoot);
-        total += resultsGen.Generate(ns);
-
-        // Procedures
-        var procsGen = new ProceduresGenerator(_renderer, _procedures, _loader, projectRoot);
-        total += procsGen.Generate(ns);
+        if (_schemaProviderFactory is null)
+        {
+            // Legacy path using provided delegates
+            var inputsGen = new InputsGenerator(_renderer, _inputs ?? (() => Array.Empty<InputDescriptor>()), _loader, projectRoot);
+            total += inputsGen.Generate(ns);
+            var outputsGen = new OutputsGenerator(_renderer, _outputs, _loader, projectRoot);
+            total += outputsGen.Generate(ns);
+            var resultsGen = new ResultsGenerator(_renderer, _results, _loader, projectRoot);
+            total += resultsGen.Generate(ns);
+            var procsGen = new ProceduresGenerator(_renderer, _procedures, _loader, projectRoot);
+            total += procsGen.Generate(ns);
+        }
+        else
+        {
+            var schema = _schemaProviderFactory();
+            var inputsGen = new InputsGenerator(_renderer, () => schema.GetInputs(), _loader, projectRoot);
+            total += inputsGen.Generate(ns);
+            var outputsGen = new OutputsGenerator(_renderer, () => schema.GetOutputs(), _loader, projectRoot);
+            total += outputsGen.Generate(ns);
+            // Result type generation may rely on result sets; for now feed empty until ResultDescriptor strategy defined
+            var resultsGen = new ResultsGenerator(_renderer, () => Array.Empty<ResultDescriptor>(), _loader, projectRoot);
+            total += resultsGen.Generate(ns);
+            var procsGen = new ProceduresGenerator(_renderer, () => schema.GetProcedures(), _loader, projectRoot);
+            total += procsGen.Generate(ns);
+        }
 
         return total;
     }

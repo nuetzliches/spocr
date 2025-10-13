@@ -1,0 +1,174 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text.Json;
+using SpocR.SpocRVNext.Metadata;
+using SpocRVNext.Metadata; // reuse TableTypeInfo & ColumnInfo
+using SpocR.SpocRVNext.Utils;
+
+namespace SpocR.SpocRVNext.Metadata;
+
+/// <summary>
+/// Aggregates metadata from the latest snapshot under .spocr/schema for procedures, their inputs, outputs, and result sets.
+/// Provides strongly typed descriptor lists used by vNext generators.
+/// </summary>
+public interface ISchemaMetadataProvider
+{
+    IReadOnlyList<ProcedureDescriptor> GetProcedures();
+    IReadOnlyList<InputDescriptor> GetInputs();
+    IReadOnlyList<OutputDescriptor> GetOutputs();
+    IReadOnlyList<ResultSetDescriptor> GetResultSets();
+}
+
+internal sealed class SchemaMetadataProvider : ISchemaMetadataProvider
+{
+    private readonly string _projectRoot;
+    private bool _loaded;
+    private List<ProcedureDescriptor> _procedures = new();
+    private List<InputDescriptor> _inputs = new();
+    private List<OutputDescriptor> _outputs = new();
+    private List<ResultSetDescriptor> _resultSets = new();
+
+    public SchemaMetadataProvider(string? projectRoot = null)
+    {
+        _projectRoot = string.IsNullOrWhiteSpace(projectRoot) ? Directory.GetCurrentDirectory() : Path.GetFullPath(projectRoot!);
+    }
+
+    public IReadOnlyList<ProcedureDescriptor> GetProcedures() { EnsureLoaded(); return _procedures; }
+    public IReadOnlyList<InputDescriptor> GetInputs() { EnsureLoaded(); return _inputs; }
+    public IReadOnlyList<OutputDescriptor> GetOutputs() { EnsureLoaded(); return _outputs; }
+    public IReadOnlyList<ResultSetDescriptor> GetResultSets() { EnsureLoaded(); return _resultSets; }
+
+    private void EnsureLoaded()
+    {
+        if (_loaded) return;
+        Load();
+        _loaded = true;
+    }
+
+    private void Load()
+    {
+        var schemaDir = Path.Combine(_projectRoot, ".spocr", "schema");
+        if (!Directory.Exists(schemaDir)) return;
+        var files = Directory.GetFiles(schemaDir, "*.json");
+        if (files.Length == 0) return;
+        var latest = files.Select(f => new FileInfo(f)).OrderByDescending(fi => fi.LastWriteTimeUtc).First();
+        using var fs = File.OpenRead(latest.FullName);
+        using var doc = JsonDocument.Parse(fs);
+        if (!doc.RootElement.TryGetProperty("Procedures", out var procsEl) || procsEl.ValueKind != JsonValueKind.Array) return;
+
+        var procList = new List<ProcedureDescriptor>();
+        var inputList = new List<InputDescriptor>();
+        var outputList = new List<OutputDescriptor>();
+        var rsList = new List<ResultSetDescriptor>();
+
+        foreach (var p in procsEl.EnumerateArray())
+        {
+            var schema = p.GetPropertyOrDefault("Schema") ?? "dbo";
+            var name = p.GetPropertyOrDefault("Name") ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(name)) continue;
+            var operationName = NamePolicy.Sanitize(name);
+
+            // Inputs (includes potential output parameters flagged IsOutput true)
+            var inputParams = new List<FieldDescriptor>();
+            var outputParams = new List<FieldDescriptor>();
+            if (p.TryGetProperty("Inputs", out var inputsEl) && inputsEl.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var ip in inputsEl.EnumerateArray())
+                {
+                    var raw = ip.GetPropertyOrDefault("Name") ?? string.Empty; // e.g. @UserId
+                    if (string.IsNullOrWhiteSpace(raw)) continue;
+                    var clean = raw.TrimStart('@');
+                    var sqlType = ip.GetPropertyOrDefault("SqlTypeName") ?? string.Empty;
+                    var isNullable = ip.GetPropertyOrDefaultBool("IsNullable");
+                    var clr = MapSqlToClr(sqlType, isNullable);
+                    var fd = new FieldDescriptor(clean, NamePolicy.Sanitize(clean), clr, isNullable);
+                    var isOutput = ip.GetPropertyOrDefaultBool("IsOutput");
+                    if (isOutput) outputParams.Add(fd); else inputParams.Add(fd);
+                }
+            }
+
+            // Result sets
+            var resultSetDescriptors = new List<ResultSetDescriptor>();
+            if (p.TryGetProperty("ResultSets", out var rsEl) && rsEl.ValueKind == JsonValueKind.Array)
+            {
+                int idx = 0;
+                var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var rse in rsEl.EnumerateArray())
+                {
+                    var columns = new List<FieldDescriptor>();
+                    if (rse.TryGetProperty("Columns", out var colsEl) && colsEl.ValueKind == JsonValueKind.Array)
+                    {
+                        foreach (var c in colsEl.EnumerateArray())
+                        {
+                            var colName = c.GetPropertyOrDefault("Name") ?? string.Empty;
+                            if (string.IsNullOrWhiteSpace(colName)) continue;
+                            var sqlType = c.GetPropertyOrDefault("SqlTypeName") ?? string.Empty;
+                            var isNullable = c.GetPropertyOrDefaultBool("IsNullable");
+                            var clr = MapSqlToClr(sqlType, isNullable);
+                            columns.Add(new FieldDescriptor(colName, NamePolicy.Sanitize(colName), clr, isNullable));
+                        }
+                    }
+                    var rsName = ResultSetNaming.DeriveName(idx, columns, usedNames);
+                    usedNames.Add(rsName);
+                    resultSetDescriptors.Add(new ResultSetDescriptor(idx, rsName, columns));
+                    idx++;
+                }
+            }
+
+            procList.Add(new ProcedureDescriptor(
+                ProcedureName: name,
+                Schema: schema,
+                OperationName: operationName,
+                InputParameters: inputParams,
+                OutputFields: outputParams,
+                ResultSets: resultSetDescriptors
+            ));
+
+            if (inputParams.Count > 0)
+            {
+                inputList.Add(new InputDescriptor(operationName, inputParams));
+            }
+            if (outputParams.Count > 0)
+            {
+                outputList.Add(new OutputDescriptor(operationName, outputParams));
+            }
+            if (resultSetDescriptors.Count > 0)
+            {
+                foreach (var rs in resultSetDescriptors)
+                {
+                    rsList.Add(rs);
+                }
+            }
+        }
+
+        _procedures = procList.OrderBy(p => p.Schema).ThenBy(p => p.ProcedureName).ToList();
+        _inputs = inputList.OrderBy(i => i.OperationName).ToList();
+        _outputs = outputList.OrderBy(o => o.OperationName).ToList();
+        _resultSets = rsList.OrderBy(r => r.Name).ToList();
+    }
+
+    private static string MapSqlToClr(string sql, bool nullable)
+    {
+        sql = sql.ToLowerInvariant();
+        string core = sql switch
+        {
+            var s when s.StartsWith("int") => "int",
+            var s when s.StartsWith("bigint") => "long",
+            var s when s.StartsWith("smallint") => "short",
+            var s when s.StartsWith("tinyint") => "byte",
+            var s when s.StartsWith("bit") => "bool",
+            var s when s.StartsWith("decimal") || s.StartsWith("numeric") => "decimal",
+            var s when s.StartsWith("float") => "double",
+            var s when s.StartsWith("real") => "float",
+            var s when s.Contains("date") || s.Contains("time") => "DateTime",
+            var s when s.Contains("uniqueidentifier") => "Guid",
+            var s when s.Contains("binary") || s.Contains("varbinary") => "byte[]",
+            var s when s.Contains("char") || s.Contains("text") => "string",
+            _ => "string"
+        };
+        if (core != "string" && core != "byte[]" && nullable) core += "?";
+        return core;
+    }
+}
