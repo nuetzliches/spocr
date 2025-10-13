@@ -2,6 +2,7 @@
 
 ```bash
 dotnet run --project src/SpocR.csproj -- rebuild  -p samples/restapi/spocr.json --no-auto-update
+dotnet run --project samples/restapi/RestApi.csproj
 ```
 
 ---
