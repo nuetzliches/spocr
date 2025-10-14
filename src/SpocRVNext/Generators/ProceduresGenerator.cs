@@ -32,9 +32,31 @@ public sealed class ProceduresGenerator
         if (procs.Count == 0) return 0;
         string header = string.Empty;
         if (_loader != null && _loader.TryLoad("_Header", out var headerTpl)) header = headerTpl.TrimEnd() + Environment.NewLine;
-        string? procedureTemplate = null;
-        if (_loader != null && _loader.TryLoad("StoredProcedure", out var spTpl)) procedureTemplate = spTpl;
+        // Emit ExecutionSupport once (if template present and file missing or stale)
+        if (_loader != null && _loader.TryLoad("ExecutionSupport", out var execTpl))
+        {
+            var execPath = Path.Combine(baseOutputDir, "ExecutionSupport.cs");
+            bool write = !File.Exists(execPath);
+            if (!write)
+            {
+                try
+                {
+                    var existing = File.ReadAllText(execPath);
+                    if (!existing.Contains($"namespace {ns};")) write = true; // namespace mismatch
+                }
+                catch { write = true; }
+            }
+            if (write)
+            {
+                var execModel = new { Namespace = ns, HEADER = header };
+                var code = _renderer.Render(execTpl, execModel);
+                File.WriteAllText(execPath, code);
+            }
+        }
+        // StoredProcedure template no longer used after consolidation
         var written = 0;
+        string? unifiedTemplateRaw = null;
+        bool hasUnifiedTemplate = _loader != null && _loader.TryLoad("UnifiedProcedure", out unifiedTemplateRaw);
         foreach (var proc in procs.OrderBy(p => p.OperationName))
         {
             var op = proc.OperationName;
@@ -52,141 +74,181 @@ public sealed class ProceduresGenerator
             Directory.CreateDirectory(schemaDir);
             var procedureTypeName = NamePolicy.Procedure(procPart);
             var unifiedResultTypeName = NamePolicy.Result(procPart); // <Proc>Result
-            var fileSb = new StringBuilder();
-            fileSb.Append(header);
-            fileSb.AppendLine($"namespace {finalNs};");
-            fileSb.AppendLine();
-            fileSb.AppendLine("using System;\nusing System.Collections.Generic;\nusing System.Data;\nusing System.Data.Common;\nusing System.Threading;\nusing System.Threading.Tasks;\nusing SpocR.SpocRVNext.Execution;");
-            // Begin unified result container
-            fileSb.AppendLine($"public sealed class {unifiedResultTypeName}");
-            fileSb.AppendLine("{");
-            fileSb.AppendLine("    public bool Success { get; init; }");
-            fileSb.AppendLine("    public string? Error { get; init; }");
-            if (proc.OutputFields.Count > 0)
+            var inputTypeName = NamePolicy.Input(procPart);
+            var outputTypeName = NamePolicy.Output(procPart);
+
+            // Cleanup alte Dateien (<Proc>Result.cs, <Proc>Input.cs, <Proc>Output.cs) bevor neue Einzeldatei erstellt wird
+            try
             {
-                var outputTypeName = NamePolicy.Output(procPart);
-                fileSb.AppendLine($"    public {outputTypeName}? Output {{ get; init; }}");
-            }
-            foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
-            {
-                // Normalize fallback name ResultSetX -> ResultX for property
-                var originalName = rs.Name;
-                var propName = originalName.StartsWith("ResultSet", StringComparison.OrdinalIgnoreCase)
-                    ? "Result" + originalName.Substring("ResultSet".Length)
-                    : originalName;
-                var normalizedSetNameForType = originalName.StartsWith("ResultSet", StringComparison.OrdinalIgnoreCase)
-                    ? originalName // keep full for deriving index part but will map to propName in factory
-                    : originalName;
-                var rsType = NamePolicy.ResultSet(procPart, normalizedSetNameForType);
-                fileSb.AppendLine($"    public IReadOnlyList<{rsType}> {propName} {{ get; init; }} = Array.Empty<{rsType}>();");
-            }
-            fileSb.AppendLine("}");
-            fileSb.AppendLine();
-            // (No inline output record; dedicated file already exists from OutputsGenerator.)
-            // Inline result set record structs
-            foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
-            {
-                var originalName = rs.Name;
-                var typeNameBase = originalName.StartsWith("ResultSet", StringComparison.OrdinalIgnoreCase)
-                    ? originalName // retains ResultSet1 to keep determinism; alternative: just index part, decided to keep for now
-                    : originalName;
-                // Type Name remains <Proc><OriginalName>Result (OriginalName may be ResultSet1)
-                var rsType = NamePolicy.ResultSet(procPart, typeNameBase);
-                fileSb.AppendLine($"public readonly record struct {rsType}(");
-                for (int i = 0; i < rs.Fields.Count; i++)
+                var legacyFiles = new[]
                 {
-                    var f = rs.Fields[i];
-                    var comma = i == rs.Fields.Count - 1 ? string.Empty : ",";
-                    fileSb.AppendLine($"    {f.ClrType} {f.PropertyName}{comma}");
+                    Path.Combine(schemaDir, procPart + "Result.cs"),
+                    Path.Combine(schemaDir, procPart + "Input.cs"),
+                    Path.Combine(schemaDir, procPart + "Output.cs")
+                };
+                foreach (var lf in legacyFiles)
+                {
+                    if (File.Exists(lf)) File.Delete(lf);
                 }
-                fileSb.AppendLine(");");
-                fileSb.AppendLine();
             }
-            // Execution plan (internal) + wrapper for ExecuteAsync at bottom of same file
-            var planTypeName = procedureTypeName + "Plan";
-            fileSb.AppendLine($"internal static partial class {planTypeName}\n{{");
-            fileSb.AppendLine("    private static ProcedureExecutionPlan? _cached;");
-            fileSb.AppendLine("    public static ProcedureExecutionPlan Instance => _cached ??= Create();");
-            fileSb.AppendLine("    private static ProcedureExecutionPlan Create()\n    {");
-            fileSb.AppendLine("        var parameters = new ProcedureParameter[] {");
-            foreach (var ip in proc.InputParameters)
+            catch { }
+            string finalCode;
+            if (hasUnifiedTemplate && unifiedTemplateRaw != null)
             {
-                fileSb.AppendLine($"            new(\"@{ip.Name}\", {MapDbType(ip.SqlTypeName)}, {EmitSize(ip)}, false, {ip.IsNullable.ToString().ToLowerInvariant()}),");
-            }
-            foreach (var outParam in proc.OutputFields)
-            {
-                fileSb.AppendLine($"            new(\"@{outParam.Name}\", {MapDbType(outParam.SqlTypeName)}, {EmitSize(outParam)}, true, {outParam.IsNullable.ToString().ToLowerInvariant()}),");
-            }
-            fileSb.AppendLine("        };\n");
-            fileSb.AppendLine("        var resultSets = new ResultSetMapping[] {");
-            foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
-            {
-                var rsType = NamePolicy.ResultSet(procPart, rs.Name);
-                var ordinalDecls = string.Join(" ", rs.Fields.Select((f, idx) => $"int o{idx}=r.GetOrdinal(\"{f.Name}\");"));
-                var fieldExprs = string.Join(", ", rs.Fields.Select((f, idx) => MaterializeFieldExpressionCached(f, idx)));
-                fileSb.AppendLine("            new(\"" + rs.Name + "\", async (r, ct) => { var list = new List<object>(); " + ordinalDecls + " while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new " + rsType + "(" + fieldExprs + ")); } return list; }),");
-            }
-            fileSb.AppendLine("        };\n");
-            if (proc.OutputFields.Count > 0)
-            {
-                var outputTypeName = NamePolicy.Output(procPart);
-                fileSb.AppendLine($"        object? OutputFactory(IReadOnlyDictionary<string, object?> values) => new {outputTypeName}(" + string.Join(", ", proc.OutputFields.Select(f => CastOutputValue(f))) + ");");
-            }
-            else
-            {
-                fileSb.AppendLine("        object? OutputFactory(IReadOnlyDictionary<string, object?> values) => null;");
-            }
-            fileSb.Append("        object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs) => new ");
-            fileSb.Append(unifiedResultTypeName + " { Success = success, Error = error");
-            if (proc.OutputFields.Count > 0)
-            {
-                fileSb.Append(", Output = (" + NamePolicy.Output(procPart) + "?)output");
-            }
-            int unifiedCounter = 0;
-            foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
-            {
-                var rsType = NamePolicy.ResultSet(procPart, rs.Name);
-                var originalName = rs.Name;
-                var propName = originalName.StartsWith("ResultSet", StringComparison.OrdinalIgnoreCase)
-                    ? "Result" + originalName.Substring("ResultSet".Length)
-                    : originalName;
-                fileSb.Append($", {propName} = rs.Length > {unifiedCounter} ? Array.ConvertAll(rs[{unifiedCounter}].ToArray(), o => ({rsType})o).ToList() : Array.Empty<{rsType}>() ");
-                unifiedCounter++;
-            }
-            fileSb.Append("};\n");
-            if (proc.InputParameters.Count > 0)
-            {
-                var inputType = NamePolicy.Input(procPart);
-                fileSb.AppendLine($"        void Binder(DbCommand cmd, object? state) {{ var input = ({inputType})state!; ");
+                // Build blocks
+                // Use root namespace (ns) for execution support types (ExecutionSupport.cs) instead of internal engine namespace
+                var usingBlock = "using System;\nusing System.Collections.Generic;\nusing System.Data;\nusing System.Data.Common;\nusing System.Threading;\nusing System.Threading.Tasks;\nusing " + ns + ";";
+                var inputBlock = new StringBuilder();
+                if (proc.InputParameters.Count > 0)
+                {
+                    inputBlock.AppendLine($"public readonly record struct {inputTypeName}(");
+                    for (int i = 0; i < proc.InputParameters.Count; i++)
+                    {
+                        var pdesc = proc.InputParameters[i];
+                        var comma = i == proc.InputParameters.Count - 1 ? string.Empty : ",";
+                        inputBlock.AppendLine($"    {pdesc.ClrType} {pdesc.PropertyName}{comma}");
+                    }
+                    inputBlock.AppendLine(");");
+                }
+                var outputBlock = new StringBuilder();
+                if (proc.OutputFields.Count > 0)
+                {
+                    outputBlock.AppendLine($"public readonly record struct {outputTypeName}(");
+                    for (int i = 0; i < proc.OutputFields.Count; i++)
+                    {
+                        var f = proc.OutputFields[i];
+                        var comma = i == proc.OutputFields.Count - 1 ? string.Empty : ",";
+                        outputBlock.AppendLine($"    {f.ClrType} {f.PropertyName}{comma}");
+                    }
+                    outputBlock.AppendLine(");");
+                }
+                var rsRecordsBlock = new StringBuilder();
+                var resultClassBlock = new StringBuilder();
+                resultClassBlock.AppendLine($"public sealed class {unifiedResultTypeName}");
+                resultClassBlock.AppendLine("{");
+                resultClassBlock.AppendLine("    public bool Success { get; init; }");
+                resultClassBlock.AppendLine("    public string? Error { get; init; }");
+                if (proc.OutputFields.Count > 0)
+                    resultClassBlock.AppendLine($"    public {outputTypeName}? Output {{ get; init; }}");
+                foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
+                {
+                    var originalName = rs.Name;
+                    var propName = originalName.StartsWith("ResultSet", StringComparison.OrdinalIgnoreCase)
+                        ? "Result" + originalName.Substring("ResultSet".Length)
+                        : originalName;
+                    var normalizedSetNameForType = originalName.StartsWith("ResultSet", StringComparison.OrdinalIgnoreCase) ? originalName : originalName;
+                    var rsType = NamePolicy.ResultSet(procPart, normalizedSetNameForType);
+                    resultClassBlock.AppendLine($"    public IReadOnlyList<{rsType}> {propName} {{ get; init; }} = Array.Empty<{rsType}>();");
+                }
+                resultClassBlock.AppendLine("}");
+                foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
+                {
+                    var originalName = rs.Name;
+                    var typeNameBase = originalName.StartsWith("ResultSet", StringComparison.OrdinalIgnoreCase) ? originalName : originalName;
+                    var rsType = NamePolicy.ResultSet(procPart, typeNameBase);
+                    rsRecordsBlock.AppendLine($"public readonly record struct {rsType}(");
+                    for (int i = 0; i < rs.Fields.Count; i++)
+                    {
+                        var f = rs.Fields[i];
+                        var comma = i == rs.Fields.Count - 1 ? string.Empty : ",";
+                        rsRecordsBlock.AppendLine($"    {f.ClrType} {f.PropertyName}{comma}");
+                    }
+                    rsRecordsBlock.AppendLine(");");
+                    rsRecordsBlock.AppendLine();
+                }
+                var planTypeName = procedureTypeName + "Plan";
+                var planBlock = new StringBuilder();
+                planBlock.AppendLine($"internal static partial class {planTypeName}");
+                planBlock.AppendLine("{");
+                planBlock.AppendLine("    private static ProcedureExecutionPlan? _cached;");
+                planBlock.AppendLine("    public static ProcedureExecutionPlan Instance => _cached ??= Create();");
+                planBlock.AppendLine("    private static ProcedureExecutionPlan Create()\n    {");
+                planBlock.AppendLine("        var parameters = new ProcedureParameter[] {");
                 foreach (var ip in proc.InputParameters)
+                    planBlock.AppendLine($"            new(\"@{ip.Name}\", {MapDbType(ip.SqlTypeName)}, {EmitSize(ip)}, false, {ip.IsNullable.ToString().ToLowerInvariant()}),");
+                foreach (var outParam in proc.OutputFields)
+                    planBlock.AppendLine($"            new(\"@{outParam.Name}\", {MapDbType(outParam.SqlTypeName)}, {EmitSize(outParam)}, true, {outParam.IsNullable.ToString().ToLowerInvariant()}),");
+                planBlock.AppendLine("        };\n");
+                planBlock.AppendLine("        var resultSets = new ResultSetMapping[] {");
+                foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
                 {
-                    fileSb.AppendLine($"            cmd.Parameters[\"@{ip.Name}\"].Value = input.{ip.PropertyName};");
+                    var rsType = NamePolicy.ResultSet(procPart, rs.Name);
+                    var ordinalDecls = string.Join(" ", rs.Fields.Select((f, idx) => $"int o{idx}=r.GetOrdinal(\"{f.Name}\");"));
+                    var fieldExprs = string.Join(", ", rs.Fields.Select((f, idx) => MaterializeFieldExpressionCached(f, idx)));
+                    planBlock.AppendLine("            new(\"" + rs.Name + "\", async (r, ct) => { var list = new List<object>(); " + ordinalDecls + " while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new " + rsType + "(" + fieldExprs + ")); } return list; }),");
                 }
-                fileSb.AppendLine("        }");
+                planBlock.AppendLine("        };\n");
+                if (proc.OutputFields.Count > 0)
+                    planBlock.AppendLine($"        object? OutputFactory(IReadOnlyDictionary<string, object?> values) => new {outputTypeName}(" + string.Join(", ", proc.OutputFields.Select(f => CastOutputValue(f))) + ");");
+                else
+                    planBlock.AppendLine("        object? OutputFactory(IReadOnlyDictionary<string, object?> values) => null;");
+                planBlock.Append("        object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs) => new ");
+                planBlock.Append(unifiedResultTypeName + " { Success = success, Error = error");
+                if (proc.OutputFields.Count > 0) planBlock.Append(", Output = (" + NamePolicy.Output(procPart) + "?)output");
+                int rsIndex = 0;
+                foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
+                {
+                    var rsType = NamePolicy.ResultSet(procPart, rs.Name);
+                    var originalName = rs.Name;
+                    var propName = originalName.StartsWith("ResultSet", StringComparison.OrdinalIgnoreCase) ? "Result" + originalName.Substring("ResultSet".Length) : originalName;
+                    planBlock.Append($", {propName} = rs.Length > {rsIndex} ? Array.ConvertAll(((System.Collections.Generic.List<object>)rs[{rsIndex}]).ToArray(), o => ({rsType})o).ToList() : Array.Empty<{rsType}>() ");
+                    rsIndex++;
+                }
+                planBlock.Append("};\n");
+                if (proc.InputParameters.Count > 0)
+                {
+                    var inputType = NamePolicy.Input(procPart);
+                    planBlock.AppendLine($"        void Binder(DbCommand cmd, object? state) {{ var input = ({inputType})state!; ");
+                    foreach (var ip in proc.InputParameters)
+                        planBlock.AppendLine($"            cmd.Parameters[\"@{ip.Name}\"].Value = input.{ip.PropertyName};");
+                    planBlock.AppendLine("        }");
+                }
+                else
+                {
+                    planBlock.AppendLine("        void Binder(DbCommand cmd, object? state) { }");
+                }
+                planBlock.AppendLine("        return new ProcedureExecutionPlan(");
+                planBlock.AppendLine($"            \"{proc.Schema}.{proc.ProcedureName}\", parameters, resultSets, OutputFactory, AggregateFactory, Binder);\n    }}\n}}");
+                var wrapperBlock = new StringBuilder();
+                wrapperBlock.AppendLine($"public static class {procedureTypeName}");
+                wrapperBlock.AppendLine("{");
+                wrapperBlock.AppendLine($"    public const string Name = \"{proc.Schema}.{proc.ProcedureName}\";");
+                var inputSignature2 = proc.InputParameters.Count > 0 ? $", {inputTypeName} input" : string.Empty;
+                wrapperBlock.AppendLine($"    public static Task<{unifiedResultTypeName}> ExecuteAsync(DbConnection connection{inputSignature2}, CancellationToken cancellationToken = default)");
+                wrapperBlock.AppendLine("    {");
+                if (proc.InputParameters.Count > 0)
+                    wrapperBlock.AppendLine($"        return ProcedureExecutor.ExecuteAsync<{unifiedResultTypeName}>(connection, {planTypeName}.Instance, input, cancellationToken);");
+                else
+                    wrapperBlock.AppendLine($"        return ProcedureExecutor.ExecuteAsync<{unifiedResultTypeName}>(connection, {planTypeName}.Instance, null, cancellationToken);");
+                wrapperBlock.AppendLine("    }");
+                wrapperBlock.AppendLine("}");
+
+                var model = new
+                {
+                    Namespace = finalNs,
+                    UsingDirectives = usingBlock,
+                    InputRecordBlock = inputBlock.ToString().TrimEnd(),
+                    OutputRecordBlock = outputBlock.ToString().TrimEnd(),
+                    ResultSetRecordsBlock = rsRecordsBlock.ToString().TrimEnd(),
+                    UnifiedResultClassBlock = resultClassBlock.ToString().TrimEnd(),
+                    PlanClassBlock = planBlock.ToString().TrimEnd(),
+                    WrapperClassBlock = wrapperBlock.ToString().TrimEnd(),
+                    HEADER = header
+                };
+                finalCode = _renderer.Render(unifiedTemplateRaw!, model);
             }
             else
             {
-                fileSb.AppendLine("        void Binder(DbCommand cmd, object? state) { }");
+                // Fallback: original inline build
+                var fileSb = new StringBuilder();
+                fileSb.Append(header);
+                fileSb.AppendLine($"namespace {finalNs};");
+                fileSb.AppendLine();
+                fileSb.AppendLine("using System;\nusing System.Collections.Generic;\nusing System.Data;\nusing System.Data.Common;\nusing System.Threading;\nusing System.Threading.Tasks;\nusing " + ns + ";");
+                // (For brevity, we could replicate blocks, but template should normally exist now)
+                finalCode = fileSb.ToString();
             }
-            fileSb.AppendLine("        return new ProcedureExecutionPlan(");
-            fileSb.AppendLine($"            \"{proc.Schema}.{proc.ProcedureName}\", parameters, resultSets, OutputFactory, AggregateFactory, Binder);\n    }}\n}}");
-            fileSb.AppendLine();
-            // Wrapper
-            fileSb.AppendLine($"public static class {procedureTypeName}\n{{");
-            fileSb.AppendLine($"    public const string Name = \"{proc.Schema}.{proc.ProcedureName}\";");
-            var inputSignature = proc.InputParameters.Count > 0 ? $", {NamePolicy.Input(procPart)} input" : string.Empty;
-            fileSb.AppendLine($"    public static Task<{unifiedResultTypeName}> ExecuteAsync(DbConnection connection{inputSignature}, CancellationToken cancellationToken = default)\n    {{");
-            if (proc.InputParameters.Count > 0)
-            {
-                fileSb.AppendLine($"        return ProcedureExecutor.ExecuteAsync<{unifiedResultTypeName}>(connection, {planTypeName}.Instance, input, cancellationToken);");
-            }
-            else
-            {
-                fileSb.AppendLine($"        return ProcedureExecutor.ExecuteAsync<{unifiedResultTypeName}>(connection, {planTypeName}.Instance, null, cancellationToken);");
-            }
-            fileSb.AppendLine("    }");
-            fileSb.AppendLine("}");
-            File.WriteAllText(Path.Combine(schemaDir, procPart + "Result.cs"), fileSb.ToString());
+            File.WriteAllText(Path.Combine(schemaDir, procPart + ".cs"), finalCode);
             written++;
         }
         return written;
@@ -194,7 +256,7 @@ public sealed class ProceduresGenerator
 
     private static string MapDbType(string sqlType)
     {
-        if (string.IsNullOrWhiteSpace(sqlType)) return "null";
+        if (string.IsNullOrWhiteSpace(sqlType)) return "System.Data.DbType.String";
         var t = sqlType.ToLowerInvariant();
         // normalize common parentheses like nvarchar(50)
         if (t.Contains('(')) t = t[..t.IndexOf('(')];

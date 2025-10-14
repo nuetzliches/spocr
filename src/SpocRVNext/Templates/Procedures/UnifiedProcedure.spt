@@ -1,0 +1,17 @@
+{{ HEADER }}
+#nullable enable
+namespace {{ Namespace }};
+
+{{ UsingDirectives }}
+
+{{ InputRecordBlock }}
+
+{{ OutputRecordBlock }}
+
+{{ ResultSetRecordsBlock }}
+
+{{ UnifiedResultClassBlock }}
+
+{{ PlanClassBlock }}
+
+{{ WrapperClassBlock }}

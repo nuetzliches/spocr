@@ -1,9 +1,0 @@
-{{ HEADER }}
-namespace {{ Namespace }};
-
-/// <summary>
-/// Input model for {{ OperationName }} ({{ ParameterCount }} parameters)
-/// </summary>
-public readonly record struct {{ TypeName }}(
-{{#each Parameters}}    {{ ClrType }} {{ PropertyName }}{{ Separator }}
-{{/each}});

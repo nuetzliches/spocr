@@ -1,0 +1,88 @@
+{{ HEADER }}
+#nullable enable
+namespace {{ Namespace }};
+
+using System;
+using System.Collections.Generic;
+using System.Data.Common;
+using System.Threading;
+using System.Threading.Tasks;
+
+internal sealed class ProcedureParameter
+{
+    public ProcedureParameter(string name, System.Data.DbType dbType, object? size, bool isOutput, bool isNullable)
+    { Name = name; DbType = dbType; Size = size; IsOutput = isOutput; IsNullable = isNullable; }
+    public string Name { get; }
+    public System.Data.DbType DbType { get; }
+    public object? Size { get; }
+    public bool IsOutput { get; }
+    public bool IsNullable { get; }
+}
+
+internal sealed class ResultSetMapping
+{
+    public ResultSetMapping(string name, Func<DbDataReader, CancellationToken, Task<List<object>>> projector)
+    { Name = name; Projector = projector; }
+    public string Name { get; }
+    public Func<DbDataReader, CancellationToken, Task<List<object>>> Projector { get; }
+}
+
+internal sealed class ProcedureExecutionPlan
+{
+    public ProcedureExecutionPlan(string name, ProcedureParameter[] parameters, ResultSetMapping[] resultSets,
+        Func<IReadOnlyDictionary<string, object?>, object?> outputFactory,
+        Func<bool,string?,object?,IReadOnlyDictionary<string,object?>,object[],object> aggregateFactory,
+        Action<DbCommand,object?> binder)
+    { Name = name; Parameters = parameters; ResultSets = resultSets; OutputFactory = outputFactory; AggregateFactory = aggregateFactory; Binder = binder; }
+    public string Name { get; }
+    public ProcedureParameter[] Parameters { get; }
+    public ResultSetMapping[] ResultSets { get; }
+    public Func<IReadOnlyDictionary<string, object?>, object?> OutputFactory { get; }
+    public Func<bool,string?,object?,IReadOnlyDictionary<string,object?>,object[],object> AggregateFactory { get; }
+    public Action<DbCommand,object?> Binder { get; }
+}
+
+internal static class ProcedureExecutor
+{
+    public static async Task<T> ExecuteAsync<T>(DbConnection connection, ProcedureExecutionPlan plan, object? input, CancellationToken ct)
+    {
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = plan.Name;
+        cmd.CommandType = System.Data.CommandType.StoredProcedure;
+        foreach (var p in plan.Parameters)
+        {
+            var prm = cmd.CreateParameter();
+            prm.ParameterName = p.Name;
+            prm.DbType = p.DbType;
+            if (p.Size is int s && s > 0) prm.Size = s;
+            prm.Direction = p.IsOutput ? System.Data.ParameterDirection.InputOutput : System.Data.ParameterDirection.Input;
+            prm.Value = DBNull.Value;
+            cmd.Parameters.Add(prm);
+        }
+        plan.Binder(cmd, input);
+        var outputs = new Dictionary<string, object?>();
+        await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+        var rsResults = new List<object>();
+        foreach (var rs in plan.ResultSets)
+        {
+            var list = await rs.Projector(reader, ct).ConfigureAwait(false);
+            rsResults.Add(list);
+            await reader.NextResultAsync(ct).ConfigureAwait(false);
+        }
+        foreach (DbParameter dbp in cmd.Parameters)
+        {
+            if (dbp.Direction.HasFlag(System.Data.ParameterDirection.Output) || dbp.Direction.HasFlag(System.Data.ParameterDirection.InputOutput))
+            {
+                var key = dbp.ParameterName.TrimStart('@');
+                outputs[key] = dbp.Value == DBNull.Value ? null : dbp.Value;
+            }
+        }
+        var outputObj = plan.OutputFactory(outputs);
+        // Convert each collected result-set list to its object[] form once for the aggregate factory
+        var rsArrays = new object[rsResults.Count];
+        for (int i = 0; i < rsResults.Count; i++)
+            rsArrays[i] = ((List<object>)rsResults[i]).ToArray();
+        var aggregate = (T)plan.AggregateFactory(true, null, outputObj, outputs, rsArrays);
+        return aggregate;
+    }
+}

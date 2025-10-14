@@ -2,7 +2,7 @@
 
 ```bash
 dotnet run --project src/SpocR.csproj -- rebuild  -p samples/restapi/spocr.json --no-auto-update
-dotnet run --project samples/restapi/RestApi.csproj
+dotnet build samples/restapi/RestApi.csproj -c Debug
 ```
 
 ## vNext Namespace-Regel
@@ -82,25 +82,6 @@ Mögliche zukünftige Optimierungen (Backlog):
 - Generische Helper / LINQ Extensions für Single-Result Verfahren.
 - Optionale Source Generator Integration statt File-IO.
 
-# Nuts Demo Test
-
-```bash
-dotnet run --project src/SpocR.csproj -- rebuild  -p C:/Projekte/GitHub/Nuts/Libs/Nuts.DbContext/spocr.json --no-auto-update
-dotnet run --project src/SpocR.csproj -- rebuild  -p C:/Projekte/GitHub/Nuts/Libs/Nuts.History/spocr.json --no-auto-update
-dotnet run --project src/SpocR.csproj -- rebuild  -p C:/Projekte/GitHub/Nuts/Libs/Nuts.Identity/spocr.json --no-auto-update
-dotnet run --project src/SpocR.csproj -- rebuild  -p C:/Projekte/GitHub/Nuts/Libs/Nuts.Identity.Organization/spocr.json --no-auto-update
-dotnet run --project src/SpocR.csproj -- rebuild  -p C:/Projekte/GitHub/Nuts/Libs/Nuts.Logger/spocr.json --no-auto-update
-dotnet run --project src/SpocR.csproj -- rebuild  -p C:/Projekte/GitHub/Nuts/Libs/Nuts.Notification/spocr.json --no-auto-update
-dotnet run --project src/SpocR.csproj -- rebuild  -p C:/Projekte/GitHub/Nuts/Demo/Nuts.Demo.RestApi/spocr.json --no-auto-update
-dotnet run --project C:/Projekte/GitHub/Nuts/Demo/Nuts.Demo.RestApi/Nuts.Demo.RestApi.csproj
-```
-
-# TEK Test
-
-```bash
-dotnet run --project src/SpocR.csproj -- rebuild  -p C:/Projekte/GitHub/tek-portal/TEK.Admin.WebApi/spocr.json --no-auto-update
-dotnet run --project C:/Projekte/GitHub/tek-portal/TEK.Admin.WebApi/TEK.Admin.WebApi.csproj
-```
 ---
 
 ## Nullable Reference Types – Stepwise Escalation (Phase 1)

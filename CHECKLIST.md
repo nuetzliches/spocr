@@ -32,6 +32,11 @@ dotnet run --project src/SpocR.csproj -- rebuild -p samples/restapi/spocr.json -
 das Schema samples\restapi.spocr\schema produziert.
 Daraus ensteht dann der Output in samples\restapi\SpocR
 
+Dann den Build prüfen mit:
+```bash
+dotnet build samples/restapi/RestApi.csproj -c Debug
+```
+
 Legende: `[ ]` offene Aufgabe · `[x]` erledigt
 
 EPICS Übersicht (oberste Steuerungsebene)
