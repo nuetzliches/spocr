@@ -5,26 +5,38 @@ dotnet run --project src/SpocR.csproj -- rebuild  -p samples/restapi/spocr.json 
 dotnet run --project samples/restapi/RestApi.csproj
 ```
 
-# Nuts Demo Test
+## vNext Namespace-Regel
 
-```bash
-dotnet run --project src/SpocR.csproj -- rebuild  -p C:/Projekte/GitHub/Nuts/Libs/Nuts.DbContext/spocr.json --no-auto-update
-dotnet run --project src/SpocR.csproj -- rebuild  -p C:/Projekte/GitHub/Nuts/Libs/Nuts.History/spocr.json --no-auto-update
-dotnet run --project src/SpocR.csproj -- rebuild  -p C:/Projekte/GitHub/Nuts/Libs/Nuts.Identity/spocr.json --no-auto-update
-dotnet run --project src/SpocR.csproj -- rebuild  -p C:/Projekte/GitHub/Nuts/Libs/Nuts.Identity.Organization/spocr.json --no-auto-update
-dotnet run --project src/SpocR.csproj -- rebuild  -p C:/Projekte/GitHub/Nuts/Libs/Nuts.Logger/spocr.json --no-auto-update
-dotnet run --project src/SpocR.csproj -- rebuild  -p C:/Projekte/GitHub/Nuts/Libs/Nuts.Notification/spocr.json --no-auto-update
-dotnet run --project src/SpocR.csproj -- rebuild  -p C:/Projekte/GitHub/Nuts/Demo/Nuts.Demo.RestApi/spocr.json --no-auto-update
-dotnet run --project C:/Projekte/GitHub/Nuts/Demo/Nuts.Demo.RestApi/Nuts.Demo.RestApi.csproj
+Ab vNext gilt für generierten Code das konsistente Muster:
+
+   <RootNamespace>.SpocR.<SchemaPascalCase>
+
+Konfiguration:
+
+- `.env` im Projektroot (z.B. `samples/restapi/.env`) enthält `SPOCR_NAMESPACE=RestApi` (nur Root, ohne `.SpocR`).
+- `SPOCR_OUTPUT_DIR` Standard ist `SpocR` und wird einmalig an den RootNamespace angehängt.
+- Jeder Generator hängt ausschließlich das Schema (PascalCase) an. Keine zusätzlichen Segmente wie `.Inputs`, `.Outputs`, `.Results`, `.Procedures` mehr im Namespace.
+
+Beispiele:
+
+```
+RestApi.SpocR.Samples.CreateUserWithOutputInput
+RestApi.SpocR.Samples.OrderListAsJsonResult
+RestApi.SpocR.Dbo.UserContactSyncInput
 ```
 
-# TEK Test
+Rationale:
 
-```bash
-dotnet run --project src/SpocR.csproj -- rebuild  -p C:/Projekte/GitHub/tek-portal/TEK.Admin.WebApi/spocr.json --no-auto-update
-dotnet run --project C:/Projekte/GitHub/tek-portal/TEK.Admin.WebApi/TEK.Admin.WebApi.csproj
-```
----
+- Eindeutige Zuordnung pro Schema; Artefakttyp ergibt sich aus Typnamen-Suffix (Input, Result, Aggregate, Output, Plan, Procedure).
+- Verhindert inflationäre Namespace-Tiefe und verringert Merge-Konflikte.
+- Konsistente Ableitung erleichtert Refactoring & tooling.
+
+Override (optional):
+
+Wer einen anderen Root verwenden möchte, setzt `SPOCR_NAMESPACE=MyCompany.Project`. Das System ergänzt weiterhin `.SpocR` + Schema.
+
+Hinweis: Legacy-Generator bleibt unverändert; vNext läuft in `dual` Mode parallel zur Validierung.
+
 
 ## Nullable Reference Types – Stepwise Escalation (Phase 1)
 
