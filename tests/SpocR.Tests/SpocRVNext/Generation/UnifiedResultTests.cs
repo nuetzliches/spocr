@@ -6,7 +6,8 @@ namespace SpocR.Tests.SpocRVNext.Generation;
 
 public class UnifiedResultTests
 {
-    private static string SampleDir => Path.Combine(FindRepoRoot(), "samples", "restapi", "SpocR", "samples");
+    // Neuer vNext Output legt Schema-Ordner PascalCase an ("Samples" statt ursprünglichem lowercase "samples")
+    private static string SampleDir => Path.Combine(FindRepoRoot(), "samples", "restapi", "SpocR", "Samples");
 
     [Fact]
     public void CreateUserWithOutput_HasResult1Property_And_InlineIOPresentOnce()
@@ -34,10 +35,14 @@ public class UnifiedResultTests
     private static string FindRepoRoot()
     {
         var dir = new DirectoryInfo(Directory.GetCurrentDirectory());
-        while (dir != null && !File.Exists(Path.Combine(dir.FullName, "SpocR.sln")))
+        while (dir != null)
         {
+            bool marker = File.Exists(Path.Combine(dir.FullName, "README.md"))
+                          && Directory.Exists(Path.Combine(dir.FullName, "samples", "restapi", "SpocR"))
+                          && Directory.Exists(Path.Combine(dir.FullName, "src"));
+            if (marker) return dir.FullName;
             dir = dir.Parent;
         }
-        return dir?.FullName ?? Directory.GetCurrentDirectory();
+        return Directory.GetCurrentDirectory();
     }
 }

@@ -20,6 +20,26 @@ depends_naming: 'ID Referenzen in depends Feld'
 
 > HINWEIS: Diese Checkliste ist BRANCH-SPEZIFISCH (`feature/vnext`) und soll VOR dem Merge in `master` GELÖSCHT oder ARCHIVIERT werden.
 
+## Fokus & Prioritäten (Snapshot)
+
+Legende Prioritäten: P1 = kritisch für v5 Cutover, P2 = hoch für Bridge (v4.5→v5), P3 = sinnvoll vor Release, P4 = nachgelagert / Nice-to-have.
+
+Aktueller Fokus (Top 10 P1/P2):
+1. (P1) E002 Sample-Gate: Automatisierter CRUD Smoke-Test & CI Integration
+2. (P1) E014 End-to-End Nutzung mind. einer Stored Procedure im Sample (inkl. konsolidierter Datei) – fehlgeschlagene UnifiedResultTests beheben
+3. (P1) Tests grün: Rote UnifiedResultTests + fehlende Snapshot/Determinismus Tests für neue Artefakte
+4. (P1) Dokumentation: Minimaler Architektur-/Migration-Abschnitt für vNext (README + docs Platzhalter) – Grundgerüst
+5. (P1) ResultSet Naming Strategie definieren & dokumentieren (Blocker für stabilen Output / spätere Breaking Changes)
+6. (P2) E005 Template Engine Abschluss (Header Standardisierung, Basis-Testabdeckung Placeholder/#if/#each)
+7. (P2) E006 DbContext Sample-Endpunkt wirklich lauffähig (Health Endpoint + 1 Query) – Stabilisierung
+8. (P2) Konfig-Bereinigung E008: Entfernte Properties dokumentieren (CHANGELOG + MIGRATION Snippet)
+9. (P2) Cutover Plan E010 (ROADMAP Eintrag + README Abschnitt)
+10. (P2) Automatisierte Quality-Gates Skript in CI (eng/quality-gates.ps1) ausführen & dokumentieren
+
+Kurzfristig depriorisiert (Beispiele P3/P4): Performance Profiling, Nested Template Loops, Strict-Diff Eskalation, Minor Nullability Phase 2.
+
+---
+
 # Testing
 
 Das Testing erfolgt aktuell aus den SQL-Daten: samples\mssql\init
@@ -48,7 +68,7 @@ EPICS Übersicht (oberste Steuerungsebene)
       depends: []
       note: Freeze-Datum & Sentinel (legacy-freeze.txt) gesetzt; CHANGELOG Eintrag vorhanden
 
-- [ ] EPIC-E002 SAMPLE-GATE Referenz-Sample stabil
+- [ ] EPIC-E002 SAMPLE-GATE Referenz-Sample stabil (P1)
       id: E002
       goal: Referenz-Sample `samples/restapi` validiert jeden Entwicklungsschritt
       acceptance: - Build + CRUD Smoke Test automatisiert - Nutzung aktueller `spocr.json` - Läuft in CI Pipeline
@@ -68,25 +88,25 @@ EPICS Übersicht (oberste Steuerungsebene)
       depends: [E003]
       note: Dual Mode via ENV Flag SPOCR_GENERATOR_MODE=dual; Timestamp neutralisiert; Doppel-Write entfernt
 
-- [ ] EPIC-E005 Eigene Template Engine
+- [ ] EPIC-E005 Eigene Template Engine (P2)
       id: E005
       goal: Roslyn Unabhängigkeit & eigene schlanke Template Pipeline
       acceptance: - Template Parser / Renderer modular - Unit Tests für Placeholder/Substitutions - Standardisierter Header (auto-generated Block) integriert
       depends: [E003]
 
-- [ ] EPIC-E006 Moderner DbContext & APIs
+- [ ] EPIC-E006 Moderner DbContext & APIs (P2)
       id: E006
       goal: `SpocRDbContext` + Minimal API Extensions
       acceptance: - DI Registrierung (IServiceCollection) vorhanden - Minimal API Mappings generierbar - Beispiel-Endpunkt im Sample funktioniert
       depends: [E003]
 
-- [ ] EPIC-E007 Heuristik-Abbau
+- [ ] EPIC-E007 Heuristik-Abbau (P3)
       id: E007
       goal: Entfernung restriktiver Namens-/Strukturheuristiken
       acceptance: - Liste entfernte / geänderte Heuristiken dokumentiert (Dokumentation ausreichend, kein vollständiger Audit) - Regressionstests schützen kritische Fälle
       depends: [E003]
 
-- [ ] EPIC-E008 Konfig-Bereinigung
+- [ ] EPIC-E008 Konfig-Bereinigung (P2)
       id: E008
       goal: Entfernte Properties aus `spocr.json` offiziell deklariert
       acceptance: - CHANGELOG Abschnitt "Removed" - Upgrade Guide Eintrag
@@ -98,31 +118,31 @@ EPICS Übersicht (oberste Steuerungsebene)
       acceptance: - 90%+ Fälle ohne manuelle Angabe korrekt - Fallback Logik dokumentiert
       depends: [E003]
 
-- [ ] EPIC-E010 Cutover Plan v5.0
+- [ ] EPIC-E010 Cutover Plan v5.0 (P2)
       id: E010
       goal: Plan zur Entfernung Legacy DataContext
       acceptance: - README / ROADMAP Eintrag - Timeline + Migrationsschritte
       depends: [E004, E008]
 
-- [ ] EPIC-E014 Erweiterte Generatoren (Inputs/Outputs/Results/Procedures)
+- [ ] EPIC-E014 Erweiterte Generatoren (Inputs/Outputs/Results/Procedures) (P1)
       id: E014
       goal: Generatoren für Eingabe-/Ausgabe- und Prozedur-Artefakte
       acceptance: - Templates für Inputs, Outputs, Results, Stored Procedures vorhanden - Basis-Generatoren erzeugen konsistente Namespaces - Mindestens 1 End-to-End Beispiel im Sample eingebunden
       depends: [E003, E005]
 
-- [ ] EPIC-E011 Obsolete Markierungen
+- [ ] EPIC-E011 Obsolete Markierungen (P3)
       id: E011
       goal: Alte Outputs als [Obsolet] markiert mit Klartext-Hinweis
       acceptance: - Alle Legacy Artefakte dekoriert / kommentiert - Build Warnungen optional aktivierbar
       depends: [E010]
 
-- [ ] EPIC-E012 Dokumentations-Update
+- [ ] EPIC-E012 Dokumentations-Update (P1)
       id: E012
       goal: Vollständige Doku für neuen Generator
       acceptance: - Architektur, Migration, CLI Referenz - Samples verlinkt & aktuell
       depends: [E004, E005, E006, E007, E008, E009]
 
-- [ ] EPIC-E013 Test-Suite Anpassung
+- [ ] EPIC-E013 Test-Suite Anpassung (P1)
       id: E013
       goal: Tests spiegeln neue Architektur & schützen Migration
       acceptance: - Snapshot / Golden Master - Cover ≥ 80% Core
