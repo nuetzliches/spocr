@@ -25,7 +25,22 @@ internal static class GenerationTestHarness
 
         var cfg = EnvConfiguration.Load(projectRoot: root.FullName);
         var renderer = new SimpleTemplateEngine();
-        var gen = new SpocRGenerator(renderer, schemaProviderFactory: () => new SchemaMetadataProvider(root.FullName));
+        // Versuche Templates aus dem Repo zu laden (für konsolidierte UnifiedProcedure Generierung).
+        ITemplateLoader? loader = null;
+        try
+        {
+            var repoRoot = FindRepositoryRoot();
+            if (repoRoot != null)
+            {
+                var tplDir = Path.Combine(repoRoot, "src", "SpocRVNext", "Templates");
+                if (Directory.Exists(tplDir))
+                {
+                    loader = new FileSystemTemplateLoader(tplDir);
+                }
+            }
+        }
+        catch { /* Fallback: loader bleibt null */ }
+        var gen = new SpocRGenerator(renderer, loader, schemaProviderFactory: () => new SchemaMetadataProvider(root.FullName));
         gen.GenerateAll(cfg, root.FullName);
         var outDir = Path.Combine(root.FullName, "SpocR");
         if (!Directory.Exists(outDir) || Directory.GetFiles(outDir, "*.cs", SearchOption.AllDirectories).Length == 0)
@@ -76,5 +91,26 @@ internal static class GenerationTestHarness
         }
         var bytes = Encoding.UTF8.GetBytes(sb.ToString());
         return Convert.ToHexString(sha.ComputeHash(bytes));
+    }
+
+    private static string? FindRepositoryRoot()
+    {
+        try
+        {
+            var dir = Directory.GetCurrentDirectory();
+            // Bei Testausführung liegt CurrentDirectory typischerweise im bin/<cfg>/netX Ordner; nach oben wandern.
+            for (int i = 0; i < 8 && dir != null; i++)
+            {
+                if (File.Exists(Path.Combine(dir, "SpocR.sln")) || File.Exists(Path.Combine(dir, "README.md")))
+                {
+                    // Prüfen ob Templates vorhanden wären
+                    var candidate = Path.Combine(dir, "src", "SpocRVNext", "Templates");
+                    if (Directory.Exists(candidate)) return dir;
+                }
+                dir = Path.GetDirectoryName(dir);
+            }
+        }
+        catch { }
+        return null;
     }
 }

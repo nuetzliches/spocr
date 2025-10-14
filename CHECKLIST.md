@@ -26,10 +26,10 @@ Legende Prioritäten: P1 = kritisch für v5 Cutover, P2 = hoch für Bridge (v4.5
 
 Aktueller Fokus (Top 10 P1/P2):
 1. (P1) E002 Sample-Gate: Automatisierter CRUD Smoke-Test & CI Integration
-2. (P1) E014 End-to-End Nutzung mind. einer Stored Procedure im Sample (inkl. konsolidierter Datei) – fehlgeschlagene UnifiedResultTests beheben
-3. (P1) Tests grün: Rote UnifiedResultTests + fehlende Snapshot/Determinismus Tests für neue Artefakte
+2. (P1) E014 End-to-End Nutzung mind. einer Stored Procedure im Sample (Aufruf in laufender WebAPI) – UnifiedResultTests bereits grün
+3. (P1) ResultSet Naming Strategie definieren & dokumentieren (Blocker für stabilen Output / spätere Breaking Changes)
 4. (P1) Dokumentation: Minimaler Architektur-/Migration-Abschnitt für vNext (README + docs Platzhalter) – Grundgerüst
-5. (P1) ResultSet Naming Strategie definieren & dokumentieren (Blocker für stabilen Output / spätere Breaking Changes)
+5. (P1) Snapshot/Determinismus Tests erweitern (RowSet Naming, Konfliktfälle) – Basis bereits vorhanden
 6. (P2) E005 Template Engine Abschluss (Header Standardisierung, Basis-Testabdeckung Placeholder/#if/#each)
 7. (P2) E006 DbContext Sample-Endpunkt wirklich lauffähig (Health Endpoint + 1 Query) – Stabilisierung
 8. (P2) Konfig-Bereinigung E008: Entfernte Properties dokumentieren (CHANGELOG + MIGRATION Snippet)
@@ -154,7 +154,7 @@ EPICS Übersicht (oberste Steuerungsebene)
 
 ### Qualität & Tests
 
-- [ ] Alle bestehenden Unit- & Integrationstests grün (Tests.sln)
+- [x] Alle bestehenden Unit- & Integrationstests grün (Tests.sln)
 - [ ] Neue Tests für SpocRVNext (Happy Path + Fehlerfälle + Regression für entfernte Heuristiken)
 - [ ] (Optional) Info-Diff zwischen Legacy und neuem Output generiert (kein Paritäts-Zwang)
 - [ ] Automatisierte Qualitäts-Gates (eng/quality-gates.ps1) lokal und in CI erfolgreich
@@ -163,6 +163,7 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] Negative Tests für ungültige spocr.json Konfigurationen
 - [x] Test: TableTypes Name Preservation (`PreservesOriginalNames_NoRenaming`) sichert unveränderte UDTT Bezeichner
 - [x] Entfernte Suffix-Normalisierung für TableTypes (Regression abgesichert)
+- [x] Konsolidierte Prozedur-Datei Test (keine Duplikate Input/Output + deterministischer Doppel-Lauf)
 
 ### Codegenerierung / SpocRVNext
 
@@ -196,8 +197,10 @@ EPICS Übersicht (oberste Steuerungsebene)
       - [~] CLI Integration (`spocr generate` nutzt neue Generatoren) – Legacy Orchestrator ruft vNext Generator jetzt in dual|next auf; eigene vNext CLI Ergänzungen folgen
       - [ ] Sample nutzt mindestens eine generierte Stored Procedure (End-to-End)
       - [ ] ResultSet Naming Strategie dokumentiert (Prefix + Fallback) (Doku)
-      - [ ] Tests: Snapshot / Determinismus für neue Artefakte
+      - [~] Tests: Snapshot / Determinismus für neue Artefakte (Basis vorhanden: Golden + Konsolidierte Procs; ausstehend: RowSet / Konfliktfälle)
       - [ ] Interaktive .env Bootstrap CLI (separate vNext Kommando) – Basis EnvBootstrapper vorhanden, noch kein dedizierter Befehl
+
+      Hinweis (interim): ResultSetNameResolver integriert (dormant) – nutzt künftiges optionales SQL Feld (Sql/Definition) für bessere Namensvorschläge. Aktuell keine Änderungen im Output, da Snapshot noch keinen SQL Text enthält.
 
       TODO entfernt: Performance Messung (nicht mehr erforderlich)
 
@@ -360,6 +363,7 @@ EPICS Übersicht (oberste Steuerungsebene)
       - Status: Implementiert als PascalCase (Generator), Dokumentation noch offen
 - [ ] Dateinamen & Determinismus zusätzliche Tests
       - [x] Grundlegende deterministische Hash Tests (Golden Snapshot) vorhanden
+      - [x] Konsolidierte UnifiedProcedure Tests (Hash & IO Single Definition)
       - [ ] Erweiterung: spezifische Artefakt-Typen (StoredProcedure Wrapper, ResultSet Rows)
       - [ ] Dateinamens-Konflikt Test (zwei Procs mit ähnlichen Namen + Suffix Handling)
 - [ ] Dispatcher next-only Pfad: Gleiches Full Generation Set wie dual
@@ -375,3 +379,12 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] ResultSets mit Typ Json sollen deserialisiert und raw produziert werden können. Per Service Config global, und auf jeder Prozedur separat
 - [ ] Objekte, die nicht mehr im .spocr/schema enthalten sind aus dem Output löschen
 - [ ] TemplateEngine optimieren (z.B: verschachtelte for each ermöglichen)
+- [ ] Refactoring und Optimierung der SpocRVNext und vnext-Outputs durchführen
+- [ ] ResultSetNameResolver Improvements (geplant)
+      - [ ] CTE support (first base table inside final query if no direct NamedTableReference)
+      - [ ] FOR JSON PATH root alias extraction (use alias as name)
+      - [ ] Dynamic SQL detection -> explicit skip marker
+      - [ ] Collision test for suggested names
+      - [ ] Parser performance micro-benchmark & caching
+      - [ ] Optional config flag to disable resolver (SPOCR_DISABLE_RS_NAME_RESOLVER)
+- [ ] Warum sind die Inputs vom Typ Output nicht in den Inputs enthalten? Wir brauchen TwoWay Binding

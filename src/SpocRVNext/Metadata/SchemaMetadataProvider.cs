@@ -76,6 +76,11 @@ internal sealed class SchemaMetadataProvider : ISchemaMetadataProvider
             var sanitized = NamePolicy.Sanitize(name);
             // Include schema prefix so downstream generators can split schema reliably
             var operationName = $"{schema}.{sanitized}";
+            // Optional: Roh-SQL falls im Snapshot vorhanden (noch nicht standardisiert). Unterstützte Keys: Sql, Definition, Body, Tsql
+            string? rawSql = p.GetPropertyOrDefault("Sql")
+                           ?? p.GetPropertyOrDefault("Definition")
+                           ?? p.GetPropertyOrDefault("Body")
+                           ?? p.GetPropertyOrDefault("Tsql");
 
             // Inputs (includes potential output parameters flagged IsOutput true)
             var inputParams = new List<FieldDescriptor>();
@@ -94,6 +99,25 @@ internal sealed class SchemaMetadataProvider : ISchemaMetadataProvider
                     var fd = new FieldDescriptor(clean, NamePolicy.Sanitize(clean), clr, isNullable, sqlType, maxLen);
                     var isOutput = ip.GetPropertyOrDefaultBool("IsOutput");
                     if (isOutput) outputParams.Add(fd); else inputParams.Add(fd);
+                }
+            }
+
+            // Support alternative snapshot shape: separate "OutputParameters" array (each treated as output parameter)
+            if (p.TryGetProperty("OutputParameters", out var outsEl) && outsEl.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var opEl in outsEl.EnumerateArray())
+                {
+                    var raw = opEl.GetPropertyOrDefault("Name") ?? string.Empty;
+                    if (string.IsNullOrWhiteSpace(raw)) continue;
+                    var clean = raw.TrimStart('@');
+                    // Avoid duplicates if already captured via Inputs/IsOutput
+                    if (outputParams.Any(o => o.Name.Equals(clean, StringComparison.OrdinalIgnoreCase))) continue;
+                    var sqlType = opEl.GetPropertyOrDefault("SqlTypeName") ?? string.Empty;
+                    var maxLen = opEl.GetPropertyOrDefaultInt("MaxLength");
+                    var isNullable = opEl.GetPropertyOrDefaultBool("IsNullable");
+                    var clr = MapSqlToClr(sqlType, isNullable);
+                    var fd = new FieldDescriptor(clean, NamePolicy.Sanitize(clean), clr, isNullable, sqlType, maxLen);
+                    outputParams.Add(fd);
                 }
             }
 
@@ -120,6 +144,24 @@ internal sealed class SchemaMetadataProvider : ISchemaMetadataProvider
                         }
                     }
                     var rsName = ResultSetNaming.DeriveName(idx, columns, usedNames);
+                    // Versuch: Falls Roh-SQL vorhanden, heuristischen Namen ableiten (nicht breaking; nur wenn eindeutig sinnvoll)
+                    if (!string.IsNullOrWhiteSpace(rawSql))
+                    {
+                        try
+                        {
+                            var suggested = ResultSetNameResolver.TryResolve(idx, rawSql!);
+                            if (!string.IsNullOrWhiteSpace(suggested))
+                            {
+                                // Nur ersetzen, wenn der generische Name 'ResultSetX' ist und Suggest nicht kollidiert
+                                if (rsName.StartsWith("ResultSet", StringComparison.OrdinalIgnoreCase) && !usedNames.Contains(suggested))
+                                {
+                                    rsName = NamePolicy.Sanitize(suggested!);
+                                    usedNames.Add(rsName); // Sicherstellen, dass nicht erneut vergeben
+                                }
+                            }
+                        }
+                        catch { /* Silent fallback */ }
+                    }
                     usedNames.Add(rsName);
                     resultSetDescriptors.Add(new ResultSetDescriptor(idx, rsName, columns));
                     idx++;

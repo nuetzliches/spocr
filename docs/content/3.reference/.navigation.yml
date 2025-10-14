@@ -2,4 +2,7 @@
 title: Reference
 navigation:
   icon: i-heroicons-book-open
+  children:
+    - path: configuration-schema
+    - path: json-procedures
 ---
