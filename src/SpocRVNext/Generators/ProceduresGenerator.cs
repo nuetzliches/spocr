@@ -65,34 +65,33 @@ public sealed class ProceduresGenerator
             if (proc.OutputFields.Count > 0)
             {
                 var outputTypeName = NamePolicy.Output(procPart);
-                // inline output record type inside same file (still public for reuse)
                 fileSb.AppendLine($"    public {outputTypeName}? Output {{ get; init; }}");
             }
             foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
             {
-                var rsType = NamePolicy.ResultSet(procPart, rs.Name);
-                fileSb.AppendLine($"    public IReadOnlyList<{rsType}> {rs.Name} {{ get; init; }} = Array.Empty<{rsType}>();");
+                // Normalize fallback name ResultSetX -> ResultX for property
+                var originalName = rs.Name;
+                var propName = originalName.StartsWith("ResultSet", StringComparison.OrdinalIgnoreCase)
+                    ? "Result" + originalName.Substring("ResultSet".Length)
+                    : originalName;
+                var normalizedSetNameForType = originalName.StartsWith("ResultSet", StringComparison.OrdinalIgnoreCase)
+                    ? originalName // keep full for deriving index part but will map to propName in factory
+                    : originalName;
+                var rsType = NamePolicy.ResultSet(procPart, normalizedSetNameForType);
+                fileSb.AppendLine($"    public IReadOnlyList<{rsType}> {propName} {{ get; init; }} = Array.Empty<{rsType}>();");
             }
             fileSb.AppendLine("}");
             fileSb.AppendLine();
-            // Inline output record if present
-            if (proc.OutputFields.Count > 0)
-            {
-                var outputTypeName = NamePolicy.Output(procPart);
-                fileSb.AppendLine($"public readonly record struct {outputTypeName}(");
-                for (int i = 0; i < proc.OutputFields.Count; i++)
-                {
-                    var f = proc.OutputFields[i];
-                    var comma = i == proc.OutputFields.Count - 1 ? string.Empty : ",";
-                    fileSb.AppendLine($"    {f.ClrType} {f.PropertyName}{comma}");
-                }
-                fileSb.AppendLine(");");
-                fileSb.AppendLine();
-            }
+            // (No inline output record; dedicated file already exists from OutputsGenerator.)
             // Inline result set record structs
             foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
             {
-                var rsType = NamePolicy.ResultSet(procPart, rs.Name);
+                var originalName = rs.Name;
+                var typeNameBase = originalName.StartsWith("ResultSet", StringComparison.OrdinalIgnoreCase)
+                    ? originalName // retains ResultSet1 to keep determinism; alternative: just index part, decided to keep for now
+                    : originalName;
+                // Type Name remains <Proc><OriginalName>Result (OriginalName may be ResultSet1)
+                var rsType = NamePolicy.ResultSet(procPart, typeNameBase);
                 fileSb.AppendLine($"public readonly record struct {rsType}(");
                 for (int i = 0; i < rs.Fields.Count; i++)
                 {
@@ -147,7 +146,11 @@ public sealed class ProceduresGenerator
             foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
             {
                 var rsType = NamePolicy.ResultSet(procPart, rs.Name);
-                fileSb.Append($", {rs.Name} = rs.Length > {unifiedCounter} ? Array.ConvertAll(rs[{unifiedCounter}].ToArray(), o => ({rsType})o).ToList() : Array.Empty<{rsType}>() ");
+                var originalName = rs.Name;
+                var propName = originalName.StartsWith("ResultSet", StringComparison.OrdinalIgnoreCase)
+                    ? "Result" + originalName.Substring("ResultSet".Length)
+                    : originalName;
+                fileSb.Append($", {propName} = rs.Length > {unifiedCounter} ? Array.ConvertAll(rs[{unifiedCounter}].ToArray(), o => ({rsType})o).ToList() : Array.Empty<{rsType}>() ");
                 unifiedCounter++;
             }
             fileSb.Append("};\n");
