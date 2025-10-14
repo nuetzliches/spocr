@@ -37,6 +37,70 @@ Wer einen anderen Root verwenden möchte, setzt `SPOCR_NAMESPACE=MyCompany.Proje
 
 Hinweis: Legacy-Generator bleibt unverändert; vNext läuft in `dual` Mode parallel zur Validierung.
 
+## Unified Result Modell (vNext)
+
+Alle prozedurbezogenen Artefakte werden in möglichst wenige Dateien verdichtet:
+
+1. Input: `<Proc>NameInput.cs`
+2. Output (nur falls OUTPUT Parameter): `<Proc>NameOutput.cs`
+3. Unified Result + ResultSets + Plan + Wrapper: `<Proc>NameResult.cs`
+
+Struktur von `<Proc>NameResult.cs`:
+
+```
+public sealed class <Proc>NameResult {
+   public bool Success { get; init; }
+   public string? Error { get; init; }
+   public <Proc>NameOutput? Output { get; init; }          // optional
+   public IReadOnlyList<<Proc>NameResultSet1Result> Result1 { get; init; } = ...; // erster ResultSet
+   public IReadOnlyList<<Proc>Name<CustomName>Result> Result2 { get; init; } = ...; // usw.
+}
+
+public readonly record struct <Proc>NameResultSet1Result(...);
+// Weitere ResultSet-Record-Typen
+
+internal static partial class <Proc>NameProcedurePlan { /* ExecutionPlan + Binder */ }
+public static class <Proc>NameProcedure { /* ExecuteAsync wrapper */ }
+```
+
+Benennung:
+
+- Fallback ResultSet Namen (`ResultSet1`, `ResultSet2`, ...) werden als Properties zu `Result1`, `Result2`, ... gekürzt.
+- Die zugrundeliegenden Record-Typen behalten aktuell das Muster `<Proc>NameResultSet1Result` (deterministisch & eindeutig). Optional kann später auf `<Proc>NameResult1` verkürzt werden.
+- Es gibt keine separaten Dateien für Plan, Aggregate oder einzelne ResultSet Rows mehr.
+- Inline Output Record wurde entfernt (Duplikat), externer Output Record wird wiederverwendet.
+
+Rationale:
+
+- Reduktion der Dateianzahl -> bessere Navigierbarkeit.
+- Konsistente API: Immer eine zentrale Result-Datei je Stored Procedure.
+- Stabilität der Typnamen für spätere Refactors / Migrationsskripte.
+
+Mögliche zukünftige Optimierungen (Backlog):
+
+- Kürzere Typnamen für Ergebnis-Records der ResultSets (`Result1` statt `ResultSet1Result`).
+- Generische Helper / LINQ Extensions für Single-Result Verfahren.
+- Optionale Source Generator Integration statt File-IO.
+
+# Nuts Demo Test
+
+```bash
+dotnet run --project src/SpocR.csproj -- rebuild  -p C:/Projekte/GitHub/Nuts/Libs/Nuts.DbContext/spocr.json --no-auto-update
+dotnet run --project src/SpocR.csproj -- rebuild  -p C:/Projekte/GitHub/Nuts/Libs/Nuts.History/spocr.json --no-auto-update
+dotnet run --project src/SpocR.csproj -- rebuild  -p C:/Projekte/GitHub/Nuts/Libs/Nuts.Identity/spocr.json --no-auto-update
+dotnet run --project src/SpocR.csproj -- rebuild  -p C:/Projekte/GitHub/Nuts/Libs/Nuts.Identity.Organization/spocr.json --no-auto-update
+dotnet run --project src/SpocR.csproj -- rebuild  -p C:/Projekte/GitHub/Nuts/Libs/Nuts.Logger/spocr.json --no-auto-update
+dotnet run --project src/SpocR.csproj -- rebuild  -p C:/Projekte/GitHub/Nuts/Libs/Nuts.Notification/spocr.json --no-auto-update
+dotnet run --project src/SpocR.csproj -- rebuild  -p C:/Projekte/GitHub/Nuts/Demo/Nuts.Demo.RestApi/spocr.json --no-auto-update
+dotnet run --project C:/Projekte/GitHub/Nuts/Demo/Nuts.Demo.RestApi/Nuts.Demo.RestApi.csproj
+```
+
+# TEK Test
+
+```bash
+dotnet run --project src/SpocR.csproj -- rebuild  -p C:/Projekte/GitHub/tek-portal/TEK.Admin.WebApi/spocr.json --no-auto-update
+dotnet run --project C:/Projekte/GitHub/tek-portal/TEK.Admin.WebApi/TEK.Admin.WebApi.csproj
+```
 ---
 
 ## Nullable Reference Types – Stepwise Escalation (Phase 1)

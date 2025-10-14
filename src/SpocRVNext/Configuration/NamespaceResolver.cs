@@ -96,6 +96,25 @@ public sealed class NamespaceResolver
         return combined;
     }
 
+    /// <summary>
+    /// Convenience: Resolve namespace relative zu einer übergebenen Konfigurationsdatei (z.B. spocr.json Pfad via -p CLI).
+    /// Nutzt das Verzeichnis der Datei als searchRoot, fällt sonst auf Standard Resolve zurück.
+    /// </summary>
+    public string ResolveForConfigPath(string? configPath)
+    {
+        if (string.IsNullOrWhiteSpace(configPath)) return Resolve();
+        try
+        {
+            var dir = Path.GetDirectoryName(Path.GetFullPath(configPath));
+            if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) return Resolve();
+            return Resolve(dir);
+        }
+        catch
+        {
+            return Resolve();
+        }
+    }
+
     private static string ToPascalCase(string input)
     {
         if (string.IsNullOrWhiteSpace(input)) return string.Empty;
