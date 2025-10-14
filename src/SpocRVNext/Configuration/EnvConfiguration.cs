@@ -19,6 +19,8 @@ public sealed class EnvConfiguration
     public string? DefaultConnection { get; init; } // backward compatibility mirror (will carry GeneratorConnectionString if present otherwise identifier content)
     public string? NamespaceRoot { get; init; }
     public string? OutputDir { get; init; }
+    // Pfad zur verwendeten spocr.json (falls via CLI -p übergeben), wird extern gesetzt
+    public string? ConfigPath { get; init; }
 
     /// <summary>
     /// Load configuration. projectRoot should be the execution / target project directory (path passed via --path in legacy CLI) so that .env discovery & creation occur there.

@@ -77,13 +77,12 @@ public sealed class SpocRGenerator
         projectRoot ??= Directory.GetCurrentDirectory();
         if (cfg.GeneratorMode is not ("dual" or "next"))
             return 0; // vNext generation disabled in legacy mode
-
-    // NamespaceResolver liefert bereits finalen Namespace (inkl. Suffix-Policy). Nicht erneut anhängen.
-    // Compose final namespace: Root + '.' + OutputDir (if not already present as last segment)
-    var nsRoot = cfg.NamespaceRoot ?? "SpocR.Generated";
-    var outSeg = string.IsNullOrWhiteSpace(cfg.OutputDir) ? "SpocR" : cfg.OutputDir!;
-    outSeg = outSeg.Trim('.');
-    var ns = nsRoot.EndsWith('.' + outSeg, StringComparison.OrdinalIgnoreCase) ? nsRoot : nsRoot + '.' + outSeg;
+        // Namespace ableiten unter Berücksichtigung des Konfigurationspfades (-p)
+        var resolver = new NamespaceResolver(cfg, msg => Console.Out.WriteLine(msg));
+        var nsBase = resolver.ResolveForConfigPath(cfg.ConfigPath); // nutzt csproj nahe Konfiguration oder CWD
+        // Compose final namespace: append output dir once
+        var outSeg = string.IsNullOrWhiteSpace(cfg.OutputDir) ? "SpocR" : cfg.OutputDir!.Trim('.');
+        var ns = nsBase.EndsWith('.' + outSeg, StringComparison.OrdinalIgnoreCase) ? nsBase : nsBase + '.' + outSeg;
         var total = 0;
 
         // If a schema provider factory is supplied and no explicit delegates were provided, use it to populate metadata.
@@ -156,12 +155,9 @@ public sealed class SpocRGenerator
             ? projectRoot
             : Path.Combine(projectRoot, "SpocR");
         Directory.CreateDirectory(baseStructuredOut);
+        // Konsolidierte Generierung: nur ProceduresGenerator (enthält künftig Input/Output/Result Konsolidierung) + evtl. TableTypes separat
         if (_schemaProviderFactory is null)
         {
-            var inputsGen = new InputsGenerator(_renderer, _inputs ?? (() => Array.Empty<InputDescriptor>()), _loader, projectRoot);
-            total += inputsGen.Generate(ns, baseStructuredOut);
-            var outputsGen = new OutputsGenerator(_renderer, _outputs, _loader, projectRoot);
-            total += outputsGen.Generate(ns, baseStructuredOut);
             var procsGen = new ProceduresGenerator(_renderer, _procedures, _loader, projectRoot);
             total += procsGen.Generate(ns, baseStructuredOut);
         }
@@ -172,15 +168,10 @@ public sealed class SpocRGenerator
             {
                 var dbgInputs = schema.GetInputs().Count;
                 var dbgOutputs = schema.GetOutputs().Count;
-                var dbgResults = schema.GetResults().Count;
                 var dbgProcs = schema.GetProcedures().Count;
-                Console.Out.WriteLine($"[spocr vNext] descriptor counts: inputs={dbgInputs} outputs={dbgOutputs} results={dbgResults} procedures={dbgProcs}");
+                Console.Out.WriteLine($"[spocr vNext] descriptor counts: inputs={dbgInputs} outputs={dbgOutputs} procedures={dbgProcs}");
             }
             catch { }
-            var inputsGen = new InputsGenerator(_renderer, () => schema.GetInputs(), _loader, projectRoot);
-            total += inputsGen.Generate(ns, baseStructuredOut);
-            var outputsGen = new OutputsGenerator(_renderer, () => schema.GetOutputs(), _loader, projectRoot);
-            total += outputsGen.Generate(ns, baseStructuredOut);
             var procsGen = new ProceduresGenerator(_renderer, () => schema.GetProcedures(), _loader, projectRoot);
             total += procsGen.Generate(ns, baseStructuredOut);
         }
