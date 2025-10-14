@@ -25,8 +25,9 @@ depends_naming: 'ID Referenzen in depends Feld'
 Legende Prioritäten: P1 = kritisch für v5 Cutover, P2 = hoch für Bridge (v4.5→v5), P3 = sinnvoll vor Release, P4 = nachgelagert / Nice-to-have.
 
 Aktueller Fokus (Top 10 P1/P2):
-1. (P1) E002 Sample-Gate: Automatisierter CRUD Smoke-Test & CI Integration
-2. (P1) E014 End-to-End Nutzung mind. einer Stored Procedure im Sample (Aufruf in laufender WebAPI) – UnifiedResultTests bereits grün
+
+1. (P1) E002 Sample-Gate: Automatisierter CRUD Smoke-Test & CI Integration (Smoke Script vorhanden; CI & stabile Ausführung noch offen)
+2. (P1) E014 End-to-End Nutzung mind. einer Stored Procedure im Sample (Endpoints + Logging vorhanden; 500 Fehleranalyse laufend)
 3. (P1) ResultSet Naming Strategie intern finalisieren (öffentliche Doku deferred bis SQL Snapshot vorhanden)
 4. (P1) Snapshot Erweiterung: Prozedur-SQL in Snapshot persistieren (Voraussetzung Resolver Aktivierung)
 5. (P1) Snapshot/Determinismus Tests erweitern (Resolver Aktivierung, Konfliktnamen) – Basis vorhanden
@@ -53,6 +54,7 @@ das Schema samples\restapi.spocr\schema produziert.
 Daraus ensteht dann der Output in samples\restapi\SpocR
 
 Dann den Build prüfen mit:
+
 ```bash
 dotnet build samples/restapi/RestApi.csproj -c Debug
 ```
@@ -68,7 +70,7 @@ EPICS Übersicht (oberste Steuerungsebene)
       depends: []
       note: Freeze-Datum & Sentinel (legacy-freeze.txt) gesetzt; CHANGELOG Eintrag vorhanden
 
-- [ ] EPIC-E002 SAMPLE-GATE Referenz-Sample stabil (P1)
+- [ ] EPIC-E002 SAMPLE-GATE Referenz-Sample stabil (P1) (smoke.ps1 + Golden Hash Mechanismus vorhanden, CI & stabile SP-Erfolgs-Response ausstehend)
       id: E002
       goal: Referenz-Sample `samples/restapi` validiert jeden Entwicklungsschritt
       acceptance: - Build + CRUD Smoke Test automatisiert - Nutzung aktueller `spocr.json` - Läuft in CI Pipeline
@@ -195,7 +197,7 @@ EPICS Übersicht (oberste Steuerungsebene)
       - [x] Execution Logic ADO.NET (ResultSets Mapping) implementiert (ProcedureExecutionPlan + ProcedureExecutor)
       - [x] Metadata Provider Implementierung (DB Schema → Descriptors) produktiv (SchemaMetadataProvider)
       - [~] CLI Integration (`spocr generate` nutzt neue Generatoren) – Legacy Orchestrator ruft vNext Generator jetzt in dual|next auf; eigene vNext CLI Ergänzungen folgen
-      - [ ] Sample nutzt mindestens eine generierte Stored Procedure (End-to-End)
+      - [~] Sample nutzt mindestens eine generierte Stored Procedure (Endpoints implementiert, noch Fehler 500 bei UserList)
       - [ ] ResultSet Naming Strategie dokumentiert (deferred – erst nach SQL Feld Integration)
       - [~] Tests: Snapshot / Determinismus für neue Artefakte (Basis vorhanden: Golden + Konsolidierte Procs; ausstehend: RowSet / Konfliktfälle)
       - [ ] Interaktive .env Bootstrap CLI (separate vNext Kommando) – Basis EnvBootstrapper vorhanden, noch kein dedizierter Befehl
@@ -244,11 +246,11 @@ EPICS Übersicht (oberste Steuerungsebene)
 ### Samples / Demo (samples/restapi)
 
 - [ ] Sample baut mit aktuellem Generator (dotnet build)
-- [ ] Sample führt grundlegende DB Operationen erfolgreich aus (CRUD Smoke Test)
-- [ ] Automatisierter Mini-Test (skriptgesteuert) prüft Generierung & Start der Web API
+- [~] Sample führt grundlegende DB Operationen erfolgreich aus (CRUD Smoke Test) – Script vorhanden, Execution stabilisieren (500 UserList)
+- [~] Automatisierter Mini-Test (skriptgesteuert) prüft Generierung & Start der Web API (smoke.ps1 vorhanden, Integration in CI fehlt)
 - [ ] Sample beschreibt Aktivierung des neuen Outputs (Feature Flag) im README
 - [ ] Schema Rebuild Pipeline (`dotnet run --project src/SpocR.csproj -- rebuild -p samples/restapi/spocr.json --no-auto-update`) erzeugt deterministisch `samples/restapi/.spocr/schema`
-- [ ] Generierter Output in `samples/restapi/SpocR` deterministisch (Hash Vergleich) nach Rebuild
+- [~] Generierter Output in `samples/restapi/SpocR` deterministisch (Hash Vergleich) nach Rebuild (Golden Hash Feature implementiert, CI Verify offen)
 - [ ] Namespace-Korrektur: `samples/restapi/SpocR/ITableType.cs` → `namespace RestApi.SpocR;`
 - [ ] Namespace-Korrektur: Dateien unter `samples/restapi/SpocR/samples/` → `namespace RestApi.SpocR.samples;`
 - [x] Namespace-Korrektur: Dateien unter `samples/restapi/SpocR/samples/` → vereinheitlicht zu `namespace RestApi.SpocR.<SchemaPascalCase>` (ohne Kategorie-Segmente)
@@ -288,7 +290,9 @@ EPICS Übersicht (oberste Steuerungsebene)
 
 - [ ] Pipeline Schritt: Codegen Diff (debug/model-diff-report.md) aktuell und verlinkt
 - [ ] Fail-Fast bei unerwarteten Generator-Änderungen (Diff Threshold)
-- [ ] QA Skripte (eng/\*.ps1) in README oder DEVELOPMENT.md referenziert
+- [ ] QA Skripte (eng/\*.ps1) in README oder DEVELOPMENT.md referenziert (smoke.ps1 + Golden Hash Nutzung ergänzen)
+      -- [ ] CI: Smoke Test Schritt (smoke.ps1 -UseDocker -VerifyGolden) integriert
+      -- [ ] CI: Manual Trigger / Dokumentation für Golden Hash Aktualisierung (-WriteGolden) vorhanden
 - [ ] Caching/Restore Mechanismen (NuGet, Bun) effizient konfiguriert
 - [ ] ENV/CLI Flag für Generation definiert (`SPOCR_GENERATOR_MODE=dual|legacy|next` + `spocr generate --mode`) – Default in v4.5 = `dual` (README Abschnitt "Configuration Precedence" ergänzt; CLI Param-Doku noch offen)
 - [x] Allow-List Datei `.spocr-diff-allow` unterstützt (Glob) – optional, nur Noise-Reduktion
@@ -343,34 +347,17 @@ EPICS Übersicht (oberste Steuerungsebene)
 
 - [x] samples\restapi\SpocR\samples Namespace-Korrektur (Generator + manuelle Files bereinigt)
 - [x] samples\restapi\SpocR\ITableType.cs Namespace = RestApi.SpocR ✅
-- [ ] samples\restapi\.env aus Template mit Kommentaren generieren
-      - [x] Template-Datei `.env.example` anreichert (Erklär-Kommentare für Modus/Flags/Namespace vorhanden)
-      - [ ] CLI Befehl/Bootstrap: `spocr env init` (optional) evaluieren
+- [ ] samples\restapi\.env aus Template mit Kommentaren generieren - [x] Template-Datei `.env.example` anreichert (Erklär-Kommentare für Modus/Flags/Namespace vorhanden) - [ ] CLI Befehl/Bootstrap: `spocr env init` (optional) evaluieren
 - [ ] (OBSOLET) ResultSet Datei-Benennung vereinheitlichen (durch Konsolidierung in eine Prozedur-Datei nicht mehr relevant)
       Hinweis: Einzelne RowSet-Dateien existieren nicht mehr; alle Records (Inputs/Outputs/ResultSets/Aggregate/Plan/Executor) liegen in einer konsolidierten `<Proc>.cs`.
-      Folgeaufgaben (neu):
-      - [ ] Test: Konsolidierte Datei enthält erwartete Abschnitte in definierter Reihenfolge (Header, Inputs, Outputs, ResultSet Records, Aggregate, Plan, Executor)
-      - [ ] Test: Kein doppelter Record-Name bei mehreren ResultSets (Namens-Kollision Absicherung)
-      - [ ] Aktivierungs-Test Resolver (nach SQL Snapshot) – nur generische `ResultSetX` werden ersetzt; andere unverändert
-      - [ ] Negative Test: Ungültige / unparsbare SQL → Resolver überspringt sicher (Fallback bleibt deterministisch)
-- [x] Auto-Namespace Fallback für samples/restapi implementiert (erzwingt Basis `RestApi`)
-      - [ ] Ergänzender Test für WorkingDir = `samples/restapi` (Folgetask – aktuell indirekt durch Integration abgedeckt)
-- [ ] .env Override Nutzung (SPOCR_NAMESPACE) dokumentieren & Beispiel ergänzen
-      - [ ] README / docs: Abschnitt "Namespace Ableitung & Override" inkl. Beispiel diff
-- [ ] Einheitliche Klein-/Großschreibung Schema-Ordner
-      - [ ] Normalisierung (Entscheidung: Beibehalt Original vs. PascalCase)
-      - [ ] Test: Mixed Case Snapshot → generierter Ordner konsistent
-      - Status: Implementiert als PascalCase (Generator), Dokumentation noch offen
-- [ ] Dateinamen & Determinismus zusätzliche Tests
-      - [x] Grundlegende deterministische Hash Tests (Golden Snapshot) vorhanden
-      - [x] Konsolidierte UnifiedProcedure Tests (Hash & IO Single Definition)
-      - [ ] Erweiterung: spezifische Artefakt-Typen (StoredProcedure Wrapper Section, ResultSet Records innerhalb Konsolidierungs-Datei)
-      - [ ] Dateinamens-Konflikt Test (zwei Procs mit ähnlichen Namen + Suffix Handling)
-- [ ] Dispatcher next-only Pfad: Gleiches Full Generation Set wie dual
-      - [ ] Prüfen Codepfad (`SpocRGenerator` / Dispatcher)
-      - [ ] Test: MODE=next erzeugt identische Artefakte wie dual (ohne Legacy)
+      Folgeaufgaben (neu): - [ ] Test: Konsolidierte Datei enthält erwartete Abschnitte in definierter Reihenfolge (Header, Inputs, Outputs, ResultSet Records, Aggregate, Plan, Executor) - [ ] Test: Kein doppelter Record-Name bei mehreren ResultSets (Namens-Kollision Absicherung) - [ ] Aktivierungs-Test Resolver (nach SQL Snapshot) – nur generische `ResultSetX` werden ersetzt; andere unverändert - [ ] Negative Test: Ungültige / unparsbare SQL → Resolver überspringt sicher (Fallback bleibt deterministisch)
+- [x] Auto-Namespace Fallback für samples/restapi implementiert (erzwingt Basis `RestApi`) - [ ] Ergänzender Test für WorkingDir = `samples/restapi` (Folgetask – aktuell indirekt durch Integration abgedeckt)
+- [ ] .env Override Nutzung (SPOCR_NAMESPACE) dokumentieren & Beispiel ergänzen - [ ] README / docs: Abschnitt "Namespace Ableitung & Override" inkl. Beispiel diff
+- [ ] Einheitliche Klein-/Großschreibung Schema-Ordner - [ ] Normalisierung (Entscheidung: Beibehalt Original vs. PascalCase) - [ ] Test: Mixed Case Snapshot → generierter Ordner konsistent - Status: Implementiert als PascalCase (Generator), Dokumentation noch offen
+- [ ] Dateinamen & Determinismus zusätzliche Tests - [x] Grundlegende deterministische Hash Tests (Golden Snapshot) vorhanden - [x] Konsolidierte UnifiedProcedure Tests (Hash & IO Single Definition) - [ ] Erweiterung: spezifische Artefakt-Typen (StoredProcedure Wrapper Section, ResultSet Records innerhalb Konsolidierungs-Datei) - [ ] Dateinamens-Konflikt Test (zwei Procs mit ähnlichen Namen + Suffix Handling)
+- [ ] Dispatcher next-only Pfad: Gleiches Full Generation Set wie dual - [ ] Prüfen Codepfad (`SpocRGenerator` / Dispatcher) - [ ] Test: MODE=next erzeugt identische Artefakte wie dual (ohne Legacy)
 - [x] Sicherstellen, dass samples/restapi/.env nicht in git landet (`.gitignore` aktualisiert)
-- [ ] src\SpocRVNext\Templates\_Header.spt optimieren <auto-generated/> soll den gesamten Header umschließen. GeneratedAt soll im Header plaziert und aus allen anderen Templates entfernt werden. Der Compare, ob sich eine Datei geändert hat, soll den <auto-generated>-Block uns somit das GeneratedAt ignorieren.
+- [ ] src\SpocRVNext\Templates_Header.spt optimieren <auto-generated/> soll den gesamten Header umschließen. GeneratedAt soll im Header plaziert und aus allen anderen Templates entfernt werden. Der Compare, ob sich eine Datei geändert hat, soll den <auto-generated>-Block uns somit das GeneratedAt ignorieren.
 
 # Zu planende Entscheidungen
 
@@ -380,13 +367,7 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] Objekte, die nicht mehr im .spocr/schema enthalten sind aus dem Output löschen
 - [ ] TemplateEngine optimieren (z.B: verschachtelte for each ermöglichen)
 - [ ] Refactoring und Optimierung der SpocRVNext und vnext-Outputs durchführen
-- [ ] ResultSetNameResolver Improvements (geplant)
-      - [ ] CTE support (first base table inside final query if no direct NamedTableReference)
-      - [ ] FOR JSON PATH root alias extraction (use alias as name)
-      - [ ] Dynamic SQL detection -> explicit skip marker
-      - [ ] Collision test for suggested names
-      - [ ] Parser performance micro-benchmark & caching
-      - [ ] Optional config flag to disable resolver (SPOCR_DISABLE_RS_NAME_RESOLVER)
-      - [ ] Snapshot Integration: Prozedur-SQL Felder erfassen (`Sql` oder `Definition` Key) beim `spocr pull`
-      - [ ] Aktivierungs-Flag dokumentieren & Minimal-Doku (intern) erstellen
+- [ ] ResultSetNameResolver Improvements (geplant) - [ ] CTE support (first base table inside final query if no direct NamedTableReference) - [ ] FOR JSON PATH root alias extraction (use alias as name) - [ ] Dynamic SQL detection -> explicit skip marker - [ ] Collision test for suggested names - [ ] Parser performance micro-benchmark & caching - [ ] Optional config flag to disable resolver (SPOCR_DISABLE_RS_NAME_RESOLVER) - [ ] Snapshot Integration: Prozedur-SQL Felder erfassen (`Sql` oder `Definition` Key) beim `spocr pull` - [ ] Aktivierungs-Flag dokumentieren & Minimal-Doku (intern) erstellen
 - [ ] Warum sind die Inputs vom Typ Output nicht in den Inputs enthalten? Wir brauchen TwoWay Binding
+- [ ] .env.example: Nur gültige verwenden und Kommentare ergänzen
+- [ ] die erzeugte .env soll mit denselben Kommentaren wie die .env.example angereichert werden (.env.example dient als dem Generator als Vorlage?)
