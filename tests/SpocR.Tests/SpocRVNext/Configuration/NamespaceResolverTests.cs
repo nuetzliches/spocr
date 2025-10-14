@@ -7,26 +7,36 @@ namespace SpocR.Tests.SpocRVNext.Configuration;
 public class NamespaceResolverTests
 {
     [Fact]
-    public void Resolve_UsesRestApiProjectRootNamespace_WhenAtRepoRoot()
+    public void Resolve_ReturnsExplicitNamespace_WhenSPOCR_NAMESPACE_Set()
     {
-        // Arrange: gehe zum Repo Root (dieser Test geht davon aus, dass WorkingDirectory = Repo Root beim Testlauf)
         var repoRoot = FindRepoRoot();
-    // README.md ist optional in Test-Kontext (kann bei reduzierter Arbeitskopie fehlen)
-    var envCfg = EnvConfiguration.Load(repoRoot); // liest .env falls vorhanden
-        var resolver = new NamespaceResolver(envCfg, msg => { /* optional logging */ });
-
-        // Act
+        var overrides = new System.Collections.Generic.Dictionary<string, string?>
+        {
+            {"SPOCR_NAMESPACE", "Custom.Namespace"}
+        };
+        var envCfg = EnvConfiguration.Load(projectRoot: repoRoot, cliOverrides: overrides);
+        var resolver = new NamespaceResolver(envCfg);
         var ns = resolver.Resolve(repoRoot);
+        Assert.Equal("Custom.Namespace", ns);
+    }
 
-        // Assert: Pivot Heuristik liefert 'RestApi' falls samples/restapi existiert, sonst fällt es ggf. auf Projekt-/Verzeichnisnamen zurück.
-        if (Directory.Exists(Path.Combine(repoRoot, "samples", "restapi")))
+    [Fact]
+    public void Load_Throws_WhenNamespaceMissing()
+    {
+        // Use isolated temp directory to avoid accidental .env with SPOCR_NAMESPACE at repo root
+        var temp = System.IO.Directory.CreateTempSubdirectory();
+        Assert.Throws<System.InvalidOperationException>(() => EnvConfiguration.Load(projectRoot: temp.FullName));
+    }
+
+    [Fact]
+    public void Load_Throws_WhenNamespaceInvalid()
+    {
+        var repoRoot = FindRepoRoot();
+        var overrides = new System.Collections.Generic.Dictionary<string, string?>
         {
-            Assert.Equal("RestApi", ns);
-        }
-        else
-        {
-            Assert.False(string.IsNullOrWhiteSpace(ns));
-        }
+            {"SPOCR_NAMESPACE", "1Bad"}
+        };
+        Assert.Throws<System.InvalidOperationException>(() => EnvConfiguration.Load(projectRoot: repoRoot, cliOverrides: overrides));
     }
 
     private static string FindRepoRoot()

@@ -17,7 +17,7 @@ public sealed class EnvConfiguration
     public string? ConnectionStringIdentifier { get; init; } // from SPOCR_DB_IDENTIFIER or SPOCR_DB_DEFAULT (alias)
     public string? GeneratorConnectionString { get; init; } // from SPOCR_GENERATOR_DB (full connection string)
     public string? DefaultConnection { get; init; } // backward compatibility mirror (will carry GeneratorConnectionString if present otherwise identifier content)
-    public string? NamespaceRoot { get; init; }
+    public string? NamespaceRoot { get; init; } // from SPOCR_NAMESPACE
     public string? OutputDir { get; init; }
     // Pfad zur verwendeten spocr.json (falls via CLI -p übergeben), wird extern gesetzt
     public string? ConfigPath { get; init; }
@@ -25,7 +25,7 @@ public sealed class EnvConfiguration
     /// <summary>
     /// Load configuration. projectRoot should be the execution / target project directory (path passed via --path in legacy CLI) so that .env discovery & creation occur there.
     /// </summary>
-    public static EnvConfiguration Load(string? projectRoot = null, IDictionary<string, string?>? cliOverrides = null)
+    public static EnvConfiguration Load(string? projectRoot = null, IDictionary<string, string?>? cliOverrides = null, string? explicitConfigPath = null)
     {
         projectRoot ??= Directory.GetCurrentDirectory();
         var envFilePath = ResolveEnvFile(projectRoot);
@@ -58,7 +58,8 @@ public sealed class EnvConfiguration
             GeneratorConnectionString = fullConn,
             DefaultConnection = fullConn ?? id, // maintain earlier property semantics
             NamespaceRoot = NullIfEmpty(Get("SPOCR_NAMESPACE")),
-            OutputDir = NullIfEmpty(Get("SPOCR_OUTPUT_DIR"))
+            OutputDir = NullIfEmpty(Get("SPOCR_OUTPUT_DIR")),
+            ConfigPath = explicitConfigPath
         };
 
         // Apply default for OutputDir
@@ -71,25 +72,9 @@ public sealed class EnvConfiguration
                 GeneratorConnectionString = cfg.GeneratorConnectionString,
                 DefaultConnection = cfg.DefaultConnection,
                 NamespaceRoot = cfg.NamespaceRoot,
-                OutputDir = "SpocR"
+                OutputDir = "SpocR",
+                ConfigPath = cfg.ConfigPath
             };
-        }
-
-        // Fallback: derive namespace if not provided
-        if (string.IsNullOrWhiteSpace(cfg.NamespaceRoot))
-        {
-            var resolver = new NamespaceResolver(cfg, msg => Console.Error.WriteLine(msg));
-            var resolved = resolver.Resolve(projectRoot);
-            cfg = new EnvConfiguration
-            {
-                GeneratorMode = cfg.GeneratorMode,
-                ConnectionStringIdentifier = cfg.ConnectionStringIdentifier,
-                GeneratorConnectionString = cfg.GeneratorConnectionString,
-                DefaultConnection = cfg.DefaultConnection,
-                NamespaceRoot = resolved,
-                OutputDir = cfg.OutputDir
-            };
-            Console.Out.WriteLine($"[spocr vNext] Info: Namespace for generated files: '{cfg.NamespaceRoot}' (auto-derived; set SPOCR_NAMESPACE to override)");
         }
 
         // If dual/next and .env missing, interactive bootstrap (console scenario only)
@@ -123,7 +108,8 @@ public sealed class EnvConfiguration
                             GeneratorConnectionString = cfg.GeneratorConnectionString,
                             DefaultConnection = cfg.DefaultConnection,
                             NamespaceRoot = cfg.NamespaceRoot,
-                            OutputDir = cfg.OutputDir
+                            OutputDir = cfg.OutputDir,
+                            ConfigPath = cfg.ConfigPath
                         };
                     }
                     else if (File.Exists(bootstrapPath))
@@ -141,7 +127,8 @@ public sealed class EnvConfiguration
                         GeneratorConnectionString = cfg.GeneratorConnectionString,
                         DefaultConnection = cfg.DefaultConnection,
                         NamespaceRoot = cfg.NamespaceRoot,
-                        OutputDir = cfg.OutputDir
+                        OutputDir = cfg.OutputDir,
+                        ConfigPath = cfg.ConfigPath
                     };
                 }
             }
@@ -164,6 +151,26 @@ public sealed class EnvConfiguration
 
     private static void Validate(EnvConfiguration cfg, string? envFilePath)
     {
+        // Namespace must be present (already enforced earlier) and follow pattern (letters/underscore start, then letters/digits/._)
+        if (!string.IsNullOrWhiteSpace(cfg.NamespaceRoot))
+        {
+            var ns = cfg.NamespaceRoot.Trim();
+            if (!System.Text.RegularExpressions.Regex.IsMatch(ns, @"^[A-Za-z_][A-Za-z0-9_\.]*$"))
+            {
+                throw new InvalidOperationException($"SPOCR_NAMESPACE '{ns}' is invalid. Allowed pattern: ^[A-Za-z_][A-Za-z0-9_\\.]*$");
+            }
+            if (ns.Contains(".."))
+            {
+                throw new InvalidOperationException("SPOCR_NAMESPACE contains consecutive dots '..' which is not allowed.");
+            }
+        }
+        if (!string.IsNullOrWhiteSpace(cfg.OutputDir))
+        {
+            if (cfg.OutputDir.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+            {
+                throw new InvalidOperationException($"SPOCR_OUTPUT_DIR '{cfg.OutputDir}' contains invalid path characters.");
+            }
+        }
         if (cfg.GeneratorMode is "dual" or "next")
         {
             if (string.IsNullOrEmpty(envFilePath) || !File.Exists(envFilePath))

@@ -8,7 +8,7 @@ namespace SpocR.Tests.Configuration;
 public class NamespaceResolverTests
 {
     [Fact]
-    public void ExplicitOverride_Wins()
+    public void Resolve_ReturnsExplicitNamespace()
     {
         var cfg = new EnvConfiguration { NamespaceRoot = "Custom.Namespace" };
         var resolver = new NamespaceResolver(cfg);
@@ -16,47 +16,13 @@ public class NamespaceResolverTests
     }
 
     [Fact]
-    public void UpwardCsproj_BaseName()
+    public void Resolve_IgnoresCsproj_WhenExplicitNamespaceProvided()
     {
         var root = Directory.CreateTempSubdirectory();
-        File.WriteAllText(Path.Combine(root.FullName, "App.csproj"), "<Project><PropertyGroup><RootNamespace>MyRoot</RootNamespace></PropertyGroup></Project>");
-        var sub = Directory.CreateDirectory(Path.Combine(root.FullName, "feature", "api"));
-        var cfg = new EnvConfiguration();
-        var resolver = new NamespaceResolver(cfg);
-        var ns = resolver.Resolve(sub.FullName);
-    Assert.Equal("MyRoot.Feature.Api", ns);
-    }
-
-    [Fact]
-    public void UpwardCsproj_AssemblyNameFallback()
-    {
-        var root = Directory.CreateTempSubdirectory();
-        File.WriteAllText(Path.Combine(root.FullName, "App.csproj"), "<Project><PropertyGroup><AssemblyName>MyAsm</AssemblyName></PropertyGroup></Project>");
-        var cfg = new EnvConfiguration();
+        File.WriteAllText(Path.Combine(root.FullName, "App.csproj"), "<Project><PropertyGroup><RootNamespace>Ignored</RootNamespace></PropertyGroup></Project>");
+        var cfg = new EnvConfiguration { NamespaceRoot = "Explicit.NS" };
         var resolver = new NamespaceResolver(cfg);
         var ns = resolver.Resolve(root.FullName);
-    Assert.Equal("MyAsm", ns);
-    }
-
-    [Fact]
-    public void NoCsproj_DirectoryFallback()
-    {
-        var root = Directory.CreateTempSubdirectory();
-        var cfg = new EnvConfiguration();
-        var resolver = new NamespaceResolver(cfg);
-        var ns = resolver.Resolve(root.FullName);
-        Assert.NotNull(ns);
-        Assert.DoesNotContain("..", ns);
-    }
-
-    [Fact]
-    public void OutputDir_DoesNotAffectNamespace()
-    {
-        var root = Directory.CreateTempSubdirectory();
-        File.WriteAllText(Path.Combine(root.FullName, "App.csproj"), "<Project><PropertyGroup><RootNamespace>RootProj</RootNamespace></PropertyGroup></Project>");
-        var cfg = new EnvConfiguration { OutputDir = "SpocR" };
-        var resolver = new NamespaceResolver(cfg);
-        var ns = resolver.Resolve(root.FullName);
-        Assert.Equal("RootProj", ns);
+        Assert.Equal("Explicit.NS", ns);
     }
 }

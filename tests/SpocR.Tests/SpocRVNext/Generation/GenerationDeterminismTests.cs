@@ -17,7 +17,7 @@ public class GenerationDeterminismTests
     public void RepeatedRuns_AreDeterministic_ForProceduresAndInputs()
     {
         var root = Directory.CreateTempSubdirectory();
-        File.WriteAllText(Path.Combine(root.FullName, ".env"), "SPOCR_GENERATOR_MODE=next\n");
+        File.WriteAllText(Path.Combine(root.FullName, ".env"), "SPOCR_GENERATOR_MODE=next\nSPOCR_NAMESPACE=Determinism.Sample\n");
         var schemaDir = Path.Combine(root.FullName, ".spocr", "schema");
         Directory.CreateDirectory(schemaDir);
         var snapshot = "{\n  \"Procedures\": [\n    {\n      \"Name\": \"CalcB\",\n      \"Schema\": \"dbo\",\n      \"Inputs\": [ { \"Name\": \"@Y\", \"IsOutput\": false, \"SqlTypeName\": \"int\", \"IsNullable\": false }, { \"Name\": \"@X\", \"IsOutput\": true, \"SqlTypeName\": \"int\", \"IsNullable\": true } ],\n      \"ResultSets\": [ { \"Columns\": [ { \"Name\": \"Val\", \"SqlTypeName\": \"int\", \"IsNullable\": true } ] } ]\n    },\n    {\n      \"Schema\": \"dbo\",\n      \"Name\": \"CalcA\",\n      \"ResultSets\": [ { \"Columns\": [ { \"Name\": \"Value\", \"SqlTypeName\": \"int\", \"IsNullable\": false } ] } ],\n      \"Inputs\": []\n    }\n  ]\n}";

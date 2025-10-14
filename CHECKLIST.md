@@ -26,16 +26,16 @@ Legende Prioritäten: P1 = kritisch für v5 Cutover, P2 = hoch für Bridge (v4.5
 
 Aktueller Fokus (Top 10 P1/P2):
 
-1. (P1) E002 Sample-Gate: Automatisierter CRUD Smoke-Test & CI Integration (Smoke Script vorhanden; CI & stabile Ausführung noch offen)
-2. (P1) E014 End-to-End Nutzung mind. einer Stored Procedure im Sample (Endpoints + Logging vorhanden; 500 Fehleranalyse laufend)
+1. (P1) E002 Sample-Gate: Automatisierter CRUD Smoke-Test & CI Integration (Smoke Script erweitert: Retry, Endpoint-Diagnostik, Golden Hash; DB-Ping Timeout Blocker noch offen, CI Integration ausstehend)
+2. (P1) E014 End-to-End Nutzung mind. einer Stored Procedure im Sample (UserList Endpoint + Count/Ping vorhanden; Aggregation Cast-Bug gefixt; aktueller Blocker: DB Connection Timeout vor Prozedur-Ausführung)
 3. (P1) ResultSet Naming Strategie intern finalisieren (öffentliche Doku deferred bis SQL Snapshot vorhanden)
 4. (P1) Snapshot Erweiterung: Prozedur-SQL in Snapshot persistieren (Voraussetzung Resolver Aktivierung)
 5. (P1) Snapshot/Determinismus Tests erweitern (Resolver Aktivierung, Konfliktnamen) – Basis vorhanden
 6. (P2) E005 Template Engine Abschluss (Header Standardisierung, Basis-Testabdeckung Placeholder/#if/#each)
 7. (P2) E006 DbContext Sample-Endpunkt wirklich lauffähig (Health Endpoint + 1 Query) – Stabilisierung
-8. (P2) Konfig-Bereinigung E008: Entfernte Properties dokumentieren (CHANGELOG + MIGRATION Snippet)
+8. (P2) Konfig-Bereinigung E008: Entfernte Properties dokumentieren (CHANGELOG + MIGRATION Snippet) – ENV Precedence vorbereitet, Doku offen
 9. (P2) Cutover Plan E010 (ROADMAP Eintrag + README Abschnitt)
-10. (P2) Automatisierte Quality-Gates Skript in CI (eng/quality-gates.ps1) ausführen & dokumentieren
+10. (P2) Automatisierte Quality-Gates Skript in CI (eng/quality-gates.ps1) ausführen & dokumentieren – lokal lauffähig, CI Schritt fehlt
 
 Kurzfristig depriorisiert (Beispiele P3/P4): Performance Profiling, Nested Template Loops, Strict-Diff Eskalation, Minor Nullability Phase 2.
 
@@ -47,7 +47,7 @@ Das Testing erfolgt aktuell aus den SQL-Daten: samples\mssql\init
 Daraus wird mit dem Befehl:
 
 ```bash
-dotnet run --project src/SpocR.csproj -- rebuild -p samples/restapi/spocr.json --no-auto-update
+dotnet run --project src/SpocR.csproj -- rebuild -p samples/restapi/spocr.json
 ```
 
 das Schema samples\restapi.spocr\schema produziert.
@@ -154,6 +154,17 @@ EPICS Übersicht (oberste Steuerungsebene)
 
 ### Operative Tasks aus EPICS (Detail-Aufgaben folgen unter thematischen Sektionen)
 
+#### Aktueller Debug-/Diagnose-Status (vNext Sample)
+
+- [x] Pipeline + Endpoint Stage Logging implementiert (/api/users, Middleware)
+- [x] Zusatzendpunkte: /api/users/count, /api/users/ping
+- [x] Executor Fix (List<object> vs object[] AggregateFactory)
+- [x] DB-Ping Instrumentierung (/api/dbping, raw Variante in Code – noch nicht im Script)
+- [x] Smoke Script: Retry, Endpoint Listing, Body-Diagnostics, Limitierung UserList Payload
+- [ ] Stabiler DB Connect (Timeout vor Handler – Analyse: Container Cold Start / Warmup Nebenwirkung / Firewall)
+- [ ] Warmup Task prüfen (möglicher Shutdown-Auslöser) / deaktivieren
+- [ ] CI Smoke Integration
+
 ### Qualität & Tests
 
 - [x] Alle bestehenden Unit- & Integrationstests grün (Tests.sln)
@@ -246,12 +257,12 @@ EPICS Übersicht (oberste Steuerungsebene)
 ### Samples / Demo (samples/restapi)
 
 - [ ] Sample baut mit aktuellem Generator (dotnet build)
-- [~] Sample führt grundlegende DB Operationen erfolgreich aus (CRUD Smoke Test) – Script vorhanden, Execution stabilisieren (500 UserList)
+- [~] Sample führt grundlegende DB Operationen erfolgreich aus (CRUD Smoke Test) – Script vorhanden - Vorher: 500 UserList (InvalidCast) → behoben - Aktuell: DB-Ping Timeout blockiert vor Prozedur-Aufruf
 - [~] Automatisierter Mini-Test (skriptgesteuert) prüft Generierung & Start der Web API (smoke.ps1 vorhanden, Integration in CI fehlt)
 - [ ] Sample beschreibt Aktivierung des neuen Outputs (Feature Flag) im README
 - [ ] Schema Rebuild Pipeline (`dotnet run --project src/SpocR.csproj -- rebuild -p samples/restapi/spocr.json --no-auto-update`) erzeugt deterministisch `samples/restapi/.spocr/schema`
-- [~] Generierter Output in `samples/restapi/SpocR` deterministisch (Hash Vergleich) nach Rebuild (Golden Hash Feature implementiert, CI Verify offen)
-- [ ] Namespace-Korrektur: `samples/restapi/SpocR/ITableType.cs` → `namespace RestApi.SpocR;`
+- [~] Generierter Output in `samples/restapi/SpocR` deterministisch (Golden Hash Feature implementiert, CI Verify offen) - Golden Write/Verify verfügbar, noch nicht in CI
+- [x] Namespace-Korrektur: `samples/restapi/SpocR/ITableType.cs` → `namespace RestApi.SpocR;`
 - [ ] Namespace-Korrektur: Dateien unter `samples/restapi/SpocR/samples/` → `namespace RestApi.SpocR.samples;`
 - [x] Namespace-Korrektur: Dateien unter `samples/restapi/SpocR/samples/` → vereinheitlicht zu `namespace RestApi.SpocR.<SchemaPascalCase>` (ohne Kategorie-Segmente)
 
@@ -352,12 +363,25 @@ EPICS Übersicht (oberste Steuerungsebene)
       Hinweis: Einzelne RowSet-Dateien existieren nicht mehr; alle Records (Inputs/Outputs/ResultSets/Aggregate/Plan/Executor) liegen in einer konsolidierten `<Proc>.cs`.
       Folgeaufgaben (neu): - [ ] Test: Konsolidierte Datei enthält erwartete Abschnitte in definierter Reihenfolge (Header, Inputs, Outputs, ResultSet Records, Aggregate, Plan, Executor) - [ ] Test: Kein doppelter Record-Name bei mehreren ResultSets (Namens-Kollision Absicherung) - [ ] Aktivierungs-Test Resolver (nach SQL Snapshot) – nur generische `ResultSetX` werden ersetzt; andere unverändert - [ ] Negative Test: Ungültige / unparsbare SQL → Resolver überspringt sicher (Fallback bleibt deterministisch)
 - [x] Auto-Namespace Fallback für samples/restapi implementiert (erzwingt Basis `RestApi`) - [ ] Ergänzender Test für WorkingDir = `samples/restapi` (Folgetask – aktuell indirekt durch Integration abgedeckt)
-- [ ] .env Override Nutzung (SPOCR_NAMESPACE) dokumentieren & Beispiel ergänzen - [ ] README / docs: Abschnitt "Namespace Ableitung & Override" inkl. Beispiel diff
+- [ ] .env Override Nutzung (SPOCR_NAMESPACE) dokumentieren & Beispiel ergänzen - [ ] README / docs: Abschnitt "Namespace Ableitung & Override" inkl. Beispiel diff - Fallback / Erzwingung via Smoke Script aktiv, Doku fehlt
 - [ ] Einheitliche Klein-/Großschreibung Schema-Ordner - [ ] Normalisierung (Entscheidung: Beibehalt Original vs. PascalCase) - [ ] Test: Mixed Case Snapshot → generierter Ordner konsistent - Status: Implementiert als PascalCase (Generator), Dokumentation noch offen
-- [ ] Dateinamen & Determinismus zusätzliche Tests - [x] Grundlegende deterministische Hash Tests (Golden Snapshot) vorhanden - [x] Konsolidierte UnifiedProcedure Tests (Hash & IO Single Definition) - [ ] Erweiterung: spezifische Artefakt-Typen (StoredProcedure Wrapper Section, ResultSet Records innerhalb Konsolidierungs-Datei) - [ ] Dateinamens-Konflikt Test (zwei Procs mit ähnlichen Namen + Suffix Handling)
-- [ ] Dispatcher next-only Pfad: Gleiches Full Generation Set wie dual - [ ] Prüfen Codepfad (`SpocRGenerator` / Dispatcher) - [ ] Test: MODE=next erzeugt identische Artefakte wie dual (ohne Legacy)
+- [ ] Dateinamen & Determinismus zusätzliche Tests - [x] Grundlegende deterministische Hash Tests (Golden Snapshot) vorhanden - [x] Konsolidierte UnifiedProcedure Tests (Hash & IO Single Definition) - [ ] Erweiterung: spezifische Artefakt-Typen (StoredProcedure Wrapper Section, ResultSet Records innerhalb Konsolidierungs-Datei) - [ ] Dateinamens-Konflikt Test (zwei Procs mit ähnlichen Namen + Suffix Handling) - Hash Manifest aktiv; Strict Mode (Fail Fast) offen
+- [ ] Dispatcher next-only Pfad: Gleiches Full Generation Set wie dual - [ ] Prüfen Codepfad (`SpocRGenerator` / Dispatcher) - [ ] Test: MODE=next erzeugt identische Artefakte wie dual (ohne Legacy) - Bisher nur manuelle Stichproben, automatischer Vergleich fehlt
 - [x] Sicherstellen, dass samples/restapi/.env nicht in git landet (`.gitignore` aktualisiert)
-- [ ] src\SpocRVNext\Templates_Header.spt optimieren <auto-generated/> soll den gesamten Header umschließen. GeneratedAt soll im Header plaziert und aus allen anderen Templates entfernt werden. Der Compare, ob sich eine Datei geändert hat, soll den <auto-generated>-Block uns somit das GeneratedAt ignorieren.
+- [ ] src\SpocRVNext\Templates_Header.spt optimieren (<auto-generated/> Block vereinheitlichen + GeneratedAt Handling)
+
+## Nächste Kurzfristige Actions
+
+- [ ] Warmup Task entfernen oder flaggen
+- [ ] /api/dbping/raw ins Smoke Script integrieren
+- [ ] Explizit SPOCR_SAMPLE_RESTAPI_DB im Docker Smoke setzen (statt Fallback Warnung)
+- [ ] Erstversuch DB Connect Timeout 10–15s, danach kürzere Retries
+- [ ] Skript scripts/test-db.ps1 für isolierten Connectivity Test
+- [ ] CI: smoke.ps1 -UseDocker -VerifyGolden einbinden
+
+## Zwischenstand Zusammenfassung
+
+UserList Aggregation Fehler gelöst; aktueller Blocker ist DB Verbindung (Timeout vor Handler). Fokus: Isolierung (raw ping), Startup-Stabilisierung, dann CI Einbindung.
 
 # Zu planende Entscheidungen
 
@@ -371,3 +395,5 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] Warum sind die Inputs vom Typ Output nicht in den Inputs enthalten? Wir brauchen TwoWay Binding
 - [ ] .env.example: Nur gültige verwenden und Kommentare ergänzen
 - [ ] die erzeugte .env soll mit denselben Kommentaren wie die .env.example angereichert werden (.env.example dient als dem Generator als Vorlage?)
+
+- [ ] Das muss noch ein Fehler sein: [spocr namespace] No .csproj found upward. Using directory-based base name.

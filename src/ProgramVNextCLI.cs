@@ -31,7 +31,7 @@ internal static class ProgramVNextCLI
             description: "Generator mode (legacy|dual|next). Overrides SPOCR_GENERATOR_MODE if supplied.");
         var pathOption = new Option<string>(
             name: "--path",
-            description: "Execution / project path to operate on (for init-env). Defaults to current directory.");
+            description: "Execution / project path to operate on (for init-env / namespace derivation). Defaults to current directory.");
         var forceOption = new Option<bool>(
             name: "--force",
             description: "Force overwrite existing target file (for init-env)");
@@ -40,32 +40,37 @@ internal static class ProgramVNextCLI
         {
             modeOption
         };
-    demoCommand.SetHandler((string? mode) =>
-        {
-            // Build lightweight service provider per invocation (cheap here; can be cached if expanded)
-            var services = new ServiceCollection();
-            services.AddSingleton<SpocR.SpocRVNext.Engine.ITemplateRenderer, SpocR.SpocRVNext.Engine.SimpleTemplateEngine>();
-            services.AddSingleton<IExperimentalCliTelemetry, ConsoleExperimentalCliTelemetry>();
-            using var provider = services.BuildServiceProvider();
-            var telemetry = provider.GetRequiredService<IExperimentalCliTelemetry>();
-            var start = DateTime.UtcNow;
-            bool success = false;
-            string resolvedMode = "";
-            var envOverrides = new System.Collections.Generic.Dictionary<string, string?>();
-            if (!string.IsNullOrWhiteSpace(mode)) envOverrides["SPOCR_GENERATOR_MODE"] = mode;
-            var cfg = EnvConfiguration.Load(cliOverrides: envOverrides);
-            resolvedMode = cfg.GeneratorMode;
-            var renderer = provider.GetRequiredService<SpocR.SpocRVNext.Engine.ITemplateRenderer>();
-            var gen = new SpocRGenerator(renderer, schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider());
-            var output = gen.RenderDemo();
-            Console.WriteLine($"[mode={cfg.GeneratorMode}] {output}");
-            success = true;
-            telemetry.Record(new ExperimentalCliUsageEvent(
-                command: "generate-demo",
-                mode: resolvedMode,
-                duration: DateTime.UtcNow - start,
-                success: success));
-    }, modeOption);
+        demoCommand.SetHandler((string? mode, string? path) =>
+            {
+                // Build lightweight service provider per invocation (cheap here; can be cached if expanded)
+                var services = new ServiceCollection();
+                services.AddSingleton<SpocR.SpocRVNext.Engine.ITemplateRenderer, SpocR.SpocRVNext.Engine.SimpleTemplateEngine>();
+                services.AddSingleton<IExperimentalCliTelemetry, ConsoleExperimentalCliTelemetry>();
+                using var provider = services.BuildServiceProvider();
+                var telemetry = provider.GetRequiredService<IExperimentalCliTelemetry>();
+                var start = DateTime.UtcNow;
+                bool success = false;
+                string resolvedMode = "";
+                var envOverrides = new System.Collections.Generic.Dictionary<string, string?>();
+                if (!string.IsNullOrWhiteSpace(mode)) envOverrides["SPOCR_GENERATOR_MODE"] = mode;
+                string? pr = null;
+                if (!string.IsNullOrWhiteSpace(path))
+                {
+                    pr = System.IO.Path.GetFullPath(path);
+                }
+                var cfg = EnvConfiguration.Load(projectRoot: pr, cliOverrides: envOverrides, explicitConfigPath: path);
+                resolvedMode = cfg.GeneratorMode;
+                var renderer = provider.GetRequiredService<SpocR.SpocRVNext.Engine.ITemplateRenderer>();
+                var gen = new SpocRGenerator(renderer, schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider());
+                var output = gen.RenderDemo();
+                Console.WriteLine($"[mode={cfg.GeneratorMode}] {output}");
+                success = true;
+                telemetry.Record(new ExperimentalCliUsageEvent(
+                    command: "generate-demo",
+                    mode: resolvedMode,
+                    duration: DateTime.UtcNow - start,
+                    success: success));
+            }, modeOption, pathOption);
 
         root.Add(demoCommand);
 
@@ -73,19 +78,21 @@ internal static class ProgramVNextCLI
         {
             modeOption
         };
-        generateNextCommand.SetHandler((string? mode) =>
+        generateNextCommand.SetHandler((string? mode, string? path) =>
         {
             var services = new ServiceCollection();
             services.AddSingleton<SpocR.SpocRVNext.Engine.ITemplateRenderer, SpocR.SpocRVNext.Engine.SimpleTemplateEngine>();
             using var provider = services.BuildServiceProvider();
             var envOverrides = new System.Collections.Generic.Dictionary<string, string?>();
             if (!string.IsNullOrWhiteSpace(mode)) envOverrides["SPOCR_GENERATOR_MODE"] = mode;
-            var cfg = EnvConfiguration.Load(cliOverrides: envOverrides);
+            string? pr = null;
+            if (!string.IsNullOrWhiteSpace(path)) pr = System.IO.Path.GetFullPath(path);
+            var cfg = EnvConfiguration.Load(projectRoot: pr, cliOverrides: envOverrides, explicitConfigPath: path);
             var dispatcher = new SpocR.SpocRVNext.DualGenerationDispatcher(cfg, provider.GetRequiredService<SpocR.SpocRVNext.Engine.ITemplateRenderer>());
             var message = dispatcher.ExecuteDemo();
             Console.WriteLine(message);
             Console.WriteLine("Hash manifest (if next output) written under debug/codegen-demo/next/manifest.hash.json");
-        }, modeOption);
+        }, modeOption, pathOption);
         root.Add(generateNextCommand);
 
         // init-env command

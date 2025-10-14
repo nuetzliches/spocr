@@ -27,6 +27,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\SpocR.csproj" />
     <ProjectReference Include="..\SpocR.TestFramework\SpocR.TestFramework.csproj" />
+    <!-- Reference sample REST API to access generated SpocRDbContext for connectivity tests -->
+    <ProjectReference Include="..\..\samples\restapi\RestApi.csproj" />
   </ItemGroup>
 
   <ItemGroup>

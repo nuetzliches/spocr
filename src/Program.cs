@@ -49,12 +49,87 @@ public class Program
     /// </summary>
     public static async Task<int> RunCliAsync(string[] args)
     {
+        // Early sniff -p/--path to set SPOCR_CONFIG_PATH before EnvConfiguration is loaded
+        try
+        {
+            string? cliConfig = null;
+            for (int i = 0; i < args.Length; i++)
+            {
+                var a = args[i];
+                if (string.Equals(a, "-p", StringComparison.OrdinalIgnoreCase) || string.Equals(a, "--path", StringComparison.OrdinalIgnoreCase))
+                {
+                    if (i + 1 < args.Length)
+                    {
+                        cliConfig = args[i + 1];
+                    }
+                }
+                else if (a.StartsWith("-p=", StringComparison.OrdinalIgnoreCase))
+                {
+                    cliConfig = a.Substring(3);
+                }
+                else if (a.StartsWith("--path=", StringComparison.OrdinalIgnoreCase))
+                {
+                    cliConfig = a.Substring("--path=".Length);
+                }
+            }
+            if (!string.IsNullOrWhiteSpace(cliConfig))
+            {
+                // Normalize to full path; if it's a file (spocr.json) keep it; if directory append spocr.json if present
+                var full = Path.GetFullPath(cliConfig);
+                if (Directory.Exists(full))
+                {
+                    var candidate = Path.Combine(full, "spocr.json");
+                    if (File.Exists(candidate)) full = candidate; // prefer explicit file if exists
+                }
+                Environment.SetEnvironmentVariable("SPOCR_CONFIG_PATH", full);
+            }
+        }
+        catch { /* non-fatal */ }
+
         // Experimental vNext CLI (System.CommandLine) short-circuit if enabled
         var experimentalExit = await ProgramVNextCLI.TryRunAsync(args);
         if (experimentalExit != -999)
         {
             return experimentalExit;
         }
+
+        // Early lightweight .env parse to project root for update skip flags (SPOCR_NO_UPDATE / SPOCR_SKIP_UPDATE)
+        try
+        {
+            void LoadSkipVarsFromEnv(string path)
+            {
+                if (!File.Exists(path)) return;
+                foreach (var line in File.ReadAllLines(path))
+                {
+                    var trimmed = line.Trim();
+                    if (trimmed.Length == 0 || trimmed.StartsWith('#')) continue;
+                    var eq = trimmed.IndexOf('=');
+                    if (eq <= 0) continue;
+                    var key = trimmed.Substring(0, eq).Trim();
+                    if (key.Equals("SPOCR_NO_UPDATE", StringComparison.OrdinalIgnoreCase) || key.Equals("SPOCR_SKIP_UPDATE", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var val = trimmed.Substring(eq + 1).Trim();
+                        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(key)))
+                        {
+                            Environment.SetEnvironmentVariable(key, val);
+                        }
+                    }
+                }
+            }
+            var cwd = Directory.GetCurrentDirectory();
+            LoadSkipVarsFromEnv(Path.Combine(cwd, ".env"));
+            var cfgPath = Environment.GetEnvironmentVariable("SPOCR_CONFIG_PATH");
+            if (!string.IsNullOrWhiteSpace(cfgPath))
+            {
+                try
+                {
+                    string dir = File.Exists(cfgPath) ? Path.GetDirectoryName(cfgPath)! : cfgPath;
+                    LoadSkipVarsFromEnv(Path.Combine(dir, ".env"));
+                }
+                catch { /* ignore */ }
+            }
+        }
+        catch { /* non-fatal */ }
 
         // Determine environment from environment variables
         string environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ??
@@ -77,7 +152,8 @@ public class Program
         // Register EnvConfiguration (vNext config model – still coexists with legacy spocr.json consumers)
         try
         {
-            var envCfg = EnvConfiguration.Load();
+            var explicitCfg = Environment.GetEnvironmentVariable("SPOCR_CONFIG_PATH");
+            var envCfg = EnvConfiguration.Load(explicitConfigPath: explicitCfg);
             services.AddSingleton(envCfg);
         }
         catch (Exception ex)

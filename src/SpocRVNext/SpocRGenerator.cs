@@ -79,7 +79,7 @@ public sealed class SpocRGenerator
             return 0; // vNext generation disabled in legacy mode
         // Namespace ableiten unter Berücksichtigung des Konfigurationspfades (-p)
         var resolver = new NamespaceResolver(cfg, msg => Console.Out.WriteLine(msg));
-        var nsBase = resolver.ResolveForConfigPath(cfg.ConfigPath); // nutzt csproj nahe Konfiguration oder CWD
+        var nsBase = resolver.Resolve(projectRoot); // vereinfacht: nur Verzeichnis von configPath oder projectRoot
         // Compose final namespace: append output dir once
         var outSeg = string.IsNullOrWhiteSpace(cfg.OutputDir) ? "SpocR" : cfg.OutputDir!.Trim('.');
         var ns = nsBase.EndsWith('.' + outSeg, StringComparison.OrdinalIgnoreCase) ? nsBase : nsBase + '.' + outSeg;
