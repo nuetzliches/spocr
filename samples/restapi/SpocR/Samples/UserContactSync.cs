@@ -13,25 +13,15 @@ using System.Threading;
 using System.Threading.Tasks;
 using RestApi.SpocR;
 
-// Input DTO ------------------------------------------------------------------------------------------------
-
 public readonly record struct UserContactSyncInput(
     string Contacts
 );
-
-
-// Output DTO (aggregated output parameters) ----------------------------------------------------------------
-
-
-// Result set row records -----------------------------------------------------------------------------------
 
 public readonly record struct UserContactSyncResultSet1Result(
     int? UpdatedContacts,
     int? MissingContacts
 );
 
-
-// Unified result (success + error + result sets + output object) ------------------------------------------
 public sealed class UserContactSyncResult
 {
 	public bool Success { get; init; }
@@ -40,7 +30,6 @@ public sealed class UserContactSyncResult
 	
 }
 
-// Execution plan (parameters, result set mappings, factories, binder) -------------------------------------
 internal static partial class UserContactSyncProcedurePlan
 {
     private static ProcedureExecutionPlan? _cached;
@@ -67,7 +56,6 @@ internal static partial class UserContactSyncProcedurePlan
     }
 }
 
-// Public wrapper API ---------------------------------------------------------------------------------------
 public static class UserContactSyncProcedure
 {
 	public const string Name = "samples.UserContactSync";

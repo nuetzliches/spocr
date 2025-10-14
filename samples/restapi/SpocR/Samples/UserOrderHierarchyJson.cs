@@ -13,14 +13,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using RestApi.SpocR;
 
-// Input DTO ------------------------------------------------------------------------------------------------
-
-
-// Output DTO (aggregated output parameters) ----------------------------------------------------------------
-
-
-// Result set row records -----------------------------------------------------------------------------------
-
 public readonly record struct UserOrderHierarchyJsonResultSet1Result(
     int UserId,
     string DisplayName,
@@ -28,8 +20,6 @@ public readonly record struct UserOrderHierarchyJsonResultSet1Result(
     string Orders
 );
 
-
-// Unified result (success + error + result sets + output object) ------------------------------------------
 public sealed class UserOrderHierarchyJsonResult
 {
 	public bool Success { get; init; }
@@ -38,7 +28,6 @@ public sealed class UserOrderHierarchyJsonResult
 	
 }
 
-// Execution plan (parameters, result set mappings, factories, binder) -------------------------------------
 internal static partial class UserOrderHierarchyJsonProcedurePlan
 {
     private static ProcedureExecutionPlan? _cached;
@@ -62,7 +51,6 @@ internal static partial class UserOrderHierarchyJsonProcedurePlan
     }
 }
 
-// Public wrapper API ---------------------------------------------------------------------------------------
 public static class UserOrderHierarchyJsonProcedure
 {
 	public const string Name = "samples.UserOrderHierarchyJson";

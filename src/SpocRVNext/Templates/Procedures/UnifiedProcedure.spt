@@ -5,16 +5,23 @@ namespace {{ Namespace }};
 {{ UsingDirectives }}
 
 {{#if HasInput}}
-{{ InputRecordBlock }}
+public readonly record struct {{ InputTypeName }}(
+{{#each InputParameters}}    {{ ClrType }} {{ PropertyName }}{{ Comma }}
+{{/each}});
 {{/if}}
 
 {{#if HasOutput}}
-{{ OutputRecordBlock }}
+public readonly record struct {{ OutputTypeName }}(
+{{#each OutputFields}}    {{ ClrType }} {{ PropertyName }}{{ Comma }}
+{{/each}});
 {{/if}}
 
 {{#if HasResultSets}}
-{{ ResultSetRecordsBlock }}
-{{/if}}
+{{#each ResultSets}}public readonly record struct {{ TypeName }}(
+{{ FieldsBlock }}
+);
+
+{{/each}}{{/if}}
 
 public sealed class {{ UnifiedResultTypeName }}
 {

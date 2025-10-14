@@ -13,30 +13,20 @@ using System.Threading;
 using System.Threading.Tasks;
 using RestApi.SpocR;
 
-// Input DTO ------------------------------------------------------------------------------------------------
-
 public readonly record struct SumWithOutputInput(
     int? A,
     int? B
 );
-
-
-// Output DTO (aggregated output parameters) ----------------------------------------------------------------
 
 public readonly record struct SumWithOutputOutput(
     int? Sum,
     bool? Success
 );
 
-
-// Result set row records -----------------------------------------------------------------------------------
-
 public readonly record struct SumWithOutputResultSet1Result(
     int? Result
 );
 
-
-// Unified result (success + error + result sets + output object) ------------------------------------------
 public sealed class SumWithOutputResult
 {
 	public bool Success { get; init; }
@@ -46,7 +36,6 @@ public sealed class SumWithOutputResult
 	
 }
 
-// Execution plan (parameters, result set mappings, factories, binder) -------------------------------------
 internal static partial class SumWithOutputProcedurePlan
 {
     private static ProcedureExecutionPlan? _cached;
@@ -77,7 +66,6 @@ internal static partial class SumWithOutputProcedurePlan
     }
 }
 
-// Public wrapper API ---------------------------------------------------------------------------------------
 public static class SumWithOutputProcedure
 {
 	public const string Name = "samples.SumWithOutput";

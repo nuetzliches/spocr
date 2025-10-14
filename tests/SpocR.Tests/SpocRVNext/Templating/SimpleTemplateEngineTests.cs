@@ -48,4 +48,5 @@ public class SimpleTemplateEngineTests
         var result = _engine.Render(string.Empty, new { A = 1 });
         result.ShouldBe(string.Empty);
     }
+
 }

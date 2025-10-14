@@ -40,7 +40,7 @@ internal static class ProgramVNextCLI
         {
             modeOption
         };
-        demoCommand.SetHandler(async (string? mode) =>
+    demoCommand.SetHandler((string? mode) =>
         {
             // Build lightweight service provider per invocation (cheap here; can be cached if expanded)
             var services = new ServiceCollection();
@@ -65,7 +65,7 @@ internal static class ProgramVNextCLI
                 mode: resolvedMode,
                 duration: DateTime.UtcNow - start,
                 success: success));
-        }, modeOption);
+    }, modeOption);
 
         root.Add(demoCommand);
 

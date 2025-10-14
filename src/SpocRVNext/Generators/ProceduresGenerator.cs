@@ -5,6 +5,7 @@ using System.Text;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.Common;
+using System.Text.RegularExpressions;
 using SpocR.SpocRVNext.Engine;
 using SpocR.SpocRVNext.Metadata;
 using SpocR.SpocRVNext.Utils;
@@ -97,52 +98,18 @@ public sealed class ProceduresGenerator
             {
                 var usingBlock = "using System;\nusing System.Collections.Generic;\nusing System.Data;\nusing System.Data.Common;\nusing System.Threading;\nusing System.Threading.Tasks;\nusing " + ns + ";";
 
-                // Input record block (kept simple for now)
-                var inputBlock = new StringBuilder();
-                if (proc.InputParameters.Count > 0)
-                {
-                    inputBlock.AppendLine($"public readonly record struct {inputTypeName}(");
-                    for (int i = 0; i < proc.InputParameters.Count; i++)
-                    {
-                        var pdesc = proc.InputParameters[i];
-                        var comma = i == proc.InputParameters.Count - 1 ? string.Empty : ",";
-                        inputBlock.AppendLine($"    {pdesc.ClrType} {pdesc.PropertyName}{comma}");
-                    }
-                    inputBlock.AppendLine(");");
-                }
-                var outputBlock = new StringBuilder();
-                if (proc.OutputFields.Count > 0)
-                {
-                    outputBlock.AppendLine($"public readonly record struct {outputTypeName}(");
-                    for (int i = 0; i < proc.OutputFields.Count; i++)
-                    {
-                        var f = proc.OutputFields[i];
-                        var comma = i == proc.OutputFields.Count - 1 ? string.Empty : ",";
-                        outputBlock.AppendLine($"    {f.ClrType} {f.PropertyName}{comma}");
-                    }
-                    outputBlock.AppendLine(");");
-                }
-                // Result set row records
-                var rsRecordsBlock = new StringBuilder();
+                // Structured metadata for template-driven record generation
                 var rsMeta = new List<object>();
                 int rsIdx = 0;
                 foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
                 {
                     var rsType = NamePolicy.ResultSet(procPart, rs.Name);
-                    rsRecordsBlock.AppendLine($"public readonly record struct {rsType}(");
-                    for (int i = 0; i < rs.Fields.Count; i++)
-                    {
-                        var f = rs.Fields[i];
-                        var comma = i == rs.Fields.Count - 1 ? string.Empty : ",";
-                        rsRecordsBlock.AppendLine($"    {f.ClrType} {f.PropertyName}{comma}");
-                    }
-                    rsRecordsBlock.AppendLine(");");
-                    rsRecordsBlock.AppendLine();
                     // Build plan meta for template
                     var ordinalDecls = string.Join(" ", rs.Fields.Select((f, idx) => $"int o{idx}=r.GetOrdinal(\"{f.Name}\");"));
                     var fieldExprs = string.Join(", ", rs.Fields.Select((f, idx) => MaterializeFieldExpressionCached(f, idx)));
                     var propName = rs.Name.StartsWith("ResultSet", StringComparison.OrdinalIgnoreCase) ? "Result" + rs.Name.Substring("ResultSet".Length) : rs.Name;
                     var assignment = $", {propName} = rs.Length > {rsIdx} ? Array.ConvertAll(((System.Collections.Generic.List<object>)rs[{rsIdx}]).ToArray(), o => ({rsType})o).ToList() : Array.Empty<{rsType}>()";
+                    var fieldsBlock = string.Join(Environment.NewLine, rs.Fields.Select((f,i) => $"    {f.ClrType} {f.PropertyName}{(i==rs.Fields.Count-1?string.Empty:",")}"));
                     rsMeta.Add(new {
                         Name = rs.Name,
                         TypeName = rsType,
@@ -150,7 +117,8 @@ public sealed class ProceduresGenerator
                         OrdinalDecls = ordinalDecls,
                         FieldExprs = fieldExprs,
                         Index = rsIdx,
-                        AggregateAssignment = assignment
+                        AggregateAssignment = assignment,
+                        FieldsBlock = fieldsBlock
                     });
                     rsIdx++;
                 }
@@ -176,9 +144,8 @@ public sealed class ProceduresGenerator
                     HasInput = proc.InputParameters.Count > 0,
                     HasOutput = proc.OutputFields.Count > 0,
                     HasResultSets = proc.ResultSets.Count > 0,
-                    InputRecordBlock = inputBlock.ToString().TrimEnd(),
-                    OutputRecordBlock = outputBlock.ToString().TrimEnd(),
-                    ResultSetRecordsBlock = rsRecordsBlock.ToString().TrimEnd(),
+                    InputParameters = proc.InputParameters.Select((p,i) => new { p.ClrType, p.PropertyName, Comma = i == proc.InputParameters.Count - 1 ? string.Empty : "," }).ToList(),
+                    OutputFields = proc.OutputFields.Select((f,i) => new { f.ClrType, f.PropertyName, Comma = i == proc.OutputFields.Count - 1 ? string.Empty : "," }).ToList(),
                     ProcedureFullName = proc.Schema + "." + proc.ProcedureName,
                     ProcedureTypeName = procedureTypeName,
                     UnifiedResultTypeName = unifiedResultTypeName,
@@ -205,6 +172,7 @@ public sealed class ProceduresGenerator
                 // (For brevity, we could replicate blocks, but template should normally exist now)
                 finalCode = fileSb.ToString();
             }
+            finalCode = NormalizeWhitespace(finalCode);
             File.WriteAllText(Path.Combine(schemaDir, procPart + ".cs"), finalCode);
             written++;
         }
@@ -329,5 +297,16 @@ public sealed class ProceduresGenerator
         if (string.IsNullOrEmpty(candidate)) candidate = "Schema";
         if (char.IsDigit(candidate[0])) candidate = "N" + candidate;
         return candidate;
+    }
+
+    private static readonly Regex MultiBlankLines = new("(\r?\n){3,}", RegexOptions.Compiled);
+    private static string NormalizeWhitespace(string code)
+    {
+        if (string.IsNullOrEmpty(code)) return code;
+        // Collapse 3+ consecutive newlines to exactly two (i.e., one blank line)
+        code = MultiBlankLines.Replace(code, match => match.Value.StartsWith("\r\n\r\n") ? "\r\n\r\n" : "\n\n");
+        // Ensure exactly one trailing newline
+        if (!code.EndsWith("\n")) code += Environment.NewLine;
+        return code;
     }
 }

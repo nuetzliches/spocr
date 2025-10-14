@@ -13,26 +13,16 @@ using System.Threading;
 using System.Threading.Tasks;
 using RestApi.SpocR;
 
-// Input DTO ------------------------------------------------------------------------------------------------
-
 public readonly record struct UserBioUpdateInput(
     int? UserId,
     string Bio
 );
-
-
-// Output DTO (aggregated output parameters) ----------------------------------------------------------------
-
-
-// Result set row records -----------------------------------------------------------------------------------
 
 public readonly record struct UserBioUpdateResultSet1Result(
     int UserId,
     string Bio
 );
 
-
-// Unified result (success + error + result sets + output object) ------------------------------------------
 public sealed class UserBioUpdateResult
 {
 	public bool Success { get; init; }
@@ -41,7 +31,6 @@ public sealed class UserBioUpdateResult
 	
 }
 
-// Execution plan (parameters, result set mappings, factories, binder) -------------------------------------
 internal static partial class UserBioUpdateProcedurePlan
 {
     private static ProcedureExecutionPlan? _cached;
@@ -70,7 +59,6 @@ internal static partial class UserBioUpdateProcedurePlan
     }
 }
 
-// Public wrapper API ---------------------------------------------------------------------------------------
 public static class UserBioUpdateProcedure
 {
 	public const string Name = "samples.UserBioUpdate";

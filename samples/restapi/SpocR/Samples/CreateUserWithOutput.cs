@@ -13,29 +13,19 @@ using System.Threading;
 using System.Threading.Tasks;
 using RestApi.SpocR;
 
-// Input DTO ------------------------------------------------------------------------------------------------
-
 public readonly record struct CreateUserWithOutputInput(
     string DisplayName,
     string Email
 );
 
-
-// Output DTO (aggregated output parameters) ----------------------------------------------------------------
-
 public readonly record struct CreateUserWithOutputOutput(
     int? UserId
 );
-
-
-// Result set row records -----------------------------------------------------------------------------------
 
 public readonly record struct CreateUserWithOutputResultSet1Result(
     int? CreatedUserId
 );
 
-
-// Unified result (success + error + result sets + output object) ------------------------------------------
 public sealed class CreateUserWithOutputResult
 {
 	public bool Success { get; init; }
@@ -45,7 +35,6 @@ public sealed class CreateUserWithOutputResult
 	
 }
 
-// Execution plan (parameters, result set mappings, factories, binder) -------------------------------------
 internal static partial class CreateUserWithOutputProcedurePlan
 {
     private static ProcedureExecutionPlan? _cached;
@@ -75,7 +64,6 @@ internal static partial class CreateUserWithOutputProcedurePlan
     }
 }
 
-// Public wrapper API ---------------------------------------------------------------------------------------
 public static class CreateUserWithOutputProcedure
 {
 	public const string Name = "samples.CreateUserWithOutput";

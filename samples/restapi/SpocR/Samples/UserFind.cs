@@ -13,17 +13,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using RestApi.SpocR;
 
-// Input DTO ------------------------------------------------------------------------------------------------
-
 public readonly record struct UserFindInput(
     int? UserId
 );
-
-
-// Output DTO (aggregated output parameters) ----------------------------------------------------------------
-
-
-// Result set row records -----------------------------------------------------------------------------------
 
 public readonly record struct UserFindResultSet1Result(
     int UserId,
@@ -33,8 +25,6 @@ public readonly record struct UserFindResultSet1Result(
     string Bio
 );
 
-
-// Unified result (success + error + result sets + output object) ------------------------------------------
 public sealed class UserFindResult
 {
 	public bool Success { get; init; }
@@ -43,7 +33,6 @@ public sealed class UserFindResult
 	
 }
 
-// Execution plan (parameters, result set mappings, factories, binder) -------------------------------------
 internal static partial class UserFindProcedurePlan
 {
     private static ProcedureExecutionPlan? _cached;
@@ -70,7 +59,6 @@ internal static partial class UserFindProcedurePlan
     }
 }
 
-// Public wrapper API ---------------------------------------------------------------------------------------
 public static class UserFindProcedure
 {
 	public const string Name = "samples.UserFind";

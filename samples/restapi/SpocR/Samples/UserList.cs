@@ -13,14 +13,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using RestApi.SpocR;
 
-// Input DTO ------------------------------------------------------------------------------------------------
-
-
-// Output DTO (aggregated output parameters) ----------------------------------------------------------------
-
-
-// Result set row records -----------------------------------------------------------------------------------
-
 public readonly record struct UserListResultSet1Result(
     int UserId,
     string Email,
@@ -29,8 +21,6 @@ public readonly record struct UserListResultSet1Result(
     string Bio
 );
 
-
-// Unified result (success + error + result sets + output object) ------------------------------------------
 public sealed class UserListResult
 {
 	public bool Success { get; init; }
@@ -39,7 +29,6 @@ public sealed class UserListResult
 	
 }
 
-// Execution plan (parameters, result set mappings, factories, binder) -------------------------------------
 internal static partial class UserListProcedurePlan
 {
     private static ProcedureExecutionPlan? _cached;
@@ -63,7 +52,6 @@ internal static partial class UserListProcedurePlan
     }
 }
 
-// Public wrapper API ---------------------------------------------------------------------------------------
 public static class UserListProcedure
 {
 	public const string Name = "samples.UserList";

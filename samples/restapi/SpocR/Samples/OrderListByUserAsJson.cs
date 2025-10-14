@@ -13,17 +13,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using RestApi.SpocR;
 
-// Input DTO ------------------------------------------------------------------------------------------------
-
 public readonly record struct OrderListByUserAsJsonInput(
     int? UserId
 );
-
-
-// Output DTO (aggregated output parameters) ----------------------------------------------------------------
-
-
-// Result set row records -----------------------------------------------------------------------------------
 
 public readonly record struct OrderListByUserAsJsonResultSet1Result(
     int UserId,
@@ -35,8 +27,6 @@ public readonly record struct OrderListByUserAsJsonResultSet1Result(
     string Notes
 );
 
-
-// Unified result (success + error + result sets + output object) ------------------------------------------
 public sealed class OrderListByUserAsJsonResult
 {
 	public bool Success { get; init; }
@@ -45,7 +35,6 @@ public sealed class OrderListByUserAsJsonResult
 	
 }
 
-// Execution plan (parameters, result set mappings, factories, binder) -------------------------------------
 internal static partial class OrderListByUserAsJsonProcedurePlan
 {
     private static ProcedureExecutionPlan? _cached;
@@ -72,7 +61,6 @@ internal static partial class OrderListByUserAsJsonProcedurePlan
     }
 }
 
-// Public wrapper API ---------------------------------------------------------------------------------------
 public static class OrderListByUserAsJsonProcedure
 {
 	public const string Name = "samples.OrderListByUserAsJson";

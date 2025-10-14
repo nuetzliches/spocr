@@ -3,7 +3,7 @@ namespace RestApi.SpocR.samples;
 
 /// <summary>
 /// User Defined Table Type samples.UserContactTableTypeTableType
-/// <remarks>Generated at 2025-10-14T14:57:30.6576254Z</remarks>
+/// <remarks>Generated at 2025-10-14T15:18:18.7432600Z</remarks>
 /// </summary>
 public readonly record struct UserContactTableTypeTableType(
     int? UserId,
