@@ -27,9 +27,9 @@ Legende Prioritäten: P1 = kritisch für v5 Cutover, P2 = hoch für Bridge (v4.5
 Aktueller Fokus (Top 10 P1/P2):
 1. (P1) E002 Sample-Gate: Automatisierter CRUD Smoke-Test & CI Integration
 2. (P1) E014 End-to-End Nutzung mind. einer Stored Procedure im Sample (Aufruf in laufender WebAPI) – UnifiedResultTests bereits grün
-3. (P1) ResultSet Naming Strategie definieren & dokumentieren (Blocker für stabilen Output / spätere Breaking Changes)
-4. (P1) Dokumentation: Minimaler Architektur-/Migration-Abschnitt für vNext (README + docs Platzhalter) – Grundgerüst
-5. (P1) Snapshot/Determinismus Tests erweitern (RowSet Naming, Konfliktfälle) – Basis bereits vorhanden
+3. (P1) ResultSet Naming Strategie intern finalisieren (öffentliche Doku deferred bis SQL Snapshot vorhanden)
+4. (P1) Snapshot Erweiterung: Prozedur-SQL in Snapshot persistieren (Voraussetzung Resolver Aktivierung)
+5. (P1) Snapshot/Determinismus Tests erweitern (Resolver Aktivierung, Konfliktnamen) – Basis vorhanden
 6. (P2) E005 Template Engine Abschluss (Header Standardisierung, Basis-Testabdeckung Placeholder/#if/#each)
 7. (P2) E006 DbContext Sample-Endpunkt wirklich lauffähig (Health Endpoint + 1 Query) – Stabilisierung
 8. (P2) Konfig-Bereinigung E008: Entfernte Properties dokumentieren (CHANGELOG + MIGRATION Snippet)
@@ -196,7 +196,7 @@ EPICS Übersicht (oberste Steuerungsebene)
       - [x] Metadata Provider Implementierung (DB Schema → Descriptors) produktiv (SchemaMetadataProvider)
       - [~] CLI Integration (`spocr generate` nutzt neue Generatoren) – Legacy Orchestrator ruft vNext Generator jetzt in dual|next auf; eigene vNext CLI Ergänzungen folgen
       - [ ] Sample nutzt mindestens eine generierte Stored Procedure (End-to-End)
-      - [ ] ResultSet Naming Strategie dokumentiert (Prefix + Fallback) (Doku)
+      - [ ] ResultSet Naming Strategie dokumentiert (deferred – erst nach SQL Feld Integration)
       - [~] Tests: Snapshot / Determinismus für neue Artefakte (Basis vorhanden: Golden + Konsolidierte Procs; ausstehend: RowSet / Konfliktfälle)
       - [ ] Interaktive .env Bootstrap CLI (separate vNext Kommando) – Basis EnvBootstrapper vorhanden, noch kein dedizierter Befehl
 
@@ -346,13 +346,13 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] samples\restapi\.env aus Template mit Kommentaren generieren
       - [x] Template-Datei `.env.example` anreichert (Erklär-Kommentare für Modus/Flags/Namespace vorhanden)
       - [ ] CLI Befehl/Bootstrap: `spocr env init` (optional) evaluieren
-- [ ] ResultSet Datei-Benennung vereinheitlichen
-      - Aktueller Stand: Aggregat `CreateUserWithOutputResult.cs` + RowSet `CreateUserWithOutput1Result.cs` (soll zu `CreateUserWithOutputResultSet1Row.cs`).
-      - [ ] Umbenennung RowSet Dateien auf konsistentes Muster `*ResultSet{X}Row.cs`
-      - [ ] Entfernen historischer `*1Result.cs` Varianten
-      - [ ] Regel dokumentieren: Erstes ResultSet ohne numerischen Suffix beim Aggregat; RowSets mit `ResultSetXRow`.
-      - [ ] Generator anpassen: Dateiname aktuell `<Proc><Index>Result.cs` → ändern in `<Proc>ResultSet<Index>Row.cs`
-      - [ ] Tests ergänzen: Naming-Konvention (Regex) gegen alle generierten RowSet Dateien
+- [ ] (OBSOLET) ResultSet Datei-Benennung vereinheitlichen (durch Konsolidierung in eine Prozedur-Datei nicht mehr relevant)
+      Hinweis: Einzelne RowSet-Dateien existieren nicht mehr; alle Records (Inputs/Outputs/ResultSets/Aggregate/Plan/Executor) liegen in einer konsolidierten `<Proc>.cs`.
+      Folgeaufgaben (neu):
+      - [ ] Test: Konsolidierte Datei enthält erwartete Abschnitte in definierter Reihenfolge (Header, Inputs, Outputs, ResultSet Records, Aggregate, Plan, Executor)
+      - [ ] Test: Kein doppelter Record-Name bei mehreren ResultSets (Namens-Kollision Absicherung)
+      - [ ] Aktivierungs-Test Resolver (nach SQL Snapshot) – nur generische `ResultSetX` werden ersetzt; andere unverändert
+      - [ ] Negative Test: Ungültige / unparsbare SQL → Resolver überspringt sicher (Fallback bleibt deterministisch)
 - [x] Auto-Namespace Fallback für samples/restapi implementiert (erzwingt Basis `RestApi`)
       - [ ] Ergänzender Test für WorkingDir = `samples/restapi` (Folgetask – aktuell indirekt durch Integration abgedeckt)
 - [ ] .env Override Nutzung (SPOCR_NAMESPACE) dokumentieren & Beispiel ergänzen
@@ -364,7 +364,7 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] Dateinamen & Determinismus zusätzliche Tests
       - [x] Grundlegende deterministische Hash Tests (Golden Snapshot) vorhanden
       - [x] Konsolidierte UnifiedProcedure Tests (Hash & IO Single Definition)
-      - [ ] Erweiterung: spezifische Artefakt-Typen (StoredProcedure Wrapper, ResultSet Rows)
+      - [ ] Erweiterung: spezifische Artefakt-Typen (StoredProcedure Wrapper Section, ResultSet Records innerhalb Konsolidierungs-Datei)
       - [ ] Dateinamens-Konflikt Test (zwei Procs mit ähnlichen Namen + Suffix Handling)
 - [ ] Dispatcher next-only Pfad: Gleiches Full Generation Set wie dual
       - [ ] Prüfen Codepfad (`SpocRGenerator` / Dispatcher)
@@ -387,4 +387,6 @@ EPICS Übersicht (oberste Steuerungsebene)
       - [ ] Collision test for suggested names
       - [ ] Parser performance micro-benchmark & caching
       - [ ] Optional config flag to disable resolver (SPOCR_DISABLE_RS_NAME_RESOLVER)
+      - [ ] Snapshot Integration: Prozedur-SQL Felder erfassen (`Sql` oder `Definition` Key) beim `spocr pull`
+      - [ ] Aktivierungs-Flag dokumentieren & Minimal-Doku (intern) erstellen
 - [ ] Warum sind die Inputs vom Typ Output nicht in den Inputs enthalten? Wir brauchen TwoWay Binding
