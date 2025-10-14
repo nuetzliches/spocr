@@ -162,8 +162,6 @@ public sealed class SpocRGenerator
             total += inputsGen.Generate(ns, baseStructuredOut);
             var outputsGen = new OutputsGenerator(_renderer, _outputs, _loader, projectRoot);
             total += outputsGen.Generate(ns, baseStructuredOut);
-            var resultsGen = new ResultsGenerator(_renderer, _results, _loader, projectRoot);
-            total += resultsGen.Generate(ns, baseStructuredOut);
             var procsGen = new ProceduresGenerator(_renderer, _procedures, _loader, projectRoot);
             total += procsGen.Generate(ns, baseStructuredOut);
         }
@@ -183,8 +181,6 @@ public sealed class SpocRGenerator
             total += inputsGen.Generate(ns, baseStructuredOut);
             var outputsGen = new OutputsGenerator(_renderer, () => schema.GetOutputs(), _loader, projectRoot);
             total += outputsGen.Generate(ns, baseStructuredOut);
-            var resultsGen = new ResultsGenerator(_renderer, () => schema.GetResults(), _loader, projectRoot);
-            total += resultsGen.Generate(ns, baseStructuredOut);
             var procsGen = new ProceduresGenerator(_renderer, () => schema.GetProcedures(), _loader, projectRoot);
             total += procsGen.Generate(ns, baseStructuredOut);
         }

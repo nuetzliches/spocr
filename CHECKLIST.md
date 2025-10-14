@@ -223,6 +223,7 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] Generierter Output in `samples/restapi/SpocR` deterministisch (Hash Vergleich) nach Rebuild
 - [ ] Namespace-Korrektur: `samples/restapi/SpocR/ITableType.cs` → `namespace RestApi.SpocR;`
 - [ ] Namespace-Korrektur: Dateien unter `samples/restapi/SpocR/samples/` → `namespace RestApi.SpocR.samples;`
+- [x] Namespace-Korrektur: Dateien unter `samples/restapi/SpocR/samples/` → vereinheitlicht zu `namespace RestApi.SpocR.<SchemaPascalCase>` (ohne Kategorie-Segmente)
 
 ### Sicherheit & Compliance
 
@@ -315,19 +316,23 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [x] samples\restapi\SpocR\samples Namespace-Korrektur (Generator + manuelle Files bereinigt)
 - [x] samples\restapi\SpocR\ITableType.cs Namespace = RestApi.SpocR ✅
 - [ ] samples\restapi\.env aus Template mit Kommentaren generieren
-      - [ ] Template-Datei `.env.example` anreichern (Erklär-Kommentare für SPOCR_GENERATOR_MODE, SPOCR_NAMESPACE, SPOCR_DB_IDENTIFIER)
+      - [x] Template-Datei `.env.example` anreichert (Erklär-Kommentare für Modus/Flags/Namespace vorhanden)
       - [ ] CLI Befehl/Bootstrap: `spocr env init` (optional) evaluieren
 - [ ] ResultSet Datei-Benennung vereinheitlichen
       - Aktueller Stand: Aggregat `CreateUserWithOutputResult.cs` + RowSet `CreateUserWithOutput1Result.cs` (soll zu `CreateUserWithOutputResultSet1Row.cs`).
       - [ ] Umbenennung RowSet Dateien auf konsistentes Muster `*ResultSet{X}Row.cs`
       - [ ] Entfernen historischer `*1Result.cs` Varianten
       - [ ] Regel dokumentieren: Erstes ResultSet ohne numerischen Suffix beim Aggregat; RowSets mit `ResultSetXRow`.
+      - [ ] Generator anpassen: Dateiname aktuell `<Proc><Index>Result.cs` → ändern in `<Proc>ResultSet<Index>Row.cs`
+      - [ ] Tests ergänzen: Naming-Konvention (Regex) gegen alle generierten RowSet Dateien
 - [x] Auto-Namespace Fallback für samples/restapi implementiert (erzwingt Basis `RestApi`)
       - [ ] Ergänzender Test für WorkingDir = `samples/restapi` (Folgetask – aktuell indirekt durch Integration abgedeckt)
 - [ ] .env Override Nutzung (SPOCR_NAMESPACE) dokumentieren & Beispiel ergänzen
+      - [ ] README / docs: Abschnitt "Namespace Ableitung & Override" inkl. Beispiel diff
 - [ ] Einheitliche Klein-/Großschreibung Schema-Ordner
       - [ ] Normalisierung (Entscheidung: Beibehalt Original vs. PascalCase)
       - [ ] Test: Mixed Case Snapshot → generierter Ordner konsistent
+      - Status: Implementiert als PascalCase (Generator), Dokumentation noch offen
 - [ ] Dateinamen & Determinismus zusätzliche Tests
       - [x] Grundlegende deterministische Hash Tests (Golden Snapshot) vorhanden
       - [ ] Erweiterung: spezifische Artefakt-Typen (StoredProcedure Wrapper, ResultSet Rows)
@@ -341,3 +346,4 @@ EPICS Übersicht (oberste Steuerungsebene)
 
 - [ ] Wie handhaben wir Datums-/Zeitangaben. (z.B. UTC, lokale Zeit, Formatierung)
 - [ ] Wie bringen wir standard/custom Converters unter? (z.B. JsonConverter Attribute, AutoTrimmed Properties, andere Property oder Class Level Converters)
+- [ ] ResultSets mit Typ Json sollen deserialisiert und raw produziert werden können. Per Service Config global, und auf jeder Prozedur separat

@@ -50,182 +50,140 @@ public sealed class ProceduresGenerator
             var finalNs = ns + "." + schemaPascal;
             var schemaDir = Path.Combine(baseOutputDir, schemaPascal);
             Directory.CreateDirectory(schemaDir);
-            var aggregateResultType = NamePolicy.Result(procPart) + "Aggregate"; // separate from simple Result record
             var procedureTypeName = NamePolicy.Procedure(procPart);
-            // Generate row records per ResultSet
-            var rsDir = schemaDir;
-            foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
-            {
-                // Row type name keeps existing logic (Proc + RsName + Row)
-                var rowTypeName = NamePolicy.Row(procPart, rs.Name);
-                var sbRow = new StringBuilder();
-                sbRow.Append(header);
-                sbRow.AppendLine($"namespace {finalNs};");
-                sbRow.AppendLine();
-                sbRow.AppendLine($"public readonly record struct {rowTypeName}(");
-                for (int i = 0; i < rs.Fields.Count; i++)
-                {
-                    var f = rs.Fields[i];
-                    var comma = i == rs.Fields.Count - 1 ? string.Empty : ",";
-                    sbRow.AppendLine($"    {f.ClrType} {f.PropertyName}{comma}");
-                }
-                sbRow.AppendLine(");");
-                // File name rule refinement:
-                // Old: _[ResultSetName]Result.cs
-                // New: [ProcName][ResultSetNameOrIndex].cs (no leading underscore, no 'ResultSet' text in fallback)
-                // If rs.Name was an auto fallback like ResultSet1 keep only the index portion (1)
-                string simplifiedRsName = rs.Name.StartsWith("ResultSet", StringComparison.OrdinalIgnoreCase)
-                    ? rs.Name.Substring("ResultSet".Length) // e.g. ResultSet1 -> 1
-                    : rs.Name;
-                var fileBase = procPart + simplifiedRsName + "Result"; // ensure distinct from high-level [Proc]Result and includes 'Result' suffix
-                File.WriteAllText(Path.Combine(rsDir, fileBase + ".cs"), sbRow.ToString());
-                written++;
-            }
-            // Optional Output record
+            var unifiedResultTypeName = NamePolicy.Result(procPart); // <Proc>Result
+            var fileSb = new StringBuilder();
+            fileSb.Append(header);
+            fileSb.AppendLine($"namespace {finalNs};");
+            fileSb.AppendLine();
+            fileSb.AppendLine("using System;\nusing System.Collections.Generic;\nusing System.Data;\nusing System.Data.Common;\nusing System.Threading;\nusing System.Threading.Tasks;\nusing SpocR.SpocRVNext.Execution;");
+            // Begin unified result container
+            fileSb.AppendLine($"public sealed class {unifiedResultTypeName}");
+            fileSb.AppendLine("{");
+            fileSb.AppendLine("    public bool Success { get; init; }");
+            fileSb.AppendLine("    public string? Error { get; init; }");
             if (proc.OutputFields.Count > 0)
             {
                 var outputTypeName = NamePolicy.Output(procPart);
-                var sbOut = new StringBuilder();
-                sbOut.Append(header);
-                sbOut.AppendLine($"namespace {finalNs};");
-                sbOut.AppendLine();
-                sbOut.AppendLine($"public readonly record struct {outputTypeName}(");
+                // inline output record type inside same file (still public for reuse)
+                fileSb.AppendLine($"    public {outputTypeName}? Output {{ get; init; }}");
+            }
+            foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
+            {
+                var rsType = NamePolicy.ResultSet(procPart, rs.Name);
+                fileSb.AppendLine($"    public IReadOnlyList<{rsType}> {rs.Name} {{ get; init; }} = Array.Empty<{rsType}>();");
+            }
+            fileSb.AppendLine("}");
+            fileSb.AppendLine();
+            // Inline output record if present
+            if (proc.OutputFields.Count > 0)
+            {
+                var outputTypeName = NamePolicy.Output(procPart);
+                fileSb.AppendLine($"public readonly record struct {outputTypeName}(");
                 for (int i = 0; i < proc.OutputFields.Count; i++)
                 {
                     var f = proc.OutputFields[i];
                     var comma = i == proc.OutputFields.Count - 1 ? string.Empty : ",";
-                    sbOut.AppendLine($"    {f.ClrType} {f.PropertyName}{comma}");
+                    fileSb.AppendLine($"    {f.ClrType} {f.PropertyName}{comma}");
                 }
-                sbOut.AppendLine(");");
-                File.WriteAllText(Path.Combine(rsDir, procPart + "Output.cs"), sbOut.ToString());
-                written++;
+                fileSb.AppendLine(");");
+                fileSb.AppendLine();
             }
-            // Aggregate result class
-            var aggSb = new StringBuilder();
-            aggSb.Append(header);
-            aggSb.AppendLine($"namespace {finalNs};");
-            aggSb.AppendLine();
-            aggSb.AppendLine($"public sealed class {aggregateResultType}");
-            aggSb.AppendLine("{");
-            aggSb.AppendLine("    public bool Success { get; init; }");
-            aggSb.AppendLine("    public string? Error { get; init; }");
-            if (proc.OutputFields.Count > 0)
-            {
-                var outputTypeName = NamePolicy.Output(procPart);
-                aggSb.AppendLine($"    public {outputTypeName}? Output {{ get; init; }}");
-            }
+            // Inline result set record structs
             foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
             {
-                var rowTypeName = NamePolicy.Row(procPart, rs.Name);
-                aggSb.AppendLine($"    public System.Collections.Generic.IReadOnlyList<{rowTypeName}> {rs.Name} {{ get; init; }} = System.Array.Empty<{rowTypeName}>();");
+                var rsType = NamePolicy.ResultSet(procPart, rs.Name);
+                fileSb.AppendLine($"public readonly record struct {rsType}(");
+                for (int i = 0; i < rs.Fields.Count; i++)
+                {
+                    var f = rs.Fields[i];
+                    var comma = i == rs.Fields.Count - 1 ? string.Empty : ",";
+                    fileSb.AppendLine($"    {f.ClrType} {f.PropertyName}{comma}");
+                }
+                fileSb.AppendLine(");");
+                fileSb.AppendLine();
             }
-            aggSb.AppendLine("}");
-            File.WriteAllText(Path.Combine(rsDir, procPart + "Aggregate.cs"), aggSb.ToString());
-            written++;
-            // Procedure wrapper
-            // Execution plan + wrapper
+            // Execution plan (internal) + wrapper for ExecuteAsync at bottom of same file
             var planTypeName = procedureTypeName + "Plan";
-            var planSb = new StringBuilder();
-            planSb.Append(header);
-            planSb.AppendLine($"namespace {finalNs};");
-            planSb.AppendLine();
-            planSb.AppendLine("using System;\nusing System.Collections.Generic;\nusing System.Data;\nusing System.Data.Common;\nusing System.Threading;\nusing System.Threading.Tasks;\nusing SpocR.SpocRVNext.Execution;");
-            // Build parameters array
-            planSb.AppendLine($"internal static partial class {planTypeName}\n{{");
-            planSb.AppendLine("    private static SpocR.SpocRVNext.Execution.ProcedureExecutionPlan? _cached;");
-            planSb.AppendLine("    public static SpocR.SpocRVNext.Execution.ProcedureExecutionPlan Instance => _cached ??= Create();");
-            planSb.AppendLine("    private static SpocR.SpocRVNext.Execution.ProcedureExecutionPlan Create()\n    {");
-            // Parameters
-            planSb.AppendLine("        var parameters = new SpocR.SpocRVNext.Execution.ProcedureParameter[] {");
+            fileSb.AppendLine($"internal static partial class {planTypeName}\n{{");
+            fileSb.AppendLine("    private static ProcedureExecutionPlan? _cached;");
+            fileSb.AppendLine("    public static ProcedureExecutionPlan Instance => _cached ??= Create();");
+            fileSb.AppendLine("    private static ProcedureExecutionPlan Create()\n    {");
+            fileSb.AppendLine("        var parameters = new ProcedureParameter[] {");
             foreach (var ip in proc.InputParameters)
             {
-                planSb.AppendLine($"            new(\"@{ip.Name}\", {MapDbType(ip.SqlTypeName)}, {EmitSize(ip)}, false, {ip.IsNullable.ToString().ToLowerInvariant()}),");
+                fileSb.AppendLine($"            new(\"@{ip.Name}\", {MapDbType(ip.SqlTypeName)}, {EmitSize(ip)}, false, {ip.IsNullable.ToString().ToLowerInvariant()}),");
             }
             foreach (var outParam in proc.OutputFields)
             {
-                planSb.AppendLine($"            new(\"@{outParam.Name}\", {MapDbType(outParam.SqlTypeName)}, {EmitSize(outParam)}, true, {outParam.IsNullable.ToString().ToLowerInvariant()}),");
+                fileSb.AppendLine($"            new(\"@{outParam.Name}\", {MapDbType(outParam.SqlTypeName)}, {EmitSize(outParam)}, true, {outParam.IsNullable.ToString().ToLowerInvariant()}),");
             }
-            planSb.AppendLine("        };\n");
-            // ResultSet materializers (with ordinal caching)
-            planSb.AppendLine("        var resultSets = new SpocR.SpocRVNext.Execution.ResultSetMapping[] {");
+            fileSb.AppendLine("        };\n");
+            fileSb.AppendLine("        var resultSets = new ResultSetMapping[] {");
             foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
             {
-                var rowTypeName = NamePolicy.Row(procPart, rs.Name);
+                var rsType = NamePolicy.ResultSet(procPart, rs.Name);
                 var ordinalDecls = string.Join(" ", rs.Fields.Select((f, idx) => $"int o{idx}=r.GetOrdinal(\"{f.Name}\");"));
                 var fieldExprs = string.Join(", ", rs.Fields.Select((f, idx) => MaterializeFieldExpressionCached(f, idx)));
-                planSb.AppendLine("            new(\"" + rs.Name + "\", async (r, ct) => { var list = new System.Collections.Generic.List<object>(); " + ordinalDecls + " while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new " + rowTypeName + "(" + fieldExprs + ")); } return list; }),");
+                fileSb.AppendLine("            new(\"" + rs.Name + "\", async (r, ct) => { var list = new List<object>(); " + ordinalDecls + " while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new " + rsType + "(" + fieldExprs + ")); } return list; }),");
             }
-            planSb.AppendLine("        };\n");
-            // Output factory
+            fileSb.AppendLine("        };\n");
             if (proc.OutputFields.Count > 0)
             {
                 var outputTypeName = NamePolicy.Output(procPart);
-                planSb.AppendLine($"        object? OutputFactory(System.Collections.Generic.IReadOnlyDictionary<string, object?> values) => new {outputTypeName}(" + string.Join(", ", proc.OutputFields.Select(f => CastOutputValue(f))) + ");");
+                fileSb.AppendLine($"        object? OutputFactory(IReadOnlyDictionary<string, object?> values) => new {outputTypeName}(" + string.Join(", ", proc.OutputFields.Select(f => CastOutputValue(f))) + ");");
             }
             else
             {
-                planSb.AppendLine("        object? OutputFactory(System.Collections.Generic.IReadOnlyDictionary<string, object?> values) => null;");
+                fileSb.AppendLine("        object? OutputFactory(IReadOnlyDictionary<string, object?> values) => null;");
             }
-            // Aggregate factory
-            planSb.Append("        object AggregateFactory(bool success, string? error, object? output, System.Collections.Generic.IReadOnlyDictionary<string, object?> outputs, object[] rs) => new ");
-            planSb.Append(aggregateResultType + " { Success = success, Error = error");
+            fileSb.Append("        object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs) => new ");
+            fileSb.Append(unifiedResultTypeName + " { Success = success, Error = error");
             if (proc.OutputFields.Count > 0)
             {
-                planSb.Append(", Output = (" + NamePolicy.Output(procPart) + "?)output");
+                fileSb.Append(", Output = (" + NamePolicy.Output(procPart) + "?)output");
             }
-            int rsCounter = 0;
+            int unifiedCounter = 0;
             foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
             {
-                var rowTypeName = NamePolicy.Row(procPart, rs.Name);
-                planSb.Append($", {rs.Name} = rs.Length > {rsCounter} ? System.Array.ConvertAll(rs[{rsCounter}].ToArray(), o => ({rowTypeName})o).ToList() : System.Array.Empty<{rowTypeName}>() ");
-                rsCounter++;
+                var rsType = NamePolicy.ResultSet(procPart, rs.Name);
+                fileSb.Append($", {rs.Name} = rs.Length > {unifiedCounter} ? Array.ConvertAll(rs[{unifiedCounter}].ToArray(), o => ({rsType})o).ToList() : Array.Empty<{rsType}>() ");
+                unifiedCounter++;
             }
-            planSb.Append("};\n");
-            planSb.AppendLine();
-            // Input binder lambda (object? state expected to be input record)
+            fileSb.Append("};\n");
             if (proc.InputParameters.Count > 0)
             {
                 var inputType = NamePolicy.Input(procPart);
-                planSb.AppendLine($"        void Binder(DbCommand cmd, object? state) {{ var input = ({inputType})state!; ");
+                fileSb.AppendLine($"        void Binder(DbCommand cmd, object? state) {{ var input = ({inputType})state!; ");
                 foreach (var ip in proc.InputParameters)
                 {
-                    planSb.AppendLine($"            cmd.Parameters[\"@{ip.Name}\"].Value = input.{ip.PropertyName};");
+                    fileSb.AppendLine($"            cmd.Parameters[\"@{ip.Name}\"].Value = input.{ip.PropertyName};");
                 }
-                planSb.AppendLine("        }");
+                fileSb.AppendLine("        }");
             }
             else
             {
-                planSb.AppendLine("        void Binder(DbCommand cmd, object? state) { }");
+                fileSb.AppendLine("        void Binder(DbCommand cmd, object? state) { }");
             }
-            planSb.AppendLine("        return new SpocR.SpocRVNext.Execution.ProcedureExecutionPlan(");
-            planSb.AppendLine($"            \"{proc.Schema}.{proc.ProcedureName}\", parameters, resultSets, OutputFactory, AggregateFactory, Binder);\n    }}\n}}");
-            File.WriteAllText(Path.Combine(rsDir, procPart + "Plan.cs"), planSb.ToString());
-            written++;
-
+            fileSb.AppendLine("        return new ProcedureExecutionPlan(");
+            fileSb.AppendLine($"            \"{proc.Schema}.{proc.ProcedureName}\", parameters, resultSets, OutputFactory, AggregateFactory, Binder);\n    }}\n}}");
+            fileSb.AppendLine();
             // Wrapper
-            var wrapperSb = new StringBuilder();
-            wrapperSb.Append(header);
-            wrapperSb.AppendLine($"namespace {finalNs};");
-            wrapperSb.AppendLine();
-            wrapperSb.AppendLine("using System.Data.Common;\nusing System.Threading;\nusing System.Threading.Tasks;\nusing SpocR.SpocRVNext.Execution;");
-            wrapperSb.AppendLine($"public static class {procedureTypeName}\n{{");
-            wrapperSb.AppendLine($"    public const string Name = \"{proc.Schema}.{proc.ProcedureName}\";");
-            // ExecuteAsync with input record (if any)
-            var inputParamSignature = proc.InputParameters.Count > 0 ? $", {NamePolicy.Input(procPart)} input" : string.Empty;
-            wrapperSb.AppendLine($"    public static Task<{aggregateResultType}> ExecuteAsync(DbConnection connection{inputParamSignature}, CancellationToken cancellationToken = default)\n    {{");
-            // Parameter value binding (override defaults)
-            var stateArg = proc.InputParameters.Count > 0 ? "input" : "null";
+            fileSb.AppendLine($"public static class {procedureTypeName}\n{{");
+            fileSb.AppendLine($"    public const string Name = \"{proc.Schema}.{proc.ProcedureName}\";");
+            var inputSignature = proc.InputParameters.Count > 0 ? $", {NamePolicy.Input(procPart)} input" : string.Empty;
+            fileSb.AppendLine($"    public static Task<{unifiedResultTypeName}> ExecuteAsync(DbConnection connection{inputSignature}, CancellationToken cancellationToken = default)\n    {{");
             if (proc.InputParameters.Count > 0)
             {
-                wrapperSb.AppendLine($"        return ProcedureExecutor.ExecuteAsync<{aggregateResultType}>(connection, {planTypeName}.Instance, input, cancellationToken);");
+                fileSb.AppendLine($"        return ProcedureExecutor.ExecuteAsync<{unifiedResultTypeName}>(connection, {planTypeName}.Instance, input, cancellationToken);");
             }
             else
             {
-                wrapperSb.AppendLine($"        return ProcedureExecutor.ExecuteAsync<{aggregateResultType}>(connection, {planTypeName}.Instance, null, cancellationToken);");
+                fileSb.AppendLine($"        return ProcedureExecutor.ExecuteAsync<{unifiedResultTypeName}>(connection, {planTypeName}.Instance, null, cancellationToken);");
             }
-            wrapperSb.AppendLine("    }");
-            wrapperSb.AppendLine("}");
-            File.WriteAllText(Path.Combine(rsDir, procPart + "Procedure.cs"), wrapperSb.ToString());
+            fileSb.AppendLine("    }");
+            fileSb.AppendLine("}");
+            File.WriteAllText(Path.Combine(schemaDir, procPart + "Result.cs"), fileSb.ToString());
             written++;
         }
         return written;
