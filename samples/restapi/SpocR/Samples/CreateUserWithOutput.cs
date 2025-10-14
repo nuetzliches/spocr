@@ -13,59 +13,74 @@ using System.Threading;
 using System.Threading.Tasks;
 using RestApi.SpocR;
 
+// Input DTO ------------------------------------------------------------------------------------------------
+
 public readonly record struct CreateUserWithOutputInput(
     string DisplayName,
     string Email
 );
 
+
+// Output DTO (aggregated output parameters) ----------------------------------------------------------------
+
 public readonly record struct CreateUserWithOutputOutput(
     int? UserId
 );
+
+
+// Result set row records -----------------------------------------------------------------------------------
 
 public readonly record struct CreateUserWithOutputResultSet1Result(
     int? CreatedUserId
 );
 
+
+// Unified result (success + error + result sets + output object) ------------------------------------------
 public sealed class CreateUserWithOutputResult
 {
-    public bool Success { get; init; }
-    public string? Error { get; init; }
-    public CreateUserWithOutputOutput? Output { get; init; }
-    public IReadOnlyList<CreateUserWithOutputResultSet1Result> Result1 { get; init; } = Array.Empty<CreateUserWithOutputResultSet1Result>();
+	public bool Success { get; init; }
+	public string? Error { get; init; }
+	public CreateUserWithOutputOutput? Output { get; init; }
+	public IReadOnlyList<CreateUserWithOutputResultSet1Result> Result1 { get; init; } = Array.Empty<CreateUserWithOutputResultSet1Result>();
+	
 }
 
+// Execution plan (parameters, result set mappings, factories, binder) -------------------------------------
 internal static partial class CreateUserWithOutputProcedurePlan
 {
     private static ProcedureExecutionPlan? _cached;
     public static ProcedureExecutionPlan Instance => _cached ??= Create();
     private static ProcedureExecutionPlan Create()
     {
-        var parameters = new ProcedureParameter[] {
+	var parameters = new ProcedureParameter[] {
             new("@DisplayName", System.Data.DbType.String, 128, false, false),
             new("@Email", System.Data.DbType.String, 256, false, false),
             new("@UserId", System.Data.DbType.Int32, 4, true, true),
         };
 
-        var resultSets = new ResultSetMapping[] {
+	var resultSets = new ResultSetMapping[] {
             new("ResultSet1", async (r, ct) => { var list = new List<object>(); int o0=r.GetOrdinal("CreatedUserId"); while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new CreateUserWithOutputResultSet1Result(r.IsDBNull(o0) ? null : (int?)r.GetInt32(o0))); } return list; }),
         };
 
-        object? OutputFactory(IReadOnlyDictionary<string, object?> values) => new CreateUserWithOutputOutput(values.TryGetValue("UserId", out var v_UserId) ? (int?)v_UserId : default);
-        object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs) => new CreateUserWithOutputResult { Success = success, Error = error, Output = (CreateUserWithOutputOutput?)output, Result1 = rs.Length > 0 ? Array.ConvertAll(((System.Collections.Generic.List<object>)rs[0]).ToArray(), o => (CreateUserWithOutputResultSet1Result)o).ToList() : Array.Empty<CreateUserWithOutputResultSet1Result>() };
-        void Binder(DbCommand cmd, object? state) { var input = (CreateUserWithOutputInput)state!; 
-            cmd.Parameters["@DisplayName"].Value = input.DisplayName;
-            cmd.Parameters["@Email"].Value = input.Email;
-        }
-        return new ProcedureExecutionPlan(
-            "samples.CreateUserWithOutput", parameters, resultSets, OutputFactory, AggregateFactory, Binder);
+	object? OutputFactory(IReadOnlyDictionary<string, object?> values) => new CreateUserWithOutputOutput(values.TryGetValue("UserId", out var v_UserId) ? (int?)v_UserId : default);
+	object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs) => new CreateUserWithOutputResult { Success = success, Error = error, Output = (CreateUserWithOutputOutput?)output, Result1 = rs.Length > 0 ? Array.ConvertAll(((System.Collections.Generic.List<object>)rs[0]).ToArray(), o => (CreateUserWithOutputResultSet1Result)o).ToList() : Array.Empty<CreateUserWithOutputResultSet1Result>() };
+	void Binder(DbCommand cmd, object? state) {
+	var input = (CreateUserWithOutputInput)state!;
+        cmd.Parameters["@DisplayName"].Value = input.DisplayName;
+        cmd.Parameters["@Email"].Value = input.Email;
+
+	}
+	return new ProcedureExecutionPlan(
+	    "samples.CreateUserWithOutput", parameters, resultSets, OutputFactory, AggregateFactory, Binder);
     }
 }
 
+// Public wrapper API ---------------------------------------------------------------------------------------
 public static class CreateUserWithOutputProcedure
 {
-    public const string Name = "samples.CreateUserWithOutput";
-    public static Task<CreateUserWithOutputResult> ExecuteAsync(DbConnection connection, CreateUserWithOutputInput input, CancellationToken cancellationToken = default)
-    {
-        return ProcedureExecutor.ExecuteAsync<CreateUserWithOutputResult>(connection, CreateUserWithOutputProcedurePlan.Instance, input, cancellationToken);
-    }
+	public const string Name = "samples.CreateUserWithOutput";
+	public static Task<CreateUserWithOutputResult> ExecuteAsync(DbConnection connection, CreateUserWithOutputInput input, CancellationToken cancellationToken = default)
+	{
+		return ProcedureExecutor.ExecuteAsync<CreateUserWithOutputResult>(connection, CreateUserWithOutputProcedurePlan.Instance, input, cancellationToken);
+	}
 }

@@ -352,3 +352,4 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] Wie handhaben wir Datums-/Zeitangaben. (z.B. UTC, lokale Zeit, Formatierung)
 - [ ] Wie bringen wir standard/custom Converters unter? (z.B. JsonConverter Attribute, AutoTrimmed Properties, andere Property oder Class Level Converters)
 - [ ] ResultSets mit Typ Json sollen deserialisiert und raw produziert werden können. Per Service Config global, und auf jeder Prozedur separat
+- [ ] Objekte, die nicht mehr im .spocr/schema enthalten sind aus dem Output löschen

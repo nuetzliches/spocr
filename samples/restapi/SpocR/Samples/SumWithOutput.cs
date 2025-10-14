@@ -13,61 +13,76 @@ using System.Threading;
 using System.Threading.Tasks;
 using RestApi.SpocR;
 
+// Input DTO ------------------------------------------------------------------------------------------------
+
 public readonly record struct SumWithOutputInput(
     int? A,
     int? B
 );
+
+
+// Output DTO (aggregated output parameters) ----------------------------------------------------------------
 
 public readonly record struct SumWithOutputOutput(
     int? Sum,
     bool? Success
 );
 
+
+// Result set row records -----------------------------------------------------------------------------------
+
 public readonly record struct SumWithOutputResultSet1Result(
     int? Result
 );
 
+
+// Unified result (success + error + result sets + output object) ------------------------------------------
 public sealed class SumWithOutputResult
 {
-    public bool Success { get; init; }
-    public string? Error { get; init; }
-    public SumWithOutputOutput? Output { get; init; }
-    public IReadOnlyList<SumWithOutputResultSet1Result> Result1 { get; init; } = Array.Empty<SumWithOutputResultSet1Result>();
+	public bool Success { get; init; }
+	public string? Error { get; init; }
+	public SumWithOutputOutput? Output { get; init; }
+	public IReadOnlyList<SumWithOutputResultSet1Result> Result1 { get; init; } = Array.Empty<SumWithOutputResultSet1Result>();
+	
 }
 
+// Execution plan (parameters, result set mappings, factories, binder) -------------------------------------
 internal static partial class SumWithOutputProcedurePlan
 {
     private static ProcedureExecutionPlan? _cached;
     public static ProcedureExecutionPlan Instance => _cached ??= Create();
     private static ProcedureExecutionPlan Create()
     {
-        var parameters = new ProcedureParameter[] {
+	var parameters = new ProcedureParameter[] {
             new("@A", System.Data.DbType.Int32, 4, false, true),
             new("@B", System.Data.DbType.Int32, 4, false, true),
             new("@Sum", System.Data.DbType.Int32, 4, true, true),
             new("@Success", System.Data.DbType.Boolean, 1, true, true),
         };
 
-        var resultSets = new ResultSetMapping[] {
+	var resultSets = new ResultSetMapping[] {
             new("ResultSet1", async (r, ct) => { var list = new List<object>(); int o0=r.GetOrdinal("Result"); while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new SumWithOutputResultSet1Result(r.IsDBNull(o0) ? null : (int?)r.GetInt32(o0))); } return list; }),
         };
 
-        object? OutputFactory(IReadOnlyDictionary<string, object?> values) => new SumWithOutputOutput(values.TryGetValue("Sum", out var v_Sum) ? (int?)v_Sum : default, values.TryGetValue("Success", out var v_Success) ? (bool?)v_Success : default);
-        object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs) => new SumWithOutputResult { Success = success, Error = error, Output = (SumWithOutputOutput?)output, Result1 = rs.Length > 0 ? Array.ConvertAll(((System.Collections.Generic.List<object>)rs[0]).ToArray(), o => (SumWithOutputResultSet1Result)o).ToList() : Array.Empty<SumWithOutputResultSet1Result>() };
-        void Binder(DbCommand cmd, object? state) { var input = (SumWithOutputInput)state!; 
-            cmd.Parameters["@A"].Value = input.A;
-            cmd.Parameters["@B"].Value = input.B;
-        }
-        return new ProcedureExecutionPlan(
-            "samples.SumWithOutput", parameters, resultSets, OutputFactory, AggregateFactory, Binder);
+	object? OutputFactory(IReadOnlyDictionary<string, object?> values) => new SumWithOutputOutput(values.TryGetValue("Sum", out var v_Sum) ? (int?)v_Sum : default, values.TryGetValue("Success", out var v_Success) ? (bool?)v_Success : default);
+	object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs) => new SumWithOutputResult { Success = success, Error = error, Output = (SumWithOutputOutput?)output, Result1 = rs.Length > 0 ? Array.ConvertAll(((System.Collections.Generic.List<object>)rs[0]).ToArray(), o => (SumWithOutputResultSet1Result)o).ToList() : Array.Empty<SumWithOutputResultSet1Result>() };
+	void Binder(DbCommand cmd, object? state) {
+	var input = (SumWithOutputInput)state!;
+        cmd.Parameters["@A"].Value = input.A;
+        cmd.Parameters["@B"].Value = input.B;
+
+	}
+	return new ProcedureExecutionPlan(
+	    "samples.SumWithOutput", parameters, resultSets, OutputFactory, AggregateFactory, Binder);
     }
 }
 
+// Public wrapper API ---------------------------------------------------------------------------------------
 public static class SumWithOutputProcedure
 {
-    public const string Name = "samples.SumWithOutput";
-    public static Task<SumWithOutputResult> ExecuteAsync(DbConnection connection, SumWithOutputInput input, CancellationToken cancellationToken = default)
-    {
-        return ProcedureExecutor.ExecuteAsync<SumWithOutputResult>(connection, SumWithOutputProcedurePlan.Instance, input, cancellationToken);
-    }
+	public const string Name = "samples.SumWithOutput";
+	public static Task<SumWithOutputResult> ExecuteAsync(DbConnection connection, SumWithOutputInput input, CancellationToken cancellationToken = default)
+	{
+		return ProcedureExecutor.ExecuteAsync<SumWithOutputResult>(connection, SumWithOutputProcedurePlan.Instance, input, cancellationToken);
+	}
 }

@@ -13,11 +13,17 @@ using System.Threading;
 using System.Threading.Tasks;
 using RestApi.SpocR;
 
+// Input DTO ------------------------------------------------------------------------------------------------
+
 public readonly record struct OrderListByUserAsJsonInput(
     int? UserId
 );
 
 
+// Output DTO (aggregated output parameters) ----------------------------------------------------------------
+
+
+// Result set row records -----------------------------------------------------------------------------------
 
 public readonly record struct OrderListByUserAsJsonResultSet1Result(
     int UserId,
@@ -29,42 +35,49 @@ public readonly record struct OrderListByUserAsJsonResultSet1Result(
     string Notes
 );
 
+
+// Unified result (success + error + result sets + output object) ------------------------------------------
 public sealed class OrderListByUserAsJsonResult
 {
-    public bool Success { get; init; }
-    public string? Error { get; init; }
-    public IReadOnlyList<OrderListByUserAsJsonResultSet1Result> Result1 { get; init; } = Array.Empty<OrderListByUserAsJsonResultSet1Result>();
+	public bool Success { get; init; }
+	public string? Error { get; init; }
+	public IReadOnlyList<OrderListByUserAsJsonResultSet1Result> Result1 { get; init; } = Array.Empty<OrderListByUserAsJsonResultSet1Result>();
+	
 }
 
+// Execution plan (parameters, result set mappings, factories, binder) -------------------------------------
 internal static partial class OrderListByUserAsJsonProcedurePlan
 {
     private static ProcedureExecutionPlan? _cached;
     public static ProcedureExecutionPlan Instance => _cached ??= Create();
     private static ProcedureExecutionPlan Create()
     {
-        var parameters = new ProcedureParameter[] {
+	var parameters = new ProcedureParameter[] {
             new("@UserId", System.Data.DbType.Int32, 4, false, true),
         };
 
-        var resultSets = new ResultSetMapping[] {
+	var resultSets = new ResultSetMapping[] {
             new("ResultSet1", async (r, ct) => { var list = new List<object>(); int o0=r.GetOrdinal("UserId"); int o1=r.GetOrdinal("DisplayName"); int o2=r.GetOrdinal("Email"); int o3=r.GetOrdinal("OrderId"); int o4=r.GetOrdinal("TotalAmount"); int o5=r.GetOrdinal("PlacedAt"); int o6=r.GetOrdinal("Notes"); while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new OrderListByUserAsJsonResultSet1Result(r.GetInt32(o0), r.IsDBNull(o1) ? string.Empty : r.GetString(o1), r.IsDBNull(o2) ? string.Empty : r.GetString(o2), r.GetInt32(o3), r.GetDecimal(o4), r.GetDateTime(o5), r.IsDBNull(o6) ? string.Empty : r.GetString(o6))); } return list; }),
         };
 
-        object? OutputFactory(IReadOnlyDictionary<string, object?> values) => null;
-        object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs) => new OrderListByUserAsJsonResult { Success = success, Error = error, Result1 = rs.Length > 0 ? Array.ConvertAll(((System.Collections.Generic.List<object>)rs[0]).ToArray(), o => (OrderListByUserAsJsonResultSet1Result)o).ToList() : Array.Empty<OrderListByUserAsJsonResultSet1Result>() };
-        void Binder(DbCommand cmd, object? state) { var input = (OrderListByUserAsJsonInput)state!; 
-            cmd.Parameters["@UserId"].Value = input.UserId;
-        }
-        return new ProcedureExecutionPlan(
-            "samples.OrderListByUserAsJson", parameters, resultSets, OutputFactory, AggregateFactory, Binder);
+	object? OutputFactory(IReadOnlyDictionary<string, object?> values) => null;
+	object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs) => new OrderListByUserAsJsonResult { Success = success, Error = error, Result1 = rs.Length > 0 ? Array.ConvertAll(((System.Collections.Generic.List<object>)rs[0]).ToArray(), o => (OrderListByUserAsJsonResultSet1Result)o).ToList() : Array.Empty<OrderListByUserAsJsonResultSet1Result>() };
+	void Binder(DbCommand cmd, object? state) {
+	var input = (OrderListByUserAsJsonInput)state!;
+        cmd.Parameters["@UserId"].Value = input.UserId;
+
+	}
+	return new ProcedureExecutionPlan(
+	    "samples.OrderListByUserAsJson", parameters, resultSets, OutputFactory, AggregateFactory, Binder);
     }
 }
 
+// Public wrapper API ---------------------------------------------------------------------------------------
 public static class OrderListByUserAsJsonProcedure
 {
-    public const string Name = "samples.OrderListByUserAsJson";
-    public static Task<OrderListByUserAsJsonResult> ExecuteAsync(DbConnection connection, OrderListByUserAsJsonInput input, CancellationToken cancellationToken = default)
-    {
-        return ProcedureExecutor.ExecuteAsync<OrderListByUserAsJsonResult>(connection, OrderListByUserAsJsonProcedurePlan.Instance, input, cancellationToken);
-    }
+	public const string Name = "samples.OrderListByUserAsJson";
+	public static Task<OrderListByUserAsJsonResult> ExecuteAsync(DbConnection connection, OrderListByUserAsJsonInput input, CancellationToken cancellationToken = default)
+	{
+		return ProcedureExecutor.ExecuteAsync<OrderListByUserAsJsonResult>(connection, OrderListByUserAsJsonProcedurePlan.Instance, input, cancellationToken);
+	}
 }

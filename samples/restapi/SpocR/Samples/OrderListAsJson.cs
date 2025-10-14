@@ -13,9 +13,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using RestApi.SpocR;
 
+// Input DTO ------------------------------------------------------------------------------------------------
 
 
+// Output DTO (aggregated output parameters) ----------------------------------------------------------------
 
+
+// Result set row records -----------------------------------------------------------------------------------
 
 public readonly record struct OrderListAsJsonResultSet1Result(
     int UserId,
@@ -27,39 +31,46 @@ public readonly record struct OrderListAsJsonResultSet1Result(
     string Notes
 );
 
+
+// Unified result (success + error + result sets + output object) ------------------------------------------
 public sealed class OrderListAsJsonResult
 {
-    public bool Success { get; init; }
-    public string? Error { get; init; }
-    public IReadOnlyList<OrderListAsJsonResultSet1Result> Result1 { get; init; } = Array.Empty<OrderListAsJsonResultSet1Result>();
+	public bool Success { get; init; }
+	public string? Error { get; init; }
+	public IReadOnlyList<OrderListAsJsonResultSet1Result> Result1 { get; init; } = Array.Empty<OrderListAsJsonResultSet1Result>();
+	
 }
 
+// Execution plan (parameters, result set mappings, factories, binder) -------------------------------------
 internal static partial class OrderListAsJsonProcedurePlan
 {
     private static ProcedureExecutionPlan? _cached;
     public static ProcedureExecutionPlan Instance => _cached ??= Create();
     private static ProcedureExecutionPlan Create()
     {
-        var parameters = new ProcedureParameter[] {
+	var parameters = new ProcedureParameter[] {
         };
 
-        var resultSets = new ResultSetMapping[] {
+	var resultSets = new ResultSetMapping[] {
             new("ResultSet1", async (r, ct) => { var list = new List<object>(); int o0=r.GetOrdinal("UserId"); int o1=r.GetOrdinal("DisplayName"); int o2=r.GetOrdinal("Email"); int o3=r.GetOrdinal("OrderId"); int o4=r.GetOrdinal("TotalAmount"); int o5=r.GetOrdinal("PlacedAt"); int o6=r.GetOrdinal("Notes"); while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new OrderListAsJsonResultSet1Result(r.GetInt32(o0), r.IsDBNull(o1) ? string.Empty : r.GetString(o1), r.IsDBNull(o2) ? string.Empty : r.GetString(o2), r.GetInt32(o3), r.GetDecimal(o4), r.GetDateTime(o5), r.IsDBNull(o6) ? string.Empty : r.GetString(o6))); } return list; }),
         };
 
-        object? OutputFactory(IReadOnlyDictionary<string, object?> values) => null;
-        object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs) => new OrderListAsJsonResult { Success = success, Error = error, Result1 = rs.Length > 0 ? Array.ConvertAll(((System.Collections.Generic.List<object>)rs[0]).ToArray(), o => (OrderListAsJsonResultSet1Result)o).ToList() : Array.Empty<OrderListAsJsonResultSet1Result>() };
-        void Binder(DbCommand cmd, object? state) { }
-        return new ProcedureExecutionPlan(
-            "samples.OrderListAsJson", parameters, resultSets, OutputFactory, AggregateFactory, Binder);
+	object? OutputFactory(IReadOnlyDictionary<string, object?> values) => null;
+	object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs) => new OrderListAsJsonResult { Success = success, Error = error, Result1 = rs.Length > 0 ? Array.ConvertAll(((System.Collections.Generic.List<object>)rs[0]).ToArray(), o => (OrderListAsJsonResultSet1Result)o).ToList() : Array.Empty<OrderListAsJsonResultSet1Result>() };
+	void Binder(DbCommand cmd, object? state) {
+	
+	}
+	return new ProcedureExecutionPlan(
+	    "samples.OrderListAsJson", parameters, resultSets, OutputFactory, AggregateFactory, Binder);
     }
 }
 
+// Public wrapper API ---------------------------------------------------------------------------------------
 public static class OrderListAsJsonProcedure
 {
-    public const string Name = "samples.OrderListAsJson";
-    public static Task<OrderListAsJsonResult> ExecuteAsync(DbConnection connection, CancellationToken cancellationToken = default)
-    {
-        return ProcedureExecutor.ExecuteAsync<OrderListAsJsonResult>(connection, OrderListAsJsonProcedurePlan.Instance, null, cancellationToken);
-    }
+	public const string Name = "samples.OrderListAsJson";
+	public static Task<OrderListAsJsonResult> ExecuteAsync(DbConnection connection, CancellationToken cancellationToken = default)
+	{
+		return ProcedureExecutor.ExecuteAsync<OrderListAsJsonResult>(connection, OrderListAsJsonProcedurePlan.Instance, null, cancellationToken);
+	}
 }

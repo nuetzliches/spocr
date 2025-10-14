@@ -95,9 +95,9 @@ public sealed class ProceduresGenerator
             string finalCode;
             if (hasUnifiedTemplate && unifiedTemplateRaw != null)
             {
-                // Build blocks
-                // Use root namespace (ns) for execution support types (ExecutionSupport.cs) instead of internal engine namespace
                 var usingBlock = "using System;\nusing System.Collections.Generic;\nusing System.Data;\nusing System.Data.Common;\nusing System.Threading;\nusing System.Threading.Tasks;\nusing " + ns + ";";
+
+                // Input record block (kept simple for now)
                 var inputBlock = new StringBuilder();
                 if (proc.InputParameters.Count > 0)
                 {
@@ -122,30 +122,13 @@ public sealed class ProceduresGenerator
                     }
                     outputBlock.AppendLine(");");
                 }
+                // Result set row records
                 var rsRecordsBlock = new StringBuilder();
-                var resultClassBlock = new StringBuilder();
-                resultClassBlock.AppendLine($"public sealed class {unifiedResultTypeName}");
-                resultClassBlock.AppendLine("{");
-                resultClassBlock.AppendLine("    public bool Success { get; init; }");
-                resultClassBlock.AppendLine("    public string? Error { get; init; }");
-                if (proc.OutputFields.Count > 0)
-                    resultClassBlock.AppendLine($"    public {outputTypeName}? Output {{ get; init; }}");
+                var rsMeta = new List<object>();
+                int rsIdx = 0;
                 foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
                 {
-                    var originalName = rs.Name;
-                    var propName = originalName.StartsWith("ResultSet", StringComparison.OrdinalIgnoreCase)
-                        ? "Result" + originalName.Substring("ResultSet".Length)
-                        : originalName;
-                    var normalizedSetNameForType = originalName.StartsWith("ResultSet", StringComparison.OrdinalIgnoreCase) ? originalName : originalName;
-                    var rsType = NamePolicy.ResultSet(procPart, normalizedSetNameForType);
-                    resultClassBlock.AppendLine($"    public IReadOnlyList<{rsType}> {propName} {{ get; init; }} = Array.Empty<{rsType}>();");
-                }
-                resultClassBlock.AppendLine("}");
-                foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
-                {
-                    var originalName = rs.Name;
-                    var typeNameBase = originalName.StartsWith("ResultSet", StringComparison.OrdinalIgnoreCase) ? originalName : originalName;
-                    var rsType = NamePolicy.ResultSet(procPart, typeNameBase);
+                    var rsType = NamePolicy.ResultSet(procPart, rs.Name);
                     rsRecordsBlock.AppendLine($"public readonly record struct {rsType}(");
                     for (int i = 0; i < rs.Fields.Count; i++)
                     {
@@ -155,85 +138,59 @@ public sealed class ProceduresGenerator
                     }
                     rsRecordsBlock.AppendLine(");");
                     rsRecordsBlock.AppendLine();
-                }
-                var planTypeName = procedureTypeName + "Plan";
-                var planBlock = new StringBuilder();
-                planBlock.AppendLine($"internal static partial class {planTypeName}");
-                planBlock.AppendLine("{");
-                planBlock.AppendLine("    private static ProcedureExecutionPlan? _cached;");
-                planBlock.AppendLine("    public static ProcedureExecutionPlan Instance => _cached ??= Create();");
-                planBlock.AppendLine("    private static ProcedureExecutionPlan Create()\n    {");
-                planBlock.AppendLine("        var parameters = new ProcedureParameter[] {");
-                foreach (var ip in proc.InputParameters)
-                    planBlock.AppendLine($"            new(\"@{ip.Name}\", {MapDbType(ip.SqlTypeName)}, {EmitSize(ip)}, false, {ip.IsNullable.ToString().ToLowerInvariant()}),");
-                foreach (var outParam in proc.OutputFields)
-                    planBlock.AppendLine($"            new(\"@{outParam.Name}\", {MapDbType(outParam.SqlTypeName)}, {EmitSize(outParam)}, true, {outParam.IsNullable.ToString().ToLowerInvariant()}),");
-                planBlock.AppendLine("        };\n");
-                planBlock.AppendLine("        var resultSets = new ResultSetMapping[] {");
-                foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
-                {
-                    var rsType = NamePolicy.ResultSet(procPart, rs.Name);
+                    // Build plan meta for template
                     var ordinalDecls = string.Join(" ", rs.Fields.Select((f, idx) => $"int o{idx}=r.GetOrdinal(\"{f.Name}\");"));
                     var fieldExprs = string.Join(", ", rs.Fields.Select((f, idx) => MaterializeFieldExpressionCached(f, idx)));
-                    planBlock.AppendLine("            new(\"" + rs.Name + "\", async (r, ct) => { var list = new List<object>(); " + ordinalDecls + " while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new " + rsType + "(" + fieldExprs + ")); } return list; }),");
+                    var propName = rs.Name.StartsWith("ResultSet", StringComparison.OrdinalIgnoreCase) ? "Result" + rs.Name.Substring("ResultSet".Length) : rs.Name;
+                    var assignment = $", {propName} = rs.Length > {rsIdx} ? Array.ConvertAll(((System.Collections.Generic.List<object>)rs[{rsIdx}]).ToArray(), o => ({rsType})o).ToList() : Array.Empty<{rsType}>()";
+                    rsMeta.Add(new {
+                        Name = rs.Name,
+                        TypeName = rsType,
+                        PropName = propName,
+                        OrdinalDecls = ordinalDecls,
+                        FieldExprs = fieldExprs,
+                        Index = rsIdx,
+                        AggregateAssignment = assignment
+                    });
+                    rsIdx++;
                 }
-                planBlock.AppendLine("        };\n");
-                if (proc.OutputFields.Count > 0)
-                    planBlock.AppendLine($"        object? OutputFactory(IReadOnlyDictionary<string, object?> values) => new {outputTypeName}(" + string.Join(", ", proc.OutputFields.Select(f => CastOutputValue(f))) + ");");
-                else
-                    planBlock.AppendLine("        object? OutputFactory(IReadOnlyDictionary<string, object?> values) => null;");
-                planBlock.Append("        object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs) => new ");
-                planBlock.Append(unifiedResultTypeName + " { Success = success, Error = error");
-                if (proc.OutputFields.Count > 0) planBlock.Append(", Output = (" + NamePolicy.Output(procPart) + "?)output");
-                int rsIndex = 0;
-                foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
-                {
-                    var rsType = NamePolicy.ResultSet(procPart, rs.Name);
-                    var originalName = rs.Name;
-                    var propName = originalName.StartsWith("ResultSet", StringComparison.OrdinalIgnoreCase) ? "Result" + originalName.Substring("ResultSet".Length) : originalName;
-                    planBlock.Append($", {propName} = rs.Length > {rsIndex} ? Array.ConvertAll(((System.Collections.Generic.List<object>)rs[{rsIndex}]).ToArray(), o => ({rsType})o).ToList() : Array.Empty<{rsType}>() ");
-                    rsIndex++;
-                }
-                planBlock.Append("};\n");
-                if (proc.InputParameters.Count > 0)
-                {
-                    var inputType = NamePolicy.Input(procPart);
-                    planBlock.AppendLine($"        void Binder(DbCommand cmd, object? state) {{ var input = ({inputType})state!; ");
-                    foreach (var ip in proc.InputParameters)
-                        planBlock.AppendLine($"            cmd.Parameters[\"@{ip.Name}\"].Value = input.{ip.PropertyName};");
-                    planBlock.AppendLine("        }");
-                }
-                else
-                {
-                    planBlock.AppendLine("        void Binder(DbCommand cmd, object? state) { }");
-                }
-                planBlock.AppendLine("        return new ProcedureExecutionPlan(");
-                planBlock.AppendLine($"            \"{proc.Schema}.{proc.ProcedureName}\", parameters, resultSets, OutputFactory, AggregateFactory, Binder);\n    }}\n}}");
-                var wrapperBlock = new StringBuilder();
-                wrapperBlock.AppendLine($"public static class {procedureTypeName}");
-                wrapperBlock.AppendLine("{");
-                wrapperBlock.AppendLine($"    public const string Name = \"{proc.Schema}.{proc.ProcedureName}\";");
-                var inputSignature2 = proc.InputParameters.Count > 0 ? $", {inputTypeName} input" : string.Empty;
-                wrapperBlock.AppendLine($"    public static Task<{unifiedResultTypeName}> ExecuteAsync(DbConnection connection{inputSignature2}, CancellationToken cancellationToken = default)");
-                wrapperBlock.AppendLine("    {");
-                if (proc.InputParameters.Count > 0)
-                    wrapperBlock.AppendLine($"        return ProcedureExecutor.ExecuteAsync<{unifiedResultTypeName}>(connection, {planTypeName}.Instance, input, cancellationToken);");
-                else
-                    wrapperBlock.AppendLine($"        return ProcedureExecutor.ExecuteAsync<{unifiedResultTypeName}>(connection, {planTypeName}.Instance, null, cancellationToken);");
-                wrapperBlock.AppendLine("    }");
-                wrapperBlock.AppendLine("}");
+
+                // Parameters meta
+                var paramLines = new List<string>();
+                foreach (var ip in proc.InputParameters)
+                    paramLines.Add($"new(\"@{ip.Name}\", {MapDbType(ip.SqlTypeName)}, {EmitSize(ip)}, false, {ip.IsNullable.ToString().ToLowerInvariant()})");
+                foreach (var opf in proc.OutputFields)
+                    paramLines.Add($"new(\"@{opf.Name}\", {MapDbType(opf.SqlTypeName)}, {EmitSize(opf)}, true, {opf.IsNullable.ToString().ToLowerInvariant()})");
+
+                // Output factory args
+                string outputFactoryArgs = proc.OutputFields.Count > 0 ? string.Join(", ", proc.OutputFields.Select(f => CastOutputValue(f))) : string.Empty;
+
+                // Aggregate assignments
+                var aggregateAssignments = rsMeta.Select(m => ((dynamic)m).AggregateAssignment as string).ToList();
 
                 var model = new
                 {
                     Namespace = finalNs,
                     UsingDirectives = usingBlock,
+                    HEADER = header,
+                    HasInput = proc.InputParameters.Count > 0,
+                    HasOutput = proc.OutputFields.Count > 0,
+                    HasResultSets = proc.ResultSets.Count > 0,
                     InputRecordBlock = inputBlock.ToString().TrimEnd(),
                     OutputRecordBlock = outputBlock.ToString().TrimEnd(),
                     ResultSetRecordsBlock = rsRecordsBlock.ToString().TrimEnd(),
-                    UnifiedResultClassBlock = resultClassBlock.ToString().TrimEnd(),
-                    PlanClassBlock = planBlock.ToString().TrimEnd(),
-                    WrapperClassBlock = wrapperBlock.ToString().TrimEnd(),
-                    HEADER = header
+                    ProcedureFullName = proc.Schema + "." + proc.ProcedureName,
+                    ProcedureTypeName = procedureTypeName,
+                    UnifiedResultTypeName = unifiedResultTypeName,
+                    OutputTypeName = outputTypeName,
+                    PlanTypeName = procedureTypeName + "Plan",
+                    InputTypeName = inputTypeName,
+                    ParameterLines = paramLines,
+                    InputAssignments = proc.InputParameters.Select(ip => $"cmd.Parameters[\"@{ip.Name}\"].Value = input.{ip.PropertyName};").ToList(),
+                    ResultSets = rsMeta,
+                    OutputFactoryArgs = outputFactoryArgs,
+                    HasAggregateOutput = proc.OutputFields.Count > 0,
+                    AggregateAssignments = aggregateAssignments
                 };
                 finalCode = _renderer.Render(unifiedTemplateRaw!, model);
             }

@@ -12,6 +12,7 @@ public sealed class SimpleTemplateEngine : ITemplateRenderer
     // Regex: {{ Name }} oder {{  complex.path_value  }}
     private static readonly Regex Placeholder = new(@"\{\{\s*(?<name>[A-Za-z0-9_\.]+)\s*\}\}", RegexOptions.Compiled);
     private static readonly Regex EachBlock = new(@"\{\{#each\s+(?<path>[A-Za-z0-9_\.]+)\s*\}\}(?<body>[\s\S]*?)\{\{/each\}\}", RegexOptions.Compiled);
+    private static readonly Regex IfBlock = new(@"\{\{#if\s+(?<expr>[A-Za-z0-9_\.]+)\s*\}\}(?<body>[\s\S]*?)(\{\{else\}\}(?<else>[\s\S]*?))?\{\{/if\}\}", RegexOptions.Compiled);
 
     public string Render(string template, object? model)
     {
@@ -24,7 +25,32 @@ public sealed class SimpleTemplateEngine : ITemplateRenderer
         {
             PropertyNameCaseInsensitive = true
         });
-        // Process each blocks first
+        // Process if blocks first (so nested #each inside truthy branches becomes visible)
+        template = IfBlock.Replace(template, m =>
+        {
+            var expr = m.Groups["expr"].Value.Split('.');
+            var body = m.Groups["body"].Value;
+            var elseBody = m.Groups["else"].Success ? m.Groups["else"].Value : string.Empty;
+            if (TryResolve(json, expr, out var flag))
+            {
+                bool truthy = flag.ValueKind switch
+                {
+                    JsonValueKind.False => false,
+                    JsonValueKind.Null => false,
+                    JsonValueKind.Undefined => false,
+                    JsonValueKind.Number => true,
+                    JsonValueKind.String => !string.IsNullOrEmpty(flag.ToString()),
+                    JsonValueKind.Array => flag.GetArrayLength() > 0,
+                    JsonValueKind.Object => true,
+                    JsonValueKind.True => true,
+                    _ => false
+                };
+                return truthy ? body : elseBody;
+            }
+            return elseBody; // unresolved treated as false
+        });
+
+        // Then process each blocks (which might have been revealed by #if)
         template = EachBlock.Replace(template, m =>
         {
             var pathSegs = m.Groups["path"].Value.Split('.');
@@ -53,6 +79,7 @@ public sealed class SimpleTemplateEngine : ITemplateRenderer
             }
             return sb.ToString();
         });
+
 
         return Placeholder.Replace(template, m =>
         {

@@ -13,53 +13,66 @@ using System.Threading;
 using System.Threading.Tasks;
 using RestApi.SpocR;
 
+// Input DTO ------------------------------------------------------------------------------------------------
+
 public readonly record struct UserContactSyncInput(
     string Contacts
 );
 
 
+// Output DTO (aggregated output parameters) ----------------------------------------------------------------
+
+
+// Result set row records -----------------------------------------------------------------------------------
 
 public readonly record struct UserContactSyncResultSet1Result(
     int? UpdatedContacts,
     int? MissingContacts
 );
 
+
+// Unified result (success + error + result sets + output object) ------------------------------------------
 public sealed class UserContactSyncResult
 {
-    public bool Success { get; init; }
-    public string? Error { get; init; }
-    public IReadOnlyList<UserContactSyncResultSet1Result> Result1 { get; init; } = Array.Empty<UserContactSyncResultSet1Result>();
+	public bool Success { get; init; }
+	public string? Error { get; init; }
+	public IReadOnlyList<UserContactSyncResultSet1Result> Result1 { get; init; } = Array.Empty<UserContactSyncResultSet1Result>();
+	
 }
 
+// Execution plan (parameters, result set mappings, factories, binder) -------------------------------------
 internal static partial class UserContactSyncProcedurePlan
 {
     private static ProcedureExecutionPlan? _cached;
     public static ProcedureExecutionPlan Instance => _cached ??= Create();
     private static ProcedureExecutionPlan Create()
     {
-        var parameters = new ProcedureParameter[] {
+	var parameters = new ProcedureParameter[] {
             new("@Contacts", System.Data.DbType.String, null, false, false),
         };
 
-        var resultSets = new ResultSetMapping[] {
+	var resultSets = new ResultSetMapping[] {
             new("ResultSet1", async (r, ct) => { var list = new List<object>(); int o0=r.GetOrdinal("UpdatedContacts"); int o1=r.GetOrdinal("MissingContacts"); while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new UserContactSyncResultSet1Result(r.IsDBNull(o0) ? null : (int?)r.GetInt32(o0), r.IsDBNull(o1) ? null : (int?)r.GetInt32(o1))); } return list; }),
         };
 
-        object? OutputFactory(IReadOnlyDictionary<string, object?> values) => null;
-        object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs) => new UserContactSyncResult { Success = success, Error = error, Result1 = rs.Length > 0 ? Array.ConvertAll(((System.Collections.Generic.List<object>)rs[0]).ToArray(), o => (UserContactSyncResultSet1Result)o).ToList() : Array.Empty<UserContactSyncResultSet1Result>() };
-        void Binder(DbCommand cmd, object? state) { var input = (UserContactSyncInput)state!; 
-            cmd.Parameters["@Contacts"].Value = input.Contacts;
-        }
-        return new ProcedureExecutionPlan(
-            "samples.UserContactSync", parameters, resultSets, OutputFactory, AggregateFactory, Binder);
+	object? OutputFactory(IReadOnlyDictionary<string, object?> values) => null;
+	object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs) => new UserContactSyncResult { Success = success, Error = error, Result1 = rs.Length > 0 ? Array.ConvertAll(((System.Collections.Generic.List<object>)rs[0]).ToArray(), o => (UserContactSyncResultSet1Result)o).ToList() : Array.Empty<UserContactSyncResultSet1Result>() };
+	void Binder(DbCommand cmd, object? state) {
+	var input = (UserContactSyncInput)state!;
+        cmd.Parameters["@Contacts"].Value = input.Contacts;
+
+	}
+	return new ProcedureExecutionPlan(
+	    "samples.UserContactSync", parameters, resultSets, OutputFactory, AggregateFactory, Binder);
     }
 }
 
+// Public wrapper API ---------------------------------------------------------------------------------------
 public static class UserContactSyncProcedure
 {
-    public const string Name = "samples.UserContactSync";
-    public static Task<UserContactSyncResult> ExecuteAsync(DbConnection connection, UserContactSyncInput input, CancellationToken cancellationToken = default)
-    {
-        return ProcedureExecutor.ExecuteAsync<UserContactSyncResult>(connection, UserContactSyncProcedurePlan.Instance, input, cancellationToken);
-    }
+	public const string Name = "samples.UserContactSync";
+	public static Task<UserContactSyncResult> ExecuteAsync(DbConnection connection, UserContactSyncInput input, CancellationToken cancellationToken = default)
+	{
+		return ProcedureExecutor.ExecuteAsync<UserContactSyncResult>(connection, UserContactSyncProcedurePlan.Instance, input, cancellationToken);
+	}
 }

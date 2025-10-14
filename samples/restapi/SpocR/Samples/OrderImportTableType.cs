@@ -3,7 +3,7 @@ namespace RestApi.SpocR.samples;
 
 /// <summary>
 /// User Defined Table Type samples.OrderImportTableTypeTableType
-/// <remarks>Generated at 2025-10-14T14:39:27.8928936Z</remarks>
+/// <remarks>Generated at 2025-10-14T14:57:30.6572770Z</remarks>
 /// </summary>
 public readonly record struct OrderImportTableTypeTableType(
     int? UserId,

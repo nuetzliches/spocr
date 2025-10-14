@@ -4,14 +4,58 @@ namespace {{ Namespace }};
 
 {{ UsingDirectives }}
 
+{{#if HasInput}}
 {{ InputRecordBlock }}
+{{/if}}
 
+{{#if HasOutput}}
 {{ OutputRecordBlock }}
+{{/if}}
 
+{{#if HasResultSets}}
 {{ ResultSetRecordsBlock }}
+{{/if}}
 
-{{ UnifiedResultClassBlock }}
+public sealed class {{ UnifiedResultTypeName }}
+{
+	public bool Success { get; init; }
+	public string? Error { get; init; }
+	{{#if HasOutput}}public {{ OutputTypeName }}? Output { get; init; }
+	{{/if}}{{#if HasResultSets}}{{#each ResultSets}}public IReadOnlyList<{{ TypeName }}> {{ PropName }} { get; init; } = Array.Empty<{{ TypeName }}>();
+	{{/each}}{{/if}}
+}
 
-{{ PlanClassBlock }}
+internal static partial class {{ PlanTypeName }}
+{
+    private static ProcedureExecutionPlan? _cached;
+    public static ProcedureExecutionPlan Instance => _cached ??= Create();
+    private static ProcedureExecutionPlan Create()
+    {
+	var parameters = new ProcedureParameter[] {
+{{#each ParameterLines}}            {{ this }},
+{{/each}}        };
 
-{{ WrapperClassBlock }}
+	var resultSets = new ResultSetMapping[] {
+{{#each ResultSets}}            new("{{ Name }}", async (r, ct) => { var list = new List<object>(); {{ OrdinalDecls }} while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new {{ TypeName }}({{ FieldExprs }})); } return list; }),
+{{/each}}        };
+
+	object? OutputFactory(IReadOnlyDictionary<string, object?> values) => {{#if HasOutput}}new {{ OutputTypeName }}({{ OutputFactoryArgs }}){{else}}null{{/if}};
+	object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs) => new {{ UnifiedResultTypeName }} { Success = success, Error = error{{#if HasOutput}}, Output = ({{ OutputTypeName }}?)output{{/if}}{{#if HasResultSets}}{{#each ResultSets}}{{ AggregateAssignment }}{{/each}}{{/if}} };
+	void Binder(DbCommand cmd, object? state) {
+	{{#if HasInput}}var input = ({{ InputTypeName }})state!;
+{{#each InputAssignments}}        {{ this }}
+{{/each}}{{/if}}
+	}
+	return new ProcedureExecutionPlan(
+	    "{{ ProcedureFullName }}", parameters, resultSets, OutputFactory, AggregateFactory, Binder);
+    }
+}
+
+public static class {{ ProcedureTypeName }}
+{
+	public const string Name = "{{ ProcedureFullName }}";
+	public static Task<{{ UnifiedResultTypeName }}> ExecuteAsync(DbConnection connection{{#if HasInput}}, {{ InputTypeName }} input{{/if}}, CancellationToken cancellationToken = default)
+	{
+		return ProcedureExecutor.ExecuteAsync<{{ UnifiedResultTypeName }}>(connection, {{ PlanTypeName }}.Instance, {{#if HasInput}}input{{else}}null{{/if}}, cancellationToken);
+	}
+}
