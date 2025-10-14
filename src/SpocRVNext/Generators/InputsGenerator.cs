@@ -45,12 +45,14 @@ public sealed class InputsGenerator
                 schemaPart = op.Substring(0, idx);
                 procPart = op[(idx + 1)..];
             }
-            var schemaDir = Path.Combine(baseOutputDir, schemaPart);
+            var schemaPascal = ToPascalCase(schemaPart);
+            var schemaDir = Path.Combine(baseOutputDir, schemaPascal);
             Directory.CreateDirectory(schemaDir);
             var typeName = NamePolicy.Input(procPart);
+            var finalNs = ns + "." + schemaPascal;
             var model = new
             {
-                Namespace = ns,
+                Namespace = finalNs,
                 OperationName = procPart,
                 TypeName = typeName,
                 ParameterCount = input.Fields.Count,
@@ -64,7 +66,7 @@ public sealed class InputsGenerator
             {
                 var sb = new StringBuilder();
                 sb.Append(header);
-                sb.AppendLine($"namespace {ns}.{schemaPart};");
+                sb.AppendLine($"namespace {finalNs};");
                 sb.AppendLine();
                 sb.AppendLine($"public readonly record struct {typeName}(");
                 for (int i = 0; i < input.Fields.Count; i++)
@@ -81,5 +83,19 @@ public sealed class InputsGenerator
             written++;
         }
         return written;
+    }
+
+    private static string ToPascalCase(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return string.Empty;
+        var parts = input.Split(new[] { '-', '_', ' ', '.', '/', '\\' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(p => p.Trim())
+            .Where(p => p.Length > 0)
+            .Select(p => char.ToUpperInvariant(p[0]) + (p.Length > 1 ? p.Substring(1).ToLowerInvariant() : string.Empty));
+        var candidate = string.Concat(parts);
+        candidate = new string(candidate.Where(ch => char.IsLetterOrDigit(ch) || ch == '_').ToArray());
+        if (string.IsNullOrEmpty(candidate)) candidate = "Schema";
+        if (char.IsDigit(candidate[0])) candidate = "N" + candidate;
+        return candidate;
     }
 }

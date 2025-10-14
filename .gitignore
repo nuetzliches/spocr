@@ -45,6 +45,7 @@ samples/
 !samples/mssql/
 !samples/mssql/**
 samples/mssql/.env
+samples/restapi/.env
 
 # Transient artifacts (coverage, test results, reports)
 .artifacts/*

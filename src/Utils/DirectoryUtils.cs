@@ -32,13 +32,23 @@ namespace SpocR.Utils
                 {
                     candidate = Path.GetDirectoryName(candidate);
                 }
+                else if (Directory.Exists(candidate))
+                {
+                    // It's an existing directory (even if it contains dots) – keep as-is.
+                }
                 else
                 {
-                    // If it does not exist yet, heuristically check if it looks like a file by extension
+                    // If it does not exist yet, heuristically check if it looks like a file by extension.
+                    // BUT only treat it as a file path if the parent directory exists and the extension does NOT simply come from a directory name with dots.
                     var ext = Path.GetExtension(candidate);
                     if (!string.IsNullOrEmpty(ext))
                     {
-                        candidate = Path.GetDirectoryName(candidate);
+                        var parentDir = Path.GetDirectoryName(candidate);
+                        if (!string.IsNullOrEmpty(parentDir) && Directory.Exists(parentDir))
+                        {
+                            candidate = parentDir; // treat as file path
+                        }
+                        // else: leave candidate unchanged – likely a directory to be created later
                     }
                 }
 

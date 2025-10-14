@@ -1,5 +1,5 @@
 {{ HEADER }}
-namespace {{ Namespace }}.Results;
+namespace {{ Namespace }};
 
 /// <summary>
 /// Result model for {{ OperationName }} (Success + optional payload)

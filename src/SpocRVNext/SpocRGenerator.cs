@@ -78,7 +78,12 @@ public sealed class SpocRGenerator
         if (cfg.GeneratorMode is not ("dual" or "next"))
             return 0; // vNext generation disabled in legacy mode
 
-        var ns = cfg.NamespaceRoot ?? "SpocR.Generated";
+    // NamespaceResolver liefert bereits finalen Namespace (inkl. Suffix-Policy). Nicht erneut anhängen.
+    // Compose final namespace: Root + '.' + OutputDir (if not already present as last segment)
+    var nsRoot = cfg.NamespaceRoot ?? "SpocR.Generated";
+    var outSeg = string.IsNullOrWhiteSpace(cfg.OutputDir) ? "SpocR" : cfg.OutputDir!;
+    outSeg = outSeg.Trim('.');
+    var ns = nsRoot.EndsWith('.' + outSeg, StringComparison.OrdinalIgnoreCase) ? nsRoot : nsRoot + '.' + outSeg;
         var total = 0;
 
         // If a schema provider factory is supplied and no explicit delegates were provided, use it to populate metadata.

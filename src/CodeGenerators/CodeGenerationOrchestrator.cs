@@ -121,11 +121,18 @@ public class CodeGenerationOrchestrator(
                     SpocR.SpocRVNext.Engine.ITemplateLoader? loader = System.IO.Directory.Exists(templatesDir)
                         ? new SpocR.SpocRVNext.Engine.FileSystemTemplateLoader(templatesDir)
                         : null;
-                    var vnextGen = new SpocR.SpocRVNext.SpocRGenerator(new SpocR.SpocRVNext.Engine.SimpleTemplateEngine(), loader, schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider(System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "samples", "restapi")));
                     var cwd = System.IO.Directory.GetCurrentDirectory();
-                    var sampleRestApi = System.IO.Path.Combine(cwd, "samples", "restapi", "SpocR");
-                    if (!System.IO.Directory.Exists(sampleRestApi)) System.IO.Directory.CreateDirectory(sampleRestApi);
-                    vnextGen.GenerateAll(EnvConfiguration.Load(), sampleRestApi);
+                    // Dynamische Ermittlung des Sample-Projekt Wurzelverzeichnisses:
+                    // Strategie: finde eine spocr.json unterhalb von samples/* mit einer RestApi.csproj im selben Ordner
+                    string sampleRoot = FindSampleProjectRoot(cwd) ?? System.IO.Path.Combine(cwd, "samples", "restapi");
+                    var sampleOutDir = System.IO.Path.Combine(sampleRoot, "SpocR");
+                    var vnextGen = new SpocR.SpocRVNext.SpocRGenerator(
+                        new SpocR.SpocRVNext.Engine.SimpleTemplateEngine(),
+                        loader,
+                        schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider(sampleRoot));
+                    if (!System.IO.Directory.Exists(sampleOutDir)) System.IO.Directory.CreateDirectory(sampleOutDir);
+                    // Wichtig: EnvConfiguration.Load mit sampleRoot, damit NamespaceResolver die RestApi.csproj korrekt findet
+                    vnextGen.GenerateAll(EnvConfiguration.Load(projectRoot: sampleRoot), sampleRoot);
                     elapsed.Add("vNext", stopwatch.ElapsedMilliseconds);
                 }
                 catch (Exception vx)
@@ -183,11 +190,14 @@ public class CodeGenerationOrchestrator(
                     SpocR.SpocRVNext.Engine.ITemplateLoader? loader = System.IO.Directory.Exists(templatesDir)
                         ? new SpocR.SpocRVNext.Engine.FileSystemTemplateLoader(templatesDir)
                         : null;
-                    var vnextGen = new SpocR.SpocRVNext.SpocRGenerator(new SpocR.SpocRVNext.Engine.SimpleTemplateEngine(), loader, schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider(System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "samples", "restapi")));
                     var cwd2 = System.IO.Directory.GetCurrentDirectory();
-                    var sampleRestApi2 = System.IO.Path.Combine(cwd2, "samples", "restapi", "SpocR");
-                    if (!System.IO.Directory.Exists(sampleRestApi2)) System.IO.Directory.CreateDirectory(sampleRestApi2);
-                    vnextGen.GenerateAll(EnvConfiguration.Load(), sampleRestApi2);
+                    var sampleRoot2 = FindSampleProjectRoot(cwd2) ?? System.IO.Path.Combine(cwd2, "samples", "restapi");
+                    var vnextGen = new SpocR.SpocRVNext.SpocRGenerator(
+                        new SpocR.SpocRVNext.Engine.SimpleTemplateEngine(),
+                        loader,
+                        schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider(sampleRoot2));
+                    if (!System.IO.Directory.Exists(System.IO.Path.Combine(sampleRoot2, "SpocR"))) System.IO.Directory.CreateDirectory(System.IO.Path.Combine(sampleRoot2, "SpocR"));
+                    vnextGen.GenerateAll(EnvConfiguration.Load(projectRoot: sampleRoot2), sampleRoot2);
                 }
                 catch (Exception vx)
                 {
@@ -248,8 +258,9 @@ public class CodeGenerationOrchestrator(
                     SpocR.SpocRVNext.Engine.ITemplateLoader? loader = System.IO.Directory.Exists(templatesDir)
                         ? new SpocR.SpocRVNext.Engine.FileSystemTemplateLoader(templatesDir)
                         : null;
-                    var vnextGen = new SpocR.SpocRVNext.SpocRGenerator(new SpocR.SpocRVNext.Engine.SimpleTemplateEngine(), loader, schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider());
-                    vnextGen.GenerateAll(EnvConfiguration.Load(), System.IO.Directory.GetCurrentDirectory());
+                    var sampleRoot3 = FindSampleProjectRoot(System.IO.Directory.GetCurrentDirectory()) ?? System.IO.Directory.GetCurrentDirectory();
+                    var vnextGen = new SpocR.SpocRVNext.SpocRGenerator(new SpocR.SpocRVNext.Engine.SimpleTemplateEngine(), loader, schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider(sampleRoot3));
+                    vnextGen.GenerateAll(EnvConfiguration.Load(projectRoot: sampleRoot3), sampleRoot3);
                 }
                 catch (Exception vx)
                 {
@@ -307,6 +318,22 @@ public class CodeGenerationOrchestrator(
     public Task GenerateDataContextStoredProceduresAsync(bool isDryRun)
     {
         return storedProcedureGenerator.GenerateDataContextStoredProceduresAsync(isDryRun);
+    }
+    private static string? FindSampleProjectRoot(string cwd)
+    {
+        try
+        {
+            var samplesDir = System.IO.Path.Combine(cwd, "samples");
+            if (!System.IO.Directory.Exists(samplesDir)) return null;
+            foreach (var dir in System.IO.Directory.EnumerateDirectories(samplesDir))
+            {
+                var candidateCfg = System.IO.Path.Combine(dir, "spocr.json");
+                if (System.IO.File.Exists(candidateCfg))
+                    return dir;
+            }
+        }
+        catch { }
+        return null;
     }
 }
 

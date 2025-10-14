@@ -1,5 +1,5 @@
 {{ HEADER }}
-namespace {{ Namespace }}.Outputs;
+namespace {{ Namespace }};
 
 /// <summary>
 /// Output model for {{ OperationName }} ({{ FieldCount }} fields)

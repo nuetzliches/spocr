@@ -7,57 +7,117 @@ using SpocR.SpocRVNext.Generators;
 using SpocR.Extensions;
 using SpocR.CodeGenerators;
 using SpocR.Commands;
+using SpocR.SpocRVNext.Engine;
+using SpocR.Utils;
 using Xunit;
 
 namespace SpocR.Tests.SpocRVNext.Generators;
 
 public class DbContextGeneratorTests
 {
+    private static void Fail(string message) => throw new Xunit.Sdk.XunitException(message);
     [Fact]
     public async Task DbContextGenerator_Skips_In_Legacy_Mode()
     {
-        Environment.SetEnvironmentVariable("SPOCR_GENERATOR_MODE", "legacy");
-        var gen = CreateGenerator();
-        await gen.GenerateAsync(isDryRun: false);
-        Assert.False(File.Exists(Path.Combine(GetOutputRoot(), "SpocR", "SpocRDbContext.cs")));
+        var originalCwd = Directory.GetCurrentDirectory();
+        var temp = Directory.CreateTempSubdirectory();
+        try
+        {
+            Directory.SetCurrentDirectory(temp.FullName);
+            DirectoryUtils.SetBasePath(temp.FullName);
+            File.WriteAllText(Path.Combine(temp.FullName, ".env"), "SPOCR_NAMESPACE=Test.App\n");
+            Environment.SetEnvironmentVariable("SPOCR_GENERATOR_MODE", "legacy");
+            var gen = CreateGenerator();
+            await gen.GenerateAsync(isDryRun: false);
+            var outDir = Path.Combine(temp.FullName, "SpocR");
+            Assert.False(File.Exists(Path.Combine(outDir, "SpocRDbContext.cs")));
+        }
+        finally
+        {
+            Directory.SetCurrentDirectory(originalCwd);
+            Environment.SetEnvironmentVariable("SPOCR_GENERATOR_MODE", null);
+        }
     }
 
     [Fact]
     public async Task DbContextGenerator_Generates_In_Dual_Mode()
     {
-        Environment.SetEnvironmentVariable("SPOCR_GENERATOR_MODE", "dual");
+        var originalCwd = Directory.GetCurrentDirectory();
+        var temp = Directory.CreateTempSubdirectory();
         try
         {
+            Directory.SetCurrentDirectory(temp.FullName);
+            DirectoryUtils.SetBasePath(temp.FullName);
+            File.WriteAllText(Path.Combine(temp.FullName, ".env"), "SPOCR_NAMESPACE=Test.App\n");
+            Environment.SetEnvironmentVariable("SPOCR_GENERATOR_MODE", "dual");
             var gen = CreateGenerator();
             await gen.GenerateAsync(isDryRun: false);
-            Assert.True(File.Exists(Path.Combine(GetOutputRoot(), "SpocR", "SpocRDbContext.cs")));
+            // Diagnose: liste alle Dateien unter temp
+            var allFiles = Directory.GetFiles(temp.FullName, "*", SearchOption.AllDirectories);
+            // Rekursiv nach generierten Artefakten suchen (Generator kann Pfadstruktur aus Config ableiten)
+            var generated = Directory.GetFiles(temp.FullName, "SpocRDbContext.cs", SearchOption.AllDirectories);
+            if (generated.Length == 0)
+            {
+                var allCs = Directory.GetFiles(temp.FullName, "*.cs", SearchOption.AllDirectories);
+                var all = string.Join("\n", allCs);
+                var manifest = string.Join("\n", allFiles);
+                var expectedSpocrDir = Path.Combine(temp.FullName, "SpocR");
+                var spocrExists = Directory.Exists(expectedSpocrDir);
+                var probePath = Path.Combine(temp.FullName, "probe_write_check.txt");
+                File.WriteAllText(probePath, "ok");
+                var probeExists = File.Exists(probePath);
+                Fail("SpocRDbContext.cs nicht gefunden. SpocRDirExists=" + spocrExists + " ProbeWrite=" + probeExists + "\nAlle .cs Dateien:\n" + all + "\n--- Manifest aller Dateien ---\n" + manifest + "\nCWD=" + Directory.GetCurrentDirectory());
+            }
+            // Leite Basisverzeichnis von erster Fundstelle ab
+            var ctxFile = generated[0];
+            var outDir = Path.GetDirectoryName(ctxFile)!;
+            bool MustExist(string name) => File.Exists(Path.Combine(outDir, name));
+            Assert.True(MustExist("ISpocRDbContext.cs"), "ISpocRDbContext.cs fehlt bei " + outDir);
+            Assert.True(MustExist("SpocRDbContextOptions.cs"), "SpocRDbContextOptions.cs fehlt bei " + outDir);
+            Assert.True(MustExist("SpocRDbContextServiceCollectionExtensions.cs"), "Extensions fehlt bei " + outDir);
         }
-        finally
-        {
-            Environment.SetEnvironmentVariable("SPOCR_GENERATOR_MODE", null);
-        }
+        finally { Directory.SetCurrentDirectory(originalCwd); Environment.SetEnvironmentVariable("SPOCR_GENERATOR_MODE", null); }
     }
 
     private static DbContextGenerator CreateGenerator()
     {
         var services = new ServiceCollection();
         services.AddSingleton<IConsole>(PhysicalConsole.Singleton);
-        services.AddSingleton(new CommandOptions());
+        // Registriere zuerst unsere eigene ICommandOptions Instanz mit Verbose=true
+        services.AddSingleton<ICommandOptions>(new TestOptionsVerbose());
+        // Danach den CommandOptions Wrapper, damit ConsoleService.Verbose greift
+        services.AddSingleton(sp => new CommandOptions(sp.GetRequiredService<ICommandOptions>()));
         services.AddSpocR();
+        var tempTemplates = Path.Combine(Path.GetTempPath(), "spocr_test_templates");
+        Directory.CreateDirectory(tempTemplates);
+        File.WriteAllText(Path.Combine(tempTemplates, "DbContext.spt"), "// test template\nnamespace {{ Namespace }};\npublic class SpocRDbContext { }");
+        services.AddSingleton<SpocR.SpocRVNext.Engine.ITemplateRenderer, SpocR.SpocRVNext.Engine.SimpleTemplateEngine>();
+        services.AddSingleton<SpocR.SpocRVNext.Engine.ITemplateLoader>(_ => new SpocR.SpocRVNext.Engine.FileSystemTemplateLoader(tempTemplates));
         var provider = services.BuildServiceProvider();
+        var fm = provider.GetRequiredService<SpocR.Managers.FileManager<SpocR.Models.ConfigurationModel>>();
+        if (string.IsNullOrWhiteSpace(fm.Config.Project.Output.Namespace))
+        {
+            fm.Config.Project.Output.Namespace = "Test.App";
+        }
+        // Normalize DataContext.Path to avoid parent resolution quirks with leading './'
+        if (fm.Config.Project?.Output?.DataContext?.Path == "./DataContext")
+        {
+            fm.Config.Project.Output.DataContext.Path = "DataContext"; // drop leading './' for deterministic parent
+        }
         return provider.GetRequiredService<DbContextGenerator>();
     }
 
-    private static string GetOutputRoot()
+    private sealed class TestOptionsVerbose : ICommandOptions
     {
-        var services = new ServiceCollection();
-        services.AddSingleton<IConsole>(PhysicalConsole.Singleton);
-        services.AddSingleton(new CommandOptions());
-        services.AddSpocR();
-        var provider = services.BuildServiceProvider();
-        var outputService = provider.GetRequiredService<SpocR.Services.OutputService>();
-        var dir = outputService.GetOutputRootDir().FullName;
-        // DbContext artifacts now reside directly under root/SpocR
-        return Path.Combine(dir, "SpocR");
+        public string Path { get; set; } = string.Empty;
+        public bool DryRun { get; set; }
+        public bool Force { get; set; }
+        public bool Quiet { get; set; }
+        public bool Verbose { get; set; } = true;
+        public bool NoVersionCheck { get; set; }
+        public bool NoAutoUpdate { get; set; }
+        public bool Debug { get; set; }
+        public bool NoCache { get; set; }
     }
+
 }

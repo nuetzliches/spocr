@@ -1,5 +1,5 @@
 {{ HEADER }}
-namespace {{ Namespace }}.{{ Schema }};
+namespace {{ Namespace }};
 
 /// <summary>
 /// User Defined Table Type {{ Schema }}.{{ Name }} (columns: {{ ColumnsCount }})

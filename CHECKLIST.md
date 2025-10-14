@@ -312,14 +312,30 @@ EPICS Übersicht (oberste Steuerungsebene)
 
 # Fixes für zwischendurch
 
-- [x] samples\restapi\SpocR\samples müssen den Namespace RestApi.SpocR.samples erhalten.
-- [x] samples\restapi\SpocR\ITableType.cs muss den Namespace RestApi.SpocR erhalten.
-- [ ] samples\restapi\.env eventuell auch aus Template mit Kommentaren generieren
-- [ ] samples\restapi\SpocR\samples\CreateUserWithOutputResult.cs diese Datei soll nicht erzeugt werden (wozu ist sie gedacht?). Dafür soll diese Datei samples\restapi\SpocR\samples\CreateUserWithOutput1Result.cs in CreateUserWithOutputResult.cs umbenannt werden, da sie dem ersten ResultSet entspricht (Namen werden erst mit dem 2. ResultSet erweitert - spricht was dagegen?).
-- [ ] Namespace fest verdrahten/override via .env (SPOCR_NAMESPACE).
-- [ ] Einheitliche Klein-/Großschreibung der Schema-Ordner (aktuell Samples durch Sanitize).
-- [ ] Tests für Dateinamen & Determinismus hinzufügen.
-- [ ] Aktivierung derselben Full-Generation auch im next-only Pfad im Dispatcher (steht noch halb-offen).
+- [x] samples\restapi\SpocR\samples Namespace-Korrektur (Generator + manuelle Files bereinigt)
+- [x] samples\restapi\SpocR\ITableType.cs Namespace = RestApi.SpocR ✅
+- [ ] samples\restapi\.env aus Template mit Kommentaren generieren
+      - [ ] Template-Datei `.env.example` anreichern (Erklär-Kommentare für SPOCR_GENERATOR_MODE, SPOCR_NAMESPACE, SPOCR_DB_IDENTIFIER)
+      - [ ] CLI Befehl/Bootstrap: `spocr env init` (optional) evaluieren
+- [ ] ResultSet Datei-Benennung vereinheitlichen
+      - Aktueller Stand: Aggregat `CreateUserWithOutputResult.cs` + RowSet `CreateUserWithOutput1Result.cs` (soll zu `CreateUserWithOutputResultSet1Row.cs`).
+      - [ ] Umbenennung RowSet Dateien auf konsistentes Muster `*ResultSet{X}Row.cs`
+      - [ ] Entfernen historischer `*1Result.cs` Varianten
+      - [ ] Regel dokumentieren: Erstes ResultSet ohne numerischen Suffix beim Aggregat; RowSets mit `ResultSetXRow`.
+- [x] Auto-Namespace Fallback für samples/restapi implementiert (erzwingt Basis `RestApi`)
+      - [ ] Ergänzender Test für WorkingDir = `samples/restapi` (Folgetask – aktuell indirekt durch Integration abgedeckt)
+- [ ] .env Override Nutzung (SPOCR_NAMESPACE) dokumentieren & Beispiel ergänzen
+- [ ] Einheitliche Klein-/Großschreibung Schema-Ordner
+      - [ ] Normalisierung (Entscheidung: Beibehalt Original vs. PascalCase)
+      - [ ] Test: Mixed Case Snapshot → generierter Ordner konsistent
+- [ ] Dateinamen & Determinismus zusätzliche Tests
+      - [x] Grundlegende deterministische Hash Tests (Golden Snapshot) vorhanden
+      - [ ] Erweiterung: spezifische Artefakt-Typen (StoredProcedure Wrapper, ResultSet Rows)
+      - [ ] Dateinamens-Konflikt Test (zwei Procs mit ähnlichen Namen + Suffix Handling)
+- [ ] Dispatcher next-only Pfad: Gleiches Full Generation Set wie dual
+      - [ ] Prüfen Codepfad (`SpocRGenerator` / Dispatcher)
+      - [ ] Test: MODE=next erzeugt identische Artefakte wie dual (ohne Legacy)
+- [x] Sicherstellen, dass samples/restapi/.env nicht in git landet (`.gitignore` aktualisiert)
 
 # Zu planende Entscheidungen
 

@@ -11,6 +11,7 @@ using SpocR.Managers;
 using SpocR.Models;
 using SpocR.Services;
 using SpocR.Utils;
+using SpocRVNext.Configuration;
 
 namespace SpocR.Extensions
 {
@@ -74,6 +75,8 @@ namespace SpocR.Extensions
             services.AddSingleton<ISchemaSnapshotService, SchemaSnapshotService>();
             services.AddSingleton<ISchemaMetadataProvider, SnapshotSchemaMetadataProvider>();
             services.AddSingleton<SnapshotMaintenanceManager>();
+            // vNext mode provider
+            services.AddSingleton<IGeneratorModeProvider, EnvGeneratorModeProvider>();
         }
 
         /// <summary>

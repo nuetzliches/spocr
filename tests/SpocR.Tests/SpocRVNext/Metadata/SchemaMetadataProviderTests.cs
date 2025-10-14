@@ -3,7 +3,7 @@ using System.IO;
 using Xunit;
 using SpocR.SpocRVNext.Metadata;
 
-namespace SpocR.Tests.VNext;
+namespace SpocR.Tests.SpocRVNext.Metadata;
 
 public class SchemaMetadataProviderTests
 {
@@ -31,17 +31,16 @@ public class SchemaMetadataProviderTests
         var procs = provider.GetProcedures();
         Assert.Single(procs);
         var p = procs[0];
+        // ProcedureName enthält laut Spezifikation nur den nackten Namen ohne Schema
         Assert.Equal("DoThing", p.ProcedureName);
         Assert.Single(p.InputParameters);
         Assert.Single(p.OutputFields);
-        var inputs = provider.GetInputs();
-        Assert.Single(inputs);
-        var outputs = provider.GetOutputs();
-        Assert.Single(outputs);
-        var resultSets = provider.GetResultSets();
-        Assert.Single(resultSets);
+        Assert.Single(provider.GetInputs());
+        Assert.Single(provider.GetOutputs());
+        Assert.Single(provider.GetResultSets());
         var results = provider.GetResults();
         Assert.Single(results);
-        Assert.Equal("DoThing", results[0].OperationName);
+        // OperationName bleibt voll qualifiziert (Schema.Name)
+        Assert.Equal("dbo.DoThing", results[0].OperationName);
     }
 }

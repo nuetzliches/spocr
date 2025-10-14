@@ -50,10 +50,11 @@ public sealed class DualGenerationDispatcher
                 {
                     // Instantiate template loader (filesystem) pointing to Templates folder
                     var templatesDir = Path.Combine(Directory.GetCurrentDirectory(), "src", "SpocRVNext", "Templates");
+                    var resolvedSampleRoot = FindSampleProjectRoot(Directory.GetCurrentDirectory()) ?? Directory.GetCurrentDirectory();
                     ITemplateLoader? loader = Directory.Exists(templatesDir)
                         ? new FileSystemTemplateLoader(templatesDir)
                         : null;
-                    var genNext = new SpocRGenerator(_renderer, loader, schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider(Path.Combine(Directory.GetCurrentDirectory(), "samples", "restapi")));
+                    var genNext = new SpocRGenerator(_renderer, loader, schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider(resolvedSampleRoot));
                     nextContent = genNext.RenderDemo();
                     Directory.CreateDirectory(nextDir);
                     File.WriteAllText(Path.Combine(nextDir, "DemoNext.cs"), nextContent);
@@ -67,10 +68,11 @@ public sealed class DualGenerationDispatcher
             case "dual":
                 legacyContent = "// legacy demo placeholder";
                 var templatesDirDual = Path.Combine(Directory.GetCurrentDirectory(), "src", "SpocRVNext", "Templates");
+                var sampleRootDyn = FindSampleProjectRoot(Directory.GetCurrentDirectory()) ?? Directory.GetCurrentDirectory();
                 ITemplateLoader? loaderDual = Directory.Exists(templatesDirDual)
                     ? new FileSystemTemplateLoader(templatesDirDual)
                     : null;
-                var gen = new SpocRGenerator(_renderer, loaderDual, schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider(Path.Combine(Directory.GetCurrentDirectory(), "samples", "restapi")));
+                var gen = new SpocRGenerator(_renderer, loaderDual, schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider(sampleRootDyn));
                 nextContent = gen.RenderDemo();
                 Directory.CreateDirectory(legacyDir);
                 Directory.CreateDirectory(nextDir);
@@ -78,8 +80,8 @@ public sealed class DualGenerationDispatcher
                 File.WriteAllText(Path.Combine(nextDir, "DemoNext.cs"), nextContent);
                 // Determine sample RestApi root (heuristic: look for samples/restapi relative to CWD)
                 var cwd = Directory.GetCurrentDirectory();
-                var sampleRoot = Path.Combine(cwd, "samples", "restapi");
-                if (Directory.Exists(sampleRoot))
+                var sampleRoot = FindSampleProjectRoot(cwd);
+                if (sampleRoot != null && Directory.Exists(sampleRoot))
                 {
                     var spocrOut = Path.Combine(sampleRoot, "SpocR");
                     Directory.CreateDirectory(spocrOut);
@@ -137,5 +139,21 @@ public sealed class DualGenerationDispatcher
                (diff.Added.Count > 0 ? "\n+ " + string.Join("\n+ ", diff.Added) : string.Empty) +
                (diff.Removed.Count > 0 ? "\n- " + string.Join("\n- ", diff.Removed) : string.Empty) +
                (diff.Changed.Count > 0 ? "\n~ " + string.Join("\n~ ", diff.Changed) : string.Empty);
+    }
+
+    private static string? FindSampleProjectRoot(string cwd)
+    {
+        try
+        {
+            var samplesDir = Path.Combine(cwd, "samples");
+            if (!Directory.Exists(samplesDir)) return null;
+            foreach (var dir in Directory.EnumerateDirectories(samplesDir))
+            {
+                var cfg = Path.Combine(dir, "spocr.json");
+                if (File.Exists(cfg)) return dir;
+            }
+        }
+        catch { }
+        return null;
     }
 }

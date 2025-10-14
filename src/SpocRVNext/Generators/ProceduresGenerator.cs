@@ -46,7 +46,9 @@ public sealed class ProceduresGenerator
                 schemaPart = op.Substring(0, idx);
                 procPart = op[(idx + 1)..];
             }
-            var schemaDir = Path.Combine(baseOutputDir, schemaPart);
+            var schemaPascal = ToPascalCase(schemaPart);
+            var finalNs = ns + "." + schemaPascal;
+            var schemaDir = Path.Combine(baseOutputDir, schemaPascal);
             Directory.CreateDirectory(schemaDir);
             var aggregateResultType = NamePolicy.Result(procPart) + "Aggregate"; // separate from simple Result record
             var procedureTypeName = NamePolicy.Procedure(procPart);
@@ -58,7 +60,7 @@ public sealed class ProceduresGenerator
                 var rowTypeName = NamePolicy.Row(procPart, rs.Name);
                 var sbRow = new StringBuilder();
                 sbRow.Append(header);
-                sbRow.AppendLine($"namespace {ns}.{schemaPart};");
+                sbRow.AppendLine($"namespace {finalNs};");
                 sbRow.AppendLine();
                 sbRow.AppendLine($"public readonly record struct {rowTypeName}(");
                 for (int i = 0; i < rs.Fields.Count; i++)
@@ -85,7 +87,7 @@ public sealed class ProceduresGenerator
                 var outputTypeName = NamePolicy.Output(procPart);
                 var sbOut = new StringBuilder();
                 sbOut.Append(header);
-                sbOut.AppendLine($"namespace {ns}.{schemaPart};");
+                sbOut.AppendLine($"namespace {finalNs};");
                 sbOut.AppendLine();
                 sbOut.AppendLine($"public readonly record struct {outputTypeName}(");
                 for (int i = 0; i < proc.OutputFields.Count; i++)
@@ -101,7 +103,7 @@ public sealed class ProceduresGenerator
             // Aggregate result class
             var aggSb = new StringBuilder();
             aggSb.Append(header);
-            aggSb.AppendLine($"namespace {ns}.{schemaPart};");
+            aggSb.AppendLine($"namespace {finalNs};");
             aggSb.AppendLine();
             aggSb.AppendLine($"public sealed class {aggregateResultType}");
             aggSb.AppendLine("{");
@@ -125,7 +127,7 @@ public sealed class ProceduresGenerator
             var planTypeName = procedureTypeName + "Plan";
             var planSb = new StringBuilder();
             planSb.Append(header);
-            planSb.AppendLine($"namespace {ns}.{schemaPart};");
+            planSb.AppendLine($"namespace {finalNs};");
             planSb.AppendLine();
             planSb.AppendLine("using System;\nusing System.Collections.Generic;\nusing System.Data;\nusing System.Data.Common;\nusing System.Threading;\nusing System.Threading.Tasks;\nusing SpocR.SpocRVNext.Execution;");
             // Build parameters array
@@ -203,7 +205,7 @@ public sealed class ProceduresGenerator
             // Wrapper
             var wrapperSb = new StringBuilder();
             wrapperSb.Append(header);
-            wrapperSb.AppendLine($"namespace {ns}.{schemaPart};");
+            wrapperSb.AppendLine($"namespace {finalNs};");
             wrapperSb.AppendLine();
             wrapperSb.AppendLine("using System.Data.Common;\nusing System.Threading;\nusing System.Threading.Tasks;\nusing SpocR.SpocRVNext.Execution;");
             wrapperSb.AppendLine($"public static class {procedureTypeName}\n{{");
@@ -333,5 +335,19 @@ public sealed class ProceduresGenerator
         if (nullable)
             return $"r.IsDBNull(o{ordinalIndex}) ? null : ({f.ClrType})r.{accessor}(o{ordinalIndex})";
         return $"r.{accessor}(o{ordinalIndex})";
+    }
+
+    private static string ToPascalCase(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return string.Empty;
+        var parts = input.Split(new[] { '-', '_', ' ', '.', '/', '\\' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(p => p.Trim())
+            .Where(p => p.Length > 0)
+            .Select(p => char.ToUpperInvariant(p[0]) + (p.Length > 1 ? p.Substring(1).ToLowerInvariant() : string.Empty));
+        var candidate = string.Concat(parts);
+        candidate = new string(candidate.Where(ch => char.IsLetterOrDigit(ch) || ch == '_').ToArray());
+        if (string.IsNullOrEmpty(candidate)) candidate = "Schema";
+        if (char.IsDigit(candidate[0])) candidate = "N" + candidate;
+        return candidate;
     }
 }

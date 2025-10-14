@@ -41,14 +41,15 @@ public sealed class ResultsGenerator
         foreach (var res in results.OrderBy(r => r.OperationName))
         {
             var split = NamePolicy.SplitSchema(res.OperationName);
-            var schema = split.Schema;
+            var schema = ToPascalCase(split.Schema);
             var procPart = split.Operation;
             var typeName = procPart + "Result"; // differentiate from _[ResultSetName]Result row types
             var schemaDir = Path.Combine(baseOutputDir, schema);
             Directory.CreateDirectory(schemaDir);
+            var finalNs = ns + "." + schema;
             var model = new
             {
-                Namespace = ns + "." + schema,
+                Namespace = finalNs,
                 OperationName = res.OperationName,
                 TypeName = typeName,
                 PayloadType = res.PayloadType,
@@ -63,7 +64,7 @@ public sealed class ResultsGenerator
             {
                 var sb = new StringBuilder();
                 sb.Append(header);
-                sb.AppendLine($"namespace {ns}.{schema};");
+                sb.AppendLine($"namespace {finalNs};");
                 sb.AppendLine();
                 sb.AppendLine($"public readonly record struct {typeName}(bool Success, string? Error, {res.PayloadType}? Value);");
                 code = sb.ToString();
@@ -72,5 +73,19 @@ public sealed class ResultsGenerator
             written++;
         }
         return written;
+    }
+
+    private static string ToPascalCase(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return string.Empty;
+        var parts = input.Split(new[] { '-', '_', ' ', '.', '/', '\\' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(p => p.Trim())
+            .Where(p => p.Length > 0)
+            .Select(p => char.ToUpperInvariant(p[0]) + (p.Length > 1 ? p.Substring(1).ToLowerInvariant() : string.Empty));
+        var candidate = string.Concat(parts);
+        candidate = new string(candidate.Where(ch => char.IsLetterOrDigit(ch) || ch == '_').ToArray());
+        if (string.IsNullOrEmpty(candidate)) candidate = "Schema";
+        if (char.IsDigit(candidate[0])) candidate = "N" + candidate;
+        return candidate;
     }
 }

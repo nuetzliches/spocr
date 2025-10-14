@@ -7,6 +7,7 @@ using SpocR.Models;
 using SpocR.Services;
 using SpocR.Utils;
 using SpocR.SpocRVNext.Engine;
+using SpocRVNext.Configuration; // for EnvConfiguration & NamespaceResolver
 
 namespace SpocR.SpocRVNext.Generators;
 
@@ -21,23 +22,18 @@ public class DbContextGenerator
     private readonly IConsoleService _console;
     private readonly ITemplateRenderer _renderer;
     private readonly ITemplateLoader? _loader;
+    private readonly IGeneratorModeProvider _modeProvider;
 
-    public DbContextGenerator(FileManager<ConfigurationModel> configFile, OutputService outputService, IConsoleService console, ITemplateRenderer renderer, ITemplateLoader? loader = null)
+    public DbContextGenerator(FileManager<ConfigurationModel> configFile, OutputService outputService, IConsoleService console, ITemplateRenderer renderer, IGeneratorModeProvider modeProvider, ITemplateLoader? loader = null)
     {
         _configFile = configFile;
         _outputService = outputService;
         _console = console;
         _renderer = renderer;
         _loader = loader;
+        _modeProvider = modeProvider;
     }
-
-    private static bool IsEnabled()
-    {
-        var mode = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant();
-        // default (null/empty) treated like dual upstream, but be explicit here
-        if (string.IsNullOrWhiteSpace(mode)) mode = "dual";
-        return mode is "dual" or "next";
-    }
+    private bool IsEnabled() => _modeProvider.Mode is "dual" or "next";
 
     public Task GenerateAsync(bool isDryRun) => GenerateInternalAsync(isDryRun);
 
@@ -58,29 +54,48 @@ public class DbContextGenerator
         }
         else
         {
-            // Fallback: try to infer from current working directory using NamespaceResolver-like heuristic.
-            // For vNext generator we minimize duplication; if missing we warn and bail.
-            _console.Warn("[dbctx] Missing Project.Output.Namespace – aborting DbContext generation (no inference path implemented).");
-            return;
+            try
+            {
+                // Use NamespaceResolver fallback (shared heuristic) – prevents silent skip in tests.
+                var envCfg = EnvConfiguration.Load();
+                var resolver = new NamespaceResolver(envCfg, msg => _console.Warn("[dbctx] ns-resolver: " + msg));
+                baseNs = resolver.Resolve(Directory.GetCurrentDirectory());
+                _console.Verbose($"[dbctx] Derived namespace '{baseNs}' (no explicit Project.Output.Namespace)");
+            }
+            catch (Exception ex)
+            {
+                _console.Warn("[dbctx] Missing Project.Output.Namespace – derivation failed: " + ex.Message);
+                return;
+            }
         }
 
-        // New placement: DbContext artifacts always at output root /SpocR (NOT inside DataContext) for clearer consumption.
-        var dataContextPath = _configFile.Config.Project.Output.DataContext.Path;
-        var dataContextDir = DirectoryUtils.GetWorkingDirectory(dataContextPath);
-        var rootDir = dataContextDir;
-        if (!string.IsNullOrWhiteSpace(dataContextPath) && dataContextPath.Trim('.', ' ', '/', '\\').Length > 0)
+        // Determine base directory (parent of DataContext) or override via ENV
+        var dcPath = _configFile.Config.Project.Output.DataContext.Path;
+        var dcDir = DirectoryUtils.GetWorkingDirectory(dcPath);
+        var rootDir = dcDir;
+        if (!string.IsNullOrWhiteSpace(dcPath) && dcPath.Trim('.', ' ', '/', '\\').Length > 0)
         {
-            var parent = Directory.GetParent(dataContextDir);
+            var parent = Directory.GetParent(dcDir);
             if (parent != null) rootDir = parent.FullName;
         }
         var spocrDir = Path.Combine(rootDir, "SpocR");
+        try
+        {
+            // Zusatzdiagnose: aktuelle CWD und Raw WorkingDirectory ohne dcPath
+            var rawWorking = DirectoryUtils.GetWorkingDirectory();
+            _console.Verbose($"[dbctx] mode={_modeProvider.Mode} dcPath='{dcPath ?? "<null>"}' cwd={Directory.GetCurrentDirectory()} rawWorking={rawWorking} rootDir={rootDir} spocrDir={spocrDir}");
+        }
+        catch (Exception ex)
+        {
+            _console.Verbose($"[dbctx] diag-error: {ex.Message}");
+        }
         if (!Directory.Exists(spocrDir) && !isDryRun) Directory.CreateDirectory(spocrDir);
 
         // Append .SpocR suffix only if not already present.
         var finalNs = baseNs.EndsWith(".SpocR", StringComparison.Ordinal) ? baseNs : baseNs + ".SpocR";
-
-        // Try template-based generation first
         var model = new { Namespace = finalNs };
+
+        // Generate all artifacts
         await WriteAsync(spocrDir, "ISpocRDbContext.cs", Render("ISpocRDbContext", GetTemplate_Interface(finalNs), model), isDryRun);
         await WriteAsync(spocrDir, "SpocRDbContextOptions.cs", Render("SpocRDbContextOptions", GetTemplate_Options(finalNs), model), isDryRun);
         await WriteAsync(spocrDir, "SpocRDbContext.cs", Render("SpocRDbContext", GetTemplate_Context(finalNs), model), isDryRun);

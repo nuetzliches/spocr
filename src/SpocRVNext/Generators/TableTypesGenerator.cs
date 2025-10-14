@@ -30,9 +30,12 @@ public sealed class TableTypesGenerator
         var types = _provider.GetAll();
         var resolver = new NamespaceResolver(_cfg);
         var resolvedBase = resolver.Resolve();
-        var rootOut = Path.Combine(_projectRoot, _cfg.OutputDir ?? "SpocR");
-        // Generic rule: place table types under BaseNamespace + ".SpocR" segment unless already ends with it.
-        var ns = resolvedBase.EndsWith(".SpocR", StringComparison.Ordinal) ? resolvedBase : resolvedBase + ".SpocR";
+        var outputDirName = _cfg.OutputDir ?? "SpocR";
+        var rootOut = Path.Combine(_projectRoot, outputDirName);
+        // Neue Regel: Namespace = <BaseRoot>.<OutputDirName> (kein doppeltes Anhängen), Schema wird pro Datei ergänzt.
+        var ns = resolvedBase.EndsWith($".{outputDirName}", StringComparison.Ordinal)
+            ? resolvedBase
+            : resolvedBase + "." + outputDirName;
         Directory.CreateDirectory(rootOut);
         var written = 0;
         string? tableTypeTemplate = null;
@@ -73,7 +76,8 @@ public sealed class TableTypesGenerator
         }
         foreach (var tt in types.OrderBy(t => t.Schema).ThenBy(t => t.Name))
         {
-            var schemaDir = Path.Combine(rootOut, tt.Schema);
+            var schemaPascal = ToPascalCase(tt.Schema);
+            var schemaDir = Path.Combine(rootOut, schemaPascal);
             Directory.CreateDirectory(schemaDir);
             var cols = tt.Columns.Select(c => new
             {
@@ -85,8 +89,8 @@ public sealed class TableTypesGenerator
             var typeName = Sanitize(tt.Name);
             var model = new
             {
-                Namespace = ns,
-                Schema = tt.Schema,
+                Namespace = ns + "." + schemaPascal,
+                Schema = schemaPascal,
                 Name = tt.Name,
                 TypeName = typeName,
                 TableTypeName = tt.Name, // original SQL UDTT name
@@ -110,6 +114,20 @@ public sealed class TableTypesGenerator
             written++;
         }
         return written; // includes interface (even if 0 types)
+    }
+
+    private static string ToPascalCase(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return string.Empty;
+        var parts = input.Split(new[] { '-', '_', ' ', '.', '/', '\\' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(p => p.Trim())
+            .Where(p => p.Length > 0)
+            .Select(p => char.ToUpperInvariant(p[0]) + (p.Length > 1 ? p.Substring(1).ToLowerInvariant() : string.Empty));
+        var candidate = string.Concat(parts);
+        candidate = new string(candidate.Where(ch => char.IsLetterOrDigit(ch) || ch == '_').ToArray());
+        if (string.IsNullOrEmpty(candidate)) candidate = "Schema";
+        if (char.IsDigit(candidate[0])) candidate = "N" + candidate;
+        return candidate;
     }
 
     private static string Sanitize(string input)

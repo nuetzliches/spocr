@@ -1,5 +1,5 @@
 {{ HEADER }}
-namespace {{ Namespace }}.Procedures;
+namespace {{ Namespace }};
 
 /// <summary>
 /// Stored Procedure wrapper for {{ ProcedureName }}

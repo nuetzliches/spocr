@@ -12,6 +12,20 @@ namespace SpocR.SpocRVNext.Generators;
 public sealed class OutputsGenerator
 {
     private readonly ITemplateRenderer _renderer;
+
+    private static string ToPascalCase(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return string.Empty;
+        var parts = input.Split(new[] { '-', '_', ' ', '.', '/', '\\' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(p => p.Trim())
+            .Where(p => p.Length > 0)
+            .Select(p => char.ToUpperInvariant(p[0]) + (p.Length > 1 ? p.Substring(1).ToLowerInvariant() : string.Empty));
+        var candidate = string.Concat(parts);
+        candidate = new string(candidate.Where(ch => char.IsLetterOrDigit(ch) || ch == '_').ToArray());
+        if (string.IsNullOrEmpty(candidate)) candidate = "Schema";
+        if (char.IsDigit(candidate[0])) candidate = "N" + candidate;
+        return candidate;
+    }
     private readonly ITemplateLoader? _loader;
     private readonly Func<IReadOnlyList<OutputDescriptor>> _provider;
     private readonly string _projectRoot;
@@ -44,12 +58,13 @@ public sealed class OutputsGenerator
                 schemaPart = op.Substring(0, idx);
                 procPart = op[(idx + 1)..];
             }
-            var schemaDir = Path.Combine(baseOutputDir, schemaPart);
+            var schemaPascal = ToPascalCase(schemaPart);
+            var schemaDir = Path.Combine(baseOutputDir, schemaPascal);
             Directory.CreateDirectory(schemaDir);
             var typeName = NamePolicy.Output(procPart);
             var model = new
             {
-                Namespace = ns,
+                Namespace = ns + "." + schemaPascal,
                 OperationName = procPart,
                 TypeName = typeName,
                 FieldCount = output.Fields.Count,
@@ -63,7 +78,7 @@ public sealed class OutputsGenerator
             {
                 var sb = new StringBuilder();
                 sb.Append(header);
-                sb.AppendLine($"namespace {ns}.{schemaPart};");
+                sb.AppendLine($"namespace {ns}.{schemaPascal};");
                 sb.AppendLine();
                 sb.AppendLine($"public readonly record struct {typeName}(");
                 for (int i = 0; i < output.Fields.Count; i++)

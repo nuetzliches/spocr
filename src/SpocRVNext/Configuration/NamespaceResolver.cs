@@ -46,8 +46,7 @@ public sealed class NamespaceResolver
         while (probe != null && csprojFile == null)
         {
             var match = probe.GetFiles("*.csproj", SearchOption.TopDirectoryOnly).FirstOrDefault();
-            if (match != null) csprojFile = match;
-            else probe = probe.Parent;
+            if (match != null) csprojFile = match; else probe = probe.Parent;
         }
 
         string baseName = "SpocR"; // fallback base
@@ -58,9 +57,7 @@ public sealed class NamespaceResolver
             baseDirForRel = csprojFile.Directory!;
             try
             {
-                var doc = XDocument.Load(csprojFile.FullName);
-                baseName = doc.Descendants("RootNamespace").FirstOrDefault()?.Value?.Trim()
-                           ?? doc.Descendants("AssemblyName").FirstOrDefault()?.Value?.Trim()
+                baseName = TryReadRootNamespace(csprojFile.FullName)
                            ?? Path.GetFileNameWithoutExtension(csprojFile.Name);
             }
             catch (Exception ex)
@@ -71,9 +68,9 @@ public sealed class NamespaceResolver
         }
         else
         {
-            // No csproj: treat the starting directory name as base
+            // No csproj: treat the starting directory name as base (avoid duplicate segment by keeping baseDirForRel=startDir)
             baseName = ToPascalCase(startDir.Name);
-            baseDirForRel = startDir.Parent ?? startDir; // relative segments will be just startDir.Name
+            baseDirForRel = startDir; // no relative path => prevents Spocr.Spocr duplication
             _logWarn?.Invoke("[spocr namespace] No .csproj found upward. Using directory-based base name.");
         }
 
@@ -86,7 +83,8 @@ public sealed class NamespaceResolver
             {
                 var segments = relPath.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
                     .Where(s => !string.IsNullOrWhiteSpace(s))
-                    .Select(ToPascalCase);
+                    .Select(ToPascalCase)
+                    .Where(seg => !string.Equals(seg, baseName, StringComparison.OrdinalIgnoreCase)); // skip duplicate of base
                 nsParts.AddRange(segments);
             }
         }
@@ -94,6 +92,7 @@ public sealed class NamespaceResolver
         // 4. No enforced suffix; OUTPUT_DIR may differ and is a filesystem concern.
         // Normalize combined
         var combined = string.Join('.', nsParts.Where(p => p.Length > 0));
+        // Konsistente Suffix-Policy (.SpocR) für alle auto-abgeleiteten Namespaces
         return combined;
     }
 
@@ -126,4 +125,24 @@ public sealed class NamespaceResolver
 
     private static string AppendDirectorySeparatorChar(string path)
         => path.EndsWith(Path.DirectorySeparatorChar) ? path : path + Path.DirectorySeparatorChar;
+
+    private static bool IsLikelyRepoRoot(DirectoryInfo dir)
+    {
+        var name = dir.Name.ToLowerInvariant();
+        // heuristik: root enthält README.md und ggf. SpocR.sln
+        var hasReadme = File.Exists(Path.Combine(dir.FullName, "README.md"));
+        var hasSln = Directory.EnumerateFiles(dir.FullName, "*.sln", SearchOption.TopDirectoryOnly).Any();
+        return hasReadme && hasSln && (name.Contains("spocr") || name == "spocR".ToLowerInvariant());
+    }
+
+    private static string? TryReadRootNamespace(string csprojPath)
+    {
+        try
+        {
+            var doc = XDocument.Load(csprojPath);
+            return doc.Descendants("RootNamespace").FirstOrDefault()?.Value?.Trim()
+                   ?? doc.Descendants("AssemblyName").FirstOrDefault()?.Value?.Trim();
+        }
+        catch { return null; }
+    }
 }
