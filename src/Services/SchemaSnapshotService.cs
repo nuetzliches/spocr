@@ -103,6 +103,7 @@ public class SnapshotProcedure
 {
     public string Schema { get; set; }
     public string Name { get; set; }
+    public string Sql { get; set; } // Raw procedure definition (body) for downstream naming heuristics
     public List<SnapshotInput> Inputs { get; set; } = new();
     public List<SnapshotResultSet> ResultSets { get; set; } = new();
 }

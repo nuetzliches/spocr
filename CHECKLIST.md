@@ -28,9 +28,9 @@ Aktueller Fokus (Top 10 P1/P2):
 
 1. (P1) E002 Sample-Gate: Automatisierter CRUD Smoke-Test & CI Integration (Smoke Script + CI + optionaler DB Check via Workflow `db-smoke.yml` vorhanden; Golden Hash Verify separat in determinism pipeline)
 2. (P1) E014 End-to-End Nutzung mind. einer Stored Procedure im Sample (UserList Endpoint + Count/Ping vorhanden; Aggregation Cast-Bug gefixt; aktueller Blocker: DB Connection Timeout vor Prozedur-Ausführung)
-3. (P1) ResultSet Naming Strategie intern finalisieren (öffentliche Doku deferred bis SQL Snapshot vorhanden)
-4. (P1) Snapshot Erweiterung: Prozedur-SQL in Snapshot persistieren (Voraussetzung Resolver Aktivierung)
-5. (P1) Snapshot/Determinismus Tests erweitern (Resolver Aktivierung, Konfliktnamen) – Basis vorhanden
+3. (P1) ResultSet Naming umgesetzt (Resolver always-on, generische `ResultSetX` → Tabellenname; Doku offen)
+4. (P1) Snapshot Erweiterung: Prozedur-SQL persistiert (ERLEDIGT)
+5. (P1) Snapshot/Determinismus Tests erweitern (Rename + Collision Tests erledigt; Multi-Result & unparsable SQL offen)
 6. (P2) E005 Template Engine Abschluss (Header Standardisierung, Basis-Testabdeckung Placeholder/#if/#each)
 7. (P2) E006 DbContext Sample-Endpunkt wirklich lauffähig (Health Endpoint + 1 Query) – Stabilisierung
 8. (P2) Konfig-Bereinigung E008: Entfernte Properties dokumentieren (CHANGELOG + MIGRATION Snippet) – ENV Precedence vorbereitet, Doku offen
@@ -166,6 +166,7 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [x] Test: TableTypes Name Preservation (`PreservesOriginalNames_NoRenaming`) sichert unveränderte UDTT Bezeichner
 - [x] Entfernte Suffix-Normalisierung für TableTypes (Regression abgesichert)
 - [x] Konsolidierte Prozedur-Datei Test (keine Duplikate Input/Output + deterministischer Doppel-Lauf)
+- [x] ResultSet Rename + Collision Tests (Resolver Basis abgesichert)
 
 ### Codegenerierung / SpocRVNext
 
@@ -198,11 +199,11 @@ EPICS Übersicht (oberste Steuerungsebene)
       - [x] Metadata Provider Implementierung (DB Schema → Descriptors) produktiv (SchemaMetadataProvider)
       - [~] CLI Integration (`spocr generate` nutzt neue Generatoren) – Legacy Orchestrator ruft vNext Generator jetzt in dual|next auf; eigene vNext CLI Ergänzungen folgen
       - [~] Sample nutzt mindestens eine generierte Stored Procedure (Endpoints implementiert, noch Fehler 500 bei UserList)
-      - [ ] ResultSet Naming Strategie dokumentiert (deferred – erst nach SQL Feld Integration)
+      - [ ] ResultSet Naming Strategie dokumentiert (Resolver aktiv; Beispiele ergänzen)
       - [~] Tests: Snapshot / Determinismus für neue Artefakte (Basis vorhanden: Golden + Konsolidierte Procs; ausstehend: RowSet / Konfliktfälle)
       - [ ] Interaktive .env Bootstrap CLI (separate vNext Kommando) – Basis EnvBootstrapper vorhanden, noch kein dedizierter Befehl
 
-      Hinweis (interim): ResultSetNameResolver integriert (dormant) – nutzt künftiges optionales SQL Feld (Sql/Definition) für bessere Namensvorschläge. Aktuell keine Änderungen im Output, da Snapshot noch keinen SQL Text enthält.
+      Hinweis: ResultSetNameResolver aktiv (always-on) – nutzt persistiertes `Sql` Feld; ersetzt nur generische Namen kollisionsfrei.
 
       TODO entfernt: Performance Messung (nicht mehr erforderlich)
 
@@ -353,7 +354,7 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] samples\restapi\.env aus Template mit Kommentaren generieren - [x] Template-Datei `.env.example` anreichert (Erklär-Kommentare für Modus/Flags/Namespace vorhanden) - [ ] CLI Befehl/Bootstrap: `spocr env init` (optional) evaluieren
 - [ ] (OBSOLET) ResultSet Datei-Benennung vereinheitlichen (durch Konsolidierung in eine Prozedur-Datei nicht mehr relevant)
       Hinweis: Einzelne RowSet-Dateien existieren nicht mehr; alle Records (Inputs/Outputs/ResultSets/Aggregate/Plan/Executor) liegen in einer konsolidierten `<Proc>.cs`.
-      Folgeaufgaben (neu): - [ ] Test: Konsolidierte Datei enthält erwartete Abschnitte in definierter Reihenfolge (Header, Inputs, Outputs, ResultSet Records, Aggregate, Plan, Executor) - [ ] Test: Kein doppelter Record-Name bei mehreren ResultSets (Namens-Kollision Absicherung) - [ ] Aktivierungs-Test Resolver (nach SQL Snapshot) – nur generische `ResultSetX` werden ersetzt; andere unverändert - [ ] Negative Test: Ungültige / unparsbare SQL → Resolver überspringt sicher (Fallback bleibt deterministisch)
+      Folgeaufgaben (aktualisiert): - [ ] Test: Konsolidierte Datei enthält erwartete Abschnitte in Reihenfolge (Header→Inputs→Outputs→ResultSets→Aggregate→Plan→Executor) - [ ] Test: Kein doppelter Record-Name bei mehreren ResultSets (Multi-Table) - [x] Aktivierungs-Test Resolver (generische Namen ersetzt) - [ ] Negative Test: Unparsable SQL → Fallback (kein Crash) - [ ] Multi-ResultSet Szenario (nur erste Tabelle benannt, weitere generisch) - [ ] Mixed Case Tabellenname Normalisierung
 - [x] Auto-Namespace Fallback für samples/restapi implementiert (erzwingt Basis `RestApi`) - [ ] Ergänzender Test für WorkingDir = `samples/restapi` (Folgetask – aktuell indirekt durch Integration abgedeckt)
 - [ ] .env Override Nutzung (SPOCR_NAMESPACE) dokumentieren & Beispiel ergänzen - [ ] README / docs: Abschnitt "Namespace Ableitung & Override" inkl. Beispiel diff - Fallback / Erzwingung via Smoke Script aktiv, Doku fehlt
 - [ ] Einheitliche Klein-/Großschreibung Schema-Ordner - [ ] Normalisierung (Entscheidung: Beibehalt Original vs. PascalCase) - [ ] Test: Mixed Case Snapshot → generierter Ordner konsistent - Status: Implementiert als PascalCase (Generator), Dokumentation noch offen
@@ -373,17 +374,18 @@ EPICS Übersicht (oberste Steuerungsebene)
 
 UserList Aggregation Fehler gelöst; aktueller Blocker ist DB Verbindung (Timeout vor Handler). Fokus: Isolierung (raw ping), Startup-Stabilisierung, dann CI Einbindung.
 
-## Aktuelle Sofort-Prioritäten (post smoke-test Konsolidierung)
+## Aktuelle Sofort-Prioritäten (aktualisiert)
 
-1. CI Integration: Einfachen Lauf `samples/restapi/scripts/smoke-test.ps1` als Pipeline Schritt (ohne Docker) hinzufügen (schneller Feedback Loop).
-2. DB Connectivity Stabilisierung: Separates Skript `scripts/test-db.ps1` (noch zu erstellen) für isolierten Connect & Timeout Analyse; danach optional /api/dbping wieder ins Smoke erweitern.
-3. Golden Hash Re-Evaluierung: Entscheiden, ob deterministische Output-Verifikation in CI (Write/Verify) wieder aufgenommen wird oder ob dies in dedizierte determinism pipeline verschoben wird.
-4. Doku Angleichen: README / DEVELOPMENT.md Kurzhinweis auf neues vereinfachtes Smoke Script (Ersetzen alter Referenzen).
-5. Exit Code Anomalie in VS Code Terminal untersuchen (Unterschied zwischen tatsächlichem `exit 0` und gemeldeter 1) – Reproduktionsschritt extern + ggf. Task Definition anpassen.
+1. DB Connectivity: `scripts/test-db.ps1` (isolierter Connect + Retry) & Integration in Smoke.
+2. CI Pipeline: Smoke Schritt hinzufügen (ohne Docker zunächst).
+3. Dokumentation: Abschnitt ResultSet Naming + aktualisierte E014 Hinweise.
+4. Erweiterte Resolver Tests (Multi-Result, unparsable SQL, Mixed Case, Multi-Table Collision).
+5. Quality-Gates (eng/quality-gates.ps1) in CI verankern (Badge optional).
 
-Nice-to-have (nach 1–5):
-- Optional Docker Variante (Parameter `-UseDocker`) reaktivieren, falls DB-Abhängigkeit wieder automatisiert geprüft werden soll.
-- Optional Golden Hash Parameter (`-VerifyGolden`, `-WriteGolden`) modular über separates Wrapper-Skript statt Aufblähen von `smoke-test.ps1`.
+Nachgelagert:
+- Golden Hash Strict Mode Entscheidung & ggf. Eskalation.
+- Sample Endpoint Stabilisierung (UserList Roundtrip ohne Timeout).
+- Konsolidierte Datei Abschnittsreihenfolge Test.
 
 # Zu planende Entscheidungen
 
