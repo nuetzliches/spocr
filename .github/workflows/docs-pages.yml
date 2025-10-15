@@ -1,0 +1,88 @@
+name: Docs (GitHub Pages)
+
+on:
+  push:
+    branches:
+      - main
+      - feature/vnext
+  workflow_dispatch: {}
+  # Optionally build PR previews (artifact only, no deploy)
+  pull_request:
+    paths:
+      - "docs/**"
+      - ".github/workflows/docs-pages.yml"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  # Ensure Nuxt generates with the correct base path for project pages.
+  NUXT_APP_BASE_URL: /spocr/
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request' || github.base_ref == 'main' || github.base_ref == 'feature/vnext'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: "latest"
+
+      - name: Install dependencies
+        working-directory: docs
+        run: bun install --frozen-lockfile || bun install
+
+      - name: Generate static site
+        working-directory: docs
+        run: |
+          bun run generate
+          echo "Generated files:" && find .output/public -maxdepth 2 -type f | head -n 40
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/.output/public
+
+  deploy:
+    # Only deploy on push (not for PRs)
+    if: github.event_name == 'push'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  preview-pr:
+    # For pull requests just build & upload artifact (no deploy)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+      - name: Install dependencies
+        working-directory: docs
+        run: bun install --frozen-lockfile || bun install
+      - name: Generate static site (PR)
+        working-directory: docs
+        run: bun run generate
+      - name: Upload preview artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-preview
+          path: docs/.output/public
