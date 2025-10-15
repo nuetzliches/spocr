@@ -154,17 +154,6 @@ EPICS Übersicht (oberste Steuerungsebene)
 
 ### Operative Tasks aus EPICS (Detail-Aufgaben folgen unter thematischen Sektionen)
 
-#### Aktueller Debug-/Diagnose-Status (vNext Sample)
-
-- [x] Pipeline + Endpoint Stage Logging implementiert (/api/users, Middleware)
-- [x] Zusatzendpunkte: /api/users/count, /api/users/ping
-- [x] Executor Fix (List<object> vs object[] AggregateFactory)
-- [x] DB-Ping Instrumentierung (/api/dbping, raw Variante in Code – noch nicht im Script)
-- [x] Smoke Script: Retry, Endpoint Listing, Body-Diagnostics, Limitierung UserList Payload
-- [ ] Stabiler DB Connect (Timeout vor Handler – Analyse: Container Cold Start / Warmup Nebenwirkung / Firewall)
-- [ ] Warmup Task prüfen (möglicher Shutdown-Auslöser) / deaktivieren
-- [ ] CI Smoke Integration
-
 ### Qualität & Tests
 
 - [x] Alle bestehenden Unit- & Integrationstests grün (Tests.sln)
@@ -375,8 +364,6 @@ EPICS Übersicht (oberste Steuerungsebene)
 
 ## Nächste Kurzfristige Actions
 
-- [ ] Warmup Task entfernen oder flaggen
-- [ ] /api/dbping/raw ins Smoke Script integrieren
 - [ ] Explizit SPOCR_SAMPLE_RESTAPI_DB im Docker Smoke setzen (statt Fallback Warnung)
 - [ ] Erstversuch DB Connect Timeout 10–15s, danach kürzere Retries
 - [ ] Skript scripts/test-db.ps1 für isolierten Connectivity Test
