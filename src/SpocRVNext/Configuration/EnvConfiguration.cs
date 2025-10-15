@@ -13,10 +13,8 @@ namespace SpocRVNext.Configuration;
 public sealed class EnvConfiguration
 {
     public string GeneratorMode { get; init; } = "dual"; // legacy | dual | next
-    // Legacy: DefaultConnection captured from SPOCR_DB_DEFAULT (was ambiguous). New explicit fields:
-    public string? ConnectionStringIdentifier { get; init; } // from SPOCR_DB_IDENTIFIER or SPOCR_DB_DEFAULT (alias)
     public string? GeneratorConnectionString { get; init; } // from SPOCR_GENERATOR_DB (full connection string)
-    public string? DefaultConnection { get; init; } // backward compatibility mirror (will carry GeneratorConnectionString if present otherwise identifier content)
+    public string? DefaultConnection { get; init; } // backward compatibility mirror (legacy identifier concept removed)
     public string? NamespaceRoot { get; init; } // from SPOCR_NAMESPACE
     public string? OutputDir { get; init; }
     // Pfad zur verwendeten spocr.json (falls via CLI -p übergeben), wird extern gesetzt
@@ -47,16 +45,12 @@ public sealed class EnvConfiguration
         }
 
         // New variable names (aliases kept):
-        var id = NullIfEmpty(Get("SPOCR_DB_IDENTIFIER"));
-        var legacyId = NullIfEmpty(Get("SPOCR_DB_DEFAULT"));
-        if (string.IsNullOrWhiteSpace(id)) id = legacyId; // alias fallback
         var fullConn = NullIfEmpty(Get("SPOCR_GENERATOR_DB"));
         var cfg = new EnvConfiguration
         {
             GeneratorMode = NormalizeMode(Get("SPOCR_GENERATOR_MODE")),
-            ConnectionStringIdentifier = id,
             GeneratorConnectionString = fullConn,
-            DefaultConnection = fullConn ?? id, // maintain earlier property semantics
+                DefaultConnection = fullConn,
             NamespaceRoot = NullIfEmpty(Get("SPOCR_NAMESPACE")),
             OutputDir = NullIfEmpty(Get("SPOCR_OUTPUT_DIR")),
             ConfigPath = explicitConfigPath
@@ -68,7 +62,6 @@ public sealed class EnvConfiguration
             cfg = new EnvConfiguration
             {
                 GeneratorMode = cfg.GeneratorMode,
-                ConnectionStringIdentifier = cfg.ConnectionStringIdentifier,
                 GeneratorConnectionString = cfg.GeneratorConnectionString,
                 DefaultConnection = cfg.DefaultConnection,
                 NamespaceRoot = cfg.NamespaceRoot,
@@ -110,7 +103,6 @@ public sealed class EnvConfiguration
                         cfg = new EnvConfiguration
                         {
                             GeneratorMode = "legacy",
-                            ConnectionStringIdentifier = cfg.ConnectionStringIdentifier,
                             GeneratorConnectionString = cfg.GeneratorConnectionString,
                             DefaultConnection = cfg.DefaultConnection,
                             NamespaceRoot = cfg.NamespaceRoot,
@@ -129,7 +121,6 @@ public sealed class EnvConfiguration
                     cfg = new EnvConfiguration
                     {
                         GeneratorMode = "legacy",
-                        ConnectionStringIdentifier = cfg.ConnectionStringIdentifier,
                         GeneratorConnectionString = cfg.GeneratorConnectionString,
                         DefaultConnection = cfg.DefaultConnection,
                         NamespaceRoot = cfg.NamespaceRoot,
@@ -270,7 +261,6 @@ public sealed class EnvConfiguration
                 "SPOCR_GENERATOR_MODE=dual",
                 ns is not null ? $"SPOCR_NAMESPACE={ns}" : "# SPOCR_NAMESPACE=Your.Project.Namespace",
                 "SPOCR_OUTPUT_DIR=SpocR",
-                id is not null ? $"SPOCR_DB_IDENTIFIER={id}" : "# SPOCR_DB_IDENTIFIER=DefaultConnectionName",
                 conn is not null ? $"SPOCR_GENERATOR_DB={conn}" : "# SPOCR_GENERATOR_DB=FullConnectionStringHere"
             };
             File.WriteAllLines(envPath, lines);

@@ -17,13 +17,27 @@
 5. Cutover & obsolete markings (E010/E011)
 6. Test hardening & release preparation (E013 + release tasks)
 
+## Deprecation Timeline (v4.5 → v5.0)
+
+| Item                                                      | 4.5 Status          | Action Now                                            | Removed in 5.0 | Notes                                      |
+| --------------------------------------------------------- | ------------------- | ----------------------------------------------------- | -------------- | ------------------------------------------ |
+| Legacy DataContext Generator                              | FROZEN              | Only security / stability fixes                       | Yes            | Dual mode ends; only new generator remains |
+| `Project.Role.Kind`                                       | Deprecated          | Delete from `spocr.json`                              | Yes            | Implicit default behavior                  |
+| `Project.Role.DataBase.RuntimeConnectionStringIdentifier` | Deprecated          | Replace with direct `AddSpocRDbContext` configuration | Yes            | Removes indirection                        |
+| `Project.Output.*` (paths)                                | Deprecated (phased) | Minimize usage; prefer defaults + auto namespace      | Yes            | Simplifies layout                          |
+| `Project.Output.Namespace`                                | Transitional        | Keep or migrate to `SPOCR_NAMESPACE`                  | Yes            | Auto namespace becomes default             |
+| JSON heuristic flags (`Project.Json.*`)                   | Deprecated          | Ignored                                               | Yes            | Unified ResultSets model                   |
+| Coverage badge (public)                                   | Deferred            | Do not implement yet                                  | Re-evaluate    | After stable ≥80% core coverage gate       |
+
+Note: "Removed" means loader/parser will ignore & no longer bind; warning verbosity may increase shortly before v5.
+
 ## Configuration Changes
 
 Removed (planned / already removed):
 
 - `Project.Role.Kind`
-- `Project.Role.DataBase.RuntimeConnectionStringIdentifier`
-- `Project.Output`
+- `Project.Role.DataBase.RuntimeConnectionStringIdentifier` (no replacement ENV; runtime connection only via host `AddSpocRDbContext` options)
+- `Project.Output` (path steering being phased out in favor of fixed layout + auto namespace)
 
 ### Upcoming (vNext) Configuration Model
 
@@ -35,28 +49,30 @@ Removed (planned / already removed):
 - Migration path: Existing keys map to `SPOCR_*` variables (mapping table to be added). Users can gradually mirror required values into `.env`.
 - Example template file now lives at `samples/restapi/.env.example` (moved from repository root for clarity).
 
-### Example `.env` (Draft)
+### Example `.env` (Generator Scope Only – Draft)
 
 ```
-# Generator mode (legacy|dual|next)
+# Generator mode (legacy|dual|next) – generation scope only
 SPOCR_GENERATOR_MODE=dual
-# Connection string identifier (replaces Project.Role.DataBase.RuntimeConnectionStringIdentifier)
-SPOCR_DB_DEFAULT=Server=...;Database=...;Trusted_Connection=True;
-# Optional namespace override
+# Optional namespace override (if auto namespace not desired)
 SPOCR_NAMESPACE=MyCompany.Project.Data
+
+# IMPORTANT: No runtime connection strings in .env – configure via:
+# builder.Services.AddSpocRDbContext(o => o.ConnectionString = ...);
+# (host configuration: appsettings.json / secrets / host environment)
 ```
 
-### Legacy Key Mapping (Draft)
+### Legacy Key Mapping (Draft – updated: RuntimeConnectionStringIdentifier has no ENV replacement)
 
-| Legacy `spocr.json` Path                             | Status v4.x       | Env Variable Replacement | Notes                                                          |
-| ---------------------------------------------------- | ----------------- | ------------------------ | -------------------------------------------------------------- |
-| `Project.Role.Kind`                                  | Deprecated        | (none)                   | Remove; default behavior assumed                               |
-| `Project.DataBase.RuntimeConnectionStringIdentifier` | Deprecated        | `SPOCR_DB_DEFAULT`       | Direct connection now provided; identifier indirection removed |
-| `Project.DataBase.ConnectionString`                  | Active (fallback) | `SPOCR_DB_DEFAULT`       | Move value verbatim; secrets should be managed outside VCS     |
-| `Project.Output.Namespace`                           | Active            | `SPOCR_NAMESPACE`        | Optional; auto discovery if omitted                            |
-| `Project.Output.*.Path`                              | Planned removal   | (TBD)                    | Will move to opinionated defaults; override strategy TBD       |
-| `Version`                                            | Informational     | (none)                   | Not required; tool version from assembly/MinVer                |
-| `TargetFramework`                                    | Informational     | (none)                   | Multi-TFM handled by project; no env mapping                   |
+| Legacy `spocr.json` Path                             | Status v4.x       | Env Variable Replacement | Notes                                                    |
+| ---------------------------------------------------- | ----------------- | ------------------------ | -------------------------------------------------------- |
+| `Project.Role.Kind`                                  | Deprecated        | (none)                   | Remove; default behavior assumed                         |
+| `Project.DataBase.RuntimeConnectionStringIdentifier` | Deprecated        | (none)                   | Removed – direct pass via `AddSpocRDbContext` options    |
+| `Project.DataBase.ConnectionString`                  | Active (fallback) | (none)                   | Runtime: host config (appsettings / secrets / vault)     |
+| `Project.Output.Namespace`                           | Active            | `SPOCR_NAMESPACE`        | Optional; auto discovery if omitted                      |
+| `Project.Output.*.Path`                              | Planned removal   | (TBD)                    | Will move to opinionated defaults; override strategy TBD |
+| `Version`                                            | Informational     | (none)                   | Not required; tool version from assembly/MinVer          |
+| `TargetFramework`                                    | Informational     | (none)                   | Multi-TFM handled by project; no env mapping             |
 
 Unlisted keys remain legacy-only for now; if still needed they will be either:
 
@@ -65,20 +81,60 @@ Unlisted keys remain legacy-only for now; if still needed they will be either:
 
 Mapping table last updated: 2025-10-12.
 
+### Migration Example
+
+Before (`spocr.json` excerpt – pre migration):
+
+```jsonc
+{
+  "project": {
+    "role": { "kind": "Default" },
+    "dataBase": {
+      "connectionString": "Server=.;Database=AppDb;Trusted_Connection=True;"
+    },
+    "output": { "namespace": "MyCompany.App.Data" }
+  }
+}
+```
+
+After (bridge phase v4.5 – generator only, runtime via DI):
+
+```
+# .env (generator only)
+SPOCR_GENERATOR_MODE=dual
+# Optional override
+SPOCR_NAMESPACE=MyCompany.App.Data
+
+// Program.cs (runtime configuration – replaces former RuntimeConnectionStringIdentifier usage)
+builder.Services.AddSpocRDbContext(o =>
+{
+  o.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+});
+```
+
+Consequence: remove `role.kind`; no new ENV variable for DB connections; output path = internal defaults; override namespace only if required.
+
 ### CLI Help (Draft Excerpt)
 
 ```
 spocr generate [--mode <legacy|dual|next>] [--output <dir>] [--no-validation]
 
 Environment:
-  SPOCR_GENERATOR_MODE   Overrides generator selection if --mode omitted.
-  SPOCR_NAMESPACE        Explicit namespace root (optional).
-  SPOCR_DB_DEFAULT       Default runtime connection (not persisted by pull).
+  SPOCR_GENERATOR_MODE   Overrides generator selection if --mode omitted (Generator Scope).
+  SPOCR_NAMESPACE        Explicit namespace root (optional, generator scope).
 
 Notes:
   - In dual mode both legacy and next outputs are produced.
   - In v5.0 default mode changes from 'dual' to 'next'.
   - `spocr.json` fallback removed in v5.0; warnings introduced shortly before removal.
+
+### Versioned Documentation Plan
+
+Assumption: `docs/content` will have version roots (e.g. `4.5/`, `5.0/`). Bridge pages include banner:
+
+> Note (Bridge v4.5): This page describes transitional behavior. See the v5 documentation for the final state.
+
+When creating the v5 docs, legacy-specific transitional explanations are dropped in favor of the final state only.
 
 ### Experimental CLI Flag
 

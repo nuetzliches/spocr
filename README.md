@@ -64,7 +64,8 @@ For comprehensive documentation, examples, and advanced configuration:
 > The project is currently in a transitional "Bridge Phase" (planned final minor before v5). A legacy DataContext generator is still present while the new `SpocRVNext` pipeline matures. Unless you explicitly opt in, behavior remains stable.
 >
 > Key points:
-> - Legacy Freeze: Non-critical functional changes to the legacy generator are frozen (only security / stability fixes). 
+>
+> - Legacy Freeze: Non-critical functional changes to the legacy generator are frozen (only security / stability fixes).
 > - Dual Generation: You can run both pipelines in parallel (`SPOCR_GENERATOR_MODE=dual` - DEFAULT in v4.5) to observe new output without impacting existing code.
 > - Opt-In Flags: New CLI parser & strict modes are guarded behind environment variables / flags (see `samples/restapi/.env.example`).
 > - Cutover Plan: v5 will remove the legacy DataContext and obsolete configuration properties. Migration notes will be published ahead of the release.
@@ -73,7 +74,7 @@ For comprehensive documentation, examples, and advanced configuration:
 
 ### Major Version Bridge Policy (Upgrade Safety)
 
-To reduce accidental skips over required transitional releases, SpocR enforces a *bridge policy* for major upgrades:
+To reduce accidental skips over required transitional releases, SpocR enforces a _bridge policy_ for major upgrades:
 
 1. When a newer **major** version is detected, direct upgrade offers are suppressed unless you are already on the latest minor of your current major.
 2. The tool prints guidance to first move to the highest available minor ("bridge release") before crossing the major boundary.
@@ -98,7 +99,7 @@ Tracking: See CHANGELOG ("Bridge Policy") and `MIGRATION_SpocRVNext.md` for the 
 
 ### Configuration Precedence
 
-Configuration values are resolved using a clear, deterministic order:
+Configuration values (GENERATOR SCOPE – Codegenerierung) are resolved using a clear, deterministic order:
 
 ```
 CLI arguments  >  Explicit --set / parser overrides  >  Environment variables  >  .env file  >  spocr.json (legacy fallback)  >  Internal defaults
@@ -113,6 +114,19 @@ Illustrated example (Namespace resolution):
 5. Else inferred from directory name (auto namespace feature)
 
 Generator mode precedence is analogous (`--mode` / `SPOCR_GENERATOR_MODE` / `.env` / default = `dual` during v4.5 bridge).
+
+Runtime note:
+
+The `.env` file is used ONLY for generator / CLI configuration (e.g. mode, namespace override). Runtime database connections are NOT supplied via `SPOCR_*` env variables, but exclusively inside your host application via:
+
+```csharp
+builder.Services.AddSpocRDbContext(o =>
+{
+  o.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+});
+```
+
+This removes any need for a dedicated runtime DB environment variable. Secrets / connection strings stay in `appsettings.*.json`, secret stores or infrastructure-provided environment variables (not specially processed by SpocR).
 
 Invalid modes (anything not `legacy|dual|next`) trigger an exception early with a clear message (tested in `EnvConfigurationTests`).
 
@@ -258,6 +272,7 @@ If you need to newly ignore a schema later, append it to the `ignoredSchemas` li
 `Project.Role.Kind` is deprecated and scheduled for removal in **v5**. The generator now always behaves as if `Kind = Default`.
 
 Reasons:
+
 1. Previous values (`Default`, `Lib`, `Extension`) created divergent generation branches with marginal value.
 2. Reduced configuration surface leads to more predictable output.
 3. Encourages explicit composition via DI (extension methods / service registrations) instead of implicit role flags.
@@ -266,30 +281,38 @@ Migration:
 Remove the entire `role` node when it only contains `kind: "Default"` (and no `libNamespace`). Non-default values trigger a console warning and are ignored.
 
 Before:
+
 ```jsonc
 {
   "project": {
     "role": { "kind": "Default" },
-    "output": { "namespace": "My.App", "dataContext": { "path": "./DataContext" } }
+    "output": {
+      "namespace": "My.App",
+      "dataContext": { "path": "./DataContext" }
+    }
   }
 }
 ```
 
 After:
+
 ```jsonc
 {
   "project": {
-    "output": { "namespace": "My.App", "dataContext": { "path": "./DataContext" } }
+    "output": {
+      "namespace": "My.App",
+      "dataContext": { "path": "./DataContext" }
+    }
   }
 }
 ```
 
 Console Warning Policy:
-* Until v5 a warning appears if `role.kind` is `Lib` or `Extension`.
-* In v5 the enum and node will be removed entirely; legacy configs will be auto-normalized.
+
+- Until v5 a warning appears if `role.kind` is `Lib` or `Extension`.
+- In v5 the enum and node will be removed entirely; legacy configs will be auto-normalized.
 
 Tracking: See CHANGELOG entry under the deprecation section for progress and final removal PR link once merged.
-
 
 ### JSON Summary Artifact
 

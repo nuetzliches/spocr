@@ -63,7 +63,6 @@ Relevant keys:
 | ------------------------ | ------------------------------------- | ------------------------------------ |
 | `SPOCR_GENERATOR_MODE`   | Controls generation pipeline          | `legacy` / `dual` (DEFAULT) / `next` |
 | `SPOCR_EXPERIMENTAL_CLI` | Enables new System.CommandLine parser | `1` to enable                        |
-| `SPOCR_DB_DEFAULT`       | Connection string used at runtime     | `Server=localhost;...`               |
 | `SPOCR_STRICT_NULLABLE`  | Escalate nullable warnings            | `1` optional                         |
 | `SPOCR_STRICT_DIFF`      | Activate strict diff policy (future)  | `1` optional                         |
 

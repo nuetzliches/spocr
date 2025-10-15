@@ -24,18 +24,18 @@ depends_naming: 'ID Referenzen in depends Feld'
 
 Legende Prioritäten: P1 = kritisch für v5 Cutover, P2 = hoch für Bridge (v4.5→v5), P3 = sinnvoll vor Release, P4 = nachgelagert / Nice-to-have.
 
-Aktueller Fokus (Top 10 P1/P2):
+Aktueller Fokus (Top 10 P1/P2) – Update 2025-10-15:
 
-1. (P1) E002 Sample-Gate: Automatisierter CRUD Smoke-Test & CI Integration (Smoke Script + CI + optionaler DB Check via Workflow `db-smoke.yml` vorhanden; Golden Hash Verify separat in determinism pipeline)
-2. (P1) E014 End-to-End Nutzung mind. einer Stored Procedure im Sample (UserList Endpoint + Count/Ping vorhanden; Aggregation Cast-Bug gefixt; aktueller Blocker: DB Connection Timeout vor Prozedur-Ausführung)
-3. (P1) ResultSet Naming umgesetzt (Resolver always-on, generische `ResultSetX` → Tabellenname; Doku offen)
-4. (P1) Snapshot Erweiterung: Prozedur-SQL persistiert (ERLEDIGT)
-5. (P1) Snapshot/Determinismus Tests erweitern (Rename + Collision Tests erledigt; Multi-Result & unparsable SQL offen)
-6. (P2) E005 Template Engine Abschluss (Header Standardisierung, Basis-Testabdeckung Placeholder/#if/#each)
-7. (P2) E006 DbContext Sample-Endpunkt wirklich lauffähig (Health Endpoint + 1 Query) – Stabilisierung
-8. (P2) Konfig-Bereinigung E008: Entfernte Properties dokumentieren (CHANGELOG + MIGRATION Snippet) – ENV Precedence vorbereitet, Doku offen
-9. (P2) Cutover Plan E010 (ROADMAP Eintrag + README Abschnitt)
-10. (P2) Automatisierte Quality-Gates Skript in CI (eng/quality-gates.ps1) ausführen & dokumentieren – lokal lauffähig, CI Schritt fehlt
+1. (P1) E014 End-to-End Nutzung mind. einer Stored Procedure im Sample – Roundtrip stabilisieren (Timeout/Ping Optimierung)
+2. (P1) E013 Test-Suite Ausbau: Multi-Result / unparsable SQL / Abschnittsreihenfolge Tests
+3. (P1) ResultSet Naming Dokumentation & Beispiele (Resolver already always-on)
+4. (P1) Golden Hash Strict Mode Entscheid + README / Policy (derzeit relaxed)
+5. (P1) Coverage Gate Anhebung (Roadmap: 30%→50%→60%+; Ziel Core ≥80%) + CI Enforcement
+6. (P2) E005 Template Engine Edge-Case Tests & Scope Freeze (keine Direktiven vor v5)
+7. (P2) E006 DbContext Stabilisierung & Logging Verbesserung im Sample
+8. (P2) E008 Konfig-Bereinigung: Mapping Tabelle Env vs. Legacy finalisieren + CHANGELOG Removed
+9. (P2) E010 Cutover Plan konkretisieren (Timeline + Abhängigkeiten) – README/Migration synchronisieren
+10. (P2) Quality-Gates Script CI Integration + Badges (Smoke/Determinism/Coverage/Quality)
 
 Kurzfristig depriorisiert (Beispiele P3/P4): Performance Profiling, Nested Template Loops, Strict-Diff Eskalation, Minor Nullability Phase 2.
 
@@ -154,7 +154,7 @@ EPICS Übersicht (oberste Steuerungsebene)
 
 ### Operative Tasks aus EPICS (Detail-Aufgaben folgen unter thematischen Sektionen)
 
-### Qualität & Tests
+### Qualität & Tests (Update 2025-10-15)
 
 - [x] Alle bestehenden Unit- & Integrationstests grün (Tests.sln)
 - [ ] Neue Tests für SpocRVNext (Happy Path + Fehlerfälle + Regression für entfernte Heuristiken)
@@ -162,6 +162,7 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] Automatisierte Qualitäts-Gates (eng/quality-gates.ps1) lokal und in CI erfolgreich
 - [ ] Test-Hosts nach Läufen bereinigt (eng/kill-testhosts.ps1) – kein Leak mehr
 - [ ] Code Coverage Mindestschwelle definiert und erreicht (Ziel: >80% Core-Logik)
+      note: Aktuell nur initiale niedrige Schwelle dokumentiert; Eskalation & Durchsetzung offen
 - [ ] Negative Tests für ungültige spocr.json Konfigurationen
 - [x] Test: TableTypes Name Preservation (`PreservesOriginalNames_NoRenaming`) sichert unveränderte UDTT Bezeichner
 - [x] Entfernte Suffix-Normalisierung für TableTypes (Regression abgesichert)
@@ -207,32 +208,35 @@ EPICS Übersicht (oberste Steuerungsebene)
 
       TODO entfernt: Performance Messung (nicht mehr erforderlich)
 
-### Migration / Breaking Changes
+### Migration / Breaking Changes (Update 2025-10-15)
+
+note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Project.Output.*` sind ab 4.5 als obsolet markiert – tatsächliche Entfernung erfolgt erst mit v5. (Siehe Deprecation Timeline in `MIGRATION_SpocRVNext.md`)
 
 - [ ] Alle als [Obsolet] markierten Typen enthalten klaren Hinweis & Migrationspfad
 - [ ] Dokumentierter Cut für v5.0 (Entfernung DataContext) in README / ROADMAP
 - [ ] Liste entfallener Konfig-Properties (Project.Role.Kind, RuntimeConnectionStringIdentifier, Project.Output) im Changelog
+      note: CHANGELOG enthält bislang keinen Removed-Abschnitt für diese Keys
 - [ ] Migration von `spocr.json` auf `.env` / Environment Variablen dokumentiert (Mapping Tabelle)
 - [ ] Upgrade Hinweise in README + CHANGELOG integriert (kein separater Guide in dieser Phase)
 - [ ] SemVer Bewertung durchgeführt (Minor vs. Major Bump begründet)
 
-### Konfiguration & Artefakte
+### Konfiguration & Artefakte (Update 2025-10-15)
 
 - [ ] Beispiel `spocr.json` im Sample aktualisiert (ohne entfallene Properties)
 - [ ] Validierungsskript/Schema für spocr.json hinzugefügt oder aktualisiert
 - [ ] Debug-Konfigurationen (debug/\*.json) konsistent mit neuen Pfaden
 - [ ] Output-Pfade (Output/, Output-v5-0/, etc.) aufgeräumt / veraltete entfernt sofern Version >=5.0 (post-migration)
 - [x] `.env` Beispieldatei hinzugefügt (Pfad: `samples/restapi/.env.example`) inkl. aller relevanten SPOCR\_\* Keys
-      note: Enthält SPOCR_GENERATOR_MODE, SPOCR_EXPERIMENTAL_CLI, Bridge Policy Flags - [ ] Precedence dokumentiert: CLI > ENV > .env > (legacy) spocr.json (Fallback bis v5.0, danach entfernt) - [x] Neue ENV Variablen eingeführt: `SPOCR_GENERATOR_DB`, `SPOCR_DB_IDENTIFIER` (Alias zu früherem Default), Namespace / Output Dir Prefill via `.env` Bootstrap
-      note: Reihenfolge bestätigt; Umsetzung & README Abschnitt ausstehend.
+      note: Enthält SPOCR_GENERATOR_MODE, SPOCR_EXPERIMENTAL_CLI, Bridge Policy Flags – `.env` ausschließlich Generator-Scope (kein Runtime Connection String). Entfernte Idee eines dedizierten Runtime DB Env Vars ersatzlos gestrichen. Precedence dokumentiert (README aktualisiert). Namespace / Output Dir Prefill via `.env` Bootstrap weiterhin möglich.
 - [ ] `spocr pull` überschreibt lokale Konfiguration nicht mehr (nur interne Metadaten)
 
-### Dokumentation
+### Dokumentation (Update 2025-10-15)
 
 - [ ] docs Build läuft (Bun / Nuxt) ohne Fehler
 - [ ] Neue Seiten für SpocRVNext (Architektur, Unterschiede, Migration) hinzugefügt
 - [ ] Referenzen (CLI, Konfiguration, API) aktualisiert
 - [ ] README Quick Start an neuen Generator angepasst
+      note: Quick Start Beispiel zeigt alten DataContext Stil; vNext Beispiel ergänzen
 - [ ] Doku: TableTypes Abschnitt (Naming-Preservation, Timestamp `<remarks>` & Hash-Ignore, Interface `ITableType`, Schema-Unterordnerstruktur) in docs/3.reference oder 2.cli verlinkt
 - [ ] CHANGELOG.md Einträge für jede relevante Änderung ergänzt (Added/Changed/Removed/Deprecated/Migration Notes)
 - [ ] DEVELOPMENT.md enthält und pflegt kuratierte Entwicklungs-Commands (Build, Codegen, Tests, Diffs, Cleanup) – Liste aktuell und wird vor PR zum master bereinigt.
@@ -244,9 +248,10 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] content.config.ts erweitert um Versions-Metadaten (z.B. versions: ['4.5','5.0'])
 - [ ] Hinweisbanner in v4.5 Seiten: "Sie lesen die v4.5 Dokumentation – v5 in Vorbereitung"
 
-### Samples / Demo (samples/restapi)
+### Samples / Demo (samples/restapi) (Update 2025-10-15)
 
-- [ ] Sample baut mit aktuellem Generator (dotnet build)
+- [x] Sample baut mit aktuellem Generator (dotnet build)
+      note: Build auf Branch erfolgreich (15.10.2025)
 - [~] Sample führt grundlegende DB Operationen erfolgreich aus (CRUD Smoke Test) – Script vorhanden - Vorher: 500 UserList (InvalidCast) → behoben - Aktuell: DB-Ping Timeout blockiert vor Prozedur-Aufruf
 - [~] Automatisierter Mini-Test (skriptgesteuert) prüft Generierung & Start der Web API (smoke-test.ps1 vorhanden, CI Integration fehlt)
 - [ ] Sample beschreibt Aktivierung des neuen Outputs (Feature Flag) im README
@@ -287,7 +292,7 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] Erste Issues / Feedback-Kanal beobachtet (24-48h Monitoring)
 - [ ] Roadmap aktualisiert (nächste Meilensteine eingetragen)
 
-### Automatisierung / CI
+### Automatisierung / CI (Update 2025-10-15)
 
 - [ ] Pipeline Schritt: Codegen Diff (debug/model-diff-report.md) aktuell und verlinkt
 - [ ] Fail-Fast bei unerwarteten Generator-Änderungen (Diff Threshold)
@@ -373,18 +378,18 @@ EPICS Übersicht (oberste Steuerungsebene)
 
 Connectivity gesichert (test-db Script + CI Integration). Offene Kernpunkte: Stabiler erfolgreicher Stored Procedure Roundtrip (UserList), Resolver Erweiterungen (Dynamic SQL / CTE), Coverage & Golden Hash Policy Eskalation.
 
-## Aktuelle Sofort-Prioritäten (neu)
+## Aktuelle Sofort-Prioritäten (neu / validiert 2025-10-15)
 
-1. Coverage Threshold & Enforcement (≥80% Kernlogik) in `quality-gates.yml` (Fail bei Unterschreitung)
+1. Coverage Threshold & Enforcement (≥80% Kernlogik) – CI Gate implementieren
 2. Dynamic SQL Detection Konzept (Resolver Skip) + erster Testfall
 3. CTE Support Vorarbeit (Parsing Strategie definieren, Minimal-Implementierung planen)
 4. Doku Konsolidierung: TableTypes + ResultSet Naming + README Verlinkungen + Badge Sektion
 5. Golden Hash Strict Mode Entscheid (Policy Flags, Exit Codes Eskalation) & README Abschnitt
-6. CI Badges (Smoke / Determinism / Quality Gates / Coverage) + Kill-Skript in allen relevanten Workflows
+6. CI Badges (Smoke / Determinism / Quality / Coverage) + Kill-Skript überall referenzieren
 7. Sample Roundtrip Stabilisierung (Timeout / Startsequenz Analyse, Logging Verbesserung)
 8. Abschnittsreihenfolge Test für konsolidierte Prozedur-Dateien (Header→Inputs→Outputs→ResultSets→Aggregate→Plan→Executor)
 9. Namespace Override / Ableitung Doku + Beispiel diff
-10. Dispatcher next-only Pfad Paritätstest (MODE=next vs dual ohne Legacy)
+10. Dispatcher next-only Pfad Paritätstest (MODE=next vs dual ohne Legacy) automatisieren
 
 # Zu planende Entscheidungen
 

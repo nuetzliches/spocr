@@ -114,6 +114,11 @@ Format loosely inspired by Keep a Changelog. Dates use ISO 8601 (UTC).
 
 - `Project.Json.Enabled`, `Project.Json.InferColumnTypes`, `Project.Json.FlattenNestedPaths` (ignored; slated for removal)
 - Legacy generation that emitted empty JSON models now includes XML doc note; encourage explicit SELECT lists to enable inference
+- Configuration keys (deprecated as of v4.5, removal in v5.0):
+  - `Project.Role.Kind` (always implied Default; remove now)
+  - `Project.Role.DataBase.RuntimeConnectionStringIdentifier` (removed without replacement – runtime connection configured solely via host `AddSpocRDbContext` options; no new ENV var)
+  - `Project.Output` (path steering deprecated; rely on auto‑namespace + internal defaults; optional override via `SPOCR_NAMESPACE` until cutover)
+- Coverage badge feature: deferred until v5 (only once higher stable core coverage + stricter gate is established)
 
 ### Notes
 

@@ -7,10 +7,10 @@ dotnet build samples/restapi/RestApi.csproj -c Debug
 
 ## Smoke & Automation Scripts
 
-| Script | Purpose | Fast? | Default Exit Codes |
-| ------ | ------- | ----- | ------------------ |
-| `samples/restapi/scripts/smoke-test.ps1` | Minimal API reachability + core endpoints (`/`, `GET/POST /api/users`). | Yes | 0 success / 1 failure |
-| `samples/restapi/scripts/test-db.ps1` | Stand‑alone SQL connectivity check (`SELECT 1`). Uses `SPOCR_SAMPLE_RESTAPI_DB` or appsettings fallback. | Yes | 0 ok / 2 connect fail / 3 query fail / 4 config missing |
+| Script                                   | Purpose                                                                                                  | Fast? | Default Exit Codes                                      |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------------------- | ----- | ------------------------------------------------------- |
+| `samples/restapi/scripts/smoke-test.ps1` | Minimal API reachability + core endpoints (`/`, `GET/POST /api/users`).                                  | Yes   | 0 success / 1 failure                                   |
+| `samples/restapi/scripts/test-db.ps1`    | Stand‑alone SQL connectivity check (`SELECT 1`). Uses `SPOCR_SAMPLE_RESTAPI_DB` or appsettings fallback. | Yes   | 0 ok / 2 connect fail / 3 query fail / 4 config missing |
 
 Quick runs from repo root (PowerShell):
 
@@ -31,7 +31,7 @@ Guidelines:
 
 Ab vNext gilt für generierten Code das konsistente Muster:
 
-   <RootNamespace>.SpocR.<SchemaPascalCase>
+<RootNamespace>.SpocR.<SchemaPascalCase>
 
 Konfiguration:
 
@@ -143,8 +143,105 @@ env:
 
 Rationale:
 
-- Minimiert Big-Bang Refactor.
-- Frühzeitige Absicherung vor echten Null-Deref Bugs.
-- Klare, dokumentierte Eskalationsleiter.
-
 Aufräumhinweis: Vor Commits lokale experimentelle .editorconfig Anpassungen entfernen.
+
+### Procedure Execution Layer (vNext)
+
+The vNext stored procedure pipeline introduces a two-phase approach: a compile-time generation phase that emits a `ProcedureExecutionPlan` and a thin runtime executor that interprets the plan.
+
+Core types (namespace `SpocR.SpocRVNext.Execution`):
+
+1. `ProcedureExecutionPlan`
+
+   - `ProcedureName`: Fully-qualified name (schema + proc)
+   - `Parameters`: Array of `ProcedureParameter` (name, DbType, size, output flag, nullability)
+   - `ResultSets`: Array of `ResultSetMapping` (name + async materializer delegate)
+   - `OutputFactory`: Optional delegate mapping collected output parameter dictionary to a strongly-typed output record
+   - `InputBinder`: Optional delegate binding an input record instance onto DbCommand parameters before execution
+   - `AggregateFactory`: Delegate assembling the final aggregate result (success + error + output + result sets)
+
+2. `ProcedureExecutor`
+   - Single generic method `ExecuteAsync<TAggregate>(DbConnection, ProcedureExecutionPlan, object? state, CancellationToken)`
+   - Handles connection opening, parameter creation, invoking binder, sequential async reading of result sets, capture of output parameter values, and error wrapping.
+
+Generated Artifacts per Procedure (in `<Namespace>.Procedures`):
+
+- Row record structs per result set (`<Operation><ResultSetName>Row`)
+- Optional output record (`<Operation>Output`)
+- Aggregate result class (`<Operation>ResultAggregate`) capturing success/error/output/result sets
+- Execution plan static partial class (`<Operation>ProcedurePlan`) exposing cached singleton `Instance`
+- Wrapper static class with `ExecuteAsync` facade calling the executor and passing input state.
+
+Performance Considerations:
+
+- Deterministic ordering of parameters/result sets for stable hashing
+- Ordinal caching: generated materializers prefetch all field ordinals once, avoiding per-row `GetOrdinal` calls
+- Minimal allocations: materializers add row structs directly to a `List<object>`; conversion to strongly-typed list happens once in the aggregate factory.
+
+Determinism Guarantees:
+
+- No timestamps / random values in generated source
+- Parameter & field ordering stable (schema provider sorts)
+- Plan is pure structural data; runtime outcomes (row counts, values) do not influence subsequent generation.
+
+Extensibility Points / Future Roadmap:
+
+- Nullable strictness escalation (planned) via enhanced metadata
+- Pluggable materializer strategies (streaming `IAsyncEnumerable<T>` for large result sets)
+- Precision/scale support in `ProcedureParameter` (currently only size captured)
+- Optional telemetry hooks (before/after execute) by wrapping `ProcedureExecutor` or generating partial methods
+- Strict diff mode to block incompatible plan changes (deferred to 5.0 roadmap)
+
+Testing Strategy:
+
+- Unit tests for metadata provider parsing & determinism hash
+- Executor tests using in-memory fake ADO primitives for output parameters & error path
+- DbType mapping tests (reflection invoked) ensure mapping table stability.
+
+Developer Notes:
+
+- To add a new SQL type mapping adjust `MapDbType` inside `ProceduresGenerator`. Keep ordering explicit to avoid incidental matches.
+- Any change to plan shape should include: generator update, executor update (if needed), determinism test re-run.
+
+### Aktivierung vNext Codegenerierung & .env Bootstrap
+
+vNext Artefakte (Inputs, Outputs, Results, Procedures, TableTypes, DbContext) werden nur in den Modi `dual` oder `next` erzeugt.
+
+Schritte für ein frisches Repository / Sample (`samples/restapi`):
+
+1. Modus wählen
+   - Default (keine Variable): Fällt im Legacy-Pfad auf "dual" zurück, benötigt aber für vNext effektive Erzeugung eine `.env`.
+   - Explicit setzen (CMD):
+     ```cmd
+     set SPOCR_GENERATOR_MODE=dual
+     ```
+2. Rebuild mit Schema Snapshot:
+   ```cmd
+   dotnet run --project src/SpocR.csproj -- rebuild -p samples/restapi/spocr.json --no-auto-update
+   ```
+3. Falls keine `.env` existiert:
+   - Der `EnvBootstrapper` fragt interaktiv: "Create new .env from example now? [Y/n]:"
+   - Mit "Y" wird aus `samples/restapi/.env.example` oder einem Fallback-Template eine `.env` im Repo Root erstellt.
+   - Mit "n" oder Fehler: Fallback auf `legacy` (vNext Ausgabe entfällt in diesem Lauf).
+4. Nach erfolgreichem Lauf erscheinen vNext Dateien unter `samples/restapi/SpocR` (z.B. `Inputs`, `Outputs`, `Procedures`, `Results`).
+
+Beispiel `.env` Minimal:
+
+```dotenv
+# SpocR vNext
+SPOCR_GENERATOR_MODE=dual
+# Optional Namespace überschreiben
+# SPOCR_NAMESPACE=RestApi
+SPOCR_OUTPUT_DIR=SpocR
+```
+
+Troubleshooting:
+
+- Keine neuen Ordner? Prüfen: Wurde `.env` erstellt und enthält mindestens eine `SPOCR_` Zeile?
+- Fallback auf legacy passiert still? `echo %SPOCR_GENERATOR_MODE%` (Windows) prüfen – ggf. erneuter Lauf nach Erstellung der `.env`.
+- Non-interaktives Umfeld (CI): `.env` vorab einchecken oder zur Laufzeit generieren – andernfalls erzwingt der Bootstrapper den Wechsel zu legacy.
+
+CLI Roadmap:
+
+- Geplanter Befehl `spocr vnext init-env` zum nicht-interaktiven Schreiben einer `.env` aus Template.
+- Geplanter Befehl `spocr vnext generate` als expliziter Wrapper für reinen vNext Lauf (ohne Legacy Generatoren).
