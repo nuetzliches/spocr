@@ -31,13 +31,22 @@ Trifft eine Bedingung nicht zu, bleibt der generische Name stabil (Determinismus
 
 (CTE / komplexe Fälle sind noch in Arbeit; Roadmap siehe unten.)
 
-## Kollisionsvermeidung
+## Kollisionsvermeidung & Duplikate
 
-Wenn der abgeleitete Name bereits existiert (z.B. zweites ResultSet liefert dieselbe Tabelle), wird NICHT umbenannt – so bleiben Namen eindeutig und stabil.
+Früher wurde bei einer Namenskollision (zweites ResultSet gleiche Basistabelle) kein Rename vorgenommen. Aktuell (vNext Erweiterung) gilt:
+
+1. Erstes Auftreten einer Basistabelle erhält den berechneten Namen (`Users`).
+2. Weitere ResultSets mit derselben erkannten Tabelle erhalten numerische Suffixe: `Users1`, `Users2`, ...
+
+Dies garantiert Stabilität und dennoch höhere Aussagekraft als generische `ResultSetX` Namen.
 
 ## Mehrere ResultSets
 
-Aktuell wird für jedes ResultSet separat versucht zu lösen. In Mehrfach-Szenarien können nur einzelne Sets umbenannt werden, andere bleiben ggf. generisch.
+Jedes ResultSet wird unabhängig betrachtet. Szenarien:
+
+- Unterschiedliche Tabellen: Jede generische Instanz wird zu ihrem Tabellennamen umbenannt (sofern eindeutig & gültig)
+- Gleiche Tabelle mehrfach: Suffix Schema wie oben (`Users`, `Users1`, `Users2`)
+- Nicht ermittelbar / unparsable: Generischer Name (`ResultSetN`) bleibt bestehen
 
 ## Nicht-Ziele / Ausnahmen
 
@@ -56,14 +65,17 @@ Geplante Erweiterungen (siehe CHECKLIST):
 
 ## Testabdeckung
 
-Abgedeckt:
+Abgedeckt (Stand Erweiterung):
 - Einfaches SELECT von Basistabelle (Rename)
-- Collision / Kein Rename bei Konflikt
+- Duplicate Basistabellen: Suffixe (`Users`, `Users1`)
+- Multi-Result: Nur resolvbare Sets umbenannt
+- Unparsable SQL → Fallback generisch
+- Mixed Case Tabelle → normalisiert (Case-insensitive Erkennung)
 
-Geplant:
-- Multi-Result erstes Rename, weitere generisch
-- Unparsable SQL → Fallback
-- Mixed Case Tabelle → Normalisierte Benennung
+Geplant / Offen:
+- CTE Struktur (erste echte Basistabelle in finalem SELECT)
+- Dynamic SQL (`EXEC(@sql)`) Skip-Verifikation explizit
+- FOR JSON PATH Alias-Nutzung
 
 ## FAQ
 

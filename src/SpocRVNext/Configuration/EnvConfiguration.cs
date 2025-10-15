@@ -82,6 +82,12 @@ public sealed class EnvConfiguration
         {
             if (string.IsNullOrEmpty(envFilePath) || !File.Exists(envFilePath))
             {
+                var disableBootstrap = Environment.GetEnvironmentVariable("SPOCR_DISABLE_ENV_BOOTSTRAP");
+                if (!string.IsNullOrWhiteSpace(disableBootstrap) && disableBootstrap != "0")
+                {
+                    // Enforce failure for tests / controlled scenarios before any attempt to prefill or create
+                    throw new InvalidOperationException(".env bootstrap disabled via SPOCR_DISABLE_ENV_BOOTSTRAP; .env file is required in dual/next mode.");
+                }
                 // Attempt automatic prefill from nearest spocr.json before interaction
                 try
                 {

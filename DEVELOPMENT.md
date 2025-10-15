@@ -5,6 +5,28 @@ dotnet run --project src/SpocR.csproj -- rebuild  -p samples/restapi/spocr.json 
 dotnet build samples/restapi/RestApi.csproj -c Debug
 ```
 
+## Smoke & Automation Scripts
+
+| Script | Purpose | Fast? | Default Exit Codes |
+| ------ | ------- | ----- | ------------------ |
+| `samples/restapi/scripts/smoke-test.ps1` | Minimal API reachability + core endpoints (`/`, `GET/POST /api/users`). | Yes | 0 success / 1 failure |
+| `samples/restapi/scripts/test-db.ps1` | Stand‑alone SQL connectivity check (`SELECT 1`). Uses `SPOCR_SAMPLE_RESTAPI_DB` or appsettings fallback. | Yes | 0 ok / 2 connect fail / 3 query fail / 4 config missing |
+
+Quick runs from repo root (PowerShell):
+
+```powershell
+pwsh -ExecutionPolicy Bypass -File samples/restapi/scripts/smoke-test.ps1
+pwsh -ExecutionPolicy Bypass -File samples/restapi/scripts/test-db.ps1 -Verbose
+```
+
+Guidelines:
+
+1. Keep `smoke-test.ps1` lean – no heavy DB diagnostics.
+2. Add new endpoints only when stable and universally available.
+3. Deterministic file hashing ("Golden") belongs in a separate determinism workflow (planned).
+4. Use `test-db.ps1` before extending smoke coverage if connectivity issues arise.
+5. For CI, prefer running smoke first; only if green run deeper tests.
+
 ## vNext Namespace-Regel
 
 Ab vNext gilt für generierten Code das konsistente Muster:

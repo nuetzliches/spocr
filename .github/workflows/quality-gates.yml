@@ -28,17 +28,14 @@ jobs:
         run: pwsh eng/kill-testhosts.ps1 -IncludeSamples
 
       - name: Build
-        run: dotnet build src/SpocR.csproj -c Debug --nologo
+        run: dotnet build src/SpocR.csproj -c Release --nologo
 
-      - name: Run Tests (All)
-        run: dotnet test tests/Tests.sln -c Debug --no-build --logger "trx;LogFileName=tests.trx" --results-directory build-results
-
-      - name: Run Quality Gates Script
+      - name: Run Quality Gates (Tests + Coverage + Threshold)
         shell: pwsh
         run: |
-          if (Test-Path eng/quality-gates.ps1) { pwsh eng/quality-gates.ps1 } else { Write-Host 'quality-gates.ps1 not found, skipping.' }
+          if (Test-Path eng/quality-gates.ps1) { pwsh eng/quality-gates.ps1 -CoverageThreshold 80 -Configuration Release } else { Write-Host 'quality-gates.ps1 not found, skipping.' }
 
-      - name: Upload Test Results
+      - name: Upload Quality Gate Artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -46,4 +43,6 @@ jobs:
           path: |
             build-results
             eng/*.log
+            .artifacts/test-results
+            .artifacts/coverage
           if-no-files-found: ignore

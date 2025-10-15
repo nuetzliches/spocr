@@ -45,10 +45,12 @@ public class EnvConfigurationTests
     public void DualMode_WithoutEnvFile_Throws()
     {
         var tempDir = Directory.CreateTempSubdirectory();
+        Environment.SetEnvironmentVariable("SPOCR_DISABLE_ENV_BOOTSTRAP", "1");
         Assert.Throws<InvalidOperationException>(() => EnvConfiguration.Load(projectRoot: tempDir.FullName, cliOverrides: new Dictionary<string, string?>
         {
             ["SPOCR_GENERATOR_MODE"] = "dual"
         }));
+        Environment.SetEnvironmentVariable("SPOCR_DISABLE_ENV_BOOTSTRAP", null);
     }
 
     // Removed legacy namespace derivation + commented marker tests (behavior no longer supported)

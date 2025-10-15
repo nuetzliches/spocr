@@ -25,7 +25,16 @@ public class NamespaceResolverTests
     {
         // Use isolated temp directory to avoid accidental .env with SPOCR_NAMESPACE at repo root
         var temp = System.IO.Directory.CreateTempSubdirectory();
-        Assert.Throws<System.InvalidOperationException>(() => EnvConfiguration.Load(projectRoot: temp.FullName));
+        var prev = System.Environment.GetEnvironmentVariable("SPOCR_DISABLE_ENV_BOOTSTRAP");
+        System.Environment.SetEnvironmentVariable("SPOCR_DISABLE_ENV_BOOTSTRAP", "1");
+        try
+        {
+            Assert.Throws<System.InvalidOperationException>(() => EnvConfiguration.Load(projectRoot: temp.FullName));
+        }
+        finally
+        {
+            System.Environment.SetEnvironmentVariable("SPOCR_DISABLE_ENV_BOOTSTRAP", prev);
+        }
     }
 
     [Fact]
@@ -36,7 +45,16 @@ public class NamespaceResolverTests
         {
             {"SPOCR_NAMESPACE", "1Bad"}
         };
-        Assert.Throws<System.InvalidOperationException>(() => EnvConfiguration.Load(projectRoot: repoRoot, cliOverrides: overrides));
+        var prev = System.Environment.GetEnvironmentVariable("SPOCR_DISABLE_ENV_BOOTSTRAP");
+        System.Environment.SetEnvironmentVariable("SPOCR_DISABLE_ENV_BOOTSTRAP", "1");
+        try
+        {
+            Assert.Throws<System.InvalidOperationException>(() => EnvConfiguration.Load(projectRoot: repoRoot, cliOverrides: overrides));
+        }
+        finally
+        {
+            System.Environment.SetEnvironmentVariable("SPOCR_DISABLE_ENV_BOOTSTRAP", prev);
+        }
     }
 
     private static string FindRepoRoot()

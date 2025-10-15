@@ -52,9 +52,9 @@ public class SchemaMetadataProviderResultSetResolverTests
     }
 
     [Fact]
-    public void Keeps_Generic_Name_When_Suggestion_Collides()
+  public void Duplicate_Table_Uses_Suffix_For_Subsequent()
     {
-        // Arrange: two result sets; second would resolve to same table name; ensure collision prevents rename of second
+  // Arrange: two result sets; second resolves to same table name; expect suffix Items1
         var snapshotJson = @"{
   ""Procedures"": [
     {
@@ -77,8 +77,7 @@ public class SchemaMetadataProviderResultSetResolverTests
 
         // Assert
         Assert.Equal(2, rs.Count);
-        Assert.Equal("Items", rs[0].Name); // first renamed
-        Assert.NotEqual("Items", rs[1].Name); // second kept generic (collision avoidance)
-        Assert.StartsWith("ResultSet", rs[1].Name, StringComparison.OrdinalIgnoreCase);
+  Assert.Equal("Items", rs[0].Name); // first renamed
+  Assert.Equal("Items1", rs[1].Name); // second now suffixed instead of generic
     }
 }

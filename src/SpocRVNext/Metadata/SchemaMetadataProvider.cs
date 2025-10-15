@@ -145,9 +145,21 @@ public sealed class SchemaMetadataProvider : ISchemaMetadataProvider
                         try
                         {
                             var suggested = ResultSetNameResolver.TryResolve(idx, rawSql!);
-                            if (!string.IsNullOrWhiteSpace(suggested) && rsName.StartsWith("ResultSet", StringComparison.OrdinalIgnoreCase) && !usedNames.Contains(suggested))
+                            if (!string.IsNullOrWhiteSpace(suggested) && rsName.StartsWith("ResultSet", StringComparison.OrdinalIgnoreCase))
                             {
-                                rsName = NamePolicy.Sanitize(suggested!);
+                                var baseNameUnique = NamePolicy.Sanitize(suggested!);
+                                var final = baseNameUnique;
+                                if (usedNames.Contains(final))
+                                {
+                                    // Duplicate base table: append incremental numeric suffix (Users, Users1, Users2 ...)
+                                    int suffix = 1;
+                                    while (usedNames.Contains(final))
+                                    {
+                                        final = baseNameUnique + suffix.ToString();
+                                        suffix++;
+                                    }
+                                }
+                                rsName = final;
                             }
                         }
                         catch { /* silent fallback */ }

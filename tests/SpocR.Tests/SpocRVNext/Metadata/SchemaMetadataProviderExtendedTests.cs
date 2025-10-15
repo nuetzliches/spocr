@@ -25,7 +25,7 @@ public sealed class SchemaMetadataProviderExtendedTests
     }
 
     [Fact]
-    public void MultiResult_FirstRenamed_OthersGeneric()
+    public void MultiResult_FirstRenamed_SecondGetsSuffix()
     {
         var proc = new
         {
@@ -43,10 +43,10 @@ public sealed class SchemaMetadataProviderExtendedTests
         try
         {
             var provider = new SchemaMetadataProvider(root);
-            var rs = provider.GetResultSets().Where(r => r.Name.StartsWith("User", StringComparison.OrdinalIgnoreCase) || r.Name.StartsWith("ResultSet")).ToList();
+            var rs = provider.GetResultSets();
             Assert.Equal(2, rs.Count);
-            Assert.Contains(rs, r => r.Name == "Users");
-            Assert.Contains(rs, r => r.Name.StartsWith("ResultSet"));
+            Assert.Equal("Users", rs[0].Name);
+            Assert.Equal("Users1", rs[1].Name); // Neuer Suffix statt generischem ResultSet Name
         }
         finally { try { Directory.Delete(root, true); } catch { } }
     }
@@ -103,7 +103,7 @@ public sealed class SchemaMetadataProviderExtendedTests
     }
 
     [Fact]
-    public void DuplicateBaseTable_SecondStaysGeneric()
+    public void DuplicateBaseTable_SubsequentGetsNumericSuffix()
     {
         var proc = new
         {
@@ -124,7 +124,7 @@ public sealed class SchemaMetadataProviderExtendedTests
             var rs = provider.GetResultSets();
             Assert.Equal(2, rs.Count);
             Assert.Equal("Users", rs[0].Name);
-            Assert.StartsWith("ResultSet", rs[1].Name, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal("Users1", rs[1].Name);
         }
         finally { try { Directory.Delete(root, true); } catch { } }
     }

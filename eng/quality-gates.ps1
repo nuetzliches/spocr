@@ -4,11 +4,14 @@
 param(
     [switch]$SkipTests,
     [switch]$SkipCoverage,
-    [int]$CoverageThreshold = 0
+    [int]$CoverageThreshold = 80,
+    [string]$Configuration = 'Release'
 )
 
 Write-Host "SpocR Quality Gates" -ForegroundColor Cyan
 Write-Host "===================" -ForegroundColor Cyan
+Write-Host "Configuration: $Configuration" -ForegroundColor DarkGray
+if (-not $SkipCoverage) { Write-Host "Coverage Threshold: $CoverageThreshold%" -ForegroundColor DarkGray }
 
 $exitCode = 0
 
@@ -31,7 +34,7 @@ function Ensure-ReportGenerator {
 
 # 1. Build Check
 Write-Host "`nBuilding project..." -ForegroundColor Yellow
-dotnet build src/SpocR.csproj --configuration Release
+dotnet build src/SpocR.csproj --configuration $Configuration --nologo
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Build failed" -ForegroundColor Red
     $exitCode = 1
@@ -41,7 +44,7 @@ if ($LASTEXITCODE -ne 0) {
 
 # 2. Self-Validation
 Write-Host "`nRunning self-validation..." -ForegroundColor Yellow
-dotnet run --project src/SpocR.csproj --configuration Release -- test --validate
+dotnet run --project src/SpocR.csproj --configuration $Configuration -- test --validate
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Self-validation failed" -ForegroundColor Red
     $exitCode = 1
@@ -53,9 +56,9 @@ if ($LASTEXITCODE -ne 0) {
 if (-not $SkipTests) {
     Write-Host "`nRunning tests..." -ForegroundColor Yellow
     if (-not $SkipCoverage) {
-        dotnet test tests/Tests.sln --configuration Release --collect:"XPlat Code Coverage" --results-directory $testResultsDir
+        dotnet test tests/Tests.sln --configuration $Configuration --collect:"XPlat Code Coverage" --results-directory $testResultsDir --logger "trx;LogFileName=tests.trx"
     } else {
-        dotnet test tests/Tests.sln --configuration Release --results-directory $testResultsDir
+        dotnet test tests/Tests.sln --configuration $Configuration --results-directory $testResultsDir --logger "trx;LogFileName=tests.trx"
     }
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Tests failed" -ForegroundColor Red
@@ -69,20 +72,24 @@ if (-not $SkipTests) {
 if (-not $SkipCoverage -and -not $SkipTests) {
     Write-Host "`nAnalyzing code coverage..." -ForegroundColor Yellow
     Ensure-ReportGenerator
-    reportgenerator -reports:"$testResultsDir/**/coverage.cobertura.xml" -targetdir:"$coverageDir" -reporttypes:"Html;Badges" | Out-Null
+    reportgenerator -reports:"$testResultsDir/**/coverage.cobertura.xml" -targetdir:"$coverageDir" -reporttypes:"Html;Badges;Cobertura" | Out-Null
     $coverageSummary = Get-ChildItem -Path $coverageDir -Filter "Summary.xml" -Recurse | Select-Object -First 1
-    if ($coverageSummary -and $CoverageThreshold -gt 0) {
+    $summaryLog = Join-Path $coverageDir 'coverage-summary.log'
+    if ($coverageSummary) {
         [xml]$xml = Get-Content $coverageSummary.FullName
-        # Cobertura line-rate is attribute line-rate on coverage node (0..1)
         $lineRate = [double]$xml.coverage.'line-rate'
         $percent = [math]::Round($lineRate * 100, 2)
-        Write-Host "Line Coverage: $percent%" -ForegroundColor Cyan
-        if ($percent -lt $CoverageThreshold) {
+        $msg = "Line Coverage: $percent% (Threshold: $CoverageThreshold%)"
+        Write-Host $msg -ForegroundColor Cyan
+        Set-Content -Path $summaryLog -Value $msg
+        if ($CoverageThreshold -gt 0 -and $percent -lt $CoverageThreshold) {
             Write-Host "Coverage below threshold ($CoverageThreshold%)" -ForegroundColor Red
             $exitCode = 1
         }
     } else {
-        Write-Host "Coverage report generated: $coverageDir/index.html" -ForegroundColor Cyan
+        $warn = "No coverage summary produced (tests may have failed before collection)."
+        Write-Warning $warn
+        Set-Content -Path $summaryLog -Value $warn
     }
 }
 
