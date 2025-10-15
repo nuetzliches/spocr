@@ -26,7 +26,7 @@ Legende Prioritäten: P1 = kritisch für v5 Cutover, P2 = hoch für Bridge (v4.5
 
 Aktueller Fokus (Top 10 P1/P2):
 
-1. (P1) E002 Sample-Gate: Automatisierter CRUD Smoke-Test & CI Integration (Smoke Script erweitert: Retry, Endpoint-Diagnostik, Golden Hash; DB-Ping Timeout Blocker noch offen, CI Integration ausstehend)
+1. (P1) E002 Sample-Gate: Automatisierter CRUD Smoke-Test & CI Integration (Smoke Script + CI + optionaler DB Check via Workflow `db-smoke.yml` vorhanden; Golden Hash Verify separat in determinism pipeline)
 2. (P1) E014 End-to-End Nutzung mind. einer Stored Procedure im Sample (UserList Endpoint + Count/Ping vorhanden; Aggregation Cast-Bug gefixt; aktueller Blocker: DB Connection Timeout vor Prozedur-Ausführung)
 3. (P1) ResultSet Naming Strategie intern finalisieren (öffentliche Doku deferred bis SQL Snapshot vorhanden)
 4. (P1) Snapshot Erweiterung: Prozedur-SQL in Snapshot persistieren (Voraussetzung Resolver Aktivierung)
@@ -70,7 +70,7 @@ EPICS Übersicht (oberste Steuerungsebene)
       depends: []
       note: Freeze-Datum & Sentinel (legacy-freeze.txt) gesetzt; CHANGELOG Eintrag vorhanden
 
-- [ ] EPIC-E002 SAMPLE-GATE Referenz-Sample stabil (P1) (smoke-test.ps1 minimal vorhanden; Golden Hash fehlt)
+- [x] EPIC-E002 SAMPLE-GATE Referenz-Sample stabil (P1) (smoke-test.ps1 + CI + DB Workflow + determinism verify vorhanden)
       id: E002
       goal: Referenz-Sample `samples/restapi` validiert jeden Entwicklungsschritt
       acceptance: - Build + CRUD Smoke Test automatisiert - Nutzung aktueller `spocr.json` - Läuft in CI Pipeline
@@ -302,7 +302,10 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] Pipeline Schritt: Codegen Diff (debug/model-diff-report.md) aktuell und verlinkt
 - [ ] Fail-Fast bei unerwarteten Generator-Änderungen (Diff Threshold)
 - [ ] QA Skripte (eng/\*.ps1) in README oder DEVELOPMENT.md referenziert (smoke-test.ps1 erwähnen; Golden Hash Feature optional separat dokumentieren)
-      -- [ ] CI: Smoke Test Schritt (smoke-test.ps1 ggf. mit Docker DB + optional Golden Verify) integriert
+      -- [x] CI: Smoke Test Schritt (smoke-test.ps1) integriert (`smoke.yml`)
+      -- [x] CI: DB Smoke (SQL Service Container) integriert (`db-smoke.yml`)
+      -- [x] CI: Determinism Verify separater Workflow (`determinism.yml`)
+      -- [ ] (Optional) Golden Hash Strict Mode aktivieren (Policy Eskalation)
       -- [ ] CI: Manual Trigger / Dokumentation für Golden Hash Aktualisierung (-WriteGolden) vorhanden
 - [ ] Caching/Restore Mechanismen (NuGet, Bun) effizient konfiguriert
 - [ ] ENV/CLI Flag für Generation definiert (`SPOCR_GENERATOR_MODE=dual|legacy|next` + `spocr generate --mode`) – Default in v4.5 = `dual` (README Abschnitt "Configuration Precedence" ergänzt; CLI Param-Doku noch offen)

@@ -113,6 +113,7 @@ Exceptions:
 - Third‑party legal notices or license text
 - Test data or domain samples that require original language
 - Historic changelog / commit history (not retroactively rewritten)
+- Branch‑scoped transient checklists (e.g. `CHECKLIST.md` under a feature branch) may remain in the author's native language but MUST be removed, archived or translated before merging into `main`.
 
 If you encounter leftover German (or other language) fragments, submit a small cleanup PR.
 
@@ -135,6 +136,29 @@ When generating or reviewing automation scripts (PowerShell or Windows batch) th
 - Do not silently swallow errors; prefer `Set-StrictMode -Version Latest` (PowerShell) for complex scripts.
 - Long-running scripts should log key phases with timestamps.
 - Never embed secrets; reference environment variables or secure stores.
+
+### Smoke & DB Connectivity Tests
+
+The repository contains lightweight scripts under `samples/restapi/scripts/`:
+
+| Script | Purpose | Typical CI Usage |
+| ------ | ------- | ---------------- |
+| `smoke-test.ps1` | Builds & exercises the minimal sample endpoints (`/`, `GET/POST /api/users`). Fast (no Docker). | Run on every PR for quick feedback. |
+| `test-db.ps1` | Verifies SQL connectivity (`SELECT 1`) using `SPOCR_SAMPLE_RESTAPI_DB` or `appsettings.Development.json`. | Optional gated job (nightly / with DB service). |
+
+Guidelines:
+
+1. Keep `smoke-test.ps1` minimal: fail fast, no optional diagnostics unless `-VerboseOutput`.
+2. Add new endpoints? Extend the smoke script only if they are universally stable; otherwise create a separate targeted script.
+3. Deterministic output (Golden Hash) checks belong in a dedicated determinism job, not the fast smoke path.
+4. If you add DB-intensive checks, guard them behind a parameter (e.g. `-WithDb`) so default CI stays fast.
+5. Scripts must exit with precise non-zero codes on failure; never mask errors.
+
+Adding a new automation script:
+1. Place it in an appropriate folder (`eng/` for infra & quality, `samples/restapi/scripts/` for sample-specific logic).
+2. Follow the formatting rules above; include a short `.SYNOPSIS` comment block.
+3. Provide a dry-run or `-NoBuild` style switch when practical.
+4. Document invocation in `DEVELOPMENT.md` if it will be run by contributors.
 
 These conventions improve readability, reduce CI friction, and make AI-assisted changes safer.
 

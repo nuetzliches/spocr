@@ -1,0 +1,38 @@
+name: Determinism Verify
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/vnext]
+
+jobs:
+  determinism:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Rebuild schema & generate (dual)
+        shell: pwsh
+        run: |
+          dotnet run --project src/SpocR.csproj -- rebuild -p samples/restapi/spocr.json --no-auto-update
+
+      - name: Verify determinism
+        shell: pwsh
+        run: |
+          ./eng/determinism-verify.ps1
+
+      - name: Upload diff context if failed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: determinism-context
+          path: |
+            samples/restapi/SpocR/**
+            eng/determinism-verify.ps1

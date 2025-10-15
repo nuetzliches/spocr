@@ -1,0 +1,41 @@
+name: Smoke Test
+
+on:
+  push:
+    branches: [feature/vnext]
+  pull_request:
+    branches: [feature/vnext]
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore src/SpocR.csproj
+
+      - name: Build (CLI + Sample)
+        run: dotnet build src/SpocR.csproj -c Debug --nologo
+
+      - name: Run smoke test
+        shell: pwsh
+        run: |
+          ./samples/restapi/scripts/smoke-test.ps1 -VerboseOutput
+
+      - name: Archive smoke logs (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-logs
+          path: |
+            samples/restapi/scripts/smoke-run.log
+          if-no-files-found: ignore

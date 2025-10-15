@@ -15,7 +15,8 @@ param(
     [string]$Framework = "net8.0",
     [int]$StartupTimeoutSeconds = 20,
     [switch]$VerboseOutput,
-    [switch]$NoBuild
+    [switch]$NoBuild,
+    [switch]$WithDb
 )
 
 Set-StrictMode -Version Latest
@@ -94,6 +95,29 @@ if ($created.StatusCode -ne 201){ Write-Host ($created.Content | Out-String) -Fo
 
 Step "Stop"
 try { if ($global:proc -and -not $global:proc.HasExited){ $global:proc.Kill() } } catch {}
+if ($WithDb) {
+    Step "DB connectivity (test-db.ps1)"
+    $dbScript = Join-Path $PSScriptRoot 'test-db.ps1'
+    if (-not (Test-Path $dbScript)) { Write-Host "[WARN] test-db.ps1 not found (skipping)" -ForegroundColor Yellow }
+    else {
+        try {
+            $psiDb = New-Object System.Diagnostics.ProcessStartInfo
+            $cmdPwsh = Get-Command pwsh -ErrorAction SilentlyContinue
+            if ($cmdPwsh) { $psiDb.FileName = $cmdPwsh.Source } else { $psiDb.FileName = (Get-Command powershell).Source }
+            $psiDb.Arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$dbScript`""
+            $psiDb.UseShellExecute = $false
+            $psiDb.RedirectStandardOutput = $true
+            $psiDb.RedirectStandardError = $true
+            $pdb = [System.Diagnostics.Process]::Start($psiDb)
+            $pdb.WaitForExit()
+            $out = $pdb.StandardOutput.ReadToEnd()
+            $err = $pdb.StandardError.ReadToEnd()
+            if ($out) { ($out -split "`n" | ForEach-Object { if ($_){ Write-Host "[DB] $_" -ForegroundColor DarkGray } }) }
+            if ($err) { Write-Host "[DB-ERR] $err" -ForegroundColor DarkRed }
+            if ($pdb.ExitCode -ne 0) { Fail "DB connectivity script failed (exit $($pdb.ExitCode))" } else { Ok "DB connectivity ok" }
+        } catch { Fail "DB connectivity invocation error: $_" }
+    }
+}
 Ok "Smoke test succeeded"
 # Reset any inherited non-zero LASTEXITCODE (PowerShell may retain from prior native calls)
 $global:LASTEXITCODE = 0

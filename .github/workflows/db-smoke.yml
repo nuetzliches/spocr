@@ -1,0 +1,62 @@
+name: DB Smoke Test
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/vnext]
+  pull_request:
+    branches: [feature/vnext]
+
+jobs:
+  db-smoke:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: Y
+          SA_PASSWORD: SpocR@12345
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "(/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P SpocR@12345 -Q 'SELECT 1' || exit 1)" \
+          --health-interval 10s --health-timeout 5s --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Wait for SQL readiness
+        shell: pwsh
+        run: |
+          $retries = 30
+          for($i=1; $i -le $retries; $i++){
+            try {
+              # Using sqlcmd inside container via docker exec fallback (but service port is published so we can attempt connection)
+              $tcp = Test-NetConnection -ComputerName 127.0.0.1 -Port 1433 -WarningAction SilentlyContinue
+              if ($tcp.TcpTestSucceeded){ Write-Host "SQL port reachable"; break }
+            } catch {}
+            Start-Sleep -Seconds 2
+            if ($i -eq $retries){ throw 'SQL service not reachable' }
+          }
+
+      - name: Run smoke test (with DB)
+        shell: pwsh
+        env:
+          SPOCR_SAMPLE_RESTAPI_DB: "Data Source=127.0.0.1,1433;Initial Catalog=SpocRSample;User ID=sa;Password=SpocR@12345;Encrypt=False;TrustServerCertificate=True;Pooling=False;Connect Timeout=30"
+        run: |
+          ./samples/restapi/scripts/smoke-test.ps1 -VerboseOutput -WithDb -NoBuild
+
+      - name: Archive smoke logs (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: db-smoke-logs
+          path: |
+            samples/restapi/scripts/smoke-run.log
+          if-no-files-found: ignore
