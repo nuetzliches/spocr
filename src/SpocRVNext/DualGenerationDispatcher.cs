@@ -12,7 +12,7 @@ namespace SpocR.SpocRVNext;
 
 /// <summary>
 /// Übergangs-Dispatcher für gleichzeitige (dual) oder reine (next) vNext / Legacy-Demo-Generierung.
-/// Vereinheitlicht jetzt die Projektwurzel-Auflösung (kein Sample-Heuristik mehr).
+/// Unified project root resolution (previous sample-specific heuristic removed).
 /// TODO: In Zukunft durch konsolidierte Pipeline ersetzen oder entfernen.
 /// </summary>
 public sealed class DualGenerationDispatcher
@@ -28,7 +28,7 @@ public sealed class DualGenerationDispatcher
 
     public string ExecuteDemo(string? baseOutputDir = null)
     {
-        // Ziel-Verzeichnis (debug playground)
+        // Target directory (debug playground)
         baseOutputDir ??= Path.Combine(Directory.GetCurrentDirectory(), "debug", "codegen-demo");
         Directory.CreateDirectory(baseOutputDir);
         var nextDir = Path.Combine(baseOutputDir, "next");
@@ -37,7 +37,7 @@ public sealed class DualGenerationDispatcher
         string? nextContent = null;
         string? legacyContent = null;
 
-        // Einheitliche Projektwurzel für diesen Lauf (nutzt ggf. -p / Environment über ProjectRootResolver)
+        // Unified project root for this run (uses -p / environment through ProjectRootResolver)
         var projectRoot = ProjectRootResolver.ResolveCurrent();
         var solutionRoot = ProjectRootResolver.GetSolutionRootOrCwd();
         var templatesDir = Path.Combine(solutionRoot, "src", "SpocRVNext", "Templates");
@@ -71,7 +71,7 @@ public sealed class DualGenerationDispatcher
                 Directory.CreateDirectory(nextDir);
                 File.WriteAllText(Path.Combine(legacyDir, "DemoLegacy.cs"), legacyContent);
                 File.WriteAllText(Path.Combine(nextDir, "DemoNext.cs"), nextContent);
-                // Vollständige vNext-Generierung im ProjektRoot
+                // Full vNext generation in the project root
                 var outDir = Path.Combine(projectRoot, "SpocR");
                 Directory.CreateDirectory(outDir);
                 gen.GenerateAll(_cfg, projectRoot);
@@ -122,5 +122,5 @@ public sealed class DualGenerationDispatcher
                (diff.Changed.Count > 0 ? "\n~ " + string.Join("\n~ ", diff.Changed) : string.Empty);
     }
 
-    // Ehemalige FindSampleProjectRoot-Heuristik entfernt: ProjektRoot wird zentral über ProjectRootResolver bestimmt.
+    // Former FindSampleProjectRoot heuristic removed: project root determined centrally via ProjectRootResolver.
 }

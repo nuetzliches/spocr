@@ -7,7 +7,7 @@ namespace SpocR.SpocRVNext.Metadata;
 
 /// <summary>
 /// Heuristischer Resolver für ResultSet-Namen aus dem ursprünglichen Stored Procedure T-SQL.
-/// Nicht-blockierend: Liefert nur einen Vorschlag; Fallback erfolgt im bestehenden ResultSetNaming.
+/// Non-blocking: Only provides a suggestion; fallback handled by existing ResultSet naming.
 /// Strategie:
 /// 1. Falls JSON PATH erkannt (FOR JSON PATH / explicit PATH alias) → Rückgabe "ResultSet{index+1}" unverändert (später erweiterbar für PATH alias).
 /// 2. Andernfalls erste Tabellenquelle (Base Table oder View) aus erstem SELECT Statement.
@@ -31,7 +31,7 @@ internal static class ResultSetNameResolver
             // Prüfe JSON (FOR JSON ...)
             if (visitor.FirstSelect.ForClause != null)
             {
-                // Platz für zukünftige differenzierte Benennung (z.B. aus Pfad), aktuell kein alternativer Name
+                // Placeholder for future differentiated naming (e.g. from path); currently no alternative name.
                 return null; // Beibehaltung bestehender Fallback-Konvention
             }
             // Tabellenquellen inspizieren
@@ -60,7 +60,7 @@ internal static class ResultSetNameResolver
         public override void ExplicitVisit(QuerySpecification node)
         {
             if (FirstSelect == null) FirstSelect = node;
-            // Nicht weiter in Tiefe abbrechen – reicht.
+            // Do not traverse deeper — sufficient.
         }
     }
 }

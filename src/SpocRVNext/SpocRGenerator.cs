@@ -77,9 +77,9 @@ public sealed class SpocRGenerator
         projectRoot ??= Directory.GetCurrentDirectory();
         if (cfg.GeneratorMode is not ("dual" or "next"))
             return 0; // vNext generation disabled in legacy mode
-        // Namespace ableiten unter Berücksichtigung des Konfigurationspfades (-p)
+                      // Derive namespace considering the configuration path (-p)
         var resolver = new NamespaceResolver(cfg, msg => Console.Out.WriteLine(msg));
-        var nsBase = resolver.Resolve(projectRoot); // vereinfacht: nur Verzeichnis von configPath oder projectRoot
+        var nsBase = resolver.Resolve(projectRoot); // simplified: just directory of configPath or projectRoot
         // Compose final namespace: append output dir once
         var outSeg = string.IsNullOrWhiteSpace(cfg.OutputDir) ? "SpocR" : cfg.OutputDir!.Trim('.');
         var ns = nsBase.EndsWith('.' + outSeg, StringComparison.OrdinalIgnoreCase) ? nsBase : nsBase + '.' + outSeg;
