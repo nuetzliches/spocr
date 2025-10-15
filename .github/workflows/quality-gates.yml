@@ -1,0 +1,49 @@
+name: Quality Gates
+
+on:
+  pull_request:
+    branches: [feature/vnext]
+  push:
+    branches: [feature/vnext]
+  workflow_dispatch:
+
+jobs:
+  quality-gates:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore src/SpocR.csproj
+
+      - name: Kill Lingering Test/Sample Processes
+        shell: pwsh
+        run: pwsh eng/kill-testhosts.ps1 -IncludeSamples
+
+      - name: Build
+        run: dotnet build src/SpocR.csproj -c Debug --nologo
+
+      - name: Run Tests (All)
+        run: dotnet test tests/Tests.sln -c Debug --no-build --logger "trx;LogFileName=tests.trx" --results-directory build-results
+
+      - name: Run Quality Gates Script
+        shell: pwsh
+        run: |
+          if (Test-Path eng/quality-gates.ps1) { pwsh eng/quality-gates.ps1 } else { Write-Host 'quality-gates.ps1 not found, skipping.' }
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-gates-results
+          path: |
+            build-results
+            eng/*.log
+          if-no-files-found: ignore

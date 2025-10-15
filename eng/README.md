@@ -11,6 +11,7 @@ Keep the repository root clean and separate **product code** (`src/`, `tests/`) 
 | File / Area                    | Purpose                                                                                          |
 | ------------------------------ | ------------------------------------------------------------------------------------------------ |
 | `quality-gates.ps1`            | Local pre-commit / pre-push build + validate + test + coverage script (writes to `.artifacts/`). |
+| `kill-testhosts.ps1`           | Terminates lingering `testhost` / `SpocR` / sample `RestApi` processes (avoids file lock build errors). |
 | `cleanup-legacy-artifacts.ps1` | Removes pre-migration artifact folders (`CoverageReport/`, `TestResults/`).                      |
 | `README.md`                    | This document.                                                                                   |
 

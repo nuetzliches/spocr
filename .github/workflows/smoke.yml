@@ -26,6 +26,11 @@ jobs:
       - name: Build (CLI + Sample)
         run: dotnet build src/SpocR.csproj -c Debug --nologo
 
+      - name: DB Connectivity Probe
+        shell: pwsh
+        run: |
+          if (Test-Path scripts/test-db.ps1) { pwsh scripts/test-db.ps1 -Retries 6 -TimeoutSeconds 60 } else { Write-Host 'test-db.ps1 nicht gefunden – Schritt übersprungen.' }
+
       - name: Run smoke test
         shell: pwsh
         run: |
