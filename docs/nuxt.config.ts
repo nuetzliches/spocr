@@ -8,9 +8,10 @@ export default defineNuxtConfig({
     'nuxt-og-image',
     'nuxt-llms'
   ],
-
-  devtools: {
-    enabled: true
+  devtools: { enabled: true },
+  app: {
+    // Set via env NUXT_APP_BASE_URL="/spocr/" for GitHub Pages; '/' for root hosting.
+    baseURL: process.env.NUXT_APP_BASE_URL || '/'
   },
 
   css: ['~/assets/css/main.css'],
@@ -29,9 +30,7 @@ export default defineNuxtConfig({
 
   nitro: {
     prerender: {
-      routes: [
-        '/'
-      ],
+      routes: ['/'],
       crawlLinks: true,
       autoSubfolderIndex: false
     }
@@ -58,35 +57,6 @@ export default defineNuxtConfig({
       title: 'SpocR Documentation - Complete Reference',
       description: 'Complete documentation for SpocR, the SQL Server stored procedure code generator for .NET applications.'
     },
-    sections: [
-      {
-        title: 'Getting Started',
-        contentCollection: 'docs',
-        contentFilters: [
-          { field: 'path', operator: 'LIKE', value: '/getting-started%' }
-        ]
-      },
-      {
-        title: 'CLI Reference',
-        contentCollection: 'docs',
-        contentFilters: [
-          { field: 'path', operator: 'LIKE', value: '/cli%' }
-        ]
-      },
-      {
-        title: 'Reference',
-        contentCollection: 'docs',
-        contentFilters: [
-          { field: 'path', operator: 'LIKE', value: '/reference%' }
-        ]
-      },
-      {
-        title: 'Roadmap',
-        contentCollection: 'docs',
-        contentFilters: [
-          { field: 'path', operator: 'LIKE', value: '/roadmap%' }
-        ]
-      }
-    ]
+    sections: []
   }
 })

@@ -272,6 +272,18 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 - [ ] content.config.ts erweitert um Versions-Metadaten (z.B. versions: ['4.5','5.0'])
 - [ ] Hinweisbanner in v4.5 Seiten: "Sie lesen die v4.5 Dokumentation – v5 in Vorbereitung"
 
+### Docs Deployment (GitHub Pages) – Planung
+
+- [ ] Nuxt Static Generation konfigurieren (`bun run generate`) erzeugt vollständiges Prerender ohne SSR-Abhängigkeiten
+- [ ] `nuxt.config.ts`: `nitro.static` / `routeRules` prüfen; `app.baseURL` für Pages (`/spocr/`) setzen falls kein CNAME
+- [ ] Build-Workflow `.github/workflows/docs-pages.yml` anlegen (Branch `gh-pages` Deploy)
+- [ ] Cache (bun) + Node Version (>= 20) in Workflow
+- [ ] Artefakt-Publish: `docs/.output/public` oder `.dist` Ordner je nach Nuxt Version verifizieren
+- [ ] 404 Handling (`404.html`) erzeugen (Nuxt auto oder manuell) für SPA History Fallback
+- [ ] Link-Check Schritt (externe + interne) vor Deploy
+- [ ] Badge im README (Docs Status / Pages URL)
+- [ ] Checklist Update: Deployment aktiviert & erster erfolgreicher Publish
+
 ### Samples / Demo (samples/restapi) (Update 2025-10-15)
 
 - [x] Sample baut mit aktuellem Generator (dotnet build)
