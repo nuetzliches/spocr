@@ -70,7 +70,7 @@ EPICS Übersicht (oberste Steuerungsebene)
       depends: []
       note: Freeze-Datum & Sentinel (legacy-freeze.txt) gesetzt; CHANGELOG Eintrag vorhanden
 
-- [ ] EPIC-E002 SAMPLE-GATE Referenz-Sample stabil (P1) (smoke.ps1 + Golden Hash Mechanismus vorhanden, CI & stabile SP-Erfolgs-Response ausstehend)
+- [ ] EPIC-E002 SAMPLE-GATE Referenz-Sample stabil (P1) (smoke-test.ps1 minimal vorhanden; Golden Hash fehlt)
       id: E002
       goal: Referenz-Sample `samples/restapi` validiert jeden Entwicklungsschritt
       acceptance: - Build + CRUD Smoke Test automatisiert - Nutzung aktueller `spocr.json` - Läuft in CI Pipeline
@@ -258,7 +258,7 @@ EPICS Übersicht (oberste Steuerungsebene)
 
 - [ ] Sample baut mit aktuellem Generator (dotnet build)
 - [~] Sample führt grundlegende DB Operationen erfolgreich aus (CRUD Smoke Test) – Script vorhanden - Vorher: 500 UserList (InvalidCast) → behoben - Aktuell: DB-Ping Timeout blockiert vor Prozedur-Aufruf
-- [~] Automatisierter Mini-Test (skriptgesteuert) prüft Generierung & Start der Web API (smoke.ps1 vorhanden, Integration in CI fehlt)
+- [~] Automatisierter Mini-Test (skriptgesteuert) prüft Generierung & Start der Web API (smoke-test.ps1 vorhanden, CI Integration fehlt)
 - [ ] Sample beschreibt Aktivierung des neuen Outputs (Feature Flag) im README
 - [ ] Schema Rebuild Pipeline (`dotnet run --project src/SpocR.csproj -- rebuild -p samples/restapi/spocr.json --no-auto-update`) erzeugt deterministisch `samples/restapi/.spocr/schema`
 - [~] Generierter Output in `samples/restapi/SpocR` deterministisch (Golden Hash Feature implementiert, CI Verify offen) - Golden Write/Verify verfügbar, noch nicht in CI
@@ -301,8 +301,8 @@ EPICS Übersicht (oberste Steuerungsebene)
 
 - [ ] Pipeline Schritt: Codegen Diff (debug/model-diff-report.md) aktuell und verlinkt
 - [ ] Fail-Fast bei unerwarteten Generator-Änderungen (Diff Threshold)
-- [ ] QA Skripte (eng/\*.ps1) in README oder DEVELOPMENT.md referenziert (smoke.ps1 + Golden Hash Nutzung ergänzen)
-      -- [ ] CI: Smoke Test Schritt (smoke.ps1 -UseDocker -VerifyGolden) integriert
+- [ ] QA Skripte (eng/\*.ps1) in README oder DEVELOPMENT.md referenziert (smoke-test.ps1 erwähnen; Golden Hash Feature optional separat dokumentieren)
+      -- [ ] CI: Smoke Test Schritt (smoke-test.ps1 ggf. mit Docker DB + optional Golden Verify) integriert
       -- [ ] CI: Manual Trigger / Dokumentation für Golden Hash Aktualisierung (-WriteGolden) vorhanden
 - [ ] Caching/Restore Mechanismen (NuGet, Bun) effizient konfiguriert
 - [ ] ENV/CLI Flag für Generation definiert (`SPOCR_GENERATOR_MODE=dual|legacy|next` + `spocr generate --mode`) – Default in v4.5 = `dual` (README Abschnitt "Configuration Precedence" ergänzt; CLI Param-Doku noch offen)
@@ -377,11 +377,23 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] Explizit SPOCR_SAMPLE_RESTAPI_DB im Docker Smoke setzen (statt Fallback Warnung)
 - [ ] Erstversuch DB Connect Timeout 10–15s, danach kürzere Retries
 - [ ] Skript scripts/test-db.ps1 für isolierten Connectivity Test
-- [ ] CI: smoke.ps1 -UseDocker -VerifyGolden einbinden
+- [ ] CI: smoke-test.ps1 (optional: Docker + Golden Verify) einbinden
 
 ## Zwischenstand Zusammenfassung
 
 UserList Aggregation Fehler gelöst; aktueller Blocker ist DB Verbindung (Timeout vor Handler). Fokus: Isolierung (raw ping), Startup-Stabilisierung, dann CI Einbindung.
+
+## Aktuelle Sofort-Prioritäten (post smoke-test Konsolidierung)
+
+1. CI Integration: Einfachen Lauf `samples/restapi/scripts/smoke-test.ps1` als Pipeline Schritt (ohne Docker) hinzufügen (schneller Feedback Loop).
+2. DB Connectivity Stabilisierung: Separates Skript `scripts/test-db.ps1` (noch zu erstellen) für isolierten Connect & Timeout Analyse; danach optional /api/dbping wieder ins Smoke erweitern.
+3. Golden Hash Re-Evaluierung: Entscheiden, ob deterministische Output-Verifikation in CI (Write/Verify) wieder aufgenommen wird oder ob dies in dedizierte determinism pipeline verschoben wird.
+4. Doku Angleichen: README / DEVELOPMENT.md Kurzhinweis auf neues vereinfachtes Smoke Script (Ersetzen alter Referenzen).
+5. Exit Code Anomalie in VS Code Terminal untersuchen (Unterschied zwischen tatsächlichem `exit 0` und gemeldeter 1) – Reproduktionsschritt extern + ggf. Task Definition anpassen.
+
+Nice-to-have (nach 1–5):
+- Optional Docker Variante (Parameter `-UseDocker`) reaktivieren, falls DB-Abhängigkeit wieder automatisiert geprüft werden soll.
+- Optional Golden Hash Parameter (`-VerifyGolden`, `-WriteGolden`) modular über separates Wrapper-Skript statt Aufblähen von `smoke-test.ps1`.
 
 # Zu planende Entscheidungen
 
