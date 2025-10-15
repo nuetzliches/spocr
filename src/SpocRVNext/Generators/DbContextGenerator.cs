@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.Text;
 using SpocR.Managers;
@@ -95,12 +96,33 @@ public class DbContextGenerator
         var finalNs = baseNs.EndsWith(".SpocR", StringComparison.Ordinal) ? baseNs : baseNs + ".SpocR";
         var model = new { Namespace = finalNs };
 
-        // Generate all artifacts
+        // Generate core artifacts (always)
         await WriteAsync(spocrDir, "ISpocRDbContext.cs", Render("ISpocRDbContext", GetTemplate_Interface(finalNs), model), isDryRun);
         await WriteAsync(spocrDir, "SpocRDbContextOptions.cs", Render("SpocRDbContextOptions", GetTemplate_Options(finalNs), model), isDryRun);
         await WriteAsync(spocrDir, "SpocRDbContext.cs", Render("SpocRDbContext", GetTemplate_Context(finalNs), model), isDryRun);
         await WriteAsync(spocrDir, "SpocRDbContextServiceCollectionExtensions.cs", Render("SpocRDbContextServiceCollectionExtensions", GetTemplate_Di(finalNs), model), isDryRun);
-        await WriteAsync(spocrDir, "SpocRDbContextEndpoints.cs", Render("SpocRDbContextEndpoints", GetTemplate_Endpoints(finalNs), model), isDryRun);
+
+        // Endpoint generation is gated to net10 (forward feature). We evaluate SPOCR_TFM or default major used by template loader.
+        var tfm = Environment.GetEnvironmentVariable("SPOCR_TFM");
+        var major = ExtractTfmMajor(tfm);
+        if (major == "net10")
+        {
+            await WriteAsync(spocrDir, "SpocRDbContextEndpoints.cs", Render("SpocRDbContextEndpoints", GetTemplate_Endpoints(finalNs), model), isDryRun);
+        }
+        else
+        {
+            _console.Verbose($"[dbctx] Skip endpoints (TFM '{tfm ?? "<null>"}' → major '{major ?? "<none>"}' != net10)");
+        }
+    }
+
+    private static string? ExtractTfmMajor(string? tfm)
+    {
+        if (string.IsNullOrWhiteSpace(tfm)) return null;
+        tfm = tfm.Trim().ToLowerInvariant();
+        if (!tfm.StartsWith("net")) return null;
+        var digits = new string(tfm.Skip(3).TakeWhile(char.IsDigit).ToArray());
+        if (digits.Length == 0) return null;
+        return "net" + digits;
     }
 
     private string Render(string logicalName, SourceText fallback, object model)

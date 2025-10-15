@@ -26,6 +26,30 @@ public sealed class EnvConfiguration
     public static EnvConfiguration Load(string? projectRoot = null, IDictionary<string, string?>? cliOverrides = null, string? explicitConfigPath = null)
     {
         projectRoot ??= Directory.GetCurrentDirectory();
+        // Determine config directory: explicit > nearest spocr.json in current working directory scope
+        if (!string.IsNullOrWhiteSpace(explicitConfigPath) && File.Exists(explicitConfigPath))
+        {
+            try
+            {
+                var cfgDirOverride = Path.GetDirectoryName(Path.GetFullPath(explicitConfigPath));
+                if (!string.IsNullOrWhiteSpace(cfgDirOverride)) projectRoot = cfgDirOverride!;
+            }
+            catch { /* ignore path issues */ }
+        }
+        else
+        {
+            // Auto-detect spocr.json in current working directory (no recursion beyond one directory depth to keep semantics simple)
+            try
+            {
+                var localCfg = Directory.EnumerateFiles(projectRoot, "spocr.json", SearchOption.TopDirectoryOnly).FirstOrDefault();
+                if (localCfg != null)
+                {
+                    var cfgDir = Path.GetDirectoryName(Path.GetFullPath(localCfg));
+                    if (!string.IsNullOrWhiteSpace(cfgDir)) projectRoot = cfgDir!;
+                }
+            }
+            catch { /* ignore */ }
+        }
         var envFilePath = ResolveEnvFile(projectRoot);
         var filePairs = LoadDotEnv(envFilePath);
 
@@ -50,7 +74,7 @@ public sealed class EnvConfiguration
         {
             GeneratorMode = NormalizeMode(Get("SPOCR_GENERATOR_MODE")),
             GeneratorConnectionString = fullConn,
-                DefaultConnection = fullConn,
+            DefaultConnection = fullConn,
             NamespaceRoot = NullIfEmpty(Get("SPOCR_NAMESPACE")),
             OutputDir = NullIfEmpty(Get("SPOCR_OUTPUT_DIR")),
             ConfigPath = explicitConfigPath
@@ -70,11 +94,46 @@ public sealed class EnvConfiguration
             };
         }
 
-        // If dual/next and .env missing, interactive bootstrap (console scenario only)
+        // If dual/next and .env missing, interactive migration bootstrap (console scenario only)
         if (cfg.GeneratorMode is "dual" or "next")
         {
             if (string.IsNullOrEmpty(envFilePath) || !File.Exists(envFilePath))
             {
+                // Always prompt in dual/next when the .env file is missing (first-run migration experience)
+                try
+                {
+                    Console.WriteLine("[spocr vNext] Migration detected: no .env file present.");
+                    Console.WriteLine("[spocr vNext] A .env file is now the primary configuration for the generator (bridge phase v4.5 → v5).");
+                    Console.Write("[spocr vNext] Create a new .env now? (Y/n): ");
+                    string? answer = null;
+                    try { answer = Console.ReadLine(); } catch { /* non-interactive */ }
+                    bool create = true; // default Yes
+                    if (!string.IsNullOrWhiteSpace(answer))
+                    {
+                        var a = answer.Trim();
+                        if (a.Equals("n", StringComparison.OrdinalIgnoreCase) || a.Equals("no", StringComparison.OrdinalIgnoreCase))
+                            create = false;
+                    }
+                    if (!create)
+                    {
+                        Console.WriteLine("[spocr vNext] Skipped .env creation (user chose 'n'). Falling back to legacy mode for this run.");
+                        // Force legacy mode globally for the remaining process so that any mode providers
+                        // instantiated earlier but reading environment variables lazily will observe the change.
+                        try { Environment.SetEnvironmentVariable("SPOCR_GENERATOR_MODE", "legacy"); } catch { /* ignore */ }
+                        cfg = new EnvConfiguration
+                        {
+                            GeneratorMode = "legacy",
+                            GeneratorConnectionString = cfg.GeneratorConnectionString,
+                            DefaultConnection = cfg.DefaultConnection,
+                            NamespaceRoot = cfg.NamespaceRoot,
+                            OutputDir = cfg.OutputDir,
+                            ConfigPath = cfg.ConfigPath
+                        };
+                        Validate(cfg, envFilePath);
+                        return cfg;
+                    }
+                }
+                catch { /* ignore interactive issues */ }
                 var disableBootstrap = Environment.GetEnvironmentVariable("SPOCR_DISABLE_ENV_BOOTSTRAP");
                 if (!string.IsNullOrWhiteSpace(disableBootstrap) && disableBootstrap != "0")
                 {
@@ -185,23 +244,12 @@ public sealed class EnvConfiguration
 
     private static string? ResolveEnvFile(string projectRoot)
     {
-        // Prefer .env co-located with a spocr.json (sample) over root if multiple exist.
+        // Simplified: .env must reside next to the active spocr.json (or intended root). No deep searching.
         var primary = Path.Combine(projectRoot, ".env");
-        var local = Path.Combine(projectRoot, ".env.local");
         if (File.Exists(primary)) return primary;
+        var local = Path.Combine(projectRoot, ".env.local");
         if (File.Exists(local)) return local;
-        // Search for nested spocr.json and accompanying .env
-        try
-        {
-            foreach (var cfgFile in Directory.EnumerateFiles(projectRoot, "spocr.json", SearchOption.AllDirectories))
-            {
-                var dir = Path.GetDirectoryName(cfgFile)!;
-                var nestedEnv = Path.Combine(dir, ".env");
-                if (File.Exists(nestedEnv)) return nestedEnv;
-            }
-        }
-        catch { }
-        return primary; // preferred creation target
+        return primary; // creation target
     }
 
     private static Dictionary<string, string?> LoadDotEnv(string? path)
@@ -253,6 +301,7 @@ public sealed class EnvConfiguration
             using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(targetConfig));
             var root = doc.RootElement;
             string? ns = root.TryGetProperty("Project", out var p) && p.TryGetProperty("Output", out var o) && o.TryGetProperty("Namespace", out var nsEl) ? nsEl.GetString() : null;
+            string? tfm = root.TryGetProperty("TargetFramework", out var tfmEl) ? tfmEl.GetString() : null;
             string? conn = root.TryGetProperty("Project", out p) && p.TryGetProperty("DataBase", out var db) && db.TryGetProperty("ConnectionString", out var cs) ? cs.GetString() : null;
             string? id = root.TryGetProperty("Project", out p) && p.TryGetProperty("DataBase", out db) && db.TryGetProperty("RuntimeConnectionStringIdentifier", out var idEl) ? idEl.GetString() : null;
             var lines = new List<string>
@@ -261,6 +310,7 @@ public sealed class EnvConfiguration
                 "SPOCR_GENERATOR_MODE=dual",
                 ns is not null ? $"SPOCR_NAMESPACE={ns}" : "# SPOCR_NAMESPACE=Your.Project.Namespace",
                 "SPOCR_OUTPUT_DIR=SpocR",
+                tfm is not null ? $"SPOCR_TFM={tfm}" : "# SPOCR_TFM=net9.0",
                 conn is not null ? $"SPOCR_GENERATOR_DB={conn}" : "# SPOCR_GENERATOR_DB=FullConnectionStringHere"
             };
             File.WriteAllLines(envPath, lines);

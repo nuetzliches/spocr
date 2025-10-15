@@ -1,6 +1,8 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace SpocR.SpocRVNext.Cli;
 
@@ -43,37 +45,17 @@ internal static class EnvBootstrapper
 
         try
         {
-            string content;
-            if (!string.IsNullOrEmpty(explicitTemplate))
-            {
-                content = explicitTemplate;
-            }
-            else
-            {
-                var examplePath = Path.Combine(projectRoot, ExampleRelativePath);
-                if (!File.Exists(examplePath))
-                {
-                    // Try walking up (support running from sample child folder)
-                    var repoRoot = FindRepoRoot(projectRoot);
-                    if (repoRoot != null)
-                    {
-                        var alt = Path.Combine(repoRoot, ExampleRelativePath);
-                        if (File.Exists(alt)) examplePath = alt;
-                    }
-                }
-                if (File.Exists(examplePath))
-                    content = File.ReadAllText(examplePath);
-                else
-                    content = "# SpocR vNext configuration\n# SPOCR_GENERATOR_MODE=dual\n# SPOCR_NAMESPACE=Your.Project.Namespace\n# SPOCR_OUTPUT_DIR=SpocR\n";
-            }
-            File.WriteAllText(envPath, content);
-            // Ensure at least one marker
-            if (!content.Contains("SPOCR_"))
+            string baseContent = ResolveExampleContent(projectRoot, explicitTemplate);
+            var mergedContent = MergeWithConfig(projectRoot, baseContent);
+            File.WriteAllText(envPath, mergedContent);
+            if (!mergedContent.Contains("SPOCR_"))
             {
                 File.AppendAllText(envPath, "# SPOCR_NAMESPACE=AddYourNamespaceHere\n");
             }
             Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine($"{(force ? "(re)created" : "Created")} {EnvFileName} at '{envPath}'.");
+            Console.ResetColor();
+            Console.WriteLine("[spocr vNext] Next steps: (1) Review SPOCR_NAMESPACE (2) Adjust SPOCR_GENERATOR_MODE=next when comfortable (3) Re-run generation.");
             Console.ResetColor();
         }
         catch (Exception ex)
@@ -109,4 +91,71 @@ internal static class EnvBootstrapper
         return line?.Trim() ?? string.Empty;
     }
     private static bool IsYes(string input) => input.Length == 0 || input.Equals("y", StringComparison.OrdinalIgnoreCase) || input.Equals("yes", StringComparison.OrdinalIgnoreCase);
+
+    private static string ResolveExampleContent(string projectRoot, string? explicitTemplate)
+    {
+        if (!string.IsNullOrEmpty(explicitTemplate)) return explicitTemplate;
+        var examplePath = Path.Combine(projectRoot, ExampleRelativePath);
+        if (!File.Exists(examplePath))
+        {
+            var repoRoot = FindRepoRoot(projectRoot);
+            if (repoRoot != null)
+            {
+                var alt = Path.Combine(repoRoot, ExampleRelativePath);
+                if (File.Exists(alt)) examplePath = alt;
+            }
+        }
+        if (File.Exists(examplePath)) return File.ReadAllText(examplePath);
+        return "# SpocR vNext configuration\nSPOCR_GENERATOR_MODE=dual\n# SPOCR_NAMESPACE=Your.Project.Namespace\n# SPOCR_OUTPUT_DIR=SpocR\n";
+    }
+
+    private static string MergeWithConfig(string projectRoot, string exampleContent)
+    {
+        // Look for spocr.json in this directory only (already scoped earlier in EnvConfiguration)
+        var cfgPath = Path.Combine(projectRoot, "spocr.json");
+        string? ns = null; string? tfm = null; string? conn = null;
+        if (File.Exists(cfgPath))
+        {
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(cfgPath));
+                var root = doc.RootElement;
+                ns = root.TryGetProperty("Project", out var p) && p.TryGetProperty("Output", out var o) && o.TryGetProperty("Namespace", out var nsEl) ? nsEl.GetString() : null;
+                tfm = root.TryGetProperty("TargetFramework", out var tfmEl) ? tfmEl.GetString() : null;
+                conn = root.TryGetProperty("Project", out p) && p.TryGetProperty("DataBase", out var db) && db.TryGetProperty("ConnectionString", out var cs) ? cs.GetString() : null;
+            }
+            catch { }
+        }
+        // Simple line map override: keep comments, replace key lines if present, append if missing.
+        var lines = exampleContent.Replace("\r\n", "\n").Split('\n');
+        var dict = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            if (string.IsNullOrWhiteSpace(line) || line.TrimStart().StartsWith("#")) continue;
+            var eq = line.IndexOf('=');
+            if (eq > 0)
+            {
+                var key = line.Substring(0, eq).Trim();
+                if (key.StartsWith("SPOCR_", StringComparison.OrdinalIgnoreCase) && !dict.ContainsKey(key)) dict[key] = i;
+            }
+        }
+        void Upsert(string key, string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return;
+            var line = key + "=" + value;
+            if (dict.TryGetValue(key, out var idx)) lines[idx] = line;
+            else
+            {
+                // append before final separator block if exists
+                var list = lines.ToList();
+                list.Add(line);
+                lines = list.ToArray();
+            }
+        }
+        Upsert("SPOCR_NAMESPACE", ns);
+        Upsert("SPOCR_TFM", tfm);
+        Upsert("SPOCR_GENERATOR_DB", conn);
+        return string.Join(Environment.NewLine, lines) + Environment.NewLine;
+    }
 }

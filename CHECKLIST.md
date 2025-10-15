@@ -219,6 +219,26 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 - [ ] Migration von `spocr.json` auf `.env` / Environment Variablen dokumentiert (Mapping Tabelle)
 - [ ] Upgrade Hinweise in README + CHANGELOG integriert (kein separater Guide in dieser Phase)
 - [ ] SemVer Bewertung durchgeführt (Minor vs. Major Bump begründet)
+      note: Entscheidungskriterium: Entfernen Legacy DataContext + Identifier Fallback = Major (v5); v4.5 nur Bridge.
+
+### Ziel-Framework spezifische Features
+
+- [ ] Gating: `SpocRDbContextEndpoints` nur für `net10.0` kompilieren (Analyzer/Conditional Compilation) – Dokumentation verlinken
+      note: Ältere TFs (net8/net9) erhalten nur DbContext + HealthCheck optional via manuelle Registrierung
+- [ ] README Abschnitt "Target Framework Matrix" (Endpoint Availability) ergänzen
+
+### Migration Bootstrap (.env Erst-Erstellung)
+
+- [x] Erster v4.5 Build ohne `.env` / ohne jeden `SPOCR_` Key zeigt interaktive Migration-Warnung
+- [x] Nutzer-Bestätigung erforderlich bevor `.env` geschrieben wird (Abbruch bei "nein")
+- [x] `.env` wird aus `samples/restapi/.env.example` (Template) + Werten aus `spocr.json` gemerged
+- [x] `.env.example` als autoritative Vorlage gekennzeichnet (Kommentar Kopfzeile)
+- [x] Logging: Klarer Hinweis auf nächste Schritte (Namespace prüfen, Generator Mode optional anpassen)
+
+### Logging & Messaging Alignment
+
+- [ ] Log Message "vNext (dual) – TableTypes" konsolidieren → Ein einheitlicher Block: `vNext: Generating TableTypes` oder in Gesamtdauer-Zusammenfassung integrieren
+      note: Doppelung/Verlust Kontext aktuell – gehört in Sequenz zu anderen Generator Steps
 
 ### Konfiguration & Artefakte (Update 2025-10-15)
 

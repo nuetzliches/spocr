@@ -1,4 +1,4 @@
-/// <summary>Generated minimal API endpoints for SpocRDbContext.</summary>
+/// <summary>Generated minimal API endpoints for SpocRDbContext. (net10 variant)</summary>
 namespace {{ Namespace }};
 
 using Microsoft.AspNetCore.Builder;
