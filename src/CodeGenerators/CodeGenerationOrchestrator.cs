@@ -7,6 +7,7 @@ using SpocRVNext.Configuration; // for EnvConfiguration
 using SpocR.Enums;
 using SpocR.Models;
 using SpocR.Services;
+using SpocR.SpocRVNext.Utils; // ProjectRootResolver
 
 namespace SpocR.CodeGenerators;
 
@@ -110,34 +111,30 @@ public class CodeGenerationOrchestrator(
                 elapsed.Add("DbContext", stopwatch.ElapsedMilliseconds);
             }
 
-            // vNext extended generation (Inputs/Outputs/Results/Procedures) when dual|next mode for sample parity observation
+            // vNext extended generation (Inputs/Outputs/Results/Procedures) für das aktuell adressierte ProjektRoot (aus -p oder Arbeitsverzeichnis)
             if (dbCtxEnabled && !isDryRun)
             {
                 try
                 {
                     stopwatch.Restart();
-                    consoleService.PrintSubTitle("[vNext] Generating extended artifacts (Inputs/Outputs/Results/Procedures)");
-                    var templatesDir = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "src", "SpocRVNext", "Templates");
+                    var projectRoot = ProjectRootResolver.ResolveCurrent();
+                    consoleService.PrintSubTitle($"[vNext] Generating extended artifacts for {projectRoot}");
+                    var templatesDir = System.IO.Path.Combine(SpocR.Utils.DirectoryUtils.GetApplicationRoot(), "src", "SpocRVNext", "Templates");
                     SpocR.SpocRVNext.Engine.ITemplateLoader? loader = System.IO.Directory.Exists(templatesDir)
                         ? new SpocR.SpocRVNext.Engine.FileSystemTemplateLoader(templatesDir)
                         : null;
-                    var cwd = System.IO.Directory.GetCurrentDirectory();
-                    // Dynamische Ermittlung des Sample-Projekt Wurzelverzeichnisses:
-                    // Strategie: finde eine spocr.json unterhalb von samples/* mit einer RestApi.csproj im selben Ordner
-                    string sampleRoot = FindSampleProjectRoot(cwd) ?? System.IO.Path.Combine(cwd, "samples", "restapi");
-                    var sampleOutDir = System.IO.Path.Combine(sampleRoot, "SpocR");
-                    var vnextGen = new SpocR.SpocRVNext.SpocRGenerator(
-                        new SpocR.SpocRVNext.Engine.SimpleTemplateEngine(),
-                        loader,
-                        schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider(sampleRoot));
-                    if (!System.IO.Directory.Exists(sampleOutDir)) System.IO.Directory.CreateDirectory(sampleOutDir);
-                    // Wichtig: EnvConfiguration.Load mit sampleRoot, damit NamespaceResolver die RestApi.csproj korrekt findet
-                    vnextGen.GenerateAll(EnvConfiguration.Load(projectRoot: sampleRoot), sampleRoot);
+                    if (loader == null) consoleService.Warn($"[vNext] Templates-Verzeichnis fehlt: {templatesDir}");
+                    var outDir = System.IO.Path.Combine(projectRoot, "SpocR");
+                    var vnextGen = new SpocR.SpocRVNext.SpocRGenerator(new SpocR.SpocRVNext.Engine.SimpleTemplateEngine(), loader, schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider(projectRoot));
+                    if (!System.IO.Directory.Exists(outDir)) System.IO.Directory.CreateDirectory(outDir);
+                    var cfg = EnvConfiguration.Load(projectRoot: projectRoot);
+                    var count = vnextGen.GenerateAll(cfg, projectRoot);
+                    consoleService.Info($"[vNext] Generated {count} unified procedure file(s).");
                     elapsed.Add("vNext", stopwatch.ElapsedMilliseconds);
                 }
                 catch (Exception vx)
                 {
-                    consoleService.Warn($"vNext generation skipped due to error: {vx.Message}");
+                    consoleService.Warn($"[vNext] generation skipped due to error: {vx.Message}");
                 }
             }
         }
@@ -186,18 +183,15 @@ public class CodeGenerationOrchestrator(
             {
                 try
                 {
-                    var templatesDir = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "src", "SpocRVNext", "Templates");
+                    var projectRoot = ProjectRootResolver.ResolveCurrent();
+                    var templatesDir = System.IO.Path.Combine(SpocR.Utils.DirectoryUtils.GetApplicationRoot(), "src", "SpocRVNext", "Templates");
                     SpocR.SpocRVNext.Engine.ITemplateLoader? loader = System.IO.Directory.Exists(templatesDir)
                         ? new SpocR.SpocRVNext.Engine.FileSystemTemplateLoader(templatesDir)
                         : null;
-                    var cwd2 = System.IO.Directory.GetCurrentDirectory();
-                    var sampleRoot2 = FindSampleProjectRoot(cwd2) ?? System.IO.Path.Combine(cwd2, "samples", "restapi");
-                    var vnextGen = new SpocR.SpocRVNext.SpocRGenerator(
-                        new SpocR.SpocRVNext.Engine.SimpleTemplateEngine(),
-                        loader,
-                        schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider(sampleRoot2));
-                    if (!System.IO.Directory.Exists(System.IO.Path.Combine(sampleRoot2, "SpocR"))) System.IO.Directory.CreateDirectory(System.IO.Path.Combine(sampleRoot2, "SpocR"));
-                    vnextGen.GenerateAll(EnvConfiguration.Load(projectRoot: sampleRoot2), sampleRoot2);
+                    if (loader == null) consoleService.Warn($"[vNext] Templates-Verzeichnis fehlt: {templatesDir}");
+                    var vnextGen = new SpocR.SpocRVNext.SpocRGenerator(new SpocR.SpocRVNext.Engine.SimpleTemplateEngine(), loader, schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider(projectRoot));
+                    if (!System.IO.Directory.Exists(System.IO.Path.Combine(projectRoot, "SpocR"))) System.IO.Directory.CreateDirectory(System.IO.Path.Combine(projectRoot, "SpocR"));
+                    vnextGen.GenerateAll(EnvConfiguration.Load(projectRoot: projectRoot), projectRoot);
                 }
                 catch (Exception vx)
                 {
@@ -254,13 +248,14 @@ public class CodeGenerationOrchestrator(
             {
                 try
                 {
-                    var templatesDir = System.IO.Path.Combine(System.IO.Directory.GetCurrentDirectory(), "src", "SpocRVNext", "Templates");
+                    var projectRoot = ProjectRootResolver.ResolveCurrent();
+                    var templatesDir = System.IO.Path.Combine(SpocR.Utils.DirectoryUtils.GetApplicationRoot(), "src", "SpocRVNext", "Templates");
                     SpocR.SpocRVNext.Engine.ITemplateLoader? loader = System.IO.Directory.Exists(templatesDir)
                         ? new SpocR.SpocRVNext.Engine.FileSystemTemplateLoader(templatesDir)
                         : null;
-                    var sampleRoot3 = FindSampleProjectRoot(System.IO.Directory.GetCurrentDirectory()) ?? System.IO.Directory.GetCurrentDirectory();
-                    var vnextGen = new SpocR.SpocRVNext.SpocRGenerator(new SpocR.SpocRVNext.Engine.SimpleTemplateEngine(), loader, schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider(sampleRoot3));
-                    vnextGen.GenerateAll(EnvConfiguration.Load(projectRoot: sampleRoot3), sampleRoot3);
+                    if (loader == null) consoleService.Warn($"[vNext] Templates-Verzeichnis fehlt: {templatesDir}");
+                    var vnextGen = new SpocR.SpocRVNext.SpocRGenerator(new SpocR.SpocRVNext.Engine.SimpleTemplateEngine(), loader, schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider(projectRoot));
+                    vnextGen.GenerateAll(EnvConfiguration.Load(projectRoot: projectRoot), projectRoot);
                 }
                 catch (Exception vx)
                 {
@@ -319,22 +314,7 @@ public class CodeGenerationOrchestrator(
     {
         return storedProcedureGenerator.GenerateDataContextStoredProceduresAsync(isDryRun);
     }
-    private static string? FindSampleProjectRoot(string cwd)
-    {
-        try
-        {
-            var samplesDir = System.IO.Path.Combine(cwd, "samples");
-            if (!System.IO.Directory.Exists(samplesDir)) return null;
-            foreach (var dir in System.IO.Directory.EnumerateDirectories(samplesDir))
-            {
-                var candidateCfg = System.IO.Path.Combine(dir, "spocr.json");
-                if (System.IO.File.Exists(candidateCfg))
-                    return dir;
-            }
-        }
-        catch { }
-        return null;
-    }
+    // Entfernt: FindSampleProjectRoot – durch ProjectRootResolver ersetzt
 }
 
 /// <summary>

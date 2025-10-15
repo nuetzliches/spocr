@@ -11,12 +11,9 @@ using SpocR.SpocRVNext.Generators;
 namespace SpocR.SpocRVNext;
 
 /// <summary>
-/// Placeholder service for future dual-generation orchestration.
-/// Will later:
-///  - Invoke legacy generator (existing pathways) and new generator side-by-side when mode=dual.
-///  - Collect hashes & produce diff metrics.
-///  - Respect allow-list for benign differences.
-/// Currently only demonstrates mode branching.
+/// Übergangs-Dispatcher für gleichzeitige (dual) oder reine (next) vNext / Legacy-Demo-Generierung.
+/// Vereinheitlicht jetzt die Projektwurzel-Auflösung (kein Sample-Heuristik mehr).
+/// TODO: In Zukunft durch konsolidierte Pipeline ersetzen oder entfernen.
 /// </summary>
 public sealed class DualGenerationDispatcher
 {
@@ -31,6 +28,7 @@ public sealed class DualGenerationDispatcher
 
     public string ExecuteDemo(string? baseOutputDir = null)
     {
+        // Ziel-Verzeichnis (debug playground)
         baseOutputDir ??= Path.Combine(Directory.GetCurrentDirectory(), "debug", "codegen-demo");
         Directory.CreateDirectory(baseOutputDir);
         var nextDir = Path.Combine(baseOutputDir, "next");
@@ -38,6 +36,12 @@ public sealed class DualGenerationDispatcher
 
         string? nextContent = null;
         string? legacyContent = null;
+
+        // Einheitliche Projektwurzel für diesen Lauf (nutzt ggf. -p / Environment über ProjectRootResolver)
+        var projectRoot = ProjectRootResolver.ResolveCurrent();
+        var solutionRoot = ProjectRootResolver.GetSolutionRootOrCwd();
+        var templatesDir = Path.Combine(solutionRoot, "src", "SpocRVNext", "Templates");
+        ITemplateLoader? loaderUnified = Directory.Exists(templatesDir) ? new FileSystemTemplateLoader(templatesDir) : null;
 
         switch (_cfg.GeneratorMode)
         {
@@ -48,56 +52,33 @@ public sealed class DualGenerationDispatcher
                 break;
             case "next":
                 {
-                    // Instantiate template loader (filesystem) pointing to Templates folder
-                    var templatesDir = Path.Combine(Directory.GetCurrentDirectory(), "src", "SpocRVNext", "Templates");
-                    var resolvedSampleRoot = FindSampleProjectRoot(Directory.GetCurrentDirectory()) ?? Directory.GetCurrentDirectory();
-                    ITemplateLoader? loader = Directory.Exists(templatesDir)
-                        ? new FileSystemTemplateLoader(templatesDir)
-                        : null;
-                    var genNext = new SpocRGenerator(_renderer, loader, schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider(resolvedSampleRoot));
+                    // Reiner vNext-Durchlauf
+                    var genNext = new SpocRGenerator(_renderer, loaderUnified, schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider(projectRoot));
                     nextContent = genNext.RenderDemo();
                     Directory.CreateDirectory(nextDir);
                     File.WriteAllText(Path.Combine(nextDir, "DemoNext.cs"), nextContent);
-                    genNext.GenerateMinimalDbContext(Path.Combine(nextDir, "generated"));
-                    // vNext real output: TableTypes
-                    var ttGen = new TableTypesGenerator(_cfg, new TableTypeMetadataProvider(Directory.GetCurrentDirectory()), _renderer, loader);
+                    genNext.GenerateMinimalDbContext(Path.Combine(nextDir, "generated")); // Demo
+                    var ttGen = new TableTypesGenerator(_cfg, new TableTypeMetadataProvider(projectRoot), _renderer, loaderUnified);
                     var count = ttGen.Generate();
-                    File.WriteAllText(Path.Combine(nextDir, "_tabletypes.info"), $"Generated {count} table type record structs");
+                    File.WriteAllText(Path.Combine(nextDir, "_tabletypes.info"), $"Generiert {count} TableType-Record-Structs");
                 }
                 break;
             case "dual":
                 legacyContent = "// legacy demo placeholder";
-                var templatesDirDual = Path.Combine(Directory.GetCurrentDirectory(), "src", "SpocRVNext", "Templates");
-                var sampleRootDyn = FindSampleProjectRoot(Directory.GetCurrentDirectory()) ?? Directory.GetCurrentDirectory();
-                ITemplateLoader? loaderDual = Directory.Exists(templatesDirDual)
-                    ? new FileSystemTemplateLoader(templatesDirDual)
-                    : null;
-                var gen = new SpocRGenerator(_renderer, loaderDual, schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider(sampleRootDyn));
+                var gen = new SpocRGenerator(_renderer, loaderUnified, schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider(projectRoot));
                 nextContent = gen.RenderDemo();
                 Directory.CreateDirectory(legacyDir);
                 Directory.CreateDirectory(nextDir);
                 File.WriteAllText(Path.Combine(legacyDir, "DemoLegacy.cs"), legacyContent);
                 File.WriteAllText(Path.Combine(nextDir, "DemoNext.cs"), nextContent);
-                // Determine sample RestApi root (heuristic: look for samples/restapi relative to CWD)
-                var cwd = Directory.GetCurrentDirectory();
-                var sampleRoot = FindSampleProjectRoot(cwd);
-                if (sampleRoot != null && Directory.Exists(sampleRoot))
-                {
-                    var spocrOut = Path.Combine(sampleRoot, "SpocR");
-                    Directory.CreateDirectory(spocrOut);
-                    // Run full vNext generation with base path = samples/restapi/SpocR
-                    gen.GenerateAll(_cfg, spocrOut);
-                }
-                else
-                {
-                    // Fallback: minimal DbContext only
-                    gen.GenerateMinimalDbContext(Path.Combine(nextDir, "generated"));
-                }
-                // vNext real output: TableTypes
-                var ttGenDual = new TableTypesGenerator(_cfg, new TableTypeMetadataProvider(Directory.GetCurrentDirectory()), _renderer, loaderDual);
+                // Vollständige vNext-Generierung im ProjektRoot
+                var outDir = Path.Combine(projectRoot, "SpocR");
+                Directory.CreateDirectory(outDir);
+                gen.GenerateAll(_cfg, projectRoot);
+                var ttGenDual = new TableTypesGenerator(_cfg, new TableTypeMetadataProvider(projectRoot), _renderer, loaderUnified);
                 var countDual = ttGenDual.Generate();
-                File.WriteAllText(Path.Combine(nextDir, "_tabletypes.info"), $"Generated {countDual} table type record structs");
-                // Diff step (allow-list reading optional future extension)
+                File.WriteAllText(Path.Combine(nextDir, "_tabletypes.info"), $"Generiert {countDual} TableType-Record-Structs");
+                // Diff (Legacy vs Demo Next) – Demonstrationszweck
                 var diff = DirectoryDiff.Compare(legacyDir, nextDir, allowListGlobs: ReadAllowList(baseOutputDir));
                 var summaryPath = Path.Combine(baseOutputDir, "diff-summary.txt");
                 File.WriteAllText(summaryPath, FormatDiff(diff));
@@ -141,19 +122,5 @@ public sealed class DualGenerationDispatcher
                (diff.Changed.Count > 0 ? "\n~ " + string.Join("\n~ ", diff.Changed) : string.Empty);
     }
 
-    private static string? FindSampleProjectRoot(string cwd)
-    {
-        try
-        {
-            var samplesDir = Path.Combine(cwd, "samples");
-            if (!Directory.Exists(samplesDir)) return null;
-            foreach (var dir in Directory.EnumerateDirectories(samplesDir))
-            {
-                var cfg = Path.Combine(dir, "spocr.json");
-                if (File.Exists(cfg)) return dir;
-            }
-        }
-        catch { }
-        return null;
-    }
+    // Ehemalige FindSampleProjectRoot-Heuristik entfernt: ProjektRoot wird zentral über ProjectRootResolver bestimmt.
 }

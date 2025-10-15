@@ -30,7 +30,11 @@ public sealed class ProceduresGenerator
     public int Generate(string ns, string baseOutputDir)
     {
         var procs = _provider();
-        if (procs.Count == 0) return 0;
+        if (procs.Count == 0)
+        {
+            try { Console.Out.WriteLine("[spocr vNext] Info: ProceduresGenerator skipped – provider returned 0 procedures."); } catch { }
+            return 0;
+        }
         string header = string.Empty;
         if (_loader != null && _loader.TryLoad("_Header", out var headerTpl)) header = headerTpl.TrimEnd() + Environment.NewLine;
         // Emit ExecutionSupport once (if template present and file missing or stale)
@@ -58,6 +62,10 @@ public sealed class ProceduresGenerator
         var written = 0;
         string? unifiedTemplateRaw = null;
         bool hasUnifiedTemplate = _loader != null && _loader.TryLoad("UnifiedProcedure", out unifiedTemplateRaw);
+        if (!hasUnifiedTemplate)
+        {
+            try { Console.Out.WriteLine("[spocr vNext] Warn: UnifiedProcedure.spt nicht gefunden – Fallback Skelett wird erzeugt. (Templates-Pfad prüfen)"); } catch { }
+        }
         foreach (var proc in procs.OrderBy(p => p.OperationName))
         {
             var op = proc.OperationName;
@@ -96,7 +104,7 @@ public sealed class ProceduresGenerator
             string finalCode;
             if (hasUnifiedTemplate && unifiedTemplateRaw != null)
             {
-                var usingBlock = "using System;\nusing System.Collections.Generic;\nusing System.Data;\nusing System.Data.Common;\nusing System.Threading;\nusing System.Threading.Tasks;\nusing " + ns + ";";
+                var usingBlock = "using System;\nusing System.Collections.Generic;\nusing System.Linq;\nusing System.Data;\nusing System.Data.Common;\nusing System.Threading;\nusing System.Threading.Tasks;\nusing " + ns + ";";
 
                 // Structured metadata for template-driven record generation
                 var rsMeta = new List<object>();
@@ -109,8 +117,9 @@ public sealed class ProceduresGenerator
                     var fieldExprs = string.Join(", ", rs.Fields.Select((f, idx) => MaterializeFieldExpressionCached(f, idx)));
                     var propName = rs.Name.StartsWith("ResultSet", StringComparison.OrdinalIgnoreCase) ? "Result" + rs.Name.Substring("ResultSet".Length) : rs.Name;
                     var assignment = $", {propName} = rs.Length > {rsIdx} ? Array.ConvertAll(((System.Collections.Generic.List<object>)rs[{rsIdx}]).ToArray(), o => ({rsType})o).ToList() : Array.Empty<{rsType}>()";
-                    var fieldsBlock = string.Join(Environment.NewLine, rs.Fields.Select((f,i) => $"    {f.ClrType} {f.PropertyName}{(i==rs.Fields.Count-1?string.Empty:",")}"));
-                    rsMeta.Add(new {
+                    var fieldsBlock = string.Join(Environment.NewLine, rs.Fields.Select((f, i) => $"    {f.ClrType} {f.PropertyName}{(i == rs.Fields.Count - 1 ? string.Empty : ",")}"));
+                    rsMeta.Add(new
+                    {
                         Name = rs.Name,
                         TypeName = rsType,
                         PropName = propName,
@@ -144,8 +153,8 @@ public sealed class ProceduresGenerator
                     HasInput = proc.InputParameters.Count > 0,
                     HasOutput = proc.OutputFields.Count > 0,
                     HasResultSets = proc.ResultSets.Count > 0,
-                    InputParameters = proc.InputParameters.Select((p,i) => new { p.ClrType, p.PropertyName, Comma = i == proc.InputParameters.Count - 1 ? string.Empty : "," }).ToList(),
-                    OutputFields = proc.OutputFields.Select((f,i) => new { f.ClrType, f.PropertyName, Comma = i == proc.OutputFields.Count - 1 ? string.Empty : "," }).ToList(),
+                    InputParameters = proc.InputParameters.Select((p, i) => new { p.ClrType, p.PropertyName, Comma = i == proc.InputParameters.Count - 1 ? string.Empty : "," }).ToList(),
+                    OutputFields = proc.OutputFields.Select((f, i) => new { f.ClrType, f.PropertyName, Comma = i == proc.OutputFields.Count - 1 ? string.Empty : "," }).ToList(),
                     ProcedureFullName = proc.Schema + "." + proc.ProcedureName,
                     ProcedureTypeName = procedureTypeName,
                     UnifiedResultTypeName = unifiedResultTypeName,
