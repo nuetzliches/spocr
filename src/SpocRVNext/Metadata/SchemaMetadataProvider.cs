@@ -55,39 +55,102 @@ namespace SpocR.SpocRVNext.Metadata
         {
             var schemaDir = Path.Combine(_projectRoot, ".spocr", "schema");
             if (!Directory.Exists(schemaDir)) { SchemaMetadataProviderLogHelper.TryLog($"[spocr vNext] Info: schema directory not found: {schemaDir}"); return; }
-            var files = Directory.GetFiles(schemaDir, "*.json");
-            if (files.Length == 0) { SchemaMetadataProviderLogHelper.TryLog($"[spocr vNext] Info: no schema snapshot files (*.json) in {schemaDir}"); return; }
-            var ordered = files.Select(f => new FileInfo(f)).OrderByDescending(fi => fi.LastWriteTimeUtc).ToList();
-            foreach (var fi in ordered.Take(10)) // log up to first 10
-            {
-                SchemaMetadataProviderLogHelper.TryLog($"[spocr vNext] snapshot candidate: {fi.FullName} (utc={fi.LastWriteTimeUtc:O} size={fi.Length})");
-            }
-            var latest = ordered.First();
-            SchemaMetadataProviderLogHelper.TryLog($"[spocr vNext] Using schema snapshot: {latest.FullName}");
+            var indexPath = Path.Combine(schemaDir, "index.json");
             JsonDocument? doc = null;
-            try
+            bool expanded = false;
+            if (File.Exists(indexPath))
             {
-                using var fs = File.OpenRead(latest.FullName);
-                doc = JsonDocument.Parse(fs);
+                try
+                {
+                    using var fs = File.OpenRead(indexPath);
+                    doc = JsonDocument.Parse(fs);
+                    expanded = true;
+                    SchemaMetadataProviderLogHelper.TryLog($"[spocr vNext] Using expanded snapshot index: {indexPath}");
+                }
+                catch (Exception ex)
+                {
+                    SchemaMetadataProviderLogHelper.TryLog($"[spocr vNext] Warning: failed to parse expanded index.json: {ex.Message}");
+                    doc = null; // fallback legacy
+                }
             }
-            catch (Exception ex)
+            if (doc == null)
             {
-                SchemaMetadataProviderLogHelper.TryLog($"[spocr vNext] Warning: failed to parse snapshot {latest.FullName}: {ex.Message}");
-                return;
+                // Legacy fallback: pick latest non-index *.json (monolith)
+                var files = Directory.GetFiles(schemaDir, "*.json")
+                    .Where(f => !string.Equals(Path.GetFileName(f), "index.json", StringComparison.OrdinalIgnoreCase))
+                    .ToArray();
+                if (files.Length == 0) { SchemaMetadataProviderLogHelper.TryLog($"[spocr vNext] Info: no legacy snapshot files in {schemaDir}"); return; }
+                var ordered = files.Select(f => new FileInfo(f)).OrderByDescending(fi => fi.LastWriteTimeUtc).ToList();
+                foreach (var fi in ordered.Take(5))
+                    SchemaMetadataProviderLogHelper.TryLog($"[spocr vNext] legacy snapshot candidate: {fi.FullName} (utc={fi.LastWriteTimeUtc:O} size={fi.Length})");
+                var latest = ordered.First();
+                SchemaMetadataProviderLogHelper.TryLog($"[spocr vNext] Using legacy snapshot: {latest.FullName}");
+                try
+                {
+                    using var fs = File.OpenRead(latest.FullName);
+                    doc = JsonDocument.Parse(fs);
+                }
+                catch (Exception ex)
+                {
+                    SchemaMetadataProviderLogHelper.TryLog($"[spocr vNext] Warning: failed to parse legacy snapshot {latest.FullName}: {ex.Message}");
+                    return;
+                }
             }
             if (doc == null) return;
             JsonElement procsEl;
-            if (!doc.RootElement.TryGetProperty("Procedures", out procsEl) || procsEl.ValueKind != JsonValueKind.Array)
+            if (expanded)
             {
-                // Fallback: legacy key name support
-                if (!doc.RootElement.TryGetProperty("StoredProcedures", out procsEl) || procsEl.ValueKind != JsonValueKind.Array)
+                // Expanded index: wir müssen prozedur-dateien einzeln laden – index enthält nur File Hash Entries
+                if (doc.RootElement.TryGetProperty("Procedures", out var procIndexEl) && procIndexEl.ValueKind == JsonValueKind.Array)
                 {
-                    SchemaMetadataProviderLogHelper.TryLog($"[spocr vNext] Warning: snapshot has no 'Procedures' array (or it's not an array): {latest.FullName}");
-                    return;
+                    var procEntries = procIndexEl.EnumerateArray().Select(e => new
+                    {
+                        File = e.GetPropertyOrDefault("File"),
+                        Name = e.GetPropertyOrDefault("Name"),
+                        Schema = e.GetPropertyOrDefault("Schema")
+                    }).Where(x => !string.IsNullOrWhiteSpace(x.File)).ToList();
+                    var procArray = new List<JsonElement>();
+                    foreach (var entry in procEntries)
+                    {
+                        var path = Path.Combine(schemaDir, "procedures", entry.File!);
+                        if (!File.Exists(path)) continue;
+                        try
+                        {
+                            using var pfs = File.OpenRead(path);
+                            using var pdoc = JsonDocument.Parse(pfs);
+                            procArray.Add(pdoc.RootElement.Clone());
+                        }
+                        catch (Exception ex)
+                        {
+                            SchemaMetadataProviderLogHelper.TryLog($"[spocr vNext] Warning: failed to parse procedure file {path}: {ex.Message}");
+                        }
+                    }
+                    // Künstlich ein Array JsonElement bauen
+                    using var tmpDoc = JsonDocument.Parse("[]"); // placeholder
+                    // Wir können keinen neuen JsonElement dynamisch erzeugen ohne Utf8JsonWriter -> konvertieren über re-serialize
+                    var procJson = System.Text.Json.JsonSerializer.Serialize(procArray);
+                    doc = JsonDocument.Parse(procJson);
+                    procsEl = doc.RootElement; // doc.root ist jetzt das Array der Procs
                 }
                 else
                 {
-                    SchemaMetadataProviderLogHelper.TryLog($"[spocr vNext] Info: using legacy 'StoredProcedures' key in snapshot: {latest.FullName}");
+                    SchemaMetadataProviderLogHelper.TryLog("[spocr vNext] Warning: expanded index.json missing Procedures array");
+                    return;
+                }
+            }
+            else
+            {
+                if (!doc.RootElement.TryGetProperty("Procedures", out procsEl) || procsEl.ValueKind != JsonValueKind.Array)
+                {
+                    if (!doc.RootElement.TryGetProperty("StoredProcedures", out procsEl) || procsEl.ValueKind != JsonValueKind.Array)
+                    {
+                        SchemaMetadataProviderLogHelper.TryLog("[spocr vNext] Warning: snapshot has no 'Procedures' or 'StoredProcedures' array");
+                        return;
+                    }
+                    else
+                    {
+                        SchemaMetadataProviderLogHelper.TryLog("[spocr vNext] Info: using legacy 'StoredProcedures' key");
+                    }
                 }
             }
 
@@ -227,7 +290,7 @@ namespace SpocR.SpocRVNext.Metadata
             _results = resultDescriptors.OrderBy(r => r.OperationName).ToList();
             if (_procedures.Count == 0)
             {
-                SchemaMetadataProviderLogHelper.TryLog($"[spocr vNext] Warning: 0 procedures parsed from snapshot {latest.FullName}");
+                SchemaMetadataProviderLogHelper.TryLog("[spocr vNext] Warning: 0 procedures parsed from snapshot (expanded/legacy)");
             }
         }
 

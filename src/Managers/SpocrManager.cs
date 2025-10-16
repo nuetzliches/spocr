@@ -30,6 +30,7 @@ public class SpocrManager(
     SpocrProjectManager projectManager,
     IConsoleService consoleService,
     SchemaManager schemaManager,
+    Services.SchemaSnapshotFileLayoutService expandedSnapshotService,
     FileManager<GlobalConfigurationModel> globalConfigFile,
     FileManager<ConfigurationModel> configFile,
     DbContext dbContext,
@@ -67,9 +68,9 @@ public class SpocrManager(
         }
 
         var connectionString = "";
-        // Role deprecated – Optionen nur noch für Migrationshinweis anzeigen falls Benutzer explizit etwas eingibt
+    // Role deprecated – only display options as migration notice if user explicitly provides a value
         var roleKindString = options.Role;
-        RoleKindEnum roleKind = RoleKindEnum.Default; // Immer Default setzen
+    RoleKindEnum roleKind = RoleKindEnum.Default; // Always set Default
         string libNamespace = null;
         if (!options.Quiet && !string.IsNullOrWhiteSpace(roleKindString))
         {
@@ -444,8 +445,19 @@ public class SpocrManager(
                     }
                 };
 
-                schemaSnapshotService.Save(snapshot);
-                consoleService.Verbose($"[snapshot] saved fingerprint={fingerprint} procs={procedures.Count} udtts={udtts.Count}");
+                // Monolithic legacy snapshot save removed (architecture refactor)
+                // schemaSnapshotService.Save(snapshot); // disabled
+                try
+                {
+                    // Use injected expanded snapshot service (no manual new())
+                    expandedSnapshotService.SaveExpanded(snapshot);
+                    consoleService.Verbose($"[snapshot-expanded] index + {procedures.Count} procedure file(s) + {udtts.Count} tabletype file(s) written");
+                }
+                catch (Exception fx)
+                {
+                    consoleService.Warn($"[snapshot-expanded-error] {fx.Message}");
+                }
+                consoleService.Verbose($"[snapshot] saved (expanded only) fingerprint={fingerprint} procs={procedures.Count} udtts={udtts.Count}");
                 // Informational migration note (legacy schema node removed)
                 consoleService.Verbose("[migration] Legacy 'schema' node removed; snapshot + IgnoredSchemas are now authoritative.");
                 // Always show run-level JSON enrichment summary (even if zero) unless logging is Off
@@ -827,7 +839,7 @@ public class SpocrManager(
                 consoleService.Verbose($"Generator types restricted to: {buildOptions.GeneratorTypes}");
             }
 
-            // Zugriff weiterhin nötig bis vollständige Entfernung in v5 – Obsolete Warning lokal unterdrücken
+            // Access still required until full removal in v5 – locally suppress obsolete warning
 #pragma warning disable CS0618
             return orchestrator.GenerateCodeWithProgressAsync(options.DryRun, project.Role.Kind, project.Output);
 #pragma warning restore CS0618
@@ -856,16 +868,16 @@ public class SpocrManager(
             return new ConfigurationModel();
         }
 
-        // Migration / Normalisierung Role (Deprecation Path)
+    // Migration / normalization for Role (deprecation path)
         try
         {
-            // Falls Role fehlt => Standard auffüllen (Kind=Default)
+            // If Role missing => fill with default (Kind=Default)
             if (config.Project != null && config.Project.Role == null)
             {
                 config.Project.Role = new RoleModel();
             }
-            // Deprecation Warnung wenn ein Nicht-Default Wert gesetzt ist
-            // Deprecation Warning nur wenn alter Wert (Lib/Extension) verwendet wird
+            // Deprecation warning when a non-default value is set
+            // Deprecation warning only if old value (Lib/Extension) is used
 #pragma warning disable CS0618
             if (config.Project?.Role?.Kind is SpocR.Enums.RoleKindEnum.Lib or SpocR.Enums.RoleKindEnum.Extension)
 #pragma warning restore CS0618

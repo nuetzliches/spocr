@@ -41,25 +41,48 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
         {
             throw new InvalidOperationException("No snapshot directory found (.spocr/schema). Run 'spocr pull' first.");
         }
-        var files = Directory.GetFiles(schemaDir, "*.json");
-        if (files.Length == 0)
+    // Expanded layout: index.json + subfolders. Prefer loading this format when present.
+        SchemaSnapshot snapshot = null;
+        var indexPath = Path.Combine(schemaDir, "index.json");
+        if (File.Exists(indexPath))
         {
-            throw new InvalidOperationException("No snapshot file found (.spocr/schema/*.json). Run 'spocr pull' first.");
+            try
+            {
+                var fl = new SchemaSnapshotFileLayoutService();
+                snapshot = fl.LoadExpanded();
+                if (snapshot == null)
+                {
+                    throw new InvalidOperationException("Expanded snapshot index.json exists but could not be loaded.");
+                }
+                _console.Verbose($"[snapshot-provider] expanded layout loaded fingerprint={snapshot.Fingerprint} procs={snapshot.Procedures.Count} udtts={snapshot.UserDefinedTableTypes.Count}");
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"Failed to load expanded snapshot index.json: {ex.Message}");
+            }
         }
-        // Pick latest by last write time
-        var latest = files.Select(f => new FileInfo(f)).OrderByDescending(fi => fi.LastWriteTimeUtc).First();
-        var fp = Path.GetFileNameWithoutExtension(latest.FullName);
-        SchemaSnapshot snapshot;
-        try
+        else
         {
-            snapshot = _snapshotService.Load(fp);
-        }
-        catch (Exception ex)
-        {
-            throw new InvalidOperationException($"Failed to load snapshot '{fp}': {ex.Message}");
+            // Fallback: legacy monolithic snapshot files (Fingerprint.json)
+            var legacyFiles = Directory.GetFiles(schemaDir, "*.json");
+            if (legacyFiles.Length == 0)
+                throw new InvalidOperationException("No snapshot file found (.spocr/schema). Run 'spocr pull' first.");
+            var latestLegacy = legacyFiles.Select(f => new FileInfo(f)).OrderByDescending(fi => fi.LastWriteTimeUtc).First();
+            var fp = Path.GetFileNameWithoutExtension(latestLegacy.FullName);
+            try
+            {
+                snapshot = _snapshotService.Load(fp);
+                if (snapshot == null)
+                    throw new InvalidOperationException("Legacy snapshot deserialization returned null.");
+                _console.Verbose($"[snapshot-provider] legacy layout loaded fingerprint={snapshot.Fingerprint} procs={snapshot.Procedures.Count} udtts={snapshot.UserDefinedTableTypes.Count}");
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"Failed to load legacy snapshot '{fp}': {ex.Message}");
+            }
         }
 
-        _console.Verbose($"[snapshot-provider] using fingerprint={snapshot.Fingerprint} procs={snapshot.Procedures.Count} udtts={snapshot.UserDefinedTableTypes.Count}");
+        // Fingerprint logging already emitted above depending on layout
 
         // Load current config (best-effort) to derive IgnoredSchemas dynamically; if unavailable fallback to snapshot status field.
         List<string> ignored = null; SchemaStatusEnum defaultStatus = SchemaStatusEnum.Build;
@@ -150,6 +173,35 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
             }).ToList();
 
         _schemas = schemas;
+    // Diagnostics: identify JSON result sets without columns (RawJson fallback)
+        try
+        {
+            foreach (var sc in _schemas)
+            {
+                foreach (var sp in sc.StoredProcedures ?? Enumerable.Empty<StoredProcedureModel>())
+                {
+                    var sets = sp.Content?.ResultSets;
+                    if (sets == null) continue;
+                    for (var i = 0; i < sets.Count; i++)
+                    {
+                        var rs = sets[i];
+                        if (rs.ReturnsJson)
+                        {
+                            var colCount = rs.Columns?.Count ?? 0;
+                            if (colCount == 0)
+                            {
+                                _console.Verbose($"[snapshot-provider-json-empty] {sp.SchemaName}.{sp.Name} set#{i+1} JSON columns=0 (RawJson Fallback) root='{rs.JsonRootProperty ?? "<null>"}'");
+                            }
+                            else
+                            {
+                                _console.Verbose($"[snapshot-provider-json] {sp.SchemaName}.{sp.Name} set#{i+1} JSON columns={colCount}");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch { /* best effort diag */ }
         return _schemas;
     }
 
@@ -193,7 +245,7 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
             }).ToArray()
         }).ToList();
 
-    // Heuristic: Single result set, single legacy FOR JSON column -> mark as JSON
+        // Heuristic: single result set and a single legacy FOR JSON column -> mark as JSON
         if (sets.Count == 1)
         {
             var s = sets[0];

@@ -15,6 +15,7 @@ public class SchemaManager(
     DbContext dbContext,
     IConsoleService consoleService,
     ISchemaSnapshotService schemaSnapshotService,
+    Services.SchemaSnapshotFileLayoutService expandedSnapshotService,
     ILocalCacheService localCacheService = null
 )
 {
@@ -28,7 +29,7 @@ public class SchemaManager(
 
         var schemas = dbSchemas?.Select(i => new SchemaModel(i)).ToList();
 
-    // Legacy schema list (config.Schema) still present -> use its statuses first
+        // Legacy schema list (config.Schema) still present -> use its statuses first
         if (config?.Schema != null)
         {
             foreach (var schema in schemas)
@@ -155,7 +156,7 @@ public class SchemaManager(
             consoleService.Verbose($"[ignore] IgnoredSchemas override applied ({config.Project.IgnoredSchemas.Count})");
         }
 
-    // Reorder: ignored first (kept for legacy ordering expectations)
+        // Reorder: ignored first (kept for legacy ordering expectations)
         schemas = schemas.OrderByDescending(schema => schema.Status).ToList();
 
         var activeSchemas = schemas.Where(i => i.Status != SchemaStatusEnum.Ignore).ToList();
@@ -224,35 +225,64 @@ public class SchemaManager(
 
     // NOTE: Current modification ticks are derived from sys.objects.modify_date (see StoredProcedure.Modified)
 
-        // Build snapshot procedure lookup (latest snapshot) for hydration of skipped procedures
+    // Build snapshot procedure lookup (prefer expanded layout) for hydration of skipped procedures
         Dictionary<string, Dictionary<string, SnapshotProcedure>> snapshotProcMap = null;
         try
         {
-            if (!disableCache) // only attempt if not a forced full refresh
+            if (!disableCache)
             {
                 var working = Utils.DirectoryUtils.GetWorkingDirectory();
                 var schemaDir = System.IO.Path.Combine(working, ".spocr", "schema");
                 if (System.IO.Directory.Exists(schemaDir))
                 {
-                    var latest = System.IO.Directory.GetFiles(schemaDir, "*.json")
-                        .Select(f => new System.IO.FileInfo(f))
-                        .OrderByDescending(fi => fi.LastWriteTimeUtc)
-                        .FirstOrDefault();
-                    if (latest != null)
+                    SchemaSnapshot expanded = null;
+                    try
                     {
-                        var snap = schemaSnapshotService.Load(System.IO.Path.GetFileNameWithoutExtension(latest.Name));
-                        if (snap?.Procedures?.Any() == true)
+                        expanded = expandedSnapshotService.LoadExpanded();
+                        if (expanded?.Procedures?.Any() == true)
                         {
-                            snapshotProcMap = snap.Procedures
+                            snapshotProcMap = expanded.Procedures
                                 .GroupBy(p => p.Schema, StringComparer.OrdinalIgnoreCase)
                                 .ToDictionary(g => g.Key, g => g.ToDictionary(p => p.Name, p => p, StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase);
-                            consoleService.Verbose($"[snapshot-hydrate] Loaded previous snapshot for hydration (fingerprint={snap.Fingerprint})");
+                            consoleService.Verbose($"[snapshot-hydrate] Expanded snapshot geladen (fingerprint={expanded.Fingerprint}) procs={expanded.Procedures.Count}");
+                        }
+                    }
+                    catch (Exception exExpanded)
+                    {
+                        consoleService.Verbose($"[snapshot-hydrate-warn] Expanded snapshot load failed: {exExpanded.Message}");
+                    }
+
+                    // Fallback to monolithic legacy snapshot if expanded is empty or failed
+                    if (snapshotProcMap == null)
+                    {
+                        try
+                        {
+                            var latest = System.IO.Directory.GetFiles(schemaDir, "*.json")
+                                .Where(f => string.Equals(System.IO.Path.GetFileName(f), "index.json", StringComparison.OrdinalIgnoreCase) == false) // index.json ausschließen
+                                .Select(f => new System.IO.FileInfo(f))
+                                .OrderByDescending(fi => fi.LastWriteTimeUtc)
+                                .FirstOrDefault();
+                            if (latest != null)
+                            {
+                                var snap = schemaSnapshotService.Load(System.IO.Path.GetFileNameWithoutExtension(latest.Name));
+                                if (snap?.Procedures?.Any() == true)
+                                {
+                                    snapshotProcMap = snap.Procedures
+                                        .GroupBy(p => p.Schema, StringComparer.OrdinalIgnoreCase)
+                                        .ToDictionary(g => g.Key, g => g.ToDictionary(p => p.Name, p => p, StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase);
+                                    consoleService.Verbose($"[snapshot-hydrate] Legacy monolithischer Snapshot geladen (fingerprint={snap.Fingerprint}) procs={snap.Procedures.Count}");
+                                }
+                            }
+                        }
+                        catch (Exception exLegacy)
+                        {
+                            consoleService.Verbose($"[snapshot-hydrate-warn] Legacy snapshot load failed: {exLegacy.Message}");
                         }
                     }
                 }
             }
         }
-        catch { /* best effort, ignore */ }
+        catch { /* best effort */ }
 
         foreach (var schema in schemas)
         {
@@ -279,12 +309,25 @@ public class SchemaManager(
                 var cacheEntry = cache?.Procedures.FirstOrDefault(p => p.Schema == storedProcedure.SchemaName && p.Name == storedProcedure.Name);
                 var previousModifiedTicks = cacheEntry?.ModifiedTicks;
                 var canSkipDetails = !disableCache && previousModifiedTicks.HasValue && previousModifiedTicks.Value == currentModifiedTicks;
+                // Skip only allowed if snapshot contains a hydration entry
+                if (canSkipDetails)
+                {
+                    bool hasHydrationEntry = snapshotProcMap != null &&
+                        snapshotProcMap.TryGetValue(storedProcedure.SchemaName, out var spMap2) &&
+                        spMap2.ContainsKey(storedProcedure.Name);
+                    if (!hasHydrationEntry)
+                    {
+                        canSkipDetails = false; // Force parse because no stored ResultSets available
+                        consoleService.Verbose($"[proc-skip-disabled] {storedProcedure.SchemaName}.{storedProcedure.Name} keine Hydration-Daten im Snapshot – forced parse");
+                    }
+                }
                 if (canSkipDetails)
                 {
                     consoleService.Verbose($"[proc-skip] {storedProcedure.SchemaName}.{storedProcedure.Name} unchanged (ticks={currentModifiedTicks})");
-                    // Hydrate minimal metadata from last snapshot (faster & canonical) instead of cache extended metadata
+                    // Hydrate full metadata (including JsonPath and nested JsonResult) from previous snapshot
                     if (snapshotProcMap != null && snapshotProcMap.TryGetValue(storedProcedure.SchemaName, out var spMap) && spMap.TryGetValue(storedProcedure.Name, out var snapProc))
                     {
+                        // Copy all inputs if empty
                         if (snapProc.Inputs?.Any() == true && (storedProcedure.Input == null || !storedProcedure.Input.Any()))
                         {
                             storedProcedure.Input = snapProc.Inputs.Select(i => new StoredProcedureInputModel(new DataContext.Models.StoredProcedureInput
@@ -299,6 +342,7 @@ public class SchemaManager(
                                 UserTypeSchemaName = i.TableTypeSchema
                             })).ToList();
                         }
+                        // Copy result sets only if none present (parser was skipped)
                         if (snapProc.ResultSets?.Any() == true && (storedProcedure.Content?.ResultSets == null || !storedProcedure.Content.ResultSets.Any()))
                         {
                             var rsModels = snapProc.ResultSets.Select(rs => new StoredProcedureContentModel.ResultSet
@@ -307,21 +351,106 @@ public class SchemaManager(
                                 ReturnsJsonArray = rs.ReturnsJsonArray,
                                 ReturnsJsonWithoutArrayWrapper = rs.ReturnsJsonWithoutArrayWrapper,
                                 JsonRootProperty = rs.JsonRootProperty,
+                                HasSelectStar = rs.HasSelectStar,
                                 Columns = rs.Columns.Select(c => new StoredProcedureContentModel.ResultColumn
                                 {
                                     Name = c.Name,
+                                    JsonPath = c.JsonPath,
                                     SqlTypeName = c.SqlTypeName,
                                     IsNullable = c.IsNullable,
-                                    MaxLength = c.MaxLength
+                                    MaxLength = c.MaxLength,
+                                    UserTypeName = c.UserTypeName,
+                                    UserTypeSchemaName = c.UserTypeSchemaName,
+                                    JsonResult = c.JsonResult == null ? null : new StoredProcedureContentModel.JsonResultModel
+                                    {
+                                        ReturnsJson = c.JsonResult.ReturnsJson,
+                                        ReturnsJsonArray = c.JsonResult.ReturnsJsonArray,
+                                        ReturnsJsonWithoutArrayWrapper = c.JsonResult.ReturnsJsonWithoutArrayWrapper,
+                                        JsonRootProperty = c.JsonResult.JsonRootProperty,
+                                        Columns = c.JsonResult.Columns.Select(n => new StoredProcedureContentModel.ResultColumn
+                                        {
+                                            Name = n.Name,
+                                            JsonPath = n.JsonPath,
+                                            SqlTypeName = n.SqlTypeName,
+                                            IsNullable = n.IsNullable,
+                                            MaxLength = n.MaxLength,
+                                            UserTypeName = n.UserTypeName,
+                                            UserTypeSchemaName = n.UserTypeSchemaName
+                                        }).ToArray()
+                                    }
                                 }).ToArray()
                             }).ToArray();
                             storedProcedure.Content = new StoredProcedureContentModel
                             {
-                                Definition = null,
-                                Statements = Array.Empty<string>(),
-                                ContainsSelect = true,
-                                ResultSets = rsModels
+                                Definition = storedProcedure.Content?.Definition, // Definition wird nicht erneut geladen
+                                Statements = storedProcedure.Content?.Statements ?? Array.Empty<string>(),
+                                ContainsSelect = storedProcedure.Content?.ContainsSelect ?? true,
+                                ContainsInsert = storedProcedure.Content?.ContainsInsert ?? false,
+                                ContainsUpdate = storedProcedure.Content?.ContainsUpdate ?? false,
+                                ContainsDelete = storedProcedure.Content?.ContainsDelete ?? false,
+                                ContainsMerge = storedProcedure.Content?.ContainsMerge ?? false,
+                                ContainsOpenJson = storedProcedure.Content?.ContainsOpenJson ?? false,
+                                ResultSets = rsModels,
+                                UsedFallbackParser = storedProcedure.Content?.UsedFallbackParser ?? false,
+                                ParseErrorCount = storedProcedure.Content?.ParseErrorCount,
+                                FirstParseError = storedProcedure.Content?.FirstParseError,
+                                ExecutedProcedures = storedProcedure.Content?.ExecutedProcedures
                             };
+                            // Legacy upgrade: single JSON_F52... column -> JSON result set (apply on skip path if previous snapshot was legacy)
+                            try
+                            {
+                                var setsRo = storedProcedure.Content.ResultSets;
+                                if (setsRo != null && setsRo.Count > 0)
+                                {
+                                    var replaced = new List<StoredProcedureContentModel.ResultSet>(setsRo.Count);
+                                    var upgraded = false;
+                                    foreach (var s in setsRo)
+                                    {
+                                        if (!s.ReturnsJson && s.Columns != null && s.Columns.Count == 1)
+                                        {
+                                            var col = s.Columns[0];
+                                            if (string.Equals(col.Name, "JSON_F52E2B61-18A1-11d1-B105-00805F49916B", StringComparison.OrdinalIgnoreCase) &&
+                                                (col.SqlTypeName?.StartsWith("nvarchar", StringComparison.OrdinalIgnoreCase) ?? false))
+                                            {
+                                                replaced.Add(new StoredProcedureContentModel.ResultSet
+                                                {
+                                                    ReturnsJson = true,
+                                                    ReturnsJsonArray = true,
+                                                    ReturnsJsonWithoutArrayWrapper = false,
+                                                    JsonRootProperty = null,
+                                                    Columns = Array.Empty<StoredProcedureContentModel.ResultColumn>(),
+                                                    HasSelectStar = s.HasSelectStar
+                                                });
+                                                upgraded = true;
+                                                continue;
+                                            }
+                                        }
+                                        replaced.Add(s); // unchanged
+                                    }
+                                    if (upgraded)
+                                    {
+                                        storedProcedure.Content = new StoredProcedureContentModel
+                                        {
+                                            Definition = storedProcedure.Content.Definition,
+                                            Statements = storedProcedure.Content.Statements,
+                                            ContainsSelect = storedProcedure.Content.ContainsSelect,
+                                            ContainsInsert = storedProcedure.Content.ContainsInsert,
+                                            ContainsUpdate = storedProcedure.Content.ContainsUpdate,
+                                            ContainsDelete = storedProcedure.Content.ContainsDelete,
+                                            ContainsMerge = storedProcedure.Content.ContainsMerge,
+                                            ContainsOpenJson = storedProcedure.Content.ContainsOpenJson,
+                                            ResultSets = replaced.ToArray(),
+                                            UsedFallbackParser = storedProcedure.Content.UsedFallbackParser,
+                                            ParseErrorCount = storedProcedure.Content.ParseErrorCount,
+                                            FirstParseError = storedProcedure.Content.FirstParseError,
+                                            ExecutedProcedures = storedProcedure.Content.ExecutedProcedures
+                                        };
+                                        if (jsonTypeLogLevel == JsonTypeLogLevel.Detailed)
+                                            consoleService.Verbose($"[proc-json-legacy-upgrade-skip] {storedProcedure.SchemaName}.{storedProcedure.Name} single legacy JSON column upgraded (skip path)");
+                                    }
+                                }
+                            }
+                            catch { /* best effort */ }
                         }
                     }
                 }

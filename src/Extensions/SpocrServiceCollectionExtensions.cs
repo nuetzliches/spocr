@@ -64,6 +64,7 @@ namespace SpocR.Extensions
         private static void AddManagerServices(IServiceCollection services)
         {
             services.AddSingleton<OutputService>();
+            services.AddSingleton<Services.SchemaSnapshotFileLayoutService>();
             services.AddSingleton<SchemaManager>();
             services.AddSingleton<SpocrManager>();
             services.AddSingleton<SpocrProjectManager>();

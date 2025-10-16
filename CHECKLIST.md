@@ -326,7 +326,7 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 - [ ] Paket im NuGet Index sichtbar & Version abrufbar
 - [ ] Quick Start Schritt-für-Schritt mit neuer Version einmal frisch durchgespielt
 - [ ] Erste Issues / Feedback-Kanal beobachtet (24-48h Monitoring)
-- [ ] Roadmap aktualisiert (nächste Meilensteine eingetragen)
+- [ ] Roadmap
 
 ### Automatisierung / CI (Update 2025-10-15)
 
