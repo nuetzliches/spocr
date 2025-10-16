@@ -160,6 +160,12 @@ public class ConsoleService(
                 // Add spaces to ensure we overwrite any previous output of different length
                 _console.ResetColor();
                 _console.Out.Write("    ");
+
+                // Ensure a newline is written on completion so subsequent separator lines are not appended
+                if (percentage == 100)
+                {
+                    _console.Out.WriteLine();
+                }
             }
             catch (Exception)
             {

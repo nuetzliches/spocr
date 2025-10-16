@@ -817,7 +817,8 @@ public class SchemaManager(
 
         if (totalSpCount > 0)
         {
-            consoleService.DrawProgressBar(100);
+            // Final completion already visually implied by 100% updates; CompleteProgress will emit separator + status.
+            // Removed redundant DrawProgressBar(100) to avoid double rendering.
             consoleService.CompleteProgress(true, $"Loaded {totalSpCount} stored procedures");
         }
 
