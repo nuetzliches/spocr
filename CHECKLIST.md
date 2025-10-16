@@ -222,7 +222,8 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 - [ ] Dokumentierter Cut für v5.0 (Entfernung DataContext) in README / ROADMAP
 - [ ] Liste entfallener Konfig-Properties (Project.Role.Kind, RuntimeConnectionStringIdentifier, Project.Output) im Changelog
       note: CHANGELOG enthält bislang keinen Removed-Abschnitt für diese Keys
-- [ ] Migration von `spocr.json` auf `.env` / Environment Variablen dokumentiert (Mapping Tabelle)
+- [x] Migration von `spocr.json` auf `.env` / Environment Variablen dokumentiert (Mapping Tabelle)
+      note: Precedence aktualisiert (CLI > ENV > .env > spocr.json Fallback nur in dual|next wenn SPOCR_GENERATOR_DB fehlt). Fallback & Override implementiert in EnvConfiguration.
 - [ ] Upgrade Hinweise in README + CHANGELOG integriert (kein separater Guide in dieser Phase)
 - [ ] SemVer Bewertung durchgeführt (Minor vs. Major Bump begründet)
       note: Entscheidungskriterium: Entfernen Legacy DataContext + Identifier Fallback = Major (v5); v4.5 nur Bridge.
@@ -358,6 +359,7 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 - [ ] Dokumentation Env Override Beispiele (`SPOCR_ALLOW_DIRECT_MAJOR=1`) in README / MIGRATION Guide
 
 - [x] Tests für EnvConfiguration Precedence & Invalid Mode vorhanden
+      note: Zusätzlich Fallback-Test (spocr.json ConnectionString genutzt wenn SPOCR_GENERATOR_DB fehlt) & Override-Test (ENV gewinnt) ergänzt.
 - [ ] Test: Experimental CLI Flag (`SPOCR_EXPERIMENTAL_CLI`) aktiviert neuen Parser nur bei gesetztem Flag
 
 ### Nullable & Codequalität (Ergänzung)
