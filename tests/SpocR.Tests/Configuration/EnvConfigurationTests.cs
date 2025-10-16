@@ -72,4 +72,36 @@ public class EnvConfigurationTests
         var cfg = EnvConfiguration.Load(projectRoot: tempDir.FullName);
         Assert.Equal("GenOut", cfg.OutputDir);
     }
+
+    [Fact]
+    public void DualMode_UsesEnvConnectionString_IfPresent()
+    {
+        var tempDir = Directory.CreateTempSubdirectory();
+        File.WriteAllText(Path.Combine(tempDir.FullName, ".env"), "SPOCR_GENERATOR_MODE=dual\nSPOCR_NAMESPACE=Conn.Test\nSPOCR_GENERATOR_DB=Server=env;Database=db;\n");
+        // Also place spocr.json with different connection to ensure it's ignored
+        File.WriteAllText(Path.Combine(tempDir.FullName, "spocr.json"), "{\"Project\":{\"DataBase\":{\"ConnectionString\":\"Server=legacy;Database=db;\"}}}");
+        var cfg = EnvConfiguration.Load(projectRoot: tempDir.FullName);
+        Assert.Equal("Server=env;Database=db;", cfg.GeneratorConnectionString);
+    }
+
+    [Fact]
+    public void DualMode_FallsBackToSpocrJson_WhenEnvMissing()
+    {
+        var tempDir = Directory.CreateTempSubdirectory();
+        File.WriteAllText(Path.Combine(tempDir.FullName, ".env"), "SPOCR_GENERATOR_MODE=dual\nSPOCR_NAMESPACE=Conn.Fallback\n");
+        File.WriteAllText(Path.Combine(tempDir.FullName, "spocr.json"), "{\"Project\":{\"DataBase\":{\"ConnectionString\":\"Server=legacy;Database=db;\"}}}");
+        var cfg = EnvConfiguration.Load(projectRoot: tempDir.FullName);
+        Assert.Equal("Server=legacy;Database=db;", cfg.GeneratorConnectionString);
+    }
+
+    [Fact]
+    public void LegacyMode_IgnoresSpocrJsonConnectionString_ForGeneratorProperties()
+    {
+        var tempDir = Directory.CreateTempSubdirectory();
+        File.WriteAllText(Path.Combine(tempDir.FullName, ".env"), "SPOCR_GENERATOR_MODE=legacy\nSPOCR_NAMESPACE=Conn.Legacy\n");
+        File.WriteAllText(Path.Combine(tempDir.FullName, "spocr.json"), "{\"Project\":{\"DataBase\":{\"ConnectionString\":\"Server=legacy;Database=db;\"}}}");
+        var cfg = EnvConfiguration.Load(projectRoot: tempDir.FullName);
+        // In legacy mode EnvConfiguration does not surface a connection string unless SPOCR_GENERATOR_DB is set.
+        Assert.Null(cfg.GeneratorConnectionString);
+    }
 }

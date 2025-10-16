@@ -13,7 +13,7 @@ namespace SpocRVNext.Configuration;
 public sealed class EnvConfiguration
 {
     public string GeneratorMode { get; init; } = "dual"; // legacy | dual | next
-    public string? GeneratorConnectionString { get; init; } // from SPOCR_GENERATOR_DB (full connection string)
+    public string? GeneratorConnectionString { get; init; } // from SPOCR_GENERATOR_DB (full connection string or spocr.json fallback in dual|next if env not set)
     public string? DefaultConnection { get; init; } // backward compatibility mirror (legacy identifier concept removed)
     public string? NamespaceRoot { get; init; } // from SPOCR_NAMESPACE
     public string? OutputDir { get; init; }
@@ -70,9 +70,38 @@ public sealed class EnvConfiguration
 
         // New variable names (aliases kept):
         var fullConn = NullIfEmpty(Get("SPOCR_GENERATOR_DB"));
+        var modeResolved = NormalizeMode(Get("SPOCR_GENERATOR_MODE"));
+        // Fallback: If in dual|next and SPOCR_GENERATOR_DB is not set, attempt to read nearest spocr.json connection string.
+        if (modeResolved is "dual" or "next" && string.IsNullOrWhiteSpace(fullConn))
+        {
+            try
+            {
+                var nearestConfig = FindNearestConfig(projectRoot);
+                if (nearestConfig != null)
+                {
+                    using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(nearestConfig));
+                    var root = doc.RootElement;
+                    string? conn = root.TryGetProperty("Project", out var p) && p.TryGetProperty("DataBase", out var db) && db.TryGetProperty("ConnectionString", out var csEl) ? csEl.GetString() : null;
+                    if (!string.IsNullOrWhiteSpace(conn))
+                    {
+                        fullConn = conn;
+                        Console.Out.WriteLine("[spocr vNext] Info: SPOCR_GENERATOR_DB not set – using legacy spocr.json connection string (bridge fallback). Consider adding SPOCR_GENERATOR_DB to .env.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"[spocr vNext] Warning: Could not resolve spocr.json fallback connection string: {ex.Message}");
+            }
+        }
+        else if (modeResolved is "dual" or "next" && !string.IsNullOrWhiteSpace(fullConn))
+        {
+            Console.Out.WriteLine("[spocr vNext] Info: Connection string resolved from SPOCR_GENERATOR_DB (.env / environment). Legacy spocr.json ignored.");
+        }
+
         var cfg = new EnvConfiguration
         {
-            GeneratorMode = NormalizeMode(Get("SPOCR_GENERATOR_MODE")),
+            GeneratorMode = modeResolved,
             GeneratorConnectionString = fullConn,
             DefaultConnection = fullConn,
             NamespaceRoot = NullIfEmpty(Get("SPOCR_NAMESPACE")),
@@ -320,5 +349,19 @@ public sealed class EnvConfiguration
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// Finds nearest spocr.json (current directory first, then any child) without deep recursion complexity.
+    /// </summary>
+    private static string? FindNearestConfig(string projectRoot)
+    {
+        if (File.Exists(Path.Combine(projectRoot, "spocr.json")))
+            return Path.Combine(projectRoot, "spocr.json");
+        try
+        {
+            return Directory.EnumerateFiles(projectRoot, "spocr.json", SearchOption.AllDirectories).FirstOrDefault();
+        }
+        catch { return null; }
     }
 }

@@ -45,6 +45,7 @@ Removed (planned / already removed):
 - Phase-in: BOTH `spocr.json` (legacy) and `.env` are read during v4.x. Full removal of JSON fallback happens in v5.0.
 - Rationale: Simplify deployment, enable secret-less container usage, reduce JSON schema churn.
 - Precedence order (current draft): CLI flag > Environment variable > `.env` file > (legacy) `spocr.json` (fallback until v5.0 only).
+- Precedence order (updated): CLI flag > Environment variable > `.env` file > (legacy) `spocr.json` fallback (only used in dual|next if `SPOCR_GENERATOR_DB` is absent; ignored when `SPOCR_GENERATOR_DB` is present). Will be removed entirely in v5.0.
 - `spocr pull` no longer overwrites local configuration (it may still read schema & augment in-memory state).
 - Migration path: Existing keys map to `SPOCR_*` variables (mapping table to be added). Users can gradually mirror required values into `.env`.
 - Example template file now lives at `samples/restapi/.env.example` (moved from repository root for clarity).
@@ -64,15 +65,16 @@ SPOCR_NAMESPACE=MyCompany.Project.Data
 
 ### Legacy Key Mapping (Draft – updated: RuntimeConnectionStringIdentifier has no ENV replacement)
 
-| Legacy `spocr.json` Path                             | Status v4.x       | Env Variable Replacement | Notes                                                    |
-| ---------------------------------------------------- | ----------------- | ------------------------ | -------------------------------------------------------- |
-| `Project.Role.Kind`                                  | Deprecated        | (none)                   | Remove; default behavior assumed                         |
-| `Project.DataBase.RuntimeConnectionStringIdentifier` | Deprecated        | (none)                   | Removed – direct pass via `AddSpocRDbContext` options    |
-| `Project.DataBase.ConnectionString`                  | Active (fallback) | (none)                   | Runtime: host config (appsettings / secrets / vault)     |
-| `Project.Output.Namespace`                           | Active            | `SPOCR_NAMESPACE`        | Optional; auto discovery if omitted                      |
-| `Project.Output.*.Path`                              | Planned removal   | (TBD)                    | Will move to opinionated defaults; override strategy TBD |
-| `Version`                                            | Informational     | (none)                   | Not required; tool version from assembly/MinVer          |
-| `TargetFramework`                                    | Informational     | (none)                   | Multi-TFM handled by project; no env mapping             |
+| Legacy `spocr.json` Path                             | Status v4.x       | Env Variable Replacement | Notes                                                             |
+| ---------------------------------------------------- | ----------------- | ------------------------ | ----------------------------------------------------------------- | ---------------------------- |
+| `Project.Role.Kind`                                  | Deprecated        | (none)                   | Remove; default behavior assumed                                  |
+| `Project.DataBase.RuntimeConnectionStringIdentifier` | Deprecated        | (none)                   | Removed – direct pass via `AddSpocRDbContext` options             |
+| `Project.DataBase.ConnectionString`                  | Active (fallback) | (none)                   | Runtime: host config (appsettings / secrets / vault)              |
+| `SPOCR_GENERATOR_DB` (ENV)                           | Active (bridge)   | replaces spocr.json DB   | Takes precedence over `Project.DataBase.ConnectionString` in dual | next for generator DB access |
+| `Project.Output.Namespace`                           | Active            | `SPOCR_NAMESPACE`        | Optional; auto discovery if omitted                               |
+| `Project.Output.*.Path`                              | Planned removal   | (TBD)                    | Will move to opinionated defaults; override strategy TBD          |
+| `Version`                                            | Informational     | (none)                   | Not required; tool version from assembly/MinVer                   |
+| `TargetFramework`                                    | Informational     | (none)                   | Multi-TFM handled by project; no env mapping                      |
 
 Unlisted keys remain legacy-only for now; if still needed they will be either:
 
