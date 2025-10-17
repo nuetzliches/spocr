@@ -196,6 +196,14 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [x] TableTypes: Timestamp `<remarks>` Zeile eingefügt und beim Hashing ignoriert (DirectoryHasher Filter)
 - [x] TableTypes: Original Snapshot Namen vollständig beibehalten (nur Sanitizing) – keine erzwungene \*TableType Suffix Ergänzung
 
+#### Optional: Wrapper & Snapshot Referenzen
+
+- [ ] Wrapper Referenz-Snapshot Format finalisieren (nur ExecSource Platzhalter ohne Columns) – Logging + Tests
+- [ ] Test: Wrapper mit leerem Placeholder -> Snapshot enthält 1 Referenz-ResultSet
+- [ ] Test: Non-Wrapper + EXEC + eigenem SELECT -> Snapshot behält eigene + forwarded referenzierte Sets korrekt
+- [ ] Review & Dokumentation Filter-Heuristik für leere Sets (Platzhalterentfernung) – optional Verbose Logging aktivieren
+- [ ] Doku Abschnitt: Unterschied forwarded (ExecSource) vs. direkte ResultSets (Columns/JSON)
+
       Template Root Vereinfachung
       - [x] Entfernt: `TemplateRootResolver` + ENV Override (`SPOCR_TEMPLATES_ROOT`) – Templates werden jetzt deterministisch aus `ApplicationRoot/src/SpocRVNext/Templates` geladen
       - [x] Warn-Logging angepasst: Meldung bei fehlender `UnifiedProcedure.spt` zeigt nur noch "Templates-Pfad prüfen" (keine veralteten Resolver-Hinweise)
@@ -469,4 +477,4 @@ Connectivity gesichert (test-db Script + CI Integration). Offene Kernpunkte: Sta
 - [ ] Das muss noch ein Fehler sein: [spocr namespace] No .csproj found upward. Using directory-based base name.
 - [ ] "HasSelectStar": false, Columns: [] (leer), "ResultSets": [] (leer) nicht ins schema json schreiben.
 - [ ] SPOCR_JSON_SPLIT_NESTED (bzw. SplitNestedJsonSets) ist wozu erforderlich?
-Wenn das ein Überbleibsel unserer fixes ist, bitte entfernen.
+      Wenn das ein Überbleibsel unserer fixes ist, bitte entfernen.

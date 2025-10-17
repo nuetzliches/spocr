@@ -84,8 +84,7 @@ public sealed class SchemaSnapshotFileLayoutService
                 Name = proc.Name,
                 Schema = proc.Schema,
                 File = fileName,
-                Hash = newHash,
-                Unchanged = !needsWrite
+                Hash = newHash
             });
             existingProcFiles.Remove(fileName);
         }
@@ -125,8 +124,7 @@ public sealed class SchemaSnapshotFileLayoutService
                 Name = udtt.Name,
                 Schema = udtt.Schema,
                 File = fileName,
-                Hash = newHash,
-                Unchanged = !needsWrite
+                Hash = newHash
             });
             existingTtFiles.Remove(fileName);
         }
@@ -136,6 +134,16 @@ public sealed class SchemaSnapshotFileLayoutService
         }
 
         // Write index.json only when content changed – no GeneratedUtc to ensure deterministic diffs
+        // Deterministic ordering to avoid diff noise
+        procHashes = procHashes
+            .OrderBy(p => p.Schema, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        ttHashes = ttHashes
+            .OrderBy(p => p.Schema, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
         var index = new ExpandedSnapshotIndex
         {
             SchemaVersion = snapshot.SchemaVersion,
@@ -316,7 +324,6 @@ public sealed class SchemaSnapshotFileLayoutService
         public string Name { get; set; }
         public string File { get; set; }
         public string Hash { get; set; }
-        public bool Unchanged { get; set; }
     }
     #endregion
 }

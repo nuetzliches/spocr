@@ -4,7 +4,7 @@
 [![NuGet Downloads](https://img.shields.io/nuget/dt/SpocR.svg)](https://www.nuget.org/packages/SpocR)
 [![License](https://img.shields.io/github/license/nuetzliches/spocr.svg)](LICENSE)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/nuetzliches/spocr/test.yml?branch=main)](https://github.com/nuetzliches/spocr/actions)
-[![Code Coverage](https://img.shields.io/badge/coverage-check%20actions-blue)](https://github.com/nuetzliches/spocr/actions)
+[![Code Coverage](https://img.shields.io/badge/coverage-pending%20gate-lightgrey)](https://github.com/nuetzliches/spocr/actions)
 
 **SpocR** is a powerful code generator for SQL Server stored procedures that creates strongly typed C# classes for inputs, models, and execution. Eliminate boilerplate data access code and increase type safety in your .NET applications.
 
@@ -57,7 +57,8 @@ var result = await context.GetUserByIdAsync(new GetUserByIdInput {
 
 For comprehensive documentation, examples, and advanced configuration:
 
-**[Visit the SpocR Documentation](https://nuetzliches.github.io/spocr/)**
+**[Visit the SpocR Documentation](https://nuetzliches.github.io/spocr/)**  
+Key deep-dives: [ResultSet Naming](https://nuetzliches.github.io/spocr/3.reference/result-set-naming) · [Table Types](https://nuetzliches.github.io/spocr/3.reference/table-types)
 
 > Bridge Phase (v4.5 → v5)
 >
@@ -397,6 +398,8 @@ Artifacts (JSON summary, JUnit XML, coverage) live under `.artifacts/` (git-igno
 Roadmap reference: see [Testing Framework](/roadmap/testing-framework) for remaining open enhancements.
 
 ### Coverage Policy
+
+Bridge phase target coverage is being raised incrementally. Current enforced threshold (via `eng/quality-gates.ps1`) defaults to 80% line coverage for core logic; planned escalation path: 60% (initial) → 80% (current) → 85%+ (post cutover). A public coverage badge will switch from "pending gate" once stabilized.
 
 SpocR enforces a line coverage quality gate in CI. We deliberately start with a modest threshold to allow incremental, sustainable improvement without blocking unrelated contributions.
 

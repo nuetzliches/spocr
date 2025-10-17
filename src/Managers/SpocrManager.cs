@@ -68,9 +68,9 @@ public class SpocrManager(
         }
 
         var connectionString = "";
-    // Role deprecated – only display options as migration notice if user explicitly provides a value
+        // Role deprecated – only display options as migration notice if user explicitly provides a value
         var roleKindString = options.Role;
-    RoleKindEnum roleKind = RoleKindEnum.Default; // Always set Default
+        RoleKindEnum roleKind = RoleKindEnum.Default; // Always set Default
         string libNamespace = null;
         if (!options.Quiet && !string.IsNullOrWhiteSpace(roleKindString))
         {
@@ -323,7 +323,14 @@ public class SpocrManager(
                     {
                         var rsRaw = (sp.Content?.ResultSets ?? Array.Empty<StoredProcedureContentModel.ResultSet>());
                         // Remove placeholder empty entries (no columns, no JSON flags) to avoid fake ResultSets (e.g. BannerDelete)
-                        var rsFiltered = rsRaw.Where(r => r.ReturnsJson || r.ReturnsJsonArray || r.ReturnsJsonWithoutArrayWrapper || (r.Columns?.Count > 0)).ToArray();
+                        // BUT preserve pure wrapper reference sets (ExecSourceProcedureName set) even if they have no columns and no JSON flags.
+                        var rsFiltered = rsRaw.Where(r =>
+                            r.ReturnsJson ||
+                            r.ReturnsJsonArray ||
+                            r.ReturnsJsonWithoutArrayWrapper ||
+                            (r.Columns?.Count > 0) ||
+                            !string.IsNullOrEmpty(r.ExecSourceProcedureName)
+                        ).ToArray();
                         return new SnapshotProcedure
                         {
                             Schema = sp.SchemaName,
@@ -883,7 +890,7 @@ public class SpocrManager(
             return new ConfigurationModel();
         }
 
-    // Migration / normalization for Role (deprecation path)
+        // Migration / normalization for Role (deprecation path)
         try
         {
             // If Role missing => fill with default (Kind=Default)
