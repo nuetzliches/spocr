@@ -60,7 +60,9 @@ public sealed class SchemaSnapshotFileLayoutService
         {
             var fileName = $"{SpocR.SpocRVNext.Utils.NameSanitizer.SanitizeForFile(proc.Schema)}.{SpocR.SpocRVNext.Utils.NameSanitizer.SanitizeForFile(proc.Name)}.json";
             var path = Path.Combine(procDir, fileName);
-            var json = JsonSerializer.Serialize(proc, _jsonOptions);
+            var rawJson = JsonSerializer.Serialize(proc, _jsonOptions);
+            // Forwarding-Minimalismus: Entferne JSON-Flags & Columns aus ResultSets mit ExecSourceProcedureName
+            var json = StripForwardedFlags(rawJson);
             var newHash = HashUtils.Sha256Hex(json).Substring(0, 16);
             bool needsWrite = true;
             if (existingProcFiles.TryGetValue(fileName, out var existingPath))
@@ -162,6 +164,69 @@ public sealed class SchemaSnapshotFileLayoutService
         {
             File.WriteAllText(indexPath, indexJson);
         }
+    }
+
+    // Entfernt für forwardete ResultSets (ExecSourceProcedureName gesetzt) die redundanten Modell-Properties
+    private static string StripForwardedFlags(string json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return json;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            using var ms = new System.IO.MemoryStream();
+            using (var writer = new Utf8JsonWriter(ms, new JsonWriterOptions { Indented = true }))
+            {
+                writer.WriteStartObject();
+                foreach (var prop in root.EnumerateObject())
+                {
+                    if (prop.NameEquals("ResultSets"))
+                    {
+                        if (prop.Value.ValueKind != JsonValueKind.Array)
+                        {
+                            writer.WritePropertyName(prop.Name);
+                            prop.Value.WriteTo(writer);
+                            continue;
+                        }
+                        writer.WritePropertyName("ResultSets");
+                        writer.WriteStartArray();
+                        foreach (var rs in prop.Value.EnumerateArray())
+                        {
+                            // Prüfen ob forwardet
+                            string execSourceProc = null;
+                            if (rs.TryGetProperty("ExecSourceProcedureName", out var execEl) && execEl.ValueKind == JsonValueKind.String)
+                            {
+                                execSourceProc = execEl.GetString();
+                            }
+                            if (!string.IsNullOrWhiteSpace(execSourceProc))
+                            {
+                                writer.WriteStartObject();
+                                if (rs.TryGetProperty("ExecSourceSchemaName", out var execSchema))
+                                {
+                                    writer.WritePropertyName("ExecSourceSchemaName");
+                                    execSchema.WriteTo(writer);
+                                }
+                                writer.WritePropertyName("ExecSourceProcedureName");
+                                writer.WriteStringValue(execSourceProc);
+                                writer.WriteEndObject();
+                                continue;
+                            }
+                            // Unverändertes ResultSet schreiben
+                            rs.WriteTo(writer);
+                        }
+                        writer.WriteEndArray();
+                    }
+                    else
+                    {
+                        writer.WritePropertyName(prop.Name);
+                        prop.Value.WriteTo(writer);
+                    }
+                }
+                writer.WriteEndObject();
+            }
+            return System.Text.Encoding.UTF8.GetString(ms.ToArray());
+        }
+        catch { return json; }
     }
 
     public SchemaSnapshot LoadExpanded()

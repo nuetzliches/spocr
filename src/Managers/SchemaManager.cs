@@ -636,6 +636,67 @@ public class SchemaManager(
         // Forwarding normalization: clone ResultSets from executed procedure for wrapper procs
         try
         {
+            // Zweite Parse-Phase für Wrapper-Kandidaten ohne EXEC-Metadaten:
+            // Falls eine Prozedur nur leere JSON Sets oder gar keine Sets besitzt UND keine ExecutedProcedures erfasst wurden,
+            // versuchen wir erneut das Definition-Statement zu laden und zu parsen, um ExecuteSpecification zu erfassen.
+            // Hintergrund: Skip-Pfad (canSkipDetails) kann zuvor Parsing übersprungen haben.
+            foreach (var schema in schemas)
+            {
+                foreach (var proc in schema.StoredProcedures ?? Enumerable.Empty<StoredProcedureModel>())
+                {
+                    var content = proc.Content;
+                    if (content == null) continue;
+                    bool hasSets = content.ResultSets != null && content.ResultSets.Any();
+                    bool onlyEmptyJsonSets = hasSets && content.ResultSets.All(rs => rs.ReturnsJson && (rs.Columns == null || rs.Columns.Count == 0));
+                    bool execMissing = content.ExecutedProcedures == null || content.ExecutedProcedures.Count == 0;
+                    bool wrapperCandidate = (!hasSets) || onlyEmptyJsonSets;
+                    if (wrapperCandidate && execMissing)
+                    {
+                        try
+                        {
+                            var def = await dbContext.StoredProcedureDefinitionAsync(proc.SchemaName, proc.Name, cancellationToken);
+                            var definition = def?.Definition;
+                            if (!string.IsNullOrWhiteSpace(definition))
+                            {
+                                var reparsed = StoredProcedureContentModel.Parse(definition, proc.SchemaName);
+                                // Nur übernehmen wenn jetzt genau ein EXEC gefunden wurde
+                                if (reparsed.ExecutedProcedures != null && reparsed.ExecutedProcedures.Count == 1)
+                                {
+                                    proc.Content = new StoredProcedureContentModel
+                                    {
+                                        Definition = reparsed.Definition,
+                                        Statements = reparsed.Statements,
+                                        ContainsSelect = reparsed.ContainsSelect,
+                                        ContainsInsert = reparsed.ContainsInsert,
+                                        ContainsUpdate = reparsed.ContainsUpdate,
+                                        ContainsDelete = reparsed.ContainsDelete,
+                                        ContainsMerge = reparsed.ContainsMerge,
+                                        ContainsOpenJson = reparsed.ContainsOpenJson,
+                                        ResultSets = reparsed.ResultSets, // kann leer sein -> Forwarding übernimmt später
+                                        UsedFallbackParser = reparsed.UsedFallbackParser,
+                                        ParseErrorCount = reparsed.ParseErrorCount,
+                                        FirstParseError = reparsed.FirstParseError,
+                                        ExecutedProcedures = reparsed.ExecutedProcedures,
+                                        ContainsExecKeyword = reparsed.ContainsExecKeyword,
+                                        RawExecCandidates = reparsed.RawExecCandidates,
+                                        RawExecCandidateKinds = reparsed.RawExecCandidateKinds
+                                    };
+                                    consoleService.Info($"[proc-reparse-wrapper] {proc.SchemaName}.{proc.Name} reparsed; execs=1 forwarding enabled");
+                                }
+                                else
+                                {
+                                    consoleService.Verbose($"[proc-reparse-wrapper-skip] {proc.SchemaName}.{proc.Name} reparsed execs={(reparsed.ExecutedProcedures==null?"null":reparsed.ExecutedProcedures.Count.ToString())}");
+                                }
+                            }
+                        }
+                        catch (Exception exReparse)
+                        {
+                            consoleService.Verbose($"[proc-reparse-wrapper-warn] {proc.SchemaName}.{proc.Name} {exReparse.Message}");
+                        }
+                    }
+                }
+            }
+
             var allProcedures = schemas.SelectMany(s => s.StoredProcedures ?? Enumerable.Empty<StoredProcedureModel>()).ToList();
             var procLookup = allProcedures
                 .ToDictionary(p => ($"{p.SchemaName}.{p.Name}"), p => p, StringComparer.OrdinalIgnoreCase);
@@ -646,10 +707,14 @@ public class SchemaManager(
                 if (content == null) continue;
                 var hasSets = content.ResultSets != null && content.ResultSets.Any();
                 bool onlyEmptyJsonSets = hasSets && content.ResultSets.All(rs => rs.ReturnsJson && (rs.Columns == null || rs.Columns.Count == 0));
-                if (hasSets && !onlyEmptyJsonSets)
+                bool allNonJsonSets = hasSets && content.ResultSets.All(rs => !rs.ReturnsJson);
+                bool hasOwnDml = content.ContainsSelect || content.ContainsInsert || content.ContainsUpdate || content.ContainsDelete || content.ContainsMerge;
+                // Erweiterte Wrapper-Klassifikation: Auch Prozeduren mit ausschließlich non-JSON synthetischen Sets (kein eigener DML) gelten als Wrapper.
+                bool isWrapperCandidate = (!hasSets) || onlyEmptyJsonSets || (allNonJsonSets && !hasOwnDml);
+                if (!isWrapperCandidate)
                 {
-                    consoleService.Verbose($"[proc-forward-skip] {proc.SchemaName}.{proc.Name} has concrete result sets (hasSets && !onlyEmptyJsonSets)");
-                    continue; // has meaningful sets -> skip
+                    consoleService.Verbose($"[proc-forward-skip] {proc.SchemaName}.{proc.Name} classified as non-wrapper (hasSets={hasSets} onlyEmptyJsonSets={onlyEmptyJsonSets} allNonJsonSets={allNonJsonSets} hasOwnDml={hasOwnDml})");
+                    continue; // hat eigene relevante Sets oder DML
                 }
                 if (content.ExecutedProcedures == null || content.ExecutedProcedures.Count != 1)
                 {
@@ -667,15 +732,7 @@ public class SchemaManager(
                         consoleService.Verbose($"[proc-forward-skip] {proc.SchemaName}.{proc.Name} multiple executed procedures ({content.ExecutedProcedures.Count})");
                     continue; // only single EXEC wrapper
                 }
-                if (content.ContainsSelect || content.ContainsInsert || content.ContainsUpdate || content.ContainsDelete || content.ContainsMerge)
-                {
-                    // If it has its own SELECT but only produced empty JSON sets, allow upgrade; otherwise skip
-                    if (!onlyEmptyJsonSets)
-                    {
-                        consoleService.Verbose($"[proc-forward-skip] {proc.SchemaName}.{proc.Name} contains its own DML/SELECT and sets not only empty json");
-                        continue;
-                    }
-                }
+                // Bei eigener DML und nicht nur leeren JSON Sets wurde bereits vorher ausgeschlossen; kein erneutes Skip nötig.
                 var target = content.ExecutedProcedures[0];
                 if (target == null) continue;
                 if (!procLookup.TryGetValue($"{target.Schema}.{target.Name}", out var targetProc))
@@ -842,7 +899,9 @@ public class SchemaManager(
                         }
                     }).ToArray()
                 }).ToArray();
+                // Optional: spezifische Diagnose kann hier per Konfiguration ergänzt werden (keine Namensheuristik mehr)
 
+                // Replacement statt Append: vorhandene Sets verwerfen
                 proc.Content = new StoredProcedureContentModel
                 {
                     Definition = proc.Content.Definition,
@@ -853,13 +912,13 @@ public class SchemaManager(
                     ContainsDelete = proc.Content.ContainsDelete,
                     ContainsMerge = proc.Content.ContainsMerge,
                     ContainsOpenJson = proc.Content.ContainsOpenJson,
-                    ResultSets = clonedSets,
+                    ResultSets = clonedSets, // ersetzt vollständig
                     UsedFallbackParser = proc.Content.UsedFallbackParser,
                     ParseErrorCount = proc.Content.ParseErrorCount,
                     FirstParseError = proc.Content.FirstParseError,
                     ExecutedProcedures = proc.Content.ExecutedProcedures
                 };
-                consoleService.Verbose($"[proc-forward{(onlyEmptyJsonSets ? "-upgrade" : string.Empty)}] {proc.SchemaName}.{proc.Name} forwarded {clonedSets.Length} result set(s) from {target.Schema}.{target.Name}");
+                consoleService.Verbose($"[proc-forward-replace{(onlyEmptyJsonSets ? "-upgrade" : string.Empty)}] {proc.SchemaName}.{proc.Name} replaced sets with {clonedSets.Length} forwarded set(s) from {target.Schema}.{target.Name}");
             }
         }
         catch { /* best effort */ }
@@ -1017,7 +1076,8 @@ public class SchemaManager(
                         }
                     }).ToArray()
                 }).ToArray();
-                var combined = content.ResultSets.Concat(appended).ToArray();
+                // Immer Append bei nicht-Wrapper (Namensheuristik entfernt)
+                var finalSets = content.ResultSets.Concat(appended).ToArray();
                 proc.Content = new StoredProcedureContentModel
                 {
                     Definition = content.Definition,
@@ -1028,7 +1088,7 @@ public class SchemaManager(
                     ContainsDelete = content.ContainsDelete,
                     ContainsMerge = content.ContainsMerge,
                     ContainsOpenJson = content.ContainsOpenJson,
-                    ResultSets = combined,
+                    ResultSets = finalSets,
                     UsedFallbackParser = content.UsedFallbackParser,
                     ParseErrorCount = content.ParseErrorCount,
                     FirstParseError = content.FirstParseError,

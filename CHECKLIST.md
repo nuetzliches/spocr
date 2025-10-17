@@ -468,3 +468,5 @@ Connectivity gesichert (test-db Script + CI Integration). Offene Kernpunkte: Sta
 
 - [ ] Das muss noch ein Fehler sein: [spocr namespace] No .csproj found upward. Using directory-based base name.
 - [ ] "HasSelectStar": false, Columns: [] (leer), "ResultSets": [] (leer) nicht ins schema json schreiben.
+- [ ] SPOCR_JSON_SPLIT_NESTED (bzw. SplitNestedJsonSets) ist wozu erforderlich?
+Wenn das ein Überbleibsel unserer fixes ist, bitte entfernen.
