@@ -381,6 +381,8 @@ public class SpocrManager(
                         };
                     }).ToList();
 
+                // (Reverted) Keine automatische Stub-Erzeugung für cross-schema EXEC Ziele – ursprüngliches Verhalten wiederhergestellt.
+
                 // UDTT hashing helper
                 string HashUdtt(string schema, string name, IEnumerable<Column> cols)
                 {
@@ -599,6 +601,16 @@ public class SpocrManager(
         try
         {
             dbContext.SetConnectionString(connectionString);
+            if (options.Verbose)
+            {
+                try
+                {
+                    var working = Utils.DirectoryUtils.GetWorkingDirectory();
+                    var outputBase = Utils.DirectoryUtils.GetWorkingDirectory(project.Output?.DataContext?.Path ?? "(null)");
+                    consoleService.Verbose($"[diag-build] workingDir={working} outputBase={outputBase} genMode={genMode}");
+                }
+                catch { }
+            }
             // Ensure snapshot presence (required for metadata-driven generation) – but still require connection now (no offline mode)
             try
             {
@@ -650,19 +662,22 @@ public class SpocrManager(
             var totalElapsed = elapsed.Values.Sum();
             consoleService.PrintTotal($"Total elapsed time: {totalElapsed} ms.");
 
+
             // Invoke vNext pipeline in dual/next mode: real TableTypes generation (always-on)
             if (genMode == "dual" || genMode == "next")
             {
                 try
                 {
                     consoleService.PrintSubTitle($"vNext ({genMode}) – TableTypes");
-                    var projectRoot = Utils.DirectoryUtils.GetWorkingDirectory();
-                    var cfg = EnvConfiguration.Load(projectRoot: projectRoot);
+                    var targetProjectRoot = Utils.DirectoryUtils.GetWorkingDirectory(); // Zielprojekt (enthält .spocr)
+                    var cfg = EnvConfiguration.Load(projectRoot: targetProjectRoot);
                     var renderer = new SimpleTemplateEngine();
-                    var templatesDir = System.IO.Path.Combine(projectRoot, "src", "SpocRVNext", "Templates");
+                    // Templates leben im Tool-Repository, nicht im Zielprojekt
+                    var toolRoot = System.IO.Directory.GetCurrentDirectory();
+                    var templatesDir = System.IO.Path.Combine(toolRoot, "src", "SpocRVNext", "Templates");
                     ITemplateLoader? loader = System.IO.Directory.Exists(templatesDir) ? new FileSystemTemplateLoader(templatesDir) : null;
-                    var metadata = new TableTypeMetadataProvider(projectRoot);
-                    var generator = new TableTypesGenerator(cfg, metadata, renderer, loader, projectRoot);
+                    var metadata = new TableTypeMetadataProvider(targetProjectRoot); // Metadaten aus Zielprojekt (.spocr)
+                    var generator = new TableTypesGenerator(cfg, metadata, renderer, loader, targetProjectRoot);
                     var count = generator.Generate();
                     consoleService.Gray($"[vnext] TableTypes generated: {count} artifacts (includes interface)");
                 }

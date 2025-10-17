@@ -61,7 +61,14 @@ dotnet build samples/restapi/RestApi.csproj -c Debug
 
 Legende: `[ ]` offene Aufgabe · `[x]` erledigt
 
-Status-Update (2025-10-16): Alle Quellcode-Kommentare/Bezeichner auf Englisch vereinheitlicht (Internationalisierung abgeschlossen). Diese Checkliste bleibt bewusst deutsch bis zum Merge.
+Status-Update (2025-10-17): Internationalisierung weiterhin vollständig (alle Code-Kommentare Englisch). Neue Änderungen seit 16.10:
+
+- BuildSchemas Allow-List (SPOCR_BUILD_SCHEMAS) greift jetzt für Procedures UND TableTypes (zentrale Filterung)
+- Hyphen-Unterstützung für Schemanamen (Regex erweitert, Sanitizing zu PascalCase)
+- Output Duplikat-Cleanup entfernt alte unsuffixed Dateien wenn suffixed \*Output.cs existiert
+- Purge-Mechanismus für Legacy DataContext bewusst NICHT eingeführt (Anforderung zurückgezogen)
+- Regressionstest hinzugefügt: BuildSchemasFilteringTests (stellt Allow-List Verhalten sicher)
+  Offene Kernpunkte: Cross-Schema EXEC Forwarding, Abschnittsreihenfolge-Test UnifiedProcedure, TableTypes Allow-List Test.
 
 EPICS Übersicht (oberste Steuerungsebene)
 
@@ -170,11 +177,14 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [x] Entfernte Suffix-Normalisierung für TableTypes (Regression abgesichert)
 - [x] Konsolidierte Prozedur-Datei Test (keine Duplikate Input/Output + deterministischer Doppel-Lauf)
 - [x] ResultSet Rename + Collision Tests (Resolver Basis abgesichert)
+- [x] BuildSchemas Filtering Test (Procedures) (`BuildSchemasFilteringTests`)
+- [ ] TableTypes Allow-List Filter Test (SPOCR_BUILD_SCHEMAS)
 
 ### Codegenerierung / SpocRVNext
 
 - [x] Template Engine Grundgerüst fertig (ohne Roslyn Abhängigkeiten)
 - [x] Ermittlung des Namespaces automatisiert und dokumentierte Fallback-Strategie vorhanden
+- [x] Zentrale Positive Schema Allow-List (SPOCR_BUILD_SCHEMAS) für Procedures & TableTypes implementiert
 - [ ] Entfernte Spezifikationen/Heuristiken sauber entfernt und CHANGELOG Eintrag erstellt
 - [ ] Neuer `SpocRDbContext` implementiert inkl. moderner DI Patterns & Minimal API Extensions - [x] Grundgerüst via Template-Generator (Interface, Context, Options, DI) – aktiviert in `SPOCR_GENERATOR_MODE=dual|next` (ehem. Flag `SPOCR_GENERATE_DBCTX` entfernt) - [x] DbContext Optionen (ConnectionString / Name / Timeout / Retry / Diagnostics / ValidateOnBuild) implementiert - [x] Scoped Registration Validierung (Connection Open Probe optional via `ValidateOnBuild`) - [x] Minimal API Mapper Beispiel (Health Endpoint `/spocr/health/db`) - [~] Integration ins Sample (Code registriert & Endpoint gemappt; laufender Prozess beendet sich noch früh – Stabilisierung ausstehend / Doku fehlt)
 - [x] Parallel-Erzeugung alter (DataContext) und neuer (SpocRVNext) Outputs in v4.5 (Demo/Beobachtungsmodus) implementiert
@@ -398,6 +408,16 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 - [x] samples\restapi\SpocR\samples Namespace-Korrektur (Generator + manuelle Files bereinigt)
 - [x] samples\restapi\SpocR\ITableType.cs Namespace = RestApi.SpocR ✅
 - [x] Progress Anzeige: Doppelter 100% Balken entfernt & Abschlussformatierung (Leerzeile + Separator) korrigiert (ConsoleService + SchemaManager Anpassung)
+- [x] BuildSchemas Filtering zentral (Procedures & TableTypes)
+- [x] Hyphen-Support für Schema-Namen (Validation & Sanitizing)
+- [x] Output Duplikat-Cleanup (unsuffixed vs suffixed \*Output.cs)
+- [ ] Cross-Schema EXEC Forwarding (A) offen (Anhängen fremder ResultSets außerhalb Allow-List)
+- [ ] A: Cross-Schema EXEC Forwarding / Append
+      id: A
+      goal: ResultSets von EXEC-Zielprozeduren werden auch dann weitergeleitet bzw. angehängt, wenn das Ziel-Schema auf Ignore steht oder nicht aktiv geladen wurde.
+      acceptance: - Wrapper (nur EXEC, keine eigenen konkreten Sets) übernimmt vollständige ResultSets des Ziels (inkl. ExecSource* Metadaten) - Non-Wrapper mit eigenen Sets hängt Ziel-Sets hinten an (keine Duplikate, keine doppelte Forwarding-Aktion) - Fallback greift über Expanded Snapshot (snapshotProcMap) auch wenn Ziel nicht in procLookup enthalten - Logging Tags: [proc-forward-xschema] bei vollständiger Übernahme, [proc-exec-append-xschema] beim Anhängen - Beispiel: soap.PaymentInitiationFindAsJson -> banking.InitiationFindAsJson (ExecSourceSchemaName / ExecSourceProcedureName korrekt gesetzt)
+      depends: [E004, E014]
+      note: Brackets in ExecSource* optional (keine Änderung bestehender Tests); Fokus auf Vorhandensein / Merge
 - [ ] samples\restapi\.env aus Template mit Kommentaren generieren - [x] Template-Datei `.env.example` anreichert (Erklär-Kommentare für Modus/Flags/Namespace vorhanden) - [ ] CLI Befehl/Bootstrap: `spocr env init` (optional) evaluieren
 - [ ] (OBSOLET) ResultSet Datei-Benennung vereinheitlichen (durch Konsolidierung in eine Prozedur-Datei nicht mehr relevant)
       Hinweis: Einzelne RowSet-Dateien existieren nicht mehr; alle Records (Inputs/Outputs/ResultSets/Aggregate/Plan/Executor) liegen in einer konsolidierten `<Proc>.cs`.

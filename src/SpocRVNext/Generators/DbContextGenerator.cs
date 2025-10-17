@@ -150,7 +150,7 @@ public class DbContextGenerator
         "    DbConnection OpenConnection();\n" +
         "    Task<DbConnection> OpenConnectionAsync(CancellationToken cancellationToken = default);\n" +
         "    Task<bool> HealthCheckAsync(CancellationToken cancellationToken = default);\n" +
-        "    int CommandTimeoutSeconds { get; }\n" +
+    "    int CommandTimeout { get; }\n" +
         "}\n");
 
     private static SourceText GetTemplate_Options(string ns) => SourceText.From($"namespace {ns};\n\n" +
@@ -158,7 +158,7 @@ public class DbContextGenerator
         "public sealed class SpocRDbContextOptions\n{\n" +
         "    public string? ConnectionString { get; set; }\n" +
         "    public string? ConnectionStringName { get; set; }\n" +
-        "    public int? CommandTimeoutSeconds { get; set; }\n" +
+    "    public int? CommandTimeout { get; set; }\n" +
         "    public int? MaxOpenRetries { get; set; }\n" +
         "    public int? RetryDelayMs { get; set; }\n" +
         "    public bool ValidateOnBuild { get; set; } = false;\n" +
@@ -175,9 +175,9 @@ public class DbContextGenerator
         "    {\n" +
         "        if (string.IsNullOrWhiteSpace(options.ConnectionString)) throw new System.ArgumentException(\"ConnectionString must be provided\", nameof(options));\n" +
         "        _options = options;\n" +
-        "        if (_options.CommandTimeoutSeconds is null or <= 0) _options.CommandTimeoutSeconds = 30;\n" +
+    "        if (_options.CommandTimeout is null or <= 0) _options.CommandTimeout = 30;\n" +
         "    }\n" +
-        "    public int CommandTimeoutSeconds => _options.CommandTimeoutSeconds ?? 30;\n" +
+    "    public int CommandTimeout => _options.CommandTimeout ?? 30;\n" +
         "    public DbConnection OpenConnection()\n" +
         "    {\n" +
         "        var sw = _options.EnableDiagnostics ? Stopwatch.StartNew() : null;\n" +
@@ -203,7 +203,7 @@ public class DbContextGenerator
         "    public static IServiceCollection AddSpocRDbContext(this IServiceCollection services, Action<SpocRDbContextOptions>? configure = null)\n" +
         "    {\n" +
         "        var explicitOptions = new SpocRDbContextOptions(); configure?.Invoke(explicitOptions);\n" +
-    "        services.AddSingleton(provider => { var cfg = provider.GetService<IConfiguration>(); var name = explicitOptions.ConnectionStringName ?? \"DefaultConnection\"; var conn = explicitOptions.ConnectionString ?? cfg?.GetConnectionString(name); if (string.IsNullOrWhiteSpace(conn)) throw new InvalidOperationException($\"No connection string resolved for SpocRDbContext (options / IConfiguration:GetConnectionString('{name}')).\"); explicitOptions.ConnectionString = conn; if (explicitOptions.CommandTimeoutSeconds is null or <= 0) explicitOptions.CommandTimeoutSeconds = 30; if (explicitOptions.MaxOpenRetries is not null and < 0) throw new InvalidOperationException(\"MaxOpenRetries must be >= 0\"); if (explicitOptions.RetryDelayMs is not null and <= 0) throw new InvalidOperationException(\"RetryDelayMs must be > 0\"); if (explicitOptions.ValidateOnBuild) { try { using var probe = new Microsoft.Data.SqlClient.SqlConnection(conn); probe.Open(); } catch (Exception ex) { throw new InvalidOperationException(\"SpocRDbContext ValidateOnBuild failed to open connection\", ex); } } return explicitOptions; });\n" +
+    "        services.AddSingleton(provider => { var cfg = provider.GetService<IConfiguration>(); var name = explicitOptions.ConnectionStringName ?? \"DefaultConnection\"; var conn = explicitOptions.ConnectionString ?? cfg?.GetConnectionString(name); if (string.IsNullOrWhiteSpace(conn)) throw new InvalidOperationException($\"No connection string resolved for SpocRDbContext (options / IConfiguration:GetConnectionString('{name}')).\"); explicitOptions.ConnectionString = conn; if (explicitOptions.CommandTimeout is null or <= 0) explicitOptions.CommandTimeout = 30; if (explicitOptions.MaxOpenRetries is not null and < 0) throw new InvalidOperationException(\"MaxOpenRetries must be >= 0\"); if (explicitOptions.RetryDelayMs is not null and <= 0) throw new InvalidOperationException(\"RetryDelayMs must be > 0\"); if (explicitOptions.ValidateOnBuild) { try { using var probe = new Microsoft.Data.SqlClient.SqlConnection(conn); probe.Open(); } catch (Exception ex) { throw new InvalidOperationException(\"SpocRDbContext ValidateOnBuild failed to open connection\", ex); } } return explicitOptions; });\n" +
         "        services.AddScoped<ISpocRDbContext>(sp => new SpocRDbContext(sp.GetRequiredService<SpocRDbContextOptions>()));\n" +
         "        return services;\n" +
         "    }\n" +

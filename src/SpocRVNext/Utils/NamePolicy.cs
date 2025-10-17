@@ -37,11 +37,19 @@ public static class NamePolicy
     public static string Sanitize(string raw)
     {
         if (string.IsNullOrWhiteSpace(raw)) return "Name";
-        // Remove invalid chars
-        var cleaned = Regex.Replace(raw, "[^A-Za-z0-9_]", "");
+        // Split on hyphen or underscore boundaries first, then sanitize parts to enable workflow-state -> WorkflowState
+        var segments = raw.Split(new[] { '-', '_' }, StringSplitOptions.RemoveEmptyEntries);
+        var builder = new StringBuilder();
+        foreach (var seg in segments)
+        {
+            var cleanedSeg = Regex.Replace(seg, "[^A-Za-z0-9]", "");
+            if (string.IsNullOrWhiteSpace(cleanedSeg)) continue;
+            if (char.IsDigit(cleanedSeg[0])) cleanedSeg = "N" + cleanedSeg;
+            cleanedSeg = char.ToUpperInvariant(cleanedSeg[0]) + (cleanedSeg.Length > 1 ? cleanedSeg.Substring(1) : string.Empty);
+            builder.Append(cleanedSeg);
+        }
+        var cleaned = builder.ToString();
         if (cleaned.Length == 0) cleaned = "Name";
-        if (char.IsDigit(cleaned[0])) cleaned = "N" + cleaned;
-        cleaned = char.ToUpperInvariant(cleaned[0]) + (cleaned.Length > 1 ? cleaned.Substring(1) : string.Empty);
         if (CSharpKeywords.Contains(cleaned)) cleaned = "@" + cleaned;
         return cleaned;
     }

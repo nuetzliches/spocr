@@ -160,15 +160,9 @@ public class SchemaManager(
         schemas = schemas.OrderByDescending(schema => schema.Status).ToList();
 
         var activeSchemas = schemas.Where(i => i.Status != SchemaStatusEnum.Ignore).ToList();
-        if (!activeSchemas.Any())
-        {
-            // Fallback: warn and return if everything ended up ignored (prevents downstream null references)
-            consoleService.Warn("No schemas found or all schemas ignored!");
-            return schemas;
-        }
+        // Build list only for later filtering/persistence logic; we enumerate procedures for all schemas unfiltered.
+        var storedProcedures = await dbContext.StoredProcedureListAsync(string.Empty, cancellationToken);
         var schemaListString = string.Join(',', activeSchemas.Select(i => $"'{i.Name}'"));
-
-        var storedProcedures = await dbContext.StoredProcedureListAsync(schemaListString, cancellationToken);
 
         // Apply IgnoredProcedures filter (schema.name) early
         var ignoredProcedures = config?.Project?.IgnoredProcedures ?? new List<string>();
@@ -659,6 +653,14 @@ public class SchemaManager(
                 }
                 if (content.ExecutedProcedures == null || content.ExecutedProcedures.Count != 1)
                 {
+                    // Unbedingtes Diagnose-Logging: EXEC vorhanden aber keine ExecutedProcedures erfasst
+                    if ((content.ExecutedProcedures == null || content.ExecutedProcedures.Count == 0) && content.ContainsExecKeyword)
+                    {
+                        var candidates = (content.RawExecCandidates == null || content.RawExecCandidates.Count == 0)
+                            ? "(keine Kandidaten extrahiert)"
+                            : string.Join(", ", content.RawExecCandidates);
+                        consoleService.Info($"[proc-exec-miss] {proc.SchemaName}.{proc.Name} EXEC erkannt aber kein AST-Knoten (candidates: {candidates})");
+                    }
                     if (content.ExecutedProcedures == null || content.ExecutedProcedures.Count == 0)
                         consoleService.Verbose($"[proc-forward-skip] {proc.SchemaName}.{proc.Name} no executed procedures captured");
                     else
@@ -676,7 +678,130 @@ public class SchemaManager(
                 }
                 var target = content.ExecutedProcedures[0];
                 if (target == null) continue;
-                if (!procLookup.TryGetValue($"{target.Schema}.{target.Name}", out var targetProc)) continue;
+                if (!procLookup.TryGetValue($"{target.Schema}.{target.Name}", out var targetProc))
+                {
+                    // Cross-Schema Fallback 1: Snapshot Hydration
+                    StoredProcedureContentModel.ResultSet[] rsModels = Array.Empty<StoredProcedureContentModel.ResultSet>();
+                    if (snapshotProcMap != null && snapshotProcMap.TryGetValue(target.Schema, out var map2) && map2.TryGetValue(target.Name, out var snapProc))
+                    {
+                        rsModels = snapProc.ResultSets.Select(rs => new StoredProcedureContentModel.ResultSet
+                        {
+                            ReturnsJson = rs.ReturnsJson,
+                            ReturnsJsonArray = rs.ReturnsJsonArray,
+                            ReturnsJsonWithoutArrayWrapper = rs.ReturnsJsonWithoutArrayWrapper,
+                            JsonRootProperty = rs.JsonRootProperty,
+                            Columns = rs.Columns.Select(c => new StoredProcedureContentModel.ResultColumn
+                            {
+                                Name = c.Name,
+                                JsonPath = c.JsonPath,
+                                SqlTypeName = c.SqlTypeName,
+                                IsNullable = c.IsNullable,
+                                MaxLength = c.MaxLength,
+                                UserTypeName = c.UserTypeName,
+                                UserTypeSchemaName = c.UserTypeSchemaName,
+                                JsonResult = c.JsonResult == null ? null : new StoredProcedureContentModel.JsonResultModel
+                                {
+                                    ReturnsJson = c.JsonResult.ReturnsJson,
+                                    ReturnsJsonArray = c.JsonResult.ReturnsJsonArray,
+                                    ReturnsJsonWithoutArrayWrapper = c.JsonResult.ReturnsJsonWithoutArrayWrapper,
+                                    JsonRootProperty = c.JsonResult.JsonRootProperty,
+                                    Columns = c.JsonResult.Columns.Select(n => new StoredProcedureContentModel.ResultColumn
+                                    {
+                                        Name = n.Name,
+                                        JsonPath = n.JsonPath,
+                                        SqlTypeName = n.SqlTypeName,
+                                        IsNullable = n.IsNullable,
+                                        MaxLength = n.MaxLength,
+                                        UserTypeName = n.UserTypeName,
+                                        UserTypeSchemaName = n.UserTypeSchemaName
+                                    }).ToArray()
+                                }
+                            }).ToArray()
+                        }).ToArray();
+                    }
+                    // Cross-Schema Fallback 2: Direkter DB Load (nur wenn Snapshot leer)
+                    if (rsModels.Length == 0)
+                    {
+                        try
+                        {
+                            var def = await dbContext.StoredProcedureDefinitionAsync(target.Schema, target.Name, cancellationToken);
+                            var definition = def?.Definition;
+                            StoredProcedureContentModel parsed = null;
+                            if (!string.IsNullOrWhiteSpace(definition))
+                            {
+                                parsed = StoredProcedureContentModel.Parse(definition, target.Schema);
+                            }
+                            var output = await dbContext.StoredProcedureOutputListAsync(target.Schema, target.Name, cancellationToken);
+                            var outputModels = output?.Select(i => new StoredProcedureOutputModel(i)).ToList() ?? new List<StoredProcedureOutputModel>();
+                            var anyJson = parsed?.ResultSets?.Any(r => r.ReturnsJson) == true;
+                            var synthSets = new List<StoredProcedureContentModel.ResultSet>();
+                            if (parsed?.ResultSets != null && parsed.ResultSets.Any())
+                            {
+                                synthSets.AddRange(parsed.ResultSets);
+                            }
+                            // Falls keine JSON Sets: klassisches Output zu synthetischem Set
+                            if (!anyJson && synthSets.Count == 0 && outputModels.Any())
+                            {
+                                var syntheticColumns = outputModels.Select(o => new StoredProcedureContentModel.ResultColumn
+                                {
+                                    Name = o.Name,
+                                    SqlTypeName = o.SqlTypeName,
+                                    IsNullable = o.IsNullable,
+                                    MaxLength = o.MaxLength
+                                }).ToArray();
+                                synthSets.Add(new StoredProcedureContentModel.ResultSet
+                                {
+                                    ReturnsJson = false,
+                                    ReturnsJsonArray = false,
+                                    ReturnsJsonWithoutArrayWrapper = false,
+                                    JsonRootProperty = null,
+                                    Columns = syntheticColumns
+                                });
+                            }
+                            rsModels = synthSets.ToArray();
+                            if (rsModels.Length > 0)
+                            {
+                                consoleService.Verbose($"[proc-forward-xschema-load] {proc.SchemaName}.{proc.Name} loaded target {target.Schema}.{target.Name} directly from DB (sets={rsModels.Length})");
+                            }
+                        }
+                        catch (Exception exLoad)
+                        {
+                            consoleService.Verbose($"[proc-forward-xschema-load-warn] {proc.SchemaName}.{proc.Name} direct load failed {target.Schema}.{target.Name}: {exLoad.Message}");
+                        }
+                    }
+                    if (rsModels.Length > 0)
+                    {
+                        // Cross-Schema Ziel (ignoriertes Schema) für Cache persistieren, damit Banking etc. im Snapshot erscheint
+                        var clonedSetsXs = rsModels.Select(rs => new StoredProcedureContentModel.ResultSet
+                        {
+                            ReturnsJson = rs.ReturnsJson,
+                            ReturnsJsonArray = rs.ReturnsJsonArray,
+                            ReturnsJsonWithoutArrayWrapper = rs.ReturnsJsonWithoutArrayWrapper,
+                            JsonRootProperty = rs.JsonRootProperty,
+                            ExecSourceSchemaName = target.Schema,
+                            ExecSourceProcedureName = target.Name,
+                            Columns = rs.Columns
+                        }).ToArray();
+                        proc.Content = new StoredProcedureContentModel
+                        {
+                            Definition = proc.Content.Definition,
+                            Statements = proc.Content.Statements,
+                            ContainsSelect = proc.Content.ContainsSelect,
+                            ContainsInsert = proc.Content.ContainsInsert,
+                            ContainsUpdate = proc.Content.ContainsUpdate,
+                            ContainsDelete = proc.Content.ContainsDelete,
+                            ContainsMerge = proc.Content.ContainsMerge,
+                            ContainsOpenJson = proc.Content.ContainsOpenJson,
+                            ResultSets = clonedSetsXs,
+                            UsedFallbackParser = proc.Content.UsedFallbackParser,
+                            ParseErrorCount = proc.Content.ParseErrorCount,
+                            FirstParseError = proc.Content.FirstParseError,
+                            ExecutedProcedures = proc.Content.ExecutedProcedures
+                        };
+                        consoleService.Verbose($"[proc-forward-xschema{(onlyEmptyJsonSets ? "-upgrade" : string.Empty)}] {proc.SchemaName}.{proc.Name} forwarded {clonedSetsXs.Length} set(s) from {(snapshotProcMap != null && snapshotProcMap.TryGetValue(target.Schema, out var _) ? "snapshot" : "direct-load")} {target.Schema}.{target.Name}");
+                    }
+                    continue;
+                }
                 var targetSets = targetProc.Content?.ResultSets;
                 if (targetSets == null || !targetSets.Any()) continue;
 
@@ -752,7 +877,106 @@ public class SchemaManager(
                 // skip if any set already has ExecSource (means forwarded) – no double append
                 if (content.ResultSets.Any(r => !string.IsNullOrEmpty(r.ExecSourceProcedureName))) continue;
                 var target = content.ExecutedProcedures[0];
-                if (!procLookup2.TryGetValue($"{target.Schema}.{target.Name}", out var targetProc)) continue;
+                if (!procLookup2.TryGetValue($"{target.Schema}.{target.Name}", out var targetProc))
+                {
+                    // Cross-Schema Append Fallback 1: Snapshot
+                    StoredProcedureContentModel.ResultSet[] rsModels = Array.Empty<StoredProcedureContentModel.ResultSet>();
+                    if (snapshotProcMap != null && snapshotProcMap.TryGetValue(target.Schema, out var map3) && map3.TryGetValue(target.Name, out var snapProc))
+                    {
+                        rsModels = snapProc.ResultSets.Select(rs => new StoredProcedureContentModel.ResultSet
+                        {
+                            ReturnsJson = rs.ReturnsJson,
+                            ReturnsJsonArray = rs.ReturnsJsonArray,
+                            ReturnsJsonWithoutArrayWrapper = rs.ReturnsJsonWithoutArrayWrapper,
+                            JsonRootProperty = rs.JsonRootProperty,
+                            Columns = rs.Columns.Select(c => new StoredProcedureContentModel.ResultColumn
+                            {
+                                Name = c.Name,
+                                JsonPath = c.JsonPath,
+                                SqlTypeName = c.SqlTypeName,
+                                IsNullable = c.IsNullable,
+                                MaxLength = c.MaxLength,
+                                UserTypeName = c.UserTypeName,
+                                UserTypeSchemaName = c.UserTypeSchemaName
+                            }).ToArray()
+                        }).ToArray();
+                    }
+                    // Cross-Schema Append Fallback 2: Direkt DB Load
+                    if (rsModels.Length == 0)
+                    {
+                        try
+                        {
+                            var def = await dbContext.StoredProcedureDefinitionAsync(target.Schema, target.Name, cancellationToken);
+                            var definition = def?.Definition;
+                            StoredProcedureContentModel parsed = null;
+                            if (!string.IsNullOrWhiteSpace(definition))
+                                parsed = StoredProcedureContentModel.Parse(definition, target.Schema);
+                            var output = await dbContext.StoredProcedureOutputListAsync(target.Schema, target.Name, cancellationToken);
+                            var outputModels = output?.Select(i => new StoredProcedureOutputModel(i)).ToList() ?? new List<StoredProcedureOutputModel>();
+                            var anyJson = parsed?.ResultSets?.Any(r => r.ReturnsJson) == true;
+                            var synthSets = new List<StoredProcedureContentModel.ResultSet>();
+                            if (parsed?.ResultSets != null && parsed.ResultSets.Any()) synthSets.AddRange(parsed.ResultSets);
+                            if (!anyJson && synthSets.Count == 0 && outputModels.Any())
+                            {
+                                var syntheticColumns = outputModels.Select(o => new StoredProcedureContentModel.ResultColumn
+                                {
+                                    Name = o.Name,
+                                    SqlTypeName = o.SqlTypeName,
+                                    IsNullable = o.IsNullable,
+                                    MaxLength = o.MaxLength
+                                }).ToArray();
+                                synthSets.Add(new StoredProcedureContentModel.ResultSet
+                                {
+                                    ReturnsJson = false,
+                                    ReturnsJsonArray = false,
+                                    ReturnsJsonWithoutArrayWrapper = false,
+                                    JsonRootProperty = null,
+                                    Columns = syntheticColumns
+                                });
+                            }
+                            rsModels = synthSets.ToArray();
+                            if (rsModels.Length > 0)
+                                consoleService.Verbose($"[proc-exec-append-xschema-load] {proc.SchemaName}.{proc.Name} loaded target {target.Schema}.{target.Name} directly from DB (sets={rsModels.Length})");
+                        }
+                        catch (Exception exLoad2)
+                        {
+                            consoleService.Verbose($"[proc-exec-append-xschema-load-warn] {proc.SchemaName}.{proc.Name} direct load failed {target.Schema}.{target.Name}: {exLoad2.Message}");
+                        }
+                    }
+                    if (rsModels.Length > 0)
+                    {
+                        // Cross-Schema Append Ziel (ignoriertes Schema) für Cache persistieren
+                        var appendedXs = rsModels.Select(rs => new StoredProcedureContentModel.ResultSet
+                        {
+                            ReturnsJson = rs.ReturnsJson,
+                            ReturnsJsonArray = rs.ReturnsJsonArray,
+                            ReturnsJsonWithoutArrayWrapper = rs.ReturnsJsonWithoutArrayWrapper,
+                            JsonRootProperty = rs.JsonRootProperty,
+                            ExecSourceSchemaName = target.Schema,
+                            ExecSourceProcedureName = target.Name,
+                            Columns = rs.Columns
+                        }).ToArray();
+                        var combinedXs = content.ResultSets.Concat(appendedXs).ToArray();
+                        proc.Content = new StoredProcedureContentModel
+                        {
+                            Definition = content.Definition,
+                            Statements = content.Statements,
+                            ContainsSelect = content.ContainsSelect,
+                            ContainsInsert = content.ContainsInsert,
+                            ContainsUpdate = content.ContainsUpdate,
+                            ContainsDelete = content.ContainsDelete,
+                            ContainsMerge = content.ContainsMerge,
+                            ContainsOpenJson = content.ContainsOpenJson,
+                            ResultSets = combinedXs,
+                            UsedFallbackParser = content.UsedFallbackParser,
+                            ParseErrorCount = content.ParseErrorCount,
+                            FirstParseError = content.FirstParseError,
+                            ExecutedProcedures = content.ExecutedProcedures
+                        };
+                        consoleService.Verbose($"[proc-exec-append-xschema] {proc.SchemaName}.{proc.Name} appended {appendedXs.Length} set(s) from {(snapshotProcMap != null && snapshotProcMap.TryGetValue(target.Schema, out var _) ? "snapshot" : "direct-load")} {target.Schema}.{target.Name}");
+                    }
+                    continue;
+                }
                 var targetSets = targetProc.Content?.ResultSets;
                 if (targetSets == null || !targetSets.Any()) continue;
                 // Append clones
@@ -824,8 +1048,17 @@ public class SchemaManager(
 
         // Persist updated cache (best-effort)
         var saveStart = DateTime.UtcNow;
+        // (Reverted) Keine zusätzliche Stub-Erzeugung für ExecSource Ziele im Cache – ursprüngliche Logik wiederhergestellt.
         if (!disableCache)
         {
+            // Sort cache entries for deterministic ordering (schema, procedure name)
+            if (updatedSnapshot.Procedures.Count > 1)
+            {
+                updatedSnapshot.Procedures = updatedSnapshot.Procedures
+                    .OrderBy(p => p.Schema, StringComparer.OrdinalIgnoreCase)
+                    .ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
             localCacheService?.Save(fingerprint, updatedSnapshot);
             consoleService.Verbose($"[cache] Saved snapshot {fingerprint} with {updatedSnapshot.Procedures.Count} entries in {(DateTime.UtcNow - saveStart).TotalMilliseconds:F1} ms");
         }

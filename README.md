@@ -267,6 +267,39 @@ Migration Output Example (`--verbose`):
 
 If you need to newly ignore a schema later, append it to the `ignoredSchemas` list and re-run `spocr pull` (a new snapshot fingerprint will be generated if affected procedures change).
 
+### Selecting Build Schemas (Positive Allow-List)
+
+In addition to excluding schemas via `ignoredSchemas`, you can positively target only specific schemas for generation using the environment variable / .env entry:
+
+```
+SPOCR_BUILD_SCHEMAS=core,app,identity
+```
+
+Rules:
+
+1. When `SPOCR_BUILD_SCHEMAS` is set and non-empty, ONLY those schemas are included in generation (vNext pipeline). The ignored list is bypassed for those names; any other schema (even if not ignored) is skipped.
+2. If `SPOCR_BUILD_SCHEMAS` is empty or not present, the generator falls back to normal behavior: include all discovered schemas except those in `ignoredSchemas` (or with legacy `Status=Ignore`).
+3. Separator characters: comma `,` or semicolon `;` are both accepted (they can be mixed).
+4. Validation: Names must match pattern `^[A-Za-z_][A-Za-z0-9_]*$` – invalid entries raise an early configuration exception.
+5. Prefill: The `.env` bootstrap process auto-populates `SPOCR_BUILD_SCHEMAS` with any schemas marked `Status=Build` in a legacy `schema` array (bridge scenario). If none are present a commented placeholder is added.
+
+Why use a positive list?
+
+- Faster iteration when focusing on a subset of large database schemas
+- Deterministic CI artifacts by locking to a known set of stable schemas
+- Cleaner deprecation path: you can shrink the build surface before removing procedures physically
+
+Example `.env` excerpt:
+
+```env
+SPOCR_GENERATOR_MODE=dual
+SPOCR_NAMESPACE=MyCompany.Project.Data
+# Only generate the stable v1 contract schemas while refactoring others
+SPOCR_BUILD_SCHEMAS=core,soap,banking
+```
+
+To revert to full generation (minus ignores) simply remove or comment out the line.
+
 ### Deprecation: `Project.Role / RoleKindEnum`
 
 `Project.Role.Kind` is deprecated and scheduled for removal in **v5**. The generator now always behaves as if `Kind = Default`.

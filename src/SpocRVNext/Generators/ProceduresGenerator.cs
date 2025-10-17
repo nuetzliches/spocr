@@ -8,7 +8,10 @@ using System.Data.Common;
 using System.Text.RegularExpressions;
 using SpocR.SpocRVNext.Engine;
 using SpocR.SpocRVNext.Metadata;
+using SpocRVNext.Configuration;
 using SpocR.SpocRVNext.Utils;
+using SpocR.Models;
+using System.Text.Json;
 
 namespace SpocR.SpocRVNext.Generators;
 
@@ -17,19 +20,85 @@ public sealed class ProceduresGenerator
     private readonly ITemplateRenderer _renderer;
     private readonly ITemplateLoader? _loader;
     private readonly Func<IReadOnlyList<ProcedureDescriptor>> _provider;
+    private readonly EnvConfiguration? _cfg;
     private readonly string _projectRoot;
 
-    public ProceduresGenerator(ITemplateRenderer renderer, Func<IReadOnlyList<ProcedureDescriptor>> provider, ITemplateLoader? loader = null, string? projectRoot = null)
+    public ProceduresGenerator(ITemplateRenderer renderer, Func<IReadOnlyList<ProcedureDescriptor>> provider, ITemplateLoader? loader = null, string? projectRoot = null, EnvConfiguration? cfg = null)
     {
         _renderer = renderer;
         _provider = provider;
         _loader = loader;
         _projectRoot = projectRoot ?? Directory.GetCurrentDirectory();
+        _cfg = cfg; // may be null for legacy call sites
     }
 
     public int Generate(string ns, string baseOutputDir)
     {
         var procs = _provider();
+        // 1) Positive allow-list: prefer EnvConfiguration.BuildSchemas; fallback to direct env var only if cfg missing
+        HashSet<string>? buildSchemas = null;
+        if (_cfg?.BuildSchemas is { Count: > 0 })
+        {
+            buildSchemas = new HashSet<string>(_cfg.BuildSchemas, StringComparer.OrdinalIgnoreCase);
+        }
+        else
+        {
+            var buildSchemasRaw = Environment.GetEnvironmentVariable("SPOCR_BUILD_SCHEMAS");
+            if (!string.IsNullOrWhiteSpace(buildSchemasRaw))
+            {
+                buildSchemas = new HashSet<string>(buildSchemasRaw!
+                    .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(s => s.Trim())
+                    .Where(s => s.Length > 0), StringComparer.OrdinalIgnoreCase);
+            }
+        }
+        if (buildSchemas is { Count: > 0 })
+        {
+            var before = procs.Count;
+            // Filter strictly by schema list
+            procs = procs.Where(p => buildSchemas.Contains(p.Schema ?? "dbo")).ToList();
+            var removed = before - procs.Count;
+            try { Console.Out.WriteLine($"[spocr vNext] Info: BuildSchemas allow-list active -> {procs.Count} of {before} procedures retained. Removed: {removed}. Schemas: {string.Join(",", buildSchemas)}"); } catch { }
+        }
+        // 2) Dynamic negative filter only when no positive list is active
+        //    Reads ignored schemas from spocr.json (if present) and/or ENV override
+        List<string> ignoredSchemas = new();
+        try
+        {
+            var configPath = Path.Combine(_projectRoot, "spocr.json");
+            if (File.Exists(configPath))
+            {
+                var json = File.ReadAllText(configPath);
+                ConfigurationModel? cfg = null;
+                try { cfg = JsonSerializer.Deserialize<ConfigurationModel>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }); } catch { /* ignore parse errors */ }
+                if (cfg?.Project?.IgnoredSchemas != null)
+                {
+                    ignoredSchemas.AddRange(cfg.Project.IgnoredSchemas.Where(s => !string.IsNullOrWhiteSpace(s)));
+                }
+                else if (cfg?.Schema?.Any() == true)
+                {
+                    ignoredSchemas.AddRange(cfg.Schema.Where(s => s.Status == SchemaStatusEnum.Ignore).Select(s => s.Name));
+                }
+            }
+            // ENV Override (Komma-separiert): SPOCR_IGNORED_SCHEMAS
+            var envIgnored = Environment.GetEnvironmentVariable("SPOCR_IGNORED_SCHEMAS");
+            if (!string.IsNullOrWhiteSpace(envIgnored))
+            {
+                ignoredSchemas.AddRange(envIgnored.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()));
+            }
+        }
+        catch { /* silent */ }
+        if ((buildSchemas == null || buildSchemas.Count == 0) && ignoredSchemas.Count > 0)
+        {
+            var ignoredSet = new HashSet<string>(ignoredSchemas, StringComparer.OrdinalIgnoreCase);
+            var before = procs.Count;
+            procs = procs.Where(p => !ignoredSet.Contains(p.Schema ?? "dbo")).ToList();
+            var removed = before - procs.Count;
+            if (removed > 0)
+            {
+                try { Console.Out.WriteLine($"[spocr vNext] Info: Filtered ignored schemas (dynamic): removed {removed} procedures (total now {procs.Count})."); } catch { }
+            }
+        }
         if (procs.Count == 0)
         {
             try { Console.Out.WriteLine("[spocr vNext] Info: ProceduresGenerator skipped – provider returned 0 procedures."); } catch { }
@@ -64,7 +133,7 @@ public sealed class ProceduresGenerator
         bool hasUnifiedTemplate = _loader != null && _loader.TryLoad("UnifiedProcedure", out unifiedTemplateRaw);
         if (!hasUnifiedTemplate)
         {
-            try { Console.Out.WriteLine("[spocr vNext] Warn: UnifiedProcedure.spt nicht gefunden – Fallback Skelett wird erzeugt. (Templates-Pfad prüfen)"); } catch { }
+            try { Console.Out.WriteLine("[spocr vNext] Warn: UnifiedProcedure.spt not found – generating fallback skeleton (check template path)"); } catch { }
         }
         foreach (var proc in procs.OrderBy(p => p.OperationName))
         {

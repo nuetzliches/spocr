@@ -24,7 +24,7 @@ public static class SpocRDbContextServiceCollectionExtensions
             if (string.IsNullOrWhiteSpace(conn))
                 throw new InvalidOperationException($"No connection string resolved for SpocRDbContext (options / IConfiguration:GetConnectionString('{name}')).");
             explicitOptions.ConnectionString = conn;
-            if (explicitOptions.CommandTimeoutSeconds is null or <= 0) explicitOptions.CommandTimeoutSeconds = 30;
+            if (explicitOptions.CommandTimeout is null or <= 0) explicitOptions.CommandTimeout = 30;
             if (explicitOptions.MaxOpenRetries is not null and < 0)
                 throw new InvalidOperationException("MaxOpenRetries must be >= 0");
             if (explicitOptions.RetryDelayMs is not null and <= 0)

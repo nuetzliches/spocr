@@ -23,6 +23,8 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
     private readonly IConsoleService _console;
     private readonly FileManager<ConfigurationModel> _configFile; // for deriving ignored schemas dynamically
     private IReadOnlyList<SchemaModel> _schemas; // cached after first load
+    private DateTime _lastLoadUtc = DateTime.MinValue;
+    private string _fingerprint; // last loaded fingerprint
 
     public SnapshotSchemaMetadataProvider(ISchemaSnapshotService snapshotService, IConsoleService console, FileManager<ConfigurationModel> configFile = null)
     {
@@ -33,7 +35,27 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
 
     public IReadOnlyList<SchemaModel> GetSchemas()
     {
-        if (_schemas != null) return _schemas;
+        // Reload conditions:
+        // 1) First access (_schemas == null)
+        // 2) Caller flagged --no-cache (CommandOptions.NoCache true)
+        // 3) index.json file changed since last load (timestamp newer)
+        try
+        {
+            var workingReload = Utils.DirectoryUtils.GetWorkingDirectory() ?? string.Empty;
+            var schemaDirProbe = Path.Combine(workingReload, ".spocr", "schema");
+            var indexPathProbe = Path.Combine(schemaDirProbe, "index.json");
+            var indexLastWrite = File.Exists(indexPathProbe) ? File.GetLastWriteTimeUtc(indexPathProbe) : DateTime.MinValue;
+            bool noCacheFlag = SpocR.Utils.CacheControl.ForceReload;
+            // Performance-Fix: --no-cache erzwingt nur den ersten Reload (wenn _schemas noch nicht geladen).
+            // Danach wird ForceReload zurückgesetzt, damit nachfolgende Generator-Aufrufe nicht jede Abfrage erneut laden.
+            var shouldReload = _schemas == null || (noCacheFlag && _schemas == null) || (indexLastWrite > _lastLoadUtc && indexLastWrite != DateTime.MinValue);
+            if (!shouldReload)
+                return _schemas;
+            if (_schemas != null)
+                _console.Verbose("[snapshot-provider] reload triggered (no-cache flag or index.json updated)");
+            _schemas = null;
+        }
+        catch { /* ignore reload detection errors */ }
 
         var working = Utils.DirectoryUtils.GetWorkingDirectory();
         var schemaDir = Path.Combine(working, ".spocr", "schema");
@@ -172,7 +194,15 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
                 };
             }).ToList();
 
-        _schemas = schemas;
+    _schemas = schemas;
+    _lastLoadUtc = DateTime.UtcNow;
+    _fingerprint = snapshot?.Fingerprint;
+    try { _console.Verbose($"[snapshot-provider] loaded schemas={_schemas.Count} fingerprint={_fingerprint}"); } catch { }
+    // Reset ForceReload nach erstem tatsächlichen Reload, damit nachfolgende GetSchemas()-Aufrufe schnell sind.
+    if (SpocR.Utils.CacheControl.ForceReload)
+    {
+        SpocR.Utils.CacheControl.ForceReload = false;
+    }
     // Diagnostics: identify JSON result sets without columns (RawJson fallback)
         try
         {

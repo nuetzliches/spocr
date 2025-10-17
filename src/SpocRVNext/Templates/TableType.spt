@@ -1,6 +1,8 @@
 {{ HEADER }}
 namespace {{ Namespace }};
 
+using System;
+
 /// <summary>
 /// User Defined Table Type {{ Schema }}.{{ Name }} (columns: {{ ColumnsCount }})
 /// <remarks>Generated at {{ GeneratedAt }}</remarks>

@@ -158,7 +158,7 @@ public sealed class SpocRGenerator
         // Konsolidierte Generierung: nur ProceduresGenerator (enthält künftig Input/Output/Result Konsolidierung) + evtl. TableTypes separat
         if (_schemaProviderFactory is null)
         {
-            var procsGen = new ProceduresGenerator(_renderer, _procedures, _loader, projectRoot);
+            var procsGen = new ProceduresGenerator(_renderer, _procedures, _loader, projectRoot, cfg);
             total += procsGen.Generate(ns, baseStructuredOut);
         }
         else
@@ -172,7 +172,7 @@ public sealed class SpocRGenerator
                 Console.Out.WriteLine($"[spocr vNext] descriptor counts: inputs={dbgInputs} outputs={dbgOutputs} procedures={dbgProcs}");
             }
             catch { }
-            var procsGen = new ProceduresGenerator(_renderer, () => schema.GetProcedures(), _loader, projectRoot);
+            var procsGen = new ProceduresGenerator(_renderer, () => schema.GetProcedures(), _loader, projectRoot, cfg);
             total += procsGen.Generate(ns, baseStructuredOut);
         }
 

@@ -34,6 +34,15 @@ public class OutputGenerator(
 {
     public async Task GenerateDataContextOutputsAsync(bool isDryRun)
     {
+        try
+        {
+            var allSchemas = metadataProvider.GetSchemas();
+            var buildSchemas = allSchemas.Where(s => s.Status == SchemaStatusEnum.Build).ToList();
+            var totalProcedures = buildSchemas.Sum(s => (s.StoredProcedures?.Count() ?? 0));
+            var withOutputs = buildSchemas.Sum(s => (s.StoredProcedures?.Count(sp => sp.Input.Any(i => i.IsOutput)) ?? 0));
+            ConsoleService.Verbose($"[diag-outputs] schemas(build)={buildSchemas.Count} procedures={totalProcedures} withOutputParams={withOutputs} dryRun={isDryRun}");
+        }
+        catch { /* ignore diag */ }
         // Suppress obsolete warning for Role.Kind usage (still required until v5 removal)
 #pragma warning disable CS0618
         // if (ConfigFile.Config.Project.Role.Kind == RoleKindEnum.Extension) { ... } // (Intentional no-op: we now allow generation.)
@@ -101,6 +110,7 @@ public class OutputGenerator(
                 ConfigFile.Config.Project.Output.DataContext.Outputs.Path,
                 schema.Path,
                 isDryRun);
+            ConsoleService.Verbose($"[diag-outputs] targetDir={path} schema={schema.Name}");
 
             foreach (var sp in spWithOutputs)
             {
@@ -232,6 +242,32 @@ public class OutputGenerator(
                 {
                     await Output.WriteAsync(filePath, TemplateManager.GenerateSourceText(root), isDryRun);
                     ConsoleService.Verbose($"[outputs] Generated {className} ({addedPropertyCount} property/ies)");
+                    // Migration Cleanup: remove stale unsuffixed duplicate (e.g., 'Cluster.cs' when 'ClusterOutput.cs' now exists)
+                    try
+                    {
+                        var unsuffixed = Path.Combine(path, sp.Name + ".cs");
+                        if (!string.Equals(unsuffixed, filePath, StringComparison.OrdinalIgnoreCase) && File.Exists(unsuffixed))
+                        {
+                            // Heuristic: identical or legacy placeholder -> delete
+                            var newContent = File.ReadAllText(filePath);
+                            var oldContent = File.ReadAllText(unsuffixed);
+                            if (string.Equals(newContent, oldContent, StringComparison.Ordinal))
+                            {
+                                File.Delete(unsuffixed);
+                                ConsoleService.Verbose($"[outputs-cleanup] Removed legacy unsuffixed duplicate '{Path.GetFileName(unsuffixed)}'.");
+                            }
+                            else if (oldContent.Contains("Auto-generated OUTPUT model") && !newContent.Contains("Auto-generated OUTPUT model"))
+                            {
+                                // Prefer newer pattern; still remove old
+                                File.Delete(unsuffixed);
+                                ConsoleService.Verbose($"[outputs-cleanup] Removed legacy variant '{Path.GetFileName(unsuffixed)}' (content divergence ignored).");
+                            }
+                        }
+                    }
+                    catch (Exception dupEx)
+                    {
+                        ConsoleService.Verbose($"[outputs-cleanup] Duplicate removal skipped: {dupEx.Message}");
+                    }
                 }
             }
         }

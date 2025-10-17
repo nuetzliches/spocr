@@ -14,5 +14,5 @@ public interface ISpocRDbContext
     /// <summary>Simple health probe (true = can open & close a connection).</summary>
     Task<bool> HealthCheckAsync(CancellationToken cancellationToken = default);
     /// <summary>Configured command timeout in seconds (never &lt; 1).</summary>
-    int CommandTimeoutSeconds { get; }
+    int CommandTimeout { get; }
 }

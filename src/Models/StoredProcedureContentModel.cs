@@ -35,6 +35,12 @@ public class StoredProcedureContentModel
 
     // Procedures executed directly via EXEC inside this procedure (schema + name)
     public IReadOnlyList<ExecutedProcedureCall> ExecutedProcedures { get; init; } = Array.Empty<ExecutedProcedureCall>();
+    // Diagnose: enthält der Rohtext überhaupt das Wort EXEC/EXECUTE?
+    public bool ContainsExecKeyword { get; init; }
+    // Diagnose: primitive Extraktion erster einfacher EXEC-Ziel-Kandidaten (nur Logging, nicht für Forwarding genutzt)
+    public IReadOnlyList<string> RawExecCandidates { get; init; } = Array.Empty<string>();
+    // Diagnose Klassifikation je Kandidat: static|variable|dynamic|sp_executesql
+    public IReadOnlyDictionary<string,string> RawExecCandidateKinds { get; init; } = new Dictionary<string,string>();
 
     // Removed legacy mirrored columns; access via ResultSets[0].Columns if needed
 
@@ -75,7 +81,7 @@ public class StoredProcedureContentModel
             };
         }
 
-        var analysis = new ProcedureContentAnalysis(defaultSchema);
+    var analysis = new ProcedureContentAnalysis(defaultSchema);
         var visitor = new ProcedureContentVisitor(definition, analysis);
         fragment.Accept(visitor);
         analysis.FinalizeJson();
@@ -89,6 +95,47 @@ public class StoredProcedureContentModel
             .Select(e => new ExecutedProcedureCall { Schema = e.Schema, Name = e.Name })
             .ToArray();
 
+        // Diagnose-Infos sammeln
+        var containsExec = definition.IndexOf("EXEC", StringComparison.OrdinalIgnoreCase) >= 0;
+        var rawExecCandidates = new List<string>();
+        var rawKinds = new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
+        if (containsExec)
+        {
+            var lines = definition.Split('\n');
+            foreach (var line in lines)
+            {
+                if (rawExecCandidates.Count >= 5) break; // limit
+                var trimmed = line.Trim();
+                if (trimmed.Length == 0) continue;
+                var idx = trimmed.IndexOf("EXEC", StringComparison.OrdinalIgnoreCase);
+                if (idx < 0) continue;
+                var after = trimmed.Substring(idx + 4).TrimStart('U','T','E',' ','\t');
+                after = after.TrimStart();
+                string kind;
+                if (after.StartsWith("sp_executesql", StringComparison.OrdinalIgnoreCase)) { kind = "sp_executesql"; continue; }
+                else if (after.StartsWith("@")) { kind = "variable"; continue; }
+                else if (after.StartsWith("(") || after.StartsWith("'")) { kind = "dynamic"; continue; }
+                else
+                {
+                    int end = after.Length;
+                    var terminators = new[] {' ', '\t', ';', '('};
+                    for (int i = 0; i < after.Length; i++)
+                    {
+                        if (terminators.Contains(after[i])) { end = i; break; }
+                    }
+                    var token = after.Substring(0, end).Trim();
+                    if (token.Length == 0) continue;
+                    kind = "static";
+                    if (!rawExecCandidates.Contains(token, StringComparer.OrdinalIgnoreCase))
+                    {
+                        rawExecCandidates.Add(token);
+                        rawKinds[token] = kind;
+                    }
+                }
+            }
+        }
+
+
         return new StoredProcedureContentModel
         {
             Definition = definition,
@@ -101,6 +148,9 @@ public class StoredProcedureContentModel
             ContainsOpenJson = analysis.ContainsOpenJson,
             ResultSets = jsonSets,
             ExecutedProcedures = execs,
+            ContainsExecKeyword = containsExec,
+            RawExecCandidates = rawExecCandidates,
+            RawExecCandidateKinds = rawKinds,
             UsedFallbackParser = false,
             ParseErrorCount = 0,
             FirstParseError = null

@@ -24,7 +24,26 @@ internal static class EnvBootstrapper
         Directory.CreateDirectory(projectRoot);
         var envPath = Path.Combine(projectRoot, EnvFileName);
         if (File.Exists(envPath) && !force)
-            return envPath; // already present and not forcing
+        {
+            // Enhancement: attempt in-place SPOCR_BUILD_SCHEMAS prefill if missing.
+            try
+            {
+                var existing = File.ReadAllText(envPath);
+                if (!existing.Split('\n').Any(l => l.TrimStart().StartsWith("SPOCR_BUILD_SCHEMAS", StringComparison.OrdinalIgnoreCase)))
+                {
+                    var inferred = InferSchemasForPrefill(projectRoot);
+                    if (inferred != null && inferred.Count > 0)
+                    {
+                        existing += (existing.EndsWith("\n") ? string.Empty : "\n") +
+                                    "SPOCR_BUILD_SCHEMAS=" + string.Join(",", inferred) + "\n";
+                        File.WriteAllText(envPath, existing);
+                        try { Console.Out.WriteLine($"[spocr vNext] Augmented existing .env with SPOCR_BUILD_SCHEMAS={string.Join(",", inferred)}"); } catch { }
+                    }
+                }
+            }
+            catch { /* non-fatal */ }
+            return envPath; // already present and not forcing (after augmentation attempt)
+        }
 
         // Interactive approval unless autoApprove
         if (!autoApprove)
@@ -114,6 +133,7 @@ internal static class EnvBootstrapper
         // Look for spocr.json in this directory only (already scoped earlier in EnvConfiguration)
         var cfgPath = Path.Combine(projectRoot, "spocr.json");
         string? ns = null; string? tfm = null; string? conn = null;
+        List<string>? buildSchemas = null;
         if (File.Exists(cfgPath))
         {
             try
@@ -123,8 +143,92 @@ internal static class EnvBootstrapper
                 ns = root.TryGetProperty("Project", out var p) && p.TryGetProperty("Output", out var o) && o.TryGetProperty("Namespace", out var nsEl) ? nsEl.GetString() : null;
                 tfm = root.TryGetProperty("TargetFramework", out var tfmEl) ? tfmEl.GetString() : null;
                 conn = root.TryGetProperty("Project", out p) && p.TryGetProperty("DataBase", out var db) && db.TryGetProperty("ConnectionString", out var cs) ? cs.GetString() : null;
+                // Collect positive schema list (case-insensitive key): all schema entries except those explicitly marked Status=Ignore.
+                var schemaArr = TryGetCaseInsensitive(root, "Schema");
+                if (schemaArr.HasValue && schemaArr.Value.ValueKind == System.Text.Json.JsonValueKind.Array)
+                {
+                    var collected = new List<string>();
+                    foreach (var schemaEl in schemaArr.Value.EnumerateArray())
+                    {
+                        try
+                        {
+                            string? name = schemaEl.TryGetProperty("Name", out var nEl) ? nEl.GetString() : null;
+                            string? status = schemaEl.TryGetProperty("Status", out var sEl) ? sEl.GetString() : null;
+                            if (string.IsNullOrWhiteSpace(name)) continue;
+                            if (!string.IsNullOrWhiteSpace(status) && status.Equals("Ignore", StringComparison.OrdinalIgnoreCase)) continue; // skip ignored
+                            collected.Add(name!);
+                        }
+                        catch { }
+                    }
+                    if (collected.Count > 0)
+                    {
+                        buildSchemas = collected;
+                        try { Console.Out.WriteLine($"[spocr vNext] Prefill: SPOCR_BUILD_SCHEMAS derived from spocr.json Schema node -> {string.Join(",", buildSchemas)}"); } catch { }
+                    }
+                }
             }
             catch { }
+        }
+        // Fallback: If no explicit Build schemas collected, attempt to infer from snapshot index (prefer stable canonical set)
+        if (buildSchemas == null)
+        {
+            try
+            {
+                var snapshotDir = Path.Combine(projectRoot, ".spocr", "schema");
+                var indexPath = Path.Combine(snapshotDir, "index.json");
+                if (File.Exists(indexPath))
+                {
+                    using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(indexPath));
+                    var root = doc.RootElement;
+                    if (root.TryGetProperty("Procedures", out var procsEl) && procsEl.ValueKind == System.Text.Json.JsonValueKind.Array)
+                    {
+                        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        foreach (var procEl in procsEl.EnumerateArray())
+                        {
+                            try
+                            {
+                                // Expect shape { "OperationName": "schema.proc" }
+                                string? opName = procEl.TryGetProperty("OperationName", out var opEl) ? opEl.GetString() : null;
+                                if (string.IsNullOrWhiteSpace(opName)) continue;
+                                var dotIdx = opName.IndexOf('.');
+                                var schemaName = dotIdx > 0 ? opName.Substring(0, dotIdx) : "dbo";
+                                if (!string.IsNullOrWhiteSpace(schemaName)) set.Add(schemaName);
+                            }
+                            catch { }
+                        }
+                        if (set.Count > 0) buildSchemas = set.OrderBy(s => s).ToList();
+                    }
+                }
+            }
+            catch { /* snapshot inference skipped */ }
+        }
+        // Extended fallback: scan expanded snapshot layout (procedures/*.json) if index.json absent or did not yield schemas
+        if (buildSchemas == null)
+        {
+            try
+            {
+                var snapshotDir = Path.Combine(projectRoot, ".spocr", "schema", "procedures");
+                if (Directory.Exists(snapshotDir))
+                {
+                    var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var file in Directory.EnumerateFiles(snapshotDir, "*.json", SearchOption.TopDirectoryOnly))
+                    {
+                        try
+                        {
+                            using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(file));
+                            var root = doc.RootElement;
+                            string? opName = root.TryGetProperty("OperationName", out var opEl) ? opEl.GetString() : null;
+                            if (string.IsNullOrWhiteSpace(opName)) continue;
+                            var dotIdx = opName.IndexOf('.');
+                            var schemaName = dotIdx > 0 ? opName.Substring(0, dotIdx) : "dbo";
+                            if (!string.IsNullOrWhiteSpace(schemaName)) set.Add(schemaName);
+                        }
+                        catch { }
+                    }
+                    if (set.Count > 0) buildSchemas = set.OrderBy(s => s).ToList();
+                }
+            }
+            catch { /* expanded scan skipped */ }
         }
         // Simple line map override: keep comments, replace key lines if present, append if missing.
         var lines = exampleContent.Replace("\r\n", "\n").Split('\n');
@@ -156,6 +260,128 @@ internal static class EnvBootstrapper
         Upsert("SPOCR_NAMESPACE", ns);
         Upsert("SPOCR_TFM", tfm);
         Upsert("SPOCR_GENERATOR_DB", conn);
+        // Insert SPOCR_BUILD_SCHEMAS (comma separated) if we have any inferred/explicit build schemas; else add placeholder comment
+        if (buildSchemas != null && buildSchemas.Count > 0)
+        {
+            Upsert("SPOCR_BUILD_SCHEMAS", string.Join(",", buildSchemas.Distinct(StringComparer.OrdinalIgnoreCase)));
+        }
+        else
+        {
+            if (!dict.ContainsKey("SPOCR_BUILD_SCHEMAS"))
+            {
+                var listLines = lines.ToList();
+                listLines.Add("# SPOCR_BUILD_SCHEMAS=SchemaA,SchemaB (optional positive allow-list; empty -> all except ignored)");
+                lines = listLines.ToArray();
+            }
+        }
         return string.Join(Environment.NewLine, lines) + Environment.NewLine;
+    }
+
+    // Helper: case-insensitive property lookup
+    private static System.Text.Json.JsonElement? TryGetCaseInsensitive(System.Text.Json.JsonElement root, string name)
+    {
+        foreach (var prop in root.EnumerateObject())
+        {
+            if (string.Equals(prop.Name, name, StringComparison.OrdinalIgnoreCase)) return prop.Value;
+        }
+        return null;
+    }
+
+    // Helper: reuse schema inference for augmentation
+    private static List<string>? InferSchemasForPrefill(string projectRoot)
+    {
+        List<string>? buildSchemas = null;
+        var cfgPath = Path.Combine(projectRoot, "spocr.json");
+        if (File.Exists(cfgPath))
+        {
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(cfgPath));
+                var root = doc.RootElement;
+                var schemaArr = TryGetCaseInsensitive(root, "Schema");
+                if (schemaArr.HasValue && schemaArr.Value.ValueKind == System.Text.Json.JsonValueKind.Array)
+                {
+                    foreach (var schemaEl in schemaArr.Value.EnumerateArray())
+                    {
+                        try
+                        {
+                            string? name = schemaEl.TryGetProperty("Name", out var nEl) ? nEl.GetString() : null;
+                            string? status = schemaEl.TryGetProperty("Status", out var sEl) ? sEl.GetString() : null;
+                            if (string.IsNullOrWhiteSpace(name)) continue;
+                            if (!string.IsNullOrWhiteSpace(status) && status.Equals("Ignore", StringComparison.OrdinalIgnoreCase)) continue;
+                            buildSchemas ??= new List<string>();
+                            buildSchemas.Add(name!);
+                        }
+                        catch { }
+                    }
+                    if (buildSchemas != null && buildSchemas.Count > 0) return buildSchemas.Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(s => s).ToList();
+                }
+            }
+            catch { }
+        }
+        // Snapshot fallback (index.json)
+        try
+        {
+            var snapshotDir = Path.Combine(projectRoot, ".spocr", "schema");
+            var indexPath = Path.Combine(snapshotDir, "index.json");
+            if (buildSchemas == null && File.Exists(indexPath))
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(indexPath));
+                var root = doc.RootElement;
+                if (root.TryGetProperty("Procedures", out var procsEl) && procsEl.ValueKind == System.Text.Json.JsonValueKind.Array)
+                {
+                    foreach (var procEl in procsEl.EnumerateArray())
+                    {
+                        try
+                        {
+                            string? opName = procEl.TryGetProperty("OperationName", out var opEl) ? opEl.GetString() : null;
+                            if (string.IsNullOrWhiteSpace(opName)) continue;
+                            var dotIdx = opName.IndexOf('.');
+                            var schemaName = dotIdx > 0 ? opName.Substring(0, dotIdx) : "dbo";
+                            if (!string.IsNullOrWhiteSpace(schemaName))
+                            {
+                                buildSchemas ??= new List<string>();
+                                buildSchemas.Add(schemaName);
+                            }
+                        }
+                        catch { }
+                    }
+                }
+            }
+        }
+        catch { }
+        // Expanded layout (procedures/*.json)
+        try
+        {
+            if (buildSchemas == null)
+            {
+                var procDir = Path.Combine(projectRoot, ".spocr", "schema", "procedures");
+                if (Directory.Exists(procDir))
+                {
+                    foreach (var file in Directory.EnumerateFiles(procDir, "*.json", SearchOption.TopDirectoryOnly))
+                    {
+                        try
+                        {
+                            using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(file));
+                            var root = doc.RootElement;
+                            string? opName = root.TryGetProperty("OperationName", out var opEl) ? opEl.GetString() : null;
+                            if (string.IsNullOrWhiteSpace(opName)) continue;
+                            var dotIdx = opName.IndexOf('.');
+                            var schemaName = dotIdx > 0 ? opName.Substring(0, dotIdx) : "dbo";
+                            if (!string.IsNullOrWhiteSpace(schemaName))
+                            {
+                                buildSchemas ??= new List<string>();
+                                buildSchemas.Add(schemaName);
+                            }
+                        }
+                        catch { }
+                    }
+                }
+            }
+        }
+        catch { }
+        if (buildSchemas != null && buildSchemas.Count > 0)
+            return buildSchemas.Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(s => s).ToList();
+        return null;
     }
 }

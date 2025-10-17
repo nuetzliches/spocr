@@ -39,6 +39,8 @@ public abstract class CommandBase : IAppCommand, ICommandOptions
     public virtual async Task<int> OnExecuteAsync()
     {
         DirectoryUtils.SetBasePath(Path);
+        // Propagate no-cache flag for downstream providers to force snapshot reload.
+        try { SpocR.Utils.CacheControl.ForceReload = NoCache; } catch { }
         return await Task.FromResult((int)ExecuteResultEnum.Succeeded);
     }
 

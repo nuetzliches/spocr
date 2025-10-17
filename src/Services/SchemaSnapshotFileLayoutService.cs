@@ -38,7 +38,7 @@ public sealed class SchemaSnapshotFileLayoutService
         var baseDir = EnsureBaseDir();
         if (baseDir == null) return;
 
-    // Cleanup: remove legacy monolithic snapshot files (Fingerprint.json) except index.json
+        // Cleanup: remove legacy monolithic snapshot files (Fingerprint.json) except index.json
         try
         {
             var legacyFiles = Directory.GetFiles(baseDir, "*.json", SearchOption.TopDirectoryOnly)
@@ -51,14 +51,14 @@ public sealed class SchemaSnapshotFileLayoutService
         }
         catch { }
 
-    // Delta detection: load existing files
+        // Delta detection: load existing files
         var procDir = Path.Combine(baseDir, "procedures");
         var existingProcFiles = Directory.GetFiles(procDir, "*.json", SearchOption.TopDirectoryOnly)
             .ToDictionary(f => Path.GetFileName(f), f => f, StringComparer.OrdinalIgnoreCase);
         var procHashes = new List<FileHashEntry>();
         foreach (var proc in snapshot.Procedures ?? Enumerable.Empty<SnapshotProcedure>())
         {
-            var fileName = $"{Sanitize(proc.Schema)}.{Sanitize(proc.Name)}.json";
+            var fileName = $"{SpocR.SpocRVNext.Utils.NameSanitizer.SanitizeForFile(proc.Schema)}.{SpocR.SpocRVNext.Utils.NameSanitizer.SanitizeForFile(proc.Name)}.json";
             var path = Path.Combine(procDir, fileName);
             var json = JsonSerializer.Serialize(proc, _jsonOptions);
             var newHash = HashUtils.Sha256Hex(json).Substring(0, 16);
@@ -87,7 +87,7 @@ public sealed class SchemaSnapshotFileLayoutService
             });
             existingProcFiles.Remove(fileName);
         }
-    // Remove orphaned procedure files
+        // Remove orphaned procedure files
         foreach (var orphan in existingProcFiles.Values)
         {
             try { File.Delete(orphan); } catch { }
@@ -99,7 +99,7 @@ public sealed class SchemaSnapshotFileLayoutService
         var ttHashes = new List<FileHashEntry>();
         foreach (var udtt in snapshot.UserDefinedTableTypes ?? Enumerable.Empty<SnapshotUdtt>())
         {
-            var fileName = $"{Sanitize(udtt.Schema)}.{Sanitize(udtt.Name)}.json";
+            var fileName = $"{SpocR.SpocRVNext.Utils.NameSanitizer.SanitizeForFile(udtt.Schema)}.{SpocR.SpocRVNext.Utils.NameSanitizer.SanitizeForFile(udtt.Name)}.json";
             var path = Path.Combine(ttDir, fileName);
             var json = JsonSerializer.Serialize(udtt, _jsonOptions);
             var newHash = HashUtils.Sha256Hex(json).Substring(0, 16);
@@ -133,7 +133,7 @@ public sealed class SchemaSnapshotFileLayoutService
             try { File.Delete(orphan); } catch { }
         }
 
-    // Write index.json only when content changed – no GeneratedUtc to ensure deterministic diffs
+        // Write index.json only when content changed – no GeneratedUtc to ensure deterministic diffs
         var index = new ExpandedSnapshotIndex
         {
             SchemaVersion = snapshot.SchemaVersion,
@@ -181,10 +181,12 @@ public sealed class SchemaSnapshotFileLayoutService
             Parser = index.Parser,
             Stats = index.Stats,
             Procedures = new List<SnapshotProcedure>(),
-            UserDefinedTableTypes = new List<SnapshotUdtt>()
+            UserDefinedTableTypes = new List<SnapshotUdtt>(),
+            // Wichtig: Schemas wird aktuell nicht aus index.json rekonstruiert – wir leiten sie später ab.
+            Schemas = new List<SnapshotSchema>()
         };
 
-    // Load procedures
+        // Load procedures
         foreach (var p in index.Procedures ?? Enumerable.Empty<FileHashEntry>())
         {
             var path = Path.Combine(baseDir, "procedures", p.File);
@@ -196,7 +198,7 @@ public sealed class SchemaSnapshotFileLayoutService
             }
             catch { /* ignore single file errors */ }
         }
-    // Load table types
+        // Load table types
         foreach (var t in index.TableTypes ?? Enumerable.Empty<FileHashEntry>())
         {
             var path = Path.Combine(baseDir, "tabletypes", t.File);
@@ -208,18 +210,29 @@ public sealed class SchemaSnapshotFileLayoutService
             }
             catch { }
         }
+        // Schemas ableiten: Union aus allen Procedure- und UDTT-Schemata.
+        try
+        {
+            var schemaNames = snapshot.Procedures.Select(p => p.Schema)
+                .Concat(snapshot.UserDefinedTableTypes.Select(u => u.Schema))
+                .Where(s => !string.IsNullOrWhiteSpace(s))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(s => s)
+                .ToList();
+            foreach (var sn in schemaNames)
+            {
+                snapshot.Schemas.Add(new SnapshotSchema
+                {
+                    Name = sn,
+                    // Status wird nicht persistiert; IgnoredSchemas steuern spätere Filterung.
+                });
+            }
+        }
+        catch { /* best effort */ }
         return snapshot;
     }
 
-    private static string Sanitize(string raw)
-    {
-        if (string.IsNullOrWhiteSpace(raw)) return "_";
-    // Allowed chars: a-zA-Z0-9._- ; everything else -> '_' ; collapse multiple underscores
-        var chars = raw.Select(c => char.IsLetterOrDigit(c) || c is '.' or '_' or '-' ? c : '_').ToArray();
-        var sanitized = new string(chars);
-        while (sanitized.Contains("__")) sanitized = sanitized.Replace("__", "_");
-        return sanitized.Trim('_');
-    }
+    // File-level sanitization now centralized in NameSanitizer.SanitizeForFile
 
     #region Index Models
     public sealed class ExpandedSnapshotIndex

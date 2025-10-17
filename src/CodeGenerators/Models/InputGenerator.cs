@@ -11,6 +11,7 @@ using SpocR.CodeGenerators.Utils;
 using SpocR.Contracts;
 using SpocR.Extensions;
 using SpocR.Managers;
+using SpocR.Enums;
 using SpocR.Models;
 using SpocR.Services;
 using SpocR.Utils;
@@ -106,6 +107,19 @@ public class InputGenerator(
 
     public async Task GenerateDataContextInputs(bool isDryRun)
     {
+        try
+        {
+            var allSchemas = metadataProvider.GetSchemas();
+            var buildSchemas = allSchemas.Where(s => s.Status == SchemaStatusEnum.Build).ToList();
+            var spCount = 0;
+            foreach (var sc in buildSchemas)
+            {
+                if (sc.StoredProcedures != null)
+                    spCount += sc.StoredProcedures.Count();
+            }
+            consoleService.Verbose($"[diag-inputs] schemas(build)={buildSchemas.Count} storedProcedures={spCount} dryRun={isDryRun}");
+        }
+        catch { /* ignore diagnostics */ }
         // Migrate to Version 1.3.2
         if (ConfigFile.Config.Project.Output.DataContext.Inputs == null)
         {
@@ -130,6 +144,7 @@ public class InputGenerator(
             // Ensure target directory exists
             var dataContextInputPath = DirectoryUtils.GetWorkingDirectory(ConfigFile.Config.Project.Output.DataContext.Path, ConfigFile.Config.Project.Output.DataContext.Inputs.Path);
             var path = Path.Combine(dataContextInputPath, schema.Path);
+            consoleService.Verbose($"[diag-inputs] targetDir={path}");
             if (!Directory.Exists(path) && !isDryRun)
             {
                 Directory.CreateDirectory(path);
@@ -142,6 +157,7 @@ public class InputGenerator(
                 {
                     continue;
                 }
+                consoleService.Verbose($"[diag-inputs] generating input for {schema.Name}.{storedProcedure.Name}");
                 var fileName = $"{storedProcedure.Name}.cs";
                 var fileNameWithPath = Path.Combine(path, fileName);
                 var sourceText = await GetInputTextForStoredProcedureAsync(schema, storedProcedure);

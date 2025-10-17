@@ -578,9 +578,18 @@ public class StoredProcedureGenerator(
 
     public async Task GenerateDataContextStoredProceduresAsync(bool isDryRun)
     {
+        try
+        {
+            var allSchemasDiag = metadataProvider.GetSchemas();
+            var buildSchemasDiag = allSchemasDiag.Where(s => s.Status == SchemaStatusEnum.Build).ToList();
+            var totalSp = buildSchemasDiag.Sum(s => (s.StoredProcedures?.Count() ?? 0));
+            consoleService.Verbose($"[diag-sp] schemas(build)={buildSchemasDiag.Count} procedures={totalSp} dryRun={isDryRun}");
+        }
+        catch { /* ignore diag */ }
         var schemas = metadataProvider.GetSchemas()
             .Where(i => i.Status == SchemaStatusEnum.Build && (i.StoredProcedures?.Any() ?? false))
-            .Select(Definition.ForSchema);
+            .Select(Definition.ForSchema)
+            .ToList();
 
         foreach (var schema in schemas)
         {
@@ -593,6 +602,7 @@ public class StoredProcedureGenerator(
 
             var dataContextStoredProcedurePath = DirectoryUtils.GetWorkingDirectory(ConfigFile.Config.Project.Output.DataContext.Path, ConfigFile.Config.Project.Output.DataContext.StoredProcedures.Path);
             var path = Path.Combine(dataContextStoredProcedurePath, schema.Path);
+            consoleService.Verbose($"[diag-sp] targetDir={path} schema={schema.Name}");
             if (!Directory.Exists(path) && !isDryRun)
             {
                 Directory.CreateDirectory(path);

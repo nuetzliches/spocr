@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Data.SqlClient;
 using System.Threading;
 using System.Threading.Tasks;
@@ -10,15 +11,25 @@ public static class StoredProcedureQueries
 {
     public static Task<List<StoredProcedure>> StoredProcedureListAsync(this DbContext context, string schemaList, CancellationToken cancellationToken)
     {
-        var parameters = new List<SqlParameter>
+        string queryString;
+        if (string.IsNullOrWhiteSpace(schemaList))
         {
-        };
-        var queryString = @"SELECT s.name AS schema_name, o.name, o.modify_date
-                               FROM sys.objects AS o 
-                               INNER JOIN sys.schemas AS s ON s.schema_id = o.schema_id 
-                               WHERE o.type = N'P' AND s.name IN(@schemaList) 
-                               ORDER BY o.name;".Replace("@schemaList", schemaList);
-        return context.ListAsync<StoredProcedure>(queryString, parameters, cancellationToken);
+            queryString = @"SELECT s.name AS schema_name, o.name, o.modify_date
+                               FROM sys.objects AS o
+                               INNER JOIN sys.schemas AS s ON s.schema_id = o.schema_id
+                               WHERE o.type = N'P'
+                               ORDER BY s.name, o.name;";
+        }
+        else
+        {
+            // Expecting input like 'dbo','foo'; caller ensures quoting
+            queryString = $@"SELECT s.name AS schema_name, o.name, o.modify_date
+                               FROM sys.objects AS o
+                               INNER JOIN sys.schemas AS s ON s.schema_id = o.schema_id
+                               WHERE o.type = N'P' AND s.name IN({schemaList})
+                               ORDER BY s.name, o.name;";
+        }
+        return context.ListAsync<StoredProcedure>(queryString, new List<SqlParameter>(), cancellationToken);
     }
 
     public static async Task<StoredProcedureDefinition> StoredProcedureDefinitionAsync(this DbContext context, string schemaName, string name, CancellationToken cancellationToken)

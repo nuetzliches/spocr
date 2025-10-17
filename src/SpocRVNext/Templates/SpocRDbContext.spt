@@ -20,12 +20,12 @@ public sealed partial class SpocRDbContext : ISpocRDbContext
         _options = options ?? throw new ArgumentNullException(nameof(options));
         if (string.IsNullOrWhiteSpace(_options.ConnectionString))
             throw new InvalidOperationException("SpocRDbContextOptions.ConnectionString must be set.");
-        if (_options.CommandTimeoutSeconds == null || _options.CommandTimeoutSeconds < 1)
-            _options.CommandTimeoutSeconds = 30;
+        if (_options.CommandTimeout == null || _options.CommandTimeout < 1)
+            _options.CommandTimeout = 30;
     }
 
     /// <inheritdoc />
-    public int CommandTimeoutSeconds => _options.CommandTimeoutSeconds ?? 30;
+    public int CommandTimeout => _options.CommandTimeout ?? 30;
 
     /// <inheritdoc />
     public DbConnection OpenConnection()
