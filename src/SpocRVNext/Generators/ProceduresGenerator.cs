@@ -155,6 +155,13 @@ public sealed class ProceduresGenerator
             var inputTypeName = NamePolicy.Input(procPart);
             var outputTypeName = NamePolicy.Output(procPart);
 
+            // Cross-Schema EXEC Forwarding stub:
+            // ProcedureDescriptor currently lacks raw SQL text; forwarding requires SQL to detect EXEC-only wrappers.
+            // No-op for now; real implementation will enrich metadata (SqlText) and then merge target result sets.
+            // Placeholder log (verbose) can be enabled later via env flag SPOCR_FORWARDING_DIAG.
+            // if (Environment.GetEnvironmentVariable("SPOCR_FORWARDING_DIAG") == "1")
+            //     try { Console.Out.WriteLine($"[proc-forward-xschema][skip] Missing SqlText metadata for {proc.Schema}.{proc.ProcedureName}"); } catch { }
+
             // Cleanup alte Dateien (<Proc>Result.cs, <Proc>Input.cs, <Proc>Output.cs) bevor neue Einzeldatei erstellt wird
             try
             {

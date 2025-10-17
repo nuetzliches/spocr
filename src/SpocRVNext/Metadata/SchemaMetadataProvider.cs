@@ -256,7 +256,28 @@ namespace SpocR.SpocRVNext.Metadata
                             catch { /* silent fallback */ }
                         }
                         usedNames.Add(rsName);
-                        resultSetDescriptors.Add(new ResultSetDescriptor(idx, rsName, columns));
+                        // Forwarding + diagnostic metadata (optional in snapshot)
+                        string? execSourceSchema = null;
+                        string? execSourceProc = null;
+                        bool hasSelectStar = false;
+                        try
+                        {
+                            execSourceSchema = rse.GetPropertyOrDefault("ExecSourceSchemaName");
+                            execSourceProc = rse.GetPropertyOrDefault("ExecSourceProcedureName");
+                            var hasStarRaw = rse.GetPropertyOrDefaultBool("HasSelectStar");
+                            hasSelectStar = hasStarRaw;
+                        }
+                        catch { /* best effort; leave null/defaults */ }
+                        resultSetDescriptors.Add(new ResultSetDescriptor(
+                            Index: idx,
+                            Name: rsName,
+                            Fields: columns,
+                            IsScalar: false,
+                            Optional: true,
+                            HasSelectStar: hasSelectStar,
+                            ExecSourceSchemaName: execSourceSchema,
+                            ExecSourceProcedureName: execSourceProc
+                        ));
                         idx++;
                     }
                 }

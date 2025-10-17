@@ -7,5 +7,8 @@ public sealed record ResultSetDescriptor(
     string Name,
     IReadOnlyList<FieldDescriptor> Fields,
     bool IsScalar = false,
-    bool Optional = true
+    bool Optional = true,
+    bool HasSelectStar = false,
+    string? ExecSourceSchemaName = null,
+    string? ExecSourceProcedureName = null
 );

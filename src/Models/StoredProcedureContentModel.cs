@@ -11,6 +11,8 @@ namespace SpocR.Models;
 public class StoredProcedureContentModel
 {
     private static readonly TSql160Parser Parser = new(initialQuotedIdentifiers: true);
+    private static readonly bool SplitNestedJsonSets =
+        (Environment.GetEnvironmentVariable("SPOCR_JSON_SPLIT_NESTED")?.Trim().ToLowerInvariant()) is "1" or "true" or "yes" or "on";
 
     public string Definition { get; init; }
 
@@ -91,9 +93,50 @@ public class StoredProcedureContentModel
             : new[] { definition.Trim() };
 
         var jsonSets = analysis.JsonSets.ToArray();
-        var execs = analysis.ExecutedProcedures
-            .Select(e => new ExecutedProcedureCall { Schema = e.Schema, Name = e.Name })
-            .ToArray();
+        var execsRaw = analysis.ExecutedProcedures.Select(e => new ExecutedProcedureCall { Schema = e.Schema, Name = e.Name, IsCaptured = false }).ToList();
+
+        // Textuelle Heuristik: Zeilen mit sowohl INSERT als auch EXEC (INSERT ... EXEC) gelten als "captured" und werden nicht forwarded
+        var capturedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var defLines = definition.Split('\n');
+        foreach (var l in defLines)
+        {
+            var line = l.Trim();
+            if (line.Length == 0) continue;
+            int insertIdx = line.IndexOf("INSERT", StringComparison.OrdinalIgnoreCase);
+            int execIdx = line.IndexOf("EXEC", StringComparison.OrdinalIgnoreCase);
+            if (insertIdx >= 0 && execIdx > insertIdx)
+            {
+                // Extrahiere EXEC Token wie in RawExecCandidates
+                var after = line.Substring(execIdx + 4).TrimStart('U','T','E',' ','\t');
+                after = after.TrimStart();
+                if (after.StartsWith("sp_executesql", StringComparison.OrdinalIgnoreCase) || after.StartsWith("@") || after.StartsWith("(") || after.StartsWith("'"))
+                {
+                    continue; // dynamisch/variabel -> ignorieren
+                }
+                int end = after.Length;
+                var terminators = new[] {' ', '\t', ';', '('};
+                for (int i = 0; i < after.Length; i++)
+                {
+                    if (terminators.Contains(after[i])) { end = i; break; }
+                }
+                var token = after.Substring(0, end).Trim();
+                if (token.Length == 0) continue;
+                capturedNames.Add(token);
+            }
+        }
+
+        // Markiere passende execs als captured (auch Schema-Präfix berücksichtigen)
+        foreach (var ex in execsRaw)
+        {
+            var fullyQualified = $"{ex.Schema}.{ex.Name}";
+            if (capturedNames.Contains(ex.Name) || capturedNames.Contains(fullyQualified))
+            {
+                ex.IsCaptured = true;
+            }
+        }
+
+        // Nur nicht-captured für Forwarding verwenden
+        var execs = execsRaw.Where(e => !e.IsCaptured).ToArray();
 
         // Diagnose-Infos sammeln
         var containsExec = definition.IndexOf("EXEC", StringComparison.OrdinalIgnoreCase) >= 0;
@@ -136,6 +179,12 @@ public class StoredProcedureContentModel
         }
 
 
+        var initialSets = AttachExecSource(jsonSets, execs, rawExecCandidates, rawKinds, defaultSchema);
+
+        // Entfernt: Namensbasierte Heuristiken ("AsJson") für synthetische Wrapper-ResultSets und Basisnamen-Ableitung.
+        // Begründung: Forwarding und JSON-Erkennung erfolgen ausschließlich auf Ebene tatsächlicher ResultSets (ReturnsJson) und EXEC-Erkennung.
+        // Für reine Wrapper ohne eigenes SELECT FOR JSON wird kein künstliches ResultSet mehr erzeugt.
+
         return new StoredProcedureContentModel
         {
             Definition = definition,
@@ -146,7 +195,7 @@ public class StoredProcedureContentModel
             ContainsDelete = analysis.ContainsDelete,
             ContainsMerge = analysis.ContainsMerge,
             ContainsOpenJson = analysis.ContainsOpenJson,
-            ResultSets = jsonSets,
+            ResultSets = initialSets,
             ExecutedProcedures = execs,
             ContainsExecKeyword = containsExec,
             RawExecCandidates = rawExecCandidates,
@@ -272,6 +321,7 @@ public class StoredProcedureContentModel
     {
         public string Schema { get; init; }
         public string Name { get; init; }
+        public bool IsCaptured { get; set; }
     }
 
     private sealed class ProcedureContentAnalysis
@@ -300,6 +350,8 @@ public class StoredProcedureContentModel
         public bool JsonWithoutArrayWrapper { get; set; }
         public List<ResultSet> JsonSets { get; } = new();
         public List<(string Schema, string Name)> ExecutedProcedures { get; } = new();
+    // EXEC-Aufrufe, die direkt durch INSERT INTO EXEC konsumiert werden (nicht forwarden)
+    public List<(string Schema, string Name)> CapturedExecutedProcedures { get; } = new();
 
         public void FinalizeJson()
         {
@@ -410,9 +462,9 @@ public class StoredProcedureContentModel
                 // Inside a ScalarSubquery this represents a nested JSON fragment
                 // returned as a single NVARCHAR(MAX) column (aliased in the outer SELECT). In that case DO NOT create a separate ResultSet.
                 // Exception: Pass-through case (parent SELECT has exactly one projection which is this ScalarSubquery) => treat as top-level JSON.
-                if (_scalarSubqueryDepth > 0 && !(parentSelectCount == 1))
+                if (_scalarSubqueryDepth > 0 && !(parentSelectCount == 1) && !SplitNestedJsonSets)
                 {
-                    // Mark the corresponding column in the outer set as nested (handled later in CollectJsonColumnsForSet via expression kind detection)
+                    // Nested JSON stays embedded inside outer SELECT as scalar NVARCHAR(MAX) column
                     base.ExplicitVisit(node);
                     _parentSelectElementCount = parentSelectCount; // restore before return
                     return;
@@ -519,7 +571,11 @@ public class StoredProcedureContentModel
                         }
                         if (!string.IsNullOrWhiteSpace(procName))
                         {
+                            // Nur hinzufügen wenn nicht bereits als captured klassifiziert (INSERT INTO EXEC)
+                            if (!_analysis.CapturedExecutedProcedures.Any(c => string.Equals(c.Name, procName, StringComparison.OrdinalIgnoreCase) && string.Equals(c.Schema, schemaName ?? _analysis.DefaultSchema, StringComparison.OrdinalIgnoreCase)))
+                            {
                             _analysis.ExecutedProcedures.Add((schemaName ?? _analysis.DefaultSchema, procName));
+                            }
                         }
                     }
                 }
@@ -609,6 +665,12 @@ public class StoredProcedureContentModel
                         var nested = ExtractNestedJson(subquery);
                         if (nested != null)
                         {
+                                if (SplitNestedJsonSets)
+                                {
+                                    // Bei aktivem Split werden verschachtelte JSON-Subqueries als eigene ResultSets behandelt
+                                    // -> nicht als Spalte einbetten, sondern überspringen
+                                    break; // skip adding this column entirely
+                                }
                             jsonColumn.IsNestedJson = true;
                             jsonColumn.ExpressionKind = ResultColumnExpressionKind.JsonQuery; // treat similarly
                             jsonColumn.JsonResult = nested;
@@ -896,6 +958,64 @@ public class StoredProcedureContentModel
             StringLiteral stringLiteral => stringLiteral.Value,
             _ => literal.Value
         };
+    }
+
+    private static IReadOnlyList<ResultSet> AttachExecSource(IReadOnlyList<ResultSet> sets, IReadOnlyList<ExecutedProcedureCall> execs, IReadOnlyList<string>? rawExecCandidates = null, IReadOnlyDictionary<string,string>? rawKinds = null, string defaultSchema = "dbo")
+    {
+        if (sets == null || sets.Count == 0) return sets ?? Array.Empty<ResultSet>();
+
+        ExecutedProcedureCall? resolved = null;
+        // Primary path: AST captured exactly one executed procedure.
+        if (execs != null && execs.Count == 1)
+        {
+            resolved = execs[0];
+        }
+        else if ((execs == null || execs.Count == 0) && rawExecCandidates != null && rawExecCandidates.Count == 1)
+        {
+            // Fallback path: No AST ExecuteSpecification captured (e.g. due to parser limitation or uncommon syntax),
+            // but we heuristically extracted exactly one static EXEC candidate token.
+            var candidate = rawExecCandidates[0];
+            if (rawKinds != null && rawKinds.TryGetValue(candidate, out var kind) && string.Equals(kind, "static", System.StringComparison.OrdinalIgnoreCase))
+            {
+                // Candidate may be schema.proc or just proc
+                var parts = candidate.Split('.', StringSplitOptions.RemoveEmptyEntries);
+                if (parts.Length == 1)
+                {
+                    resolved = new ExecutedProcedureCall { Schema = defaultSchema, Name = parts[0] };
+                }
+                else if (parts.Length >= 2)
+                {
+                    resolved = new ExecutedProcedureCall { Schema = parts[0], Name = parts[1] };
+                }
+            }
+        }
+
+        if (resolved == null) return sets; // no forwarding source identified
+
+        // Only mark sets that are JSON; non-JSON sets remain untouched.
+        var augmented = new List<ResultSet>(sets.Count);
+        foreach (var s in sets)
+        {
+            if (!s.ReturnsJson)
+            {
+                augmented.Add(s);
+                continue;
+            }
+            // Clone with forwarding metadata
+            var clone = new ResultSet
+            {
+                ReturnsJson = s.ReturnsJson,
+                ReturnsJsonArray = s.ReturnsJsonArray,
+                ReturnsJsonWithoutArrayWrapper = s.ReturnsJsonWithoutArrayWrapper,
+                JsonRootProperty = s.JsonRootProperty,
+                Columns = s.Columns,
+                HasSelectStar = s.HasSelectStar,
+                ExecSourceSchemaName = resolved.Schema,
+                ExecSourceProcedureName = resolved.Name
+            };
+            augmented.Add(clone);
+        }
+        return augmented;
     }
 }
 
