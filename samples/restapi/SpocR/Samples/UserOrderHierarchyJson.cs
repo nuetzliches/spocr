@@ -61,15 +61,6 @@ internal static partial class UserOrderHierarchyJsonPlan
     }
 }
 
-public static class UserOrderHierarchyJsonProcedure
-{
-	public const string Name = "samples.UserOrderHierarchyJson";
-	public static Task<UserOrderHierarchyJsonResult> ExecuteAsync(DbConnection connection, CancellationToken cancellationToken = default)
-	{
-		return ProcedureExecutor.ExecuteAsync<UserOrderHierarchyJsonResult>(connection, UserOrderHierarchyJsonPlan.Instance, null, cancellationToken);
-	}
-}
-
 /// <summary>Convenience extension for executing 'samples.UserOrderHierarchyJson' via an <see cref="ISpocRDbContext"/>.</summary>
 public static class UserOrderHierarchyJsonExtensions
 {
@@ -77,5 +68,15 @@ public static class UserOrderHierarchyJsonExtensions
 	{
 		await using var conn = await db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 		return await UserOrderHierarchyJsonProcedure.ExecuteAsync(conn, cancellationToken).ConfigureAwait(false);
+	}
+}
+
+/// <summary>Low-level execution wrapper for a single stored procedure invocation.</summary>
+public static class UserOrderHierarchyJsonProcedure
+{
+	public const string Name = "samples.UserOrderHierarchyJson";
+	public static Task<UserOrderHierarchyJsonResult> ExecuteAsync(DbConnection connection, CancellationToken cancellationToken = default)
+	{
+		return ProcedureExecutor.ExecuteAsync<UserOrderHierarchyJsonResult>(connection, UserOrderHierarchyJsonPlan.Instance, null, cancellationToken);
 	}
 }

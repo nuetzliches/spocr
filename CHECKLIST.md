@@ -42,11 +42,11 @@ API-KONZEPT Umsetzung & Entscheidungsfindung (siehe `DeveloperBranchUseOnly-API-
    note: Vorgaben bestätigt: 1) Unterschiedliche Schemas erzeugen auch unterschiedliche Namespaces (SchemaPascalCase eingebunden) → reduziert natürliche Konflikte. 2) Bereinigung ersetzt nur nicht pfad-/klassennamen-kompatible Sonderzeichen durch '\_' (kein Entfernen/Normalisieren zur Deduplikation, keine aggressive Vereinheitlichung). 3) Prozedurnamen bleiben (abgesehen von Sonderzeichen-Ersatz) unverändert; kein Plural-Singulär Rewriting, kein Suffix Strip. 7) Zugriffskonzepte evaluiert: a) Extensions via using Namespace (Standard) b) db.[SchemaName].[ProcName]Async() via verschachtelte Schema-Accessor Proxy c) Mehrere injizierbare schema-spezifische DbContexts. Empfehlung: Start mit einfachem DbContext + Namespaces (Option a) → spätere Erweiterung: optionaler Schema Accessor (Option b) wenn Discoverability Bedarf steigt. Separate DbContexts pro Schema (Option c) aktuell verworfen (Fragmentierung / DI Overhead).
    Kollisionslösung: Erst normaler Methodenname; falls Dublette trotz Namespace (selten bei identischem SchemaPascalCase + Name) → Schema-Präfix an Methodennamen anhängen (SalesGetOrderAsync). Keine Overloads.
    Optional Anschluss-Schritte (Interceptor & Invocation Ausbau):
-   - LoggingProcedureInterceptor (structured logging: duration ms, success flag, error) implementieren [ ]
-   - DEVELOPMENT.md Abschnitt "Interceptors" (Registration, Best Practices, Fehlerhandling) ergänzen [ ]
-   - Reflection-Test für Extension Präsenz (<ProcName>Async + Wrapper Bridge) hinzufügen [ ]
-   - Doku Hinweis: Globaler statischer Interceptor vs. mögliche zukünftige DI-scoped Variante [ ]
-   - Beispiel-Code Snippet im README (Interceptor Registrierung während Startup) [ ]
+   - LoggingProcedureInterceptor (structured logging: duration ms, success flag, error) implementieren [x]
+   - DEVELOPMENT.md Abschnitt "Interceptors" (Registration, Best Practices, Fehlerhandling) ergänzen [x]
+   - Reflection-Test für Extension Präsenz (<ProcName>Async + Wrapper Bridge) hinzufügen [x]
+   - Doku Hinweis: Globaler statischer Interceptor vs. mögliche zukünftige DI-scoped Variante (Trade-offs dokumentieren: Einfachheit vs. Request-Korrelation) [x]
+   - Beispiel-Code Snippet im README (Interceptor Registrierung während Startup) [x]
 4. (P1) Aggregat Rückgabe-Konvention – Entscheidung BESTÄTIGT: Immer Unified Aggregate (kein Shortcut bei Single ResultSet) – [x] dokumentieren (API-CONCEPT.md Referenz) TODO: README Abschnitt ergänzen
 5. (P2) Streaming API Flags & Snapshot Erweiterungen (ResultSetStreamingKind, IsJsonPayload) – Spezifikation festziehen (Implementierung deferred v5)
 6. (P2) JSON Dual Mode Methoden-Suffixe fixieren (`JsonRawAsync`, `JsonDeserializeAsync`, `JsonElementsAsync`, `JsonStreamAsync`) – Naming Freeze

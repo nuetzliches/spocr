@@ -60,15 +60,6 @@ internal static partial class UserFindPlan
     }
 }
 
-public static class UserFindProcedure
-{
-	public const string Name = "samples.UserFind";
-	public static Task<UserFindResult> ExecuteAsync(DbConnection connection, UserFindInput input, CancellationToken cancellationToken = default)
-	{
-		return ProcedureExecutor.ExecuteAsync<UserFindResult>(connection, UserFindPlan.Instance, input, cancellationToken);
-	}
-}
-
 /// <summary>Convenience extension for executing 'samples.UserFind' via an <see cref="ISpocRDbContext"/>.</summary>
 public static class UserFindExtensions
 {
@@ -76,5 +67,15 @@ public static class UserFindExtensions
 	{
 		await using var conn = await db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 		return await UserFindProcedure.ExecuteAsync(conn, input, cancellationToken).ConfigureAwait(false);
+	}
+}
+
+/// <summary>Low-level execution wrapper for a single stored procedure invocation.</summary>
+public static class UserFindProcedure
+{
+	public const string Name = "samples.UserFind";
+	public static Task<UserFindResult> ExecuteAsync(DbConnection connection, UserFindInput input, CancellationToken cancellationToken = default)
+	{
+		return ProcedureExecutor.ExecuteAsync<UserFindResult>(connection, UserFindPlan.Instance, input, cancellationToken);
 	}
 }

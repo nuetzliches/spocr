@@ -57,15 +57,6 @@ internal static partial class UserContactSyncPlan
     }
 }
 
-public static class UserContactSyncProcedure
-{
-	public const string Name = "samples.UserContactSync";
-	public static Task<UserContactSyncResult> ExecuteAsync(DbConnection connection, UserContactSyncInput input, CancellationToken cancellationToken = default)
-	{
-		return ProcedureExecutor.ExecuteAsync<UserContactSyncResult>(connection, UserContactSyncPlan.Instance, input, cancellationToken);
-	}
-}
-
 /// <summary>Convenience extension for executing 'samples.UserContactSync' via an <see cref="ISpocRDbContext"/>.</summary>
 public static class UserContactSyncExtensions
 {
@@ -73,5 +64,15 @@ public static class UserContactSyncExtensions
 	{
 		await using var conn = await db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 		return await UserContactSyncProcedure.ExecuteAsync(conn, input, cancellationToken).ConfigureAwait(false);
+	}
+}
+
+/// <summary>Low-level execution wrapper for a single stored procedure invocation.</summary>
+public static class UserContactSyncProcedure
+{
+	public const string Name = "samples.UserContactSync";
+	public static Task<UserContactSyncResult> ExecuteAsync(DbConnection connection, UserContactSyncInput input, CancellationToken cancellationToken = default)
+	{
+		return ProcedureExecutor.ExecuteAsync<UserContactSyncResult>(connection, UserContactSyncPlan.Instance, input, cancellationToken);
 	}
 }

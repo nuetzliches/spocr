@@ -55,15 +55,6 @@ internal static partial class OrderListAsJsonPlan
     }
 }
 
-public static class OrderListAsJsonProcedure
-{
-	public const string Name = "samples.OrderListAsJson";
-	public static Task<OrderListAsJsonResult> ExecuteAsync(DbConnection connection, CancellationToken cancellationToken = default)
-	{
-		return ProcedureExecutor.ExecuteAsync<OrderListAsJsonResult>(connection, OrderListAsJsonPlan.Instance, null, cancellationToken);
-	}
-}
-
 /// <summary>Convenience extension for executing 'samples.OrderListAsJson' via an <see cref="ISpocRDbContext"/>.</summary>
 public static class OrderListAsJsonExtensions
 {
@@ -71,5 +62,15 @@ public static class OrderListAsJsonExtensions
 	{
 		await using var conn = await db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 		return await OrderListAsJsonProcedure.ExecuteAsync(conn, cancellationToken).ConfigureAwait(false);
+	}
+}
+
+/// <summary>Low-level execution wrapper for a single stored procedure invocation.</summary>
+public static class OrderListAsJsonProcedure
+{
+	public const string Name = "samples.OrderListAsJson";
+	public static Task<OrderListAsJsonResult> ExecuteAsync(DbConnection connection, CancellationToken cancellationToken = default)
+	{
+		return ProcedureExecutor.ExecuteAsync<OrderListAsJsonResult>(connection, OrderListAsJsonPlan.Instance, null, cancellationToken);
 	}
 }

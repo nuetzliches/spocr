@@ -246,3 +246,70 @@ CLI Roadmap:
 
 - Geplanter Befehl `spocr vnext init-env` zum nicht-interaktiven Schreiben einer `.env` aus Template.
 - Geplanter Befehl `spocr vnext generate` als expliziter Wrapper für reinen vNext Lauf (ohne Legacy Generatoren).
+
+### Interceptors (Procedure Execution)
+
+The vNext executor exposes a single global interceptor hook surface via `ProcedureExecutor.SetInterceptor(ISpocRProcedureInterceptor)`. Interceptors allow lightweight instrumentation without altering generated code.
+
+Contract (`ISpocRProcedureInterceptor`):
+
+```
+Task<object?> OnBeforeExecuteAsync(string procedureName, DbCommand command, object? state, CancellationToken ct);
+Task OnAfterExecuteAsync(string procedureName, DbCommand command, bool success, string? error, TimeSpan duration, object? beforeState, object? aggregate, CancellationToken ct);
+```
+
+Lifecycle:
+
+1. Executor builds & binds command parameters.
+2. `OnBeforeExecuteAsync` called (state = input record supplied by wrapper). Return value propagated into `OnAfterExecuteAsync` as `beforeState` (e.g. start timestamp, correlation id).
+3. Core execution (ADO.NET + result set materialization).
+4. `OnAfterExecuteAsync` invoked with success/error + aggregate result instance.
+
+Global vs Scoped:
+
+- CURRENT: A single static interceptor instance (simple and allocation-free). Suitable for most apps.
+- POSSIBLE FUTURE: DI-scoped interceptors enabling per-request correlation. Would require refactoring `ProcedureExecutor` signature to accept an interceptor instance or context.
+
+Registration (startup):
+
+```csharp
+// using SpocR.SpocRVNext.Execution;
+// Assume ILoggerFactory lf is available
+var logger = lf.CreateLogger("SpocR.Proc");
+ProcedureExecutor.SetInterceptor(new LoggingProcedureInterceptor(logger));
+```
+
+Best Practices:
+
+- Avoid heavy work (no large allocations, no blocking I/O).
+- Swallow internal exceptions: default implementation and logging interceptor never throw.
+- Use structured logging (key=value pairs) for easier querying.
+- Do not mutate `DbCommand.Parameters` after binding unless you fully understand generator expectations.
+- Keep execution path side-effect free; interceptor is observational.
+
+Error Handling:
+
+- Executor catches all interceptor exceptions during `OnAfterExecuteAsync` to protect the core flow.
+- If the interceptor throws in `OnBeforeExecuteAsync`, execution aborts (normal exception propagation). Interceptors should avoid throwing.
+
+Telemetry Ideas (Future):
+
+- Correlation id injection via beforeState.
+- Metrics counters (success count, error count, average duration).
+- Extended hooks for streaming phases (deferred to v5 streaming work).
+
+Testing:
+
+- Unit tests provide fake interceptor verifying success & failure paths (see `ProcedureInterceptorTests`).
+- Logging interceptor kept minimal; tests can assert presence of expected log message templates if required.
+
+When to Implement a Custom Interceptor:
+
+- Need centralized timing metrics.
+- Need audit of procedure invocations.
+- Integrate with tracing systems (e.g. OpenTelemetry) by starting/ending spans.
+
+Open Questions:
+
+- Scoped vs global trade-off (documented; decision: keep global for v5 initial release).
+- Additional hooks (streaming, JSON deserialization) deferred until streaming feature stabilized.

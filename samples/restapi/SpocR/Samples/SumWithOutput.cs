@@ -67,15 +67,6 @@ internal static partial class SumWithOutputPlan
     }
 }
 
-public static class SumWithOutputProcedure
-{
-	public const string Name = "samples.SumWithOutput";
-	public static Task<SumWithOutputResult> ExecuteAsync(DbConnection connection, SumWithOutputInput input, CancellationToken cancellationToken = default)
-	{
-		return ProcedureExecutor.ExecuteAsync<SumWithOutputResult>(connection, SumWithOutputPlan.Instance, input, cancellationToken);
-	}
-}
-
 /// <summary>Convenience extension for executing 'samples.SumWithOutput' via an <see cref="ISpocRDbContext"/>.</summary>
 public static class SumWithOutputExtensions
 {
@@ -83,5 +74,15 @@ public static class SumWithOutputExtensions
 	{
 		await using var conn = await db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 		return await SumWithOutputProcedure.ExecuteAsync(conn, input, cancellationToken).ConfigureAwait(false);
+	}
+}
+
+/// <summary>Low-level execution wrapper for a single stored procedure invocation.</summary>
+public static class SumWithOutputProcedure
+{
+	public const string Name = "samples.SumWithOutput";
+	public static Task<SumWithOutputResult> ExecuteAsync(DbConnection connection, SumWithOutputInput input, CancellationToken cancellationToken = default)
+	{
+		return ProcedureExecutor.ExecuteAsync<SumWithOutputResult>(connection, SumWithOutputPlan.Instance, input, cancellationToken);
 	}
 }

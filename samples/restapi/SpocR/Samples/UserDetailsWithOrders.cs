@@ -60,15 +60,6 @@ internal static partial class UserDetailsWithOrdersPlan
     }
 }
 
-public static class UserDetailsWithOrdersProcedure
-{
-	public const string Name = "samples.UserDetailsWithOrders";
-	public static Task<UserDetailsWithOrdersResult> ExecuteAsync(DbConnection connection, UserDetailsWithOrdersInput input, CancellationToken cancellationToken = default)
-	{
-		return ProcedureExecutor.ExecuteAsync<UserDetailsWithOrdersResult>(connection, UserDetailsWithOrdersPlan.Instance, input, cancellationToken);
-	}
-}
-
 /// <summary>Convenience extension for executing 'samples.UserDetailsWithOrders' via an <see cref="ISpocRDbContext"/>.</summary>
 public static class UserDetailsWithOrdersExtensions
 {
@@ -76,5 +67,15 @@ public static class UserDetailsWithOrdersExtensions
 	{
 		await using var conn = await db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 		return await UserDetailsWithOrdersProcedure.ExecuteAsync(conn, input, cancellationToken).ConfigureAwait(false);
+	}
+}
+
+/// <summary>Low-level execution wrapper for a single stored procedure invocation.</summary>
+public static class UserDetailsWithOrdersProcedure
+{
+	public const string Name = "samples.UserDetailsWithOrders";
+	public static Task<UserDetailsWithOrdersResult> ExecuteAsync(DbConnection connection, UserDetailsWithOrdersInput input, CancellationToken cancellationToken = default)
+	{
+		return ProcedureExecutor.ExecuteAsync<UserDetailsWithOrdersResult>(connection, UserDetailsWithOrdersPlan.Instance, input, cancellationToken);
 	}
 }

@@ -53,15 +53,6 @@ internal static partial class UserListPlan
     }
 }
 
-public static class UserListProcedure
-{
-	public const string Name = "samples.UserList";
-	public static Task<UserListResult> ExecuteAsync(DbConnection connection, CancellationToken cancellationToken = default)
-	{
-		return ProcedureExecutor.ExecuteAsync<UserListResult>(connection, UserListPlan.Instance, null, cancellationToken);
-	}
-}
-
 /// <summary>Convenience extension for executing 'samples.UserList' via an <see cref="ISpocRDbContext"/>.</summary>
 public static class UserListExtensions
 {
@@ -69,5 +60,15 @@ public static class UserListExtensions
 	{
 		await using var conn = await db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 		return await UserListProcedure.ExecuteAsync(conn, cancellationToken).ConfigureAwait(false);
+	}
+}
+
+/// <summary>Low-level execution wrapper for a single stored procedure invocation.</summary>
+public static class UserListProcedure
+{
+	public const string Name = "samples.UserList";
+	public static Task<UserListResult> ExecuteAsync(DbConnection connection, CancellationToken cancellationToken = default)
+	{
+		return ProcedureExecutor.ExecuteAsync<UserListResult>(connection, UserListPlan.Instance, null, cancellationToken);
 	}
 }

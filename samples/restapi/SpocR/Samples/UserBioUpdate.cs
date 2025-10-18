@@ -60,15 +60,6 @@ internal static partial class UserBioUpdatePlan
     }
 }
 
-public static class UserBioUpdateProcedure
-{
-	public const string Name = "samples.UserBioUpdate";
-	public static Task<UserBioUpdateResult> ExecuteAsync(DbConnection connection, UserBioUpdateInput input, CancellationToken cancellationToken = default)
-	{
-		return ProcedureExecutor.ExecuteAsync<UserBioUpdateResult>(connection, UserBioUpdatePlan.Instance, input, cancellationToken);
-	}
-}
-
 /// <summary>Convenience extension for executing 'samples.UserBioUpdate' via an <see cref="ISpocRDbContext"/>.</summary>
 public static class UserBioUpdateExtensions
 {
@@ -76,5 +67,15 @@ public static class UserBioUpdateExtensions
 	{
 		await using var conn = await db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 		return await UserBioUpdateProcedure.ExecuteAsync(conn, input, cancellationToken).ConfigureAwait(false);
+	}
+}
+
+/// <summary>Low-level execution wrapper for a single stored procedure invocation.</summary>
+public static class UserBioUpdateProcedure
+{
+	public const string Name = "samples.UserBioUpdate";
+	public static Task<UserBioUpdateResult> ExecuteAsync(DbConnection connection, UserBioUpdateInput input, CancellationToken cancellationToken = default)
+	{
+		return ProcedureExecutor.ExecuteAsync<UserBioUpdateResult>(connection, UserBioUpdatePlan.Instance, input, cancellationToken);
 	}
 }

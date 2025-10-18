@@ -139,6 +139,50 @@ Benefits:
 
 Referenced Tests: `EnvConfigurationTests` (precedence + invalid mode) and `BridgePolicyTests` (upgrade gating & override variable).
 
+### Procedure Execution Interceptors (vNext)
+
+SpocR vNext provides a global interceptor surface for stored procedure executions enabling lightweight logging and telemetry without modifying generated code.
+
+Register an interceptor at application startup:
+
+```csharp
+using SpocR.SpocRVNext.Execution;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddSpocRDbContext(o =>
+{
+  o.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+});
+
+var app = builder.Build();
+var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("SpocR.Proc");
+ProcedureExecutor.SetInterceptor(new LoggingProcedureInterceptor(logger));
+
+app.MapGet("/api/users", async (ISpocRDbContext db, CancellationToken ct) =>
+{
+  var result = await db.UserListAsync(ct).ConfigureAwait(false);
+  return result.Success ? Results.Ok(result.Result1) : Results.Problem(result.Error);
+});
+
+app.Run();
+```
+
+Sample log output:
+
+```
+spocr.proc.executed samples.UserList duration_ms=12.34 params=0 success=True
+spocr.proc.failed dbo.UserDetailsWithOrders duration_ms=18.77 params=2 success=False error="Timeout expired"
+```
+
+Guidelines:
+
+- Keep interceptor work minimal (no blocking I/O). Exceptions in `OnAfterExecuteAsync` are swallowed.
+- Global static registration keeps overhead negligible; DI-scoped interceptors may be added later for correlation IDs.
+- For tracing (OpenTelemetry) create a custom interceptor starting/stopping spans around `ExecuteAsync`.
+
+See `DEVELOPMENT.md` for full lifecycle and hook details.
+
 ### Namespace Derivation & Override
 
 SpocR derives a default root namespace for generated code when you do not explicitly supply one. The resolution order follows the same precedence chain shown above and is tested (see `EnvConfigurationTests`):
