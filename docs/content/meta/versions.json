@@ -1,0 +1,12 @@
+{
+    "versions": [
+        "4.5",
+        "5.0"
+    ],
+    "currentVersion": "4.5",
+    "upcomingVersion": "5.0",
+    "banner": {
+        "4.5": "Sie lesen die v4.5 Bridge-Dokumentation – v5 ist in Vorbereitung.",
+        "5.0": "Dies sind Vorschauinhalte für v5 – Änderungen vorbehalten."
+    }
+}

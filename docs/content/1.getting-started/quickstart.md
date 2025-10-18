@@ -1,6 +1,7 @@
 ---
 title: Quickstart
 description: From zero to first generated code in minutes.
+version: 4.5
 ---
 
 # Quickstart
@@ -45,6 +46,26 @@ var ctx = new GeneratedDbContext(connectionString);
 var result = await ctx.MyProcedureAsync(new MyProcedureInput { Id = 5 });
 ```
 
+### vNext (Bridge) Example (DbContext Registration)
+
+```csharp
+// Program.cs (minimal API style)
+builder.Services.AddSpocRDbContext(o =>
+{
+	o.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+	o.Name = "AppDb"; // Optional friendly name
+	o.TimeoutSeconds = 30; // Example timeout
+});
+
+var app = builder.Build();
+// Generated execution (vNext pipeline) – strongly typed invocation
+var scope = app.Services.CreateScope();
+var db = scope.ServiceProvider.GetRequiredService<SpocRDbContext>();
+var users = await db.UserListAsync(new UserListInput { ActiveOnly = true });
+```
+
+> Version: This Quickstart reflects the bridge phase (v4.5). v5 will remove the legacy DataContext and rely solely on the vNext pipeline.
+
 ## 6. Refresh Changes
 
 ```bash
@@ -76,7 +97,7 @@ Notes:
 - `dotnet tool update` acts as install if the tool was removed.
 - Repeat the pack & update steps whenever you change the source.
 - To force a specific version (e.g. during testing): `dotnet pack -c Release -o ./nupkg /p:Version=4.5.0-local`
-	- Alternatively supply a custom version placeholder: `dotnet pack -c Release -o ./nupkg /p:Version=<version>-local`
+  - Alternatively supply a custom version placeholder: `dotnet pack -c Release -o ./nupkg /p:Version=<version>-local`
 
 ## Further Reading
 

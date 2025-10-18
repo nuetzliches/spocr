@@ -31,18 +31,6 @@ public static class SpocRDbContextServiceCollectionExtensions
                 throw new InvalidOperationException("MaxOpenRetries must be >= 0");
             if (explicitOptions.RetryDelayMs is not null and <= 0)
                 throw new InvalidOperationException("RetryDelayMs must be > 0");
-            if (explicitOptions.ValidateOnBuild)
-            {
-                try
-                {
-                    using var probe = new Microsoft.Data.SqlClient.SqlConnection(conn);
-                    probe.Open();
-                }
-                catch (Exception ex)
-                {
-                    throw new InvalidOperationException("SpocRDbContext ValidateOnBuild failed to open connection", ex);
-                }
-            }
             return explicitOptions;
         });
 

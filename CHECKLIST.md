@@ -28,7 +28,7 @@ Aktueller Fokus (Top 10 P1/P2) – Update 2025-10-15:
 
 1. (P1) E014 End-to-End Nutzung mind. einer Stored Procedure im Sample – Roundtrip stabilisieren (Timeout/Ping Optimierung)
 2. (P1) E013 Test-Suite Ausbau: Multi-Result / unparsable SQL / Abschnittsreihenfolge Tests
-3. (P1) ResultSet Naming Dokumentation & Beispiele (Resolver already always-on)
+3. (P1) ResultSet Naming Dokumentation & Beispiele (Resolver already always-on) – ABGESCHLOSSEN 18.10.2025
 4. (P1) Golden Hash Strict Mode Entscheid + README / Policy (Status: relaxed – Strict Mode vorbereitet; Exit Codes 21–23 reserviert & dokumentiert; Ziel Aktivierung ab v5 Beta nach Coverage ≥60%)
    note: README Abschnitt "Determinism & Golden Hash" hinzugefügt (18.10.2025)
 5. (P1) Coverage Gate Anhebung (Roadmap: 30%→50%→60%+; Ziel Core ≥80%) + CI Enforcement – DEFERRED Eskalation bis v5.0 (v4.5 Fokus: Messen & Transparente Reports, kein Fail bei Unterschreitung)
@@ -37,6 +37,7 @@ Aktueller Fokus (Top 10 P1/P2) – Update 2025-10-15:
 8. (P2) E008 Konfig-Bereinigung: Mapping Tabelle Env vs. Legacy finalisieren + CHANGELOG Removed
 9. (P2) E010 Cutover Plan konkretisieren (Timeline + Abhängigkeiten) – README/Migration synchronisieren
 10. (P2) Quality-Gates Script CI Integration + Badges (Smoke/Determinism/Coverage/Quality)
+11. (P2) README Quick Start vNext Ergänzung (DbContext + Procedure Invocation Beispiel)
 
 Kurzfristig depriorisiert (Beispiele P3/P4): Performance Profiling, Nested Template Loops, Strict-Diff Eskalation, Minor Nullability Phase 2.
 
@@ -188,11 +189,18 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [x] Ermittlung des Namespaces automatisiert und dokumentierte Fallback-Strategie vorhanden
 - [x] Zentrale Positive Schema Allow-List (SPOCR_BUILD_SCHEMAS) für Procedures & TableTypes implementiert
 - [ ] Entfernte Spezifikationen/Heuristiken sauber entfernt und CHANGELOG Eintrag erstellt
-- [ ] Neuer `SpocRDbContext` implementiert inkl. moderner DI Patterns & Minimal API Extensions - [x] Grundgerüst via Template-Generator (Interface, Context, Options, DI) – aktiviert in `SPOCR_GENERATOR_MODE=dual|next` (ehem. Flag `SPOCR_GENERATE_DBCTX` entfernt) - [x] DbContext Optionen (ConnectionString / Name / Timeout / Retry / Diagnostics / ValidateOnBuild) implementiert - [x] Scoped Registration Validierung (Connection Open Probe optional via `ValidateOnBuild`) - [x] Minimal API Mapper Beispiel (Health Endpoint `/spocr/health/db`) - [~] Integration ins Sample (Code registriert & Endpoint gemappt; laufender Prozess beendet sich noch früh – Stabilisierung ausstehend / Doku fehlt)
+- [ ] Neuer `SpocRDbContext` implementiert inkl. moderner DI Patterns & Minimal API Extensions
+- [x] Grundgerüst via Template-Generator (Interface, Context, Options, DI) – aktiviert in `SPOCR_GENERATOR_MODE=dual|next`
+- [x] DbContext Optionen (ConnectionString / Name / Timeout / Retry / Diagnostics)
+- [x] Scoped Registration Validierung (Startup Probe entfernt)
+- [x] Minimal API Mapper Beispiel (Health Endpoint `/spocr/health/db`)
+- [~] Integration ins Sample (Code registriert & Endpoint gemappt; laufender Prozess beendet sich noch früh – Stabilisierung ausstehend / Doku fehlt)
 - [x] Parallel-Erzeugung alter (DataContext) und neuer (SpocRVNext) Outputs in v4.5 (Demo/Beobachtungsmodus) implementiert
 - [x] Legacy CLI ruft bei `SPOCR_GENERATOR_MODE=dual` zusätzlich vNext Dispatcher (nur .env / EnvConfiguration, ohne spocr.json Nutzung) auf
 - [x] Schalter/Feature-Flag zum Aktivieren des neuen Outputs vorhanden (CLI Parameter oder Konfig)
-- [x] Konsistenz-Check für generierte Dateien (Determinismus pro Generator; keine Legacy-Paritäts-Pflicht) – Hash Manifeste vorhanden (noch keine harte Policy) - [x] Timestamp-Zeile neutralisiert (Regex Normalisierung) - [x] Doppelter Schreibpfad Outputs/CrudResult entfernt (Skip base copy)
+- [x] Konsistenz-Check für generierte Dateien (Determinismus pro Generator; keine Legacy-Paritäts-Pflicht) – Hash Manifeste vorhanden (noch keine harte Policy)
+- [x] Timestamp-Zeile neutralisiert (Regex Normalisierung)
+- [x] Doppelter Schreibpfad Outputs/CrudResult entfernt (Skip base copy)
       note: Konsistenz-Check für generierte Dateien (Determinismus pro Generator; keine Legacy-Paritäts-Pflicht) – Hash Manifeste vorhanden (noch keine harte Policy); Timestamp-Zeile neutralisiert (Regex Normalisierung); Doppelter Schreibpfad Outputs/CrudResult entfernt (Skip base copy)
 - [x] TableTypes: Always-On Generation (Interface `ITableType` einmalig, Records je Schema unter `SpocR/<schema>/`) integriert in Build (dual|next)
 - [x] TableTypes: Timestamp `<remarks>` Zeile eingefügt und beim Hashing ignoriert (DirectoryHasher Filter)
@@ -248,11 +256,12 @@ Streaming & Invocation (vNext API)
       - [x] Metadata Provider Implementierung (DB Schema → Descriptors) produktiv (SchemaMetadataProvider)
       - [~] CLI Integration (`spocr generate` nutzt neue Generatoren) – Legacy Orchestrator ruft vNext Generator jetzt in dual|next auf; eigene vNext CLI Ergänzungen folgen
       - [~] Sample nutzt mindestens eine generierte Stored Procedure (Endpoints implementiert, noch Fehler 500 bei UserList)
-      - [ ] ResultSet Naming Strategie dokumentiert (Resolver aktiv; Beispiele ergänzen) – Ergänzende Beispiele (Dynamic SQL Skip, Duplicate Suffix) noch ausstehend
+      - [x] ResultSet Naming Strategie dokumentiert (Abschnitt enthält: Basis-Tabelle, Duplicate Suffix, Dynamic SQL Skip, Deferred Items) – Abschluss 18.10.2025
+      - [x] Erweiterung Quick Start Abschnitt für vNext DbContext + Stored Procedure Invocation Beispiel – Abschluss 18.10.2025
       - [~] Tests: Snapshot / Determinismus für neue Artefakte (Basis vorhanden: Golden + Konsolidierte Procs; ausstehend: RowSet / Konfliktfälle)
       - [ ] Interaktive .env Bootstrap CLI (separate vNext Kommando) – Basis EnvBootstrapper vorhanden, noch kein dedizierter Befehl
 
-      Hinweis: ResultSetNameResolver aktiv (always-on) – nutzt persistiertes `Sql` Feld; ersetzt nur generische Namen kollisionsfrei.
+      Hinweis: ResultSetNameResolver aktiv (always-on) – nutzt persistiertes `Sql` Feld; ersetzt nur generische Namen kollisionsfrei. Kein Disable-Schalter vorgesehen (Designentscheidung für Konsistenz & einfache Tests).
       Update 2025-10-18: Dynamische SQL Erkennung (EXEC(@sql) / sp_executesql) implementiert – Resolver liefert in diesen Fällen bewusst kein Basis-Tabellen-Namensvorschlag (Tests: ResultSetNameResolverDynamicSqlTests).
 
       TODO entfernt: Performance Messung (nicht mehr erforderlich)
@@ -300,24 +309,30 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
       note: Enthält SPOCR_GENERATOR_MODE, SPOCR_EXPERIMENTAL_CLI, Bridge Policy Flags – `.env` ausschließlich Generator-Scope (kein Runtime Connection String). Entfernte Idee eines dedizierten Runtime DB Env Vars ersatzlos gestrichen. Precedence dokumentiert (README aktualisiert). Namespace / Output Dir Prefill via `.env` Bootstrap weiterhin möglich.
 - [x] `spocr pull` überschreibt lokale Konfiguration nicht mehr (nur interne Metadaten)
 
-### Dokumentation (Update 2025-10-15)
+### Dokumentation (Update 2025-10-18)
 
 - [ ] docs Build läuft (Bun / Nuxt) ohne Fehler
 - [ ] Neue Seiten für SpocRVNext (Architektur, Unterschiede, Migration) hinzugefügt
 - [ ] Referenzen (CLI, Konfiguration, API) aktualisiert
-- [ ] README Quick Start an neuen Generator angepasst
-      note: Quick Start Beispiel zeigt alten DataContext Stil; vNext Beispiel ergänzen
-- [ ] Doku: TableTypes Abschnitt (Naming-Preservation, Timestamp `<remarks>` & Hash-Ignore, Interface `ITableType`, Schema-Unterordnerstruktur) in docs/3.reference oder 2.cli verlinkt
-- [ ] Doku: Procedure Invocation Patterns (DbContext Methoden, Static Wrapper Low-Level, Streaming, JSON Payload, Interceptor Hooks)
-- [ ] CHANGELOG.md Einträge für jede relevante Änderung ergänzt (Added/Changed/Removed/Deprecated/Migration Notes)
-- [ ] DEVELOPMENT.md enthält und pflegt kuratierte Entwicklungs-Commands (Build, Codegen, Tests, Diffs, Cleanup) – Liste aktuell und wird vor PR zum master bereinigt.
-- [ ] Samples/README verlinkt auf aktualisierte Doku
-- [ ] Docs aktualisiert für v4.5 als Übergangsrelease (Kennzeichnung 'v4.5 (Bridge Phase)')
-- [ ] Version-Schalter (docs/content config) vorbereitet: aktuelle v4.5 + zukünftige v5 Platzhalter
-- [ ] Inhalte mit Versions-Hinweisen versehen (Abschnitt 'Gilt für: v4.5' / 'Ändert sich in v5')
-- [ ] Platzhalter-Seiten für v5 Unterschiede angelegt (Migration, API Changes, Entfernte Heuristiken)
-- [ ] content.config.ts erweitert um Versions-Metadaten (z.B. versions: ['4.5','5.0'])
-- [ ] Hinweisbanner in v4.5 Seiten: "Sie lesen die v4.5 Dokumentation – v5 in Vorbereitung"
+- [x] README Quick Start an neuen Generator angepasst
+      note: vNext DbContext Beispiel ergänzt & ValidateOnBuild entfernt (18.10.2025)
+- [x] Doku: TableTypes Abschnitt (Naming-Preservation, Timestamp `<remarks>` & Hash-Ignore, Interface `ITableType`, Schema-Unterordnerstruktur) in docs/3.reference oder 2.cli verlinkt
+      note: Abgedeckt durch bestehende `docs/content/3.reference/table-types.md` (Review 18.10.2025) – Inhalt beschreibt Preservation & Hash-Ignore.
+- [>] Doku (DEFERRED): Procedure Invocation Patterns (DbContext Methoden, Static Wrapper Low-Level, Streaming, JSON Payload, Interceptor Hooks)
+  subtasks (werden am Ende gesammelt erstellt): - Übersichtstabelle Methoden/Formen - Codebeispiel synchrone Invocation - Streaming Beispiel (IAsyncEnumerable) - JSON Payload Beispiel & Mapping - Interceptor Hook Beispiel (Before/After Command)
+- [>] CHANGELOG.md Einträge (DEFERRED bis funktionale Features stabil)
+- [>] DEVELOPMENT.md Kuratierte Commands (DEFERRED: finalisieren vor Release Freeze)
+- [>] Samples/README Doku-Links (DEFERRED: nach Fertigstellung Kernfeatures)
+- [>] Docs v4.5 Übergangsrelease Text (DEFERRED: final wording nach letztem Feature Merge)
+- [x] Version-Schalter vorbereitet (content.config.ts + Frontmatter version Felder, meta collection) – Abschluss 18.10.2025
+- [x] Inhalte mit Versions-Hinweisen versehen (Banner integriert in Layout `docs/app/layouts/docs.vue`)
+      note: Component `VersionBanner.vue` aktiv für 4.5 & 5.0 (18.10.2025)
+- [x] Platzhalter-Seiten für v5 Unterschiede: `v5-differences.md`, `migration-v5.md`, `api-changes-v5.md`, `removed-heuristics-v5.md` erstellt (18.10.2025)
+      note: Platzhalter mit Frontmatter `version: 5.0` – Inhalte folgen vor Release.
+- [x] content.config.ts erweitert um Versions-Metadaten (meta collection, version Feld in Schema)
+- [x] Hinweisbanner in v4.5 Seiten: "Sie lesen die v4.5 Dokumentation – v5 in Vorbereitung" (Komponente + auto Anzeige anhand Frontmatter version)
+      note: Implementiert via VersionBanner + Frontmatter version (18.10.2025)
+      Zusatzaufgaben Versionierung (DEFERRED): - [>] Versionsauswahl-Komponente (Selector für 4.5 / 5.0) - [>] README Links zu Migration & Differences - [>] Jede Platzhalterseite enthält klaren Preview-Hinweis - [>] Build Gate warnt bei fehlender version Frontmatter
 
 ### Docs Deployment (GitHub Pages) – Planung
 
@@ -454,16 +469,28 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
       acceptance: - Wrapper (nur EXEC, keine eigenen konkreten Sets) übernimmt vollständige ResultSets des Ziels (inkl. ExecSource* Metadaten) - Non-Wrapper mit eigenen Sets hängt Ziel-Sets hinten an (keine Duplikate, keine doppelte Forwarding-Aktion) - Fallback greift über Expanded Snapshot (snapshotProcMap) auch wenn Ziel nicht in procLookup enthalten - Logging Tags: [proc-forward-xschema] bei vollständiger Übernahme, [proc-exec-append-xschema] beim Anhängen - Beispiel: soap.PaymentInitiationFindAsJson -> banking.InitiationFindAsJson (ExecSourceSchemaName / ExecSourceProcedureName korrekt gesetzt)
       depends: [E004, E014]
       note: Brackets in ExecSource* optional (keine Änderung bestehender Tests); Fokus auf Vorhandensein / Merge
-- [ ] samples\restapi\.env aus Template mit Kommentaren generieren - [x] Template-Datei `.env.example` anreichert (Erklär-Kommentare für Modus/Flags/Namespace vorhanden) - [ ] CLI Befehl/Bootstrap: `spocr env init` (optional) evaluieren
+- [ ] samples\restapi\.env aus Template mit Kommentaren generieren
+- [x] Template-Datei `.env.example` anreichert (Erklär-Kommentare für Modus/Flags/Namespace vorhanden)
+- [ ] CLI Befehl/Bootstrap: `spocr env init` (optional) evaluieren
 - [ ] (OBSOLET) ResultSet Datei-Benennung vereinheitlichen (durch Konsolidierung in eine Prozedur-Datei nicht mehr relevant)
       Hinweis: Einzelne RowSet-Dateien existieren nicht mehr; alle Records (Inputs/Outputs/ResultSets/Aggregate/Plan/Executor) liegen in einer konsolidierten `<Proc>.cs`.
       Folgeaufgaben (aktualisiert): - [x] Test: Konsolidierte Datei enthält erwartete Abschnitte in Reihenfolge (Header→Inputs→Outputs→ResultSets→Aggregate→Plan→Executor) - [ ] Test: Kein doppelter Record-Name bei mehreren ResultSets (Multi-Table) - [x] Aktivierungs-Test Resolver (generische Namen ersetzt) - [x] Negative Test: Unparsable SQL → Fallback (kein Crash) - [ ] Multi-ResultSet Szenario (nur erste Tabelle benannt, weitere generisch) - [ ] Mixed Case Tabellenname Normalisierung
       note: Ordering Tests (Single & Multi) implementiert in `UnifiedProcedureOrderingTests` (18.10.2025)
-- [x] Auto-Namespace Fallback für samples/restapi implementiert (erzwingt Basis `RestApi`) - [ ] Ergänzender Test für WorkingDir = `samples/restapi` (Folgetask – aktuell indirekt durch Integration abgedeckt)
-- [ ] .env Override Nutzung (SPOCR_NAMESPACE) dokumentieren & Beispiel ergänzen - [ ] README / docs: Abschnitt "Namespace Ableitung & Override" inkl. Beispiel diff - Fallback / Erzwingung via Smoke Script aktiv, Doku fehlt
-- [ ] Einheitliche Klein-/Großschreibung Schema-Ordner - [ ] Normalisierung (Entscheidung: Beibehalt Original vs. PascalCase) - [ ] Test: Mixed Case Snapshot → generierter Ordner konsistent - Status: Implementiert als PascalCase (Generator), Dokumentation noch offen
-- [ ] Dateinamen & Determinismus zusätzliche Tests - [x] Grundlegende deterministische Hash Tests (Golden Snapshot) vorhanden - [x] Konsolidierte UnifiedProcedure Tests (Hash & IO Single Definition) - [ ] Erweiterung: spezifische Artefakt-Typen (StoredProcedure Wrapper Section, ResultSet Records innerhalb Konsolidierungs-Datei) - [ ] Dateinamens-Konflikt Test (zwei Procs mit ähnlichen Namen + Suffix Handling) - Hash Manifest aktiv; Strict Mode (Fail Fast) offen
-- [ ] Dispatcher next-only Pfad: Gleiches Full Generation Set wie dual - [ ] Prüfen Codepfad (`SpocRGenerator` / Dispatcher) - [ ] Test: MODE=next erzeugt identische Artefakte wie dual (ohne Legacy) - Bisher nur manuelle Stichproben, automatischer Vergleich fehlt
+- [x] Auto-Namespace Fallback für samples/restapi implementiert (erzwingt Basis `RestApi`)
+- [ ] Ergänzender Test für WorkingDir = `samples/restapi` (Folgetask – aktuell indirekt durch Integration abgedeckt)
+- [ ] .env Override Nutzung (SPOCR_NAMESPACE) dokumentieren & Beispiel ergänzen
+- [ ] README / docs: Abschnitt "Namespace Ableitung & Override" inkl. Beispiel diff - Fallback / Erzwingung via Smoke Script aktiv, Doku fehlt
+- [ ] Einheitliche Klein-/Großschreibung Schema-Ordner
+- [ ] Normalisierung (Entscheidung: Beibehalt Original vs. PascalCase)
+- [ ] Test: Mixed Case Snapshot → generierter Ordner konsistent - Status: Implementiert als PascalCase (Generator), Dokumentation noch offen
+- [ ] Dateinamen & Determinismus zusätzliche Tests
+- [x] Grundlegende deterministische Hash Tests (Golden Snapshot) vorhanden
+- [x] Konsolidierte UnifiedProcedure Tests (Hash & IO Single Definition)
+- [ ] Erweiterung: spezifische Artefakt-Typen (StoredProcedure Wrapper Section, ResultSet Records innerhalb Konsolidierungs-Datei)
+- [ ] Dateinamens-Konflikt Test (zwei Procs mit ähnlichen Namen + Suffix Handling) - Hash Manifest aktiv; Strict Mode (Fail Fast) offen
+- [ ] Dispatcher next-only Pfad: Gleiches Full Generation Set wie dual
+- [ ] Prüfen Codepfad (`SpocRGenerator` / Dispatcher)
+- [ ] Test: MODE=next erzeugt identische Artefakte wie dual (ohne Legacy) - Bisher nur manuelle Stichproben, automatischer Vergleich fehlt
 - [x] Sicherstellen, dass samples/restapi/.env nicht in git landet (`.gitignore` aktualisiert)
 - [ ] src\SpocRVNext\Templates_Header.spt optimieren (<auto-generated/> Block vereinheitlichen)
 
@@ -498,7 +525,13 @@ Connectivity gesichert (test-db Script + CI Integration). Offene Kernpunkte: Sta
 - [ ] Objekte, die nicht mehr im .spocr/schema enthalten sind aus dem Output löschen
 - [ ] TemplateEngine optimieren (z.B: verschachtelte for each ermöglichen)
 - [ ] Refactoring und Optimierung der SpocRVNext und vnext-Outputs durchführen
-- [ ] ResultSetNameResolver Improvements (geplant) - [ ] CTE support (erste Basis-Tabelle aus finaler Query, wenn kein direkter NamedTableReference) – verschoben zu v5.0 - [ ] FOR JSON PATH root alias extraction (Alias als Name nutzen) - [x] Dynamic SQL detection -> skip (implementiert 18.10.2025) - [ ] Collision test für vorgeschlagene Namen (Edge Cases Mehrere Tabellen, gleiche Basisnamen) - [ ] Parser Performance Micro-Benchmark & Caching Strategie (TSql150Parser Reuse) - [ ] Optionales Disable Flag (`SPOCR_DISABLE_RS_NAME_RESOLVER`) - [ ] Snapshot Integration: Prozedur-SQL Felder vollständiger erfassen (`Sql`/`Definition`) beim `spocr pull` - [ ] Aktivierungs-/Disable Flag Dokumentation (Kurzer Abschnitt README + interne Minimal-Doku)
+- [ ] ResultSetNameResolver Improvements (geplant)
+- [ ] CTE support (erste Basis-Tabelle aus finaler Query, wenn kein direkter NamedTableReference) – verschoben zu v5.0
+- [ ] FOR JSON PATH root alias extraction (Alias als Name nutzen)
+- [x] Dynamic SQL detection -> skip (implementiert 18.10.2025)
+- [ ] Collision test für vorgeschlagene Namen (Edge Cases Mehrere Tabellen, gleiche Basisnamen)
+- [ ] Parser Performance Micro-Benchmark & Caching Strategie (TSql150Parser Reuse)
+- [ ] Snapshot Integration: Prozedur-SQL Felder vollständiger erfassen (`Sql`/`Definition`) beim `spocr pull`
 - [ ] Warum sind die Inputs vom Typ Output nicht in den Inputs enthalten? Wir brauchen TwoWay Binding
 - [ ] .env.example: Nur gültige verwenden und Kommentare ergänzen
 - [ ] die erzeugte .env soll mit denselben Kommentaren wie die .env.example angereichert werden (.env.example dient als dem Generator als Vorlage?)

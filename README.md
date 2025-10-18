@@ -210,6 +210,80 @@ Next Steps (Roadmap):
 
 Referenced Tests: `NamespaceResolverTests`, `EnvConfigurationTests`.
 
+### ResultSet Naming Strategy
+
+SpocR assigns human-friendly names to result sets returned by stored procedures in the vNext pipeline. The naming resolver is always on (bridge phase) and replaces generic names only when it can do so safely and deterministically.
+
+#### Goals
+
+- Produce stable, descriptive result set identifiers (improves generated record readability)
+- Avoid misleading names for dynamic or opaque SQL bodies
+- Guarantee uniqueness per procedure without introducing churn
+
+#### Algorithm (Current v4.5 Bridge)
+
+1. Pre‑Scan Dynamic SQL: If the procedure text contains typical dynamic patterns (`sp_executesql`, `EXEC(@`, `EXEC (@`, `execute(@`) the resolver **skips** suggesting names (keeps generic `ResultSetN`).
+2. Parse First SELECT: Using the TSql parser, the resolver inspects the **first top‑level SELECT** statement.
+3. Extract Base Table: The first named table reference (e.g. `dbo.Users`) becomes the base suggestion (`Users`). Aliases are ignored at this stage (future enhancement may leverage them).
+4. Sanitize: Invalid characters are stripped; PascalCase preserved from source where applicable.
+5. Collision Handling: If multiple result sets would share the same base name, suffixes are appended: `Users`, `Users1`, `Users2`, ... (first occurrence unsuffixed).
+6. Fallback: If parsing fails, no named table is found, or dynamic SQL is detected, original generic names remain (`ResultSet1`, `ResultSet2`, ...).
+
+The resolver never renames a result set to an empty or invalid identifier; it simply leaves the generic name in place in failure or ambiguity scenarios.
+
+#### Examples
+
+| SQL Pattern                                                   | Resolver Outcome            | Notes                                                    |
+| ------------------------------------------------------------- | --------------------------- | -------------------------------------------------------- |
+| `SELECT u.Id, u.Name FROM dbo.Users u`                        | `Users`                     | Base table extracted from first SELECT                   |
+| Two SELECTs both from `dbo.Users`                             | `Users`, `Users1`           | Duplicate suffix applied starting at 1                   |
+| Three SELECTs: `Users`, `Users`, `Users`                      | `Users`, `Users1`, `Users2` | Stable sequence; deterministic ordering tests cover this |
+| Dynamic SQL: `EXEC(@sql)` or `sp_executesql N'...SELECT ...'` | `ResultSet1`, `ResultSet2`  | Skip naming – dynamic content could vary                 |
+| Unparsable / exotic T‑SQL (parser error)                      | Generic names               | Safety first (no partial heuristics)                     |
+
+#### Rationale for Suffix Strategy
+
+Appending numeric suffixes starting from 1 (leaving the first occurrence unsuffixed) yields a concise, stable naming surface without implying ordering semantics beyond distinction. This mirrors common collection naming patterns while minimizing visual noise.
+
+#### Determinism Guarantees
+
+- Ordering tests (`UnifiedProcedureOrderingTests`) ensure record sections (Inputs → Outputs → ResultSets → Aggregate → Plan → Executor) appear predictably.
+- Multi‑result naming tests (`MultiResultSetNamingTests`) assert suffix behavior.
+- Dynamic SQL tests (`ResultSetNameResolverDynamicSqlTests`) validate protective skipping.
+
+#### Deferred / Planned Enhancements
+
+Planned improvements tracked in the checklist (may land post‑bridge):
+
+- CTE Support: Derive the base table from the final query inside Common Table Expressions (deferred to v5.0).
+- FOR JSON PATH Root Alias Extraction: Use explicit JSON root aliases when present as the name.
+- Collision Edge Cases: Extended tests for procedures selecting from different tables with same sanitized name.
+- Performance & Caching: Reuse a single parser instance (micro‑benchmark + reuse strategy).
+- Expanded Snapshot SQL Field: Capture full original SQL text (`Sql`/`Definition`) to improve heuristics.
+
+#### FAQ
+
+Q: Why not analyze all SELECT statements for distinct names?
+A: Focusing on the first SELECT avoids unstable naming when procedures branch conditionally or build dynamic segments later. Simplicity keeps determinism predictable.
+
+Q: Will enabling CTE support rename existing sets?
+A: Only procedures whose first SELECT is a CTE wrapper would gain a more accurate base name. Activation will be versioned & documented to manage any diff.
+
+Q: Can I force generic names even for static SQL?
+A: A disable flag is planned. For now, you can rely on generic names by introducing dynamic SQL patterns, but this is **not** recommended purely for naming suppression.
+
+#### Troubleshooting
+
+- Unexpected generic name? Confirm no dynamic SQL pattern exists early in the procedure text.
+- Unwanted suffixes? Multiple identical base table references produce them by design; verify result set count.
+- Parser failure warnings? (When verbose logging added) Treat as a signal to inspect complex T‑SQL (nested, batch constructs). Generic fallback is safe.
+
+If you encounter misleading names or have edge cases (e.g. table variables, temp tables) open an issue with sample SQL – include whether dynamic patterns were present.
+
+Referenced Tests: `MultiResultSetNamingTests`, `ResultSetNameResolverDynamicSqlTests`, `UnifiedProcedureOrderingTests`.
+
+Roadmap cross‑links: See checklist section "ResultSetNameResolver Improvements" for real‑time status of planned enhancements.
+
 ### Migration Note: Removal of Legacy `Output`
 
 Older snapshots exposed a root-level `Output` array for JSON-returning procedures. This was removed in favor of a unified `ResultSets` model. Update any tooling referencing `Output` to:

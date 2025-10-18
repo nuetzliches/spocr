@@ -15,8 +15,6 @@ public sealed class SpocRDbContextOptions
     public int? MaxOpenRetries { get; set; }
     /// <summary>Delay in milliseconds between retries (linear backoff). Default 200ms if retries enabled.</summary>
     public int? RetryDelayMs { get; set; }
-    /// <summary>Validate connection on service registration (throws fast if unreachable).</summary>
-    public bool ValidateOnBuild { get; set; } = false;
     public JsonSerializerOptions? JsonSerializerOptions { get; set; }
     public bool EnableDiagnostics { get; set; } = true;
 }

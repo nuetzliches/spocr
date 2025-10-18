@@ -18,7 +18,16 @@ export default defineContentConfig({
           icon: z.string(),
           to: z.string(),
           target: z.string().optional()
-        })).optional()
+        })).optional(),
+        version: z.string().optional().describe('Docs version identifier (e.g. 4.5 or 5.0)')
+      })
+    }),
+    meta: defineCollection({
+      type: 'data',
+      source: 'meta',
+      schema: z.object({
+        versions: z.array(z.string()).optional(),
+        currentVersion: z.string().optional()
       })
     })
   }
