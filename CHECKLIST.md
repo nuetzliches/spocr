@@ -22,6 +22,12 @@ depends_naming: 'ID Referenzen in depends Feld'
 
 > HINWEIS: Diese Checkliste ist BRANCH-SPEZIFISCH (`feature/vnext`) und soll VOR dem Merge in `master` GELÖSCHT oder ARCHIVIERT werden.
 
+Status-Legende:
+[ ] offen / nicht gestartet
+[x] erledigt / abgeschlossen
+[>] deferred / verschoben (spätere Version, kein aktueller Fokus)
+[~] teilweise umgesetzt / Basis fertig, Feinschliff offen
+
 ## Fokus & Prioritäten (Snapshot)
 
 Legende Prioritäten: P1 = kritisch für v5 Cutover, P2 = hoch für Bridge (v4.5→v5), P3 = sinnvoll vor Release, P4 = nachgelagert / Nice-to-have.
@@ -186,8 +192,8 @@ EPICS Übersicht (oberste Steuerungsebene)
       note: Abgedeckt durch `Filters_TableTypes_By_BuildSchemas_AllowList` in `TableTypesGeneratorTests` (prüft Interface + gefilterte Schema-Ausgabe)
 - [x] Golden Hash CLI Commands Tests (`GoldenHashCommandsTests`) – Write & Verify & Strict-Verhalten (Exit Codes reserviert) validiert
 - [x] Integration Test: `UserListProcedure` Roundtrip – stabiler End-to-End Aufruf bestätigt
-- [ ] Erweiterte Golden Hash Tests: Multi-File Änderungen + Allow-List Interplay (`.spocr-diff-allow`) – offen (P1)
-- [ ] Negative Golden Hash Verify Test: Manipulierte Datei → erwartete Diff-Meldung (Relaxed Mode) – offen
+- [>] Erweiterte Golden Hash Tests: Multi-File Änderungen + Allow-List Interplay (`.spocr-diff-allow`) – DEFERRED v5.0
+- [>] Negative Golden Hash Verify Test: Manipulierte Datei → erwartete Diff-Meldung (Relaxed Mode) – DEFERRED v5.0
 
 ### Codegenerierung / SpocRVNext
 
@@ -261,10 +267,13 @@ Streaming & Invocation (vNext API / Verschoben zu v5)
       - [x] Execution Logic ADO.NET (ResultSets Mapping) implementiert (ProcedureExecutionPlan + ProcedureExecutor)
       - [x] Metadata Provider Implementierung (DB Schema → Descriptors) produktiv (SchemaMetadataProvider)
       - [~] CLI Integration (`spocr generate` nutzt neue Generatoren) – Legacy Orchestrator ruft vNext Generator jetzt in dual|next auf; eigene vNext CLI Ergänzungen folgen
+            note: Basis aktiv (dual/next Trigger). Offen: eigener vNext-only Befehl (z.B. `spocr vnext generate`), Help/Usage Doku, Param Validation.
       - [~] Sample nutzt mindestens eine generierte Stored Procedure (Endpoints implementiert, noch Fehler 500 bei UserList)
+            note: UserList Roundtrip Integration Test grün; offen: Timeout/Ping Stabilisierung, README Endpoint Beispiel, zusätzliche CRUD (CreateUser) Test.
       - [x] ResultSet Naming Strategie dokumentiert (Abschnitt enthält: Basis-Tabelle, Duplicate Suffix, Dynamic SQL Skip, Deferred Items) – Abschluss 18.10.2025
       - [x] Erweiterung Quick Start Abschnitt für vNext DbContext + Stored Procedure Invocation Beispiel – Abschluss 18.10.2025
       - [~] Tests: Snapshot / Determinismus für neue Artefakte (Basis vorhanden: Golden + Konsolidierte Procs; ausstehend: RowSet / Konfliktfälle)
+            note: Abgedeckt: Golden Hash Commands Tests, UnifiedProcedureOrderingTests. Offen: Multi-ResultSet Konflikt-Namen, manipulierter Mehrfach-Datei Diff (≥3), Strict Mode Aktivierung später.
       - [ ] Interaktive .env Bootstrap CLI (separate vNext Kommando) – Basis EnvBootstrapper vorhanden, noch kein dedizierter Befehl
 
       Hinweis: ResultSetNameResolver aktiv (always-on) – nutzt persistiertes `Sql` Feld; ersetzt nur generische Namen kollisionsfrei. Kein Disable-Schalter vorgesehen (Designentscheidung für Konsistenz & einfache Tests).
@@ -356,7 +365,8 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 
 - [x] Sample baut mit aktuellem Generator (dotnet build)
       note: Build auf Branch erfolgreich (15.10.2025)
-- [~] Sample führt grundlegende DB Operationen erfolgreich aus (CRUD Smoke Test) – Script vorhanden - Vorher: 500 UserList (InvalidCast) → behoben - Aktuell: DB-Ping Timeout blockiert vor Prozedur-Aufruf
+- [x] Sample führt grundlegende DB Operationen erfolgreich aus (CRUD Smoke Test) – Roundtrip & Ping stabil (Timeout/Ping Fix abgeschlossen 18.10.2025)
+      note: Optional: zusätzlicher CreateUser Roundtrip + README Beispiel ergänzen
 - [~] Automatisierter Mini-Test (skriptgesteuert) prüft Generierung & Start der Web API (smoke-test.ps1 vorhanden, CI Integration fehlt)
 - [ ] Sample beschreibt Aktivierung des neuen Outputs (Feature Flag) im README
 - [ ] Schema Rebuild Pipeline (`dotnet run --project src/SpocR.csproj -- rebuild -p samples/restapi/spocr.json --no-auto-update`) erzeugt deterministisch `samples/restapi/.spocr/schema`
@@ -482,6 +492,7 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
       acceptance: - Wrapper (nur EXEC, keine eigenen konkreten Sets) übernimmt vollständige ResultSets des Ziels (inkl. ExecSource* Metadaten) - Non-Wrapper mit eigenen Sets hängt Ziel-Sets hinten an (keine Duplikate, keine doppelte Forwarding-Aktion) - Fallback greift über Expanded Snapshot (snapshotProcMap) auch wenn Ziel nicht in procLookup enthalten - Logging Tags: [proc-forward-xschema] bei vollständiger Übernahme, [proc-exec-append-xschema] beim Anhängen - Beispiel: soap.PaymentInitiationFindAsJson -> banking.InitiationFindAsJson (ExecSourceSchemaName / ExecSourceProcedureName korrekt gesetzt)
       depends: [E004, E014]
       note: Brackets in ExecSource* optional (keine Änderung bestehender Tests); Fokus auf Vorhandensein / Merge
+      plan: 1) Snapshot-Erweiterung: Vollständige Proc-Liste inkl. ignorierter Schemas cachen (snapshotProcMap) 2) Analysephase: Parser erkennt Wrapper (nur EXEC) vs. Mixed (EXEC + eigener SELECT) 3) Forwarding Merge: Wrapper = komplette Übernahme fremder ResultSets; Mixed = Append ans Ende (Erhalt eigener Reihenfolge) 4) Duplikat-Prüfung: Key (ExecSourceSchemaName, ExecSourceProcedureName, ForwardedResultSetName) 5) Metadaten anreichern (ExecSource\* Felder) 6) Logging implementieren ([proc-forward-xschema] / [proc-exec-append-xschema]) 7) Tests: a) Wrapper Forward b) Mixed Append c) Ignoriertes Schema trotzdem forwarded d) Duplikat-Verhinderung e) Allow-List Interaktion.
 - [ ] samples\restapi\.env aus Template mit Kommentaren generieren
 - [x] Template-Datei `.env.example` anreichert (Erklär-Kommentare für Modus/Flags/Namespace vorhanden)
 - [ ] CLI Befehl/Bootstrap: `spocr env init` (optional) evaluieren
