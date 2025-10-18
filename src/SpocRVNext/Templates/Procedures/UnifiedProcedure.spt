@@ -58,7 +58,18 @@ internal static partial class {{ PlanTypeName }}
     }
 }
 
-public static class {{ ProcedureTypeName }}
+/// <summary>Convenience extension for executing '{{ ProcedureFullName }}' via an <see cref="ISpocRDbContext"/>.</summary>
+public static class {{ ProcedureTypeName }}Extensions
+{
+	public static async Task<{{ UnifiedResultTypeName }}> {{ ProcedureTypeName }}Async(this ISpocRDbContext db{{#if HasInput}}, {{ InputTypeName }} input{{/if}}, CancellationToken cancellationToken = default)
+	{
+		await using var conn = await db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+		return await {{ ProcedureTypeName }}Procedure.ExecuteAsync(conn{{#if HasInput}}, input{{/if}}, cancellationToken).ConfigureAwait(false);
+	}
+}
+
+/// <summary>Low-level execution wrapper for a single stored procedure invocation.</summary>
+public static class {{ ProcedureTypeName }}Procedure
 {
 	public const string Name = "{{ ProcedureFullName }}";
 	public static Task<{{ UnifiedResultTypeName }}> ExecuteAsync(DbConnection connection{{#if HasInput}}, {{ InputTypeName }} input{{/if}}, CancellationToken cancellationToken = default)

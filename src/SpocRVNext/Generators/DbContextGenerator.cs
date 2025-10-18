@@ -9,6 +9,10 @@ using SpocR.Services;
 using SpocR.Utils;
 using SpocR.SpocRVNext.Engine;
 using SpocRVNext.Configuration; // for EnvConfiguration & NamespaceResolver
+using SpocR.SpocRVNext.Metadata; // ProcedureDescriptor
+using System.Collections.Generic;
+using System.Text;
+using SpocR.SpocRVNext.Utils; // NamePolicy
 
 namespace SpocR.SpocRVNext.Generators;
 
@@ -24,8 +28,9 @@ public class DbContextGenerator
     private readonly ITemplateRenderer _renderer;
     private readonly ITemplateLoader? _loader;
     private readonly IGeneratorModeProvider _modeProvider;
+    private readonly Func<IReadOnlyList<ProcedureDescriptor>> _proceduresProvider;
 
-    public DbContextGenerator(FileManager<ConfigurationModel> configFile, OutputService outputService, IConsoleService console, ITemplateRenderer renderer, IGeneratorModeProvider modeProvider, ITemplateLoader? loader = null)
+    public DbContextGenerator(FileManager<ConfigurationModel> configFile, OutputService outputService, IConsoleService console, ITemplateRenderer renderer, IGeneratorModeProvider modeProvider, ITemplateLoader? loader = null, Func<IReadOnlyList<ProcedureDescriptor>>? proceduresProvider = null)
     {
         _configFile = configFile;
         _outputService = outputService;
@@ -33,6 +38,7 @@ public class DbContextGenerator
         _renderer = renderer;
         _loader = loader;
         _modeProvider = modeProvider;
+        _proceduresProvider = proceduresProvider ?? (() => Array.Empty<ProcedureDescriptor>());
     }
     private bool IsEnabled() => _modeProvider.Mode is "dual" or "next";
 
@@ -94,12 +100,83 @@ public class DbContextGenerator
 
         // Append .SpocR suffix only if not already present.
         var finalNs = baseNs.EndsWith(".SpocR", StringComparison.Ordinal) ? baseNs : baseNs + ".SpocR";
-        var model = new { Namespace = finalNs };
+        // Collect procedure descriptors (may be empty in legacy mode or early pipeline stages)
+        var procedures = _proceduresProvider();
+        // Build method metadata (naming + signatures) only if we have procedures
+        var methodBlocksInterface = new StringBuilder();
+        var methodBlocksImpl = new StringBuilder();
+        if (procedures.Count > 0)
+        {
+            _console.Verbose($"[dbctx] Generating {procedures.Count} procedure methods");
+            // Naming conflict resolution per spec:
+            // 1. Preserve original procedure name part (after schema) converting invalid chars to '_'
+            // 2. If collision across schemas, prefix with schema pascal case.
+            var nameMap = new Dictionary<string, List<(ProcedureDescriptor Proc, string SchemaPascal, string ProcPart)>>(StringComparer.OrdinalIgnoreCase);
+            foreach (var p in procedures)
+            {
+                var op = p.OperationName; // e.g. dbo.GetUsers
+                var schema = p.Schema ?? "dbo";
+                var procPart = op.Contains('.') ? op[(op.IndexOf('.') + 1)..] : op; // raw procedure part
+                var normalized = NormalizeProcedurePart(procPart);
+                if (!nameMap.TryGetValue(normalized, out var list)) nameMap[normalized] = list = new();
+                list.Add((p, ToPascalCase(schema), procPart));
+            }
+            // Determine final method names
+            var finalNames = new Dictionary<ProcedureDescriptor, string>();
+            foreach (var kv in nameMap)
+            {
+                if (kv.Value.Count == 1)
+                {
+                    finalNames[kv.Value[0].Proc] = kv.Key; // single -> no prefix
+                }
+                else
+                {
+                    // collision -> prefix schema pascal
+                    foreach (var item in kv.Value)
+                    {
+                        var candidate = item.SchemaPascal + kv.Key; // Schema + NormalizedProc
+                        finalNames[item.Proc] = candidate;
+                    }
+                }
+            }
+            // Emit method signatures
+            foreach (var p in procedures.OrderBy(p => finalNames[p]))
+            {
+                var methodName = finalNames[p];
+                var schemaPascal = ToPascalCase(p.Schema ?? "dbo");
+                var schemaNamespace = finalNs + "." + schemaPascal;
+                // Types built by ProceduresGenerator: <ProcPart>Input, <ProcPart>Result, <ProcPart> (static wrapper)
+                var procPart = p.OperationName.Contains('.') ? p.OperationName[(p.OperationName.IndexOf('.') + 1)..] : p.OperationName;
+                var procedureTypeName = NamePolicy.Procedure(procPart); // matches template
+                var unifiedResultTypeName = NamePolicy.Result(procPart);
+                var inputTypeName = NamePolicy.Input(procPart);
+                var hasInput = p.InputParameters?.Count > 0;
+                var resultReturnType = schemaNamespace + "." + unifiedResultTypeName;
+                var inputParamSig = hasInput ? schemaNamespace + "." + inputTypeName + " input, " : string.Empty;
+                // Interface method
+                methodBlocksInterface.AppendLine($"    Task<{resultReturnType}> {methodName}Async({inputParamSig}CancellationToken cancellationToken = default);");
+                // Implementation
+                methodBlocksImpl.AppendLine("    /// <summary>Executes stored procedure '" + p.Schema + "." + p.ProcedureName + "'</summary>");
+                methodBlocksImpl.Append("    public async Task<" + resultReturnType + "> " + methodName + "Async(");
+                if (hasInput) methodBlocksImpl.Append(inputParamSig);
+                methodBlocksImpl.Append("CancellationToken cancellationToken = default)\n");
+                methodBlocksImpl.AppendLine("    {");
+                methodBlocksImpl.AppendLine("        await using var conn = await OpenConnectionAsync(cancellationToken).ConfigureAwait(false);");
+                methodBlocksImpl.Append("        var result = await " + schemaNamespace + "." + procedureTypeName + ".ExecuteAsync(conn");
+                if (hasInput) methodBlocksImpl.Append(", input");
+                methodBlocksImpl.Append(", cancellationToken).ConfigureAwait(false);\n");
+                methodBlocksImpl.AppendLine("        return result;");
+                methodBlocksImpl.AppendLine("    }");
+                methodBlocksImpl.AppendLine();
+            }
+        }
+
+        var model = new { Namespace = finalNs, MethodsInterface = methodBlocksInterface.ToString(), MethodsImpl = methodBlocksImpl.ToString() };
 
         // Generate core artifacts (always)
-        await WriteAsync(spocrDir, "ISpocRDbContext.cs", Render("ISpocRDbContext", GetTemplate_Interface(finalNs), model), isDryRun);
+        await WriteAsync(spocrDir, "ISpocRDbContext.cs", Render("ISpocRDbContext", GetTemplate_Interface(finalNs, model.MethodsInterface), model), isDryRun);
         await WriteAsync(spocrDir, "SpocRDbContextOptions.cs", Render("SpocRDbContextOptions", GetTemplate_Options(finalNs), model), isDryRun);
-        await WriteAsync(spocrDir, "SpocRDbContext.cs", Render("SpocRDbContext", GetTemplate_Context(finalNs), model), isDryRun);
+        await WriteAsync(spocrDir, "SpocRDbContext.cs", Render("SpocRDbContext", GetTemplate_Context(finalNs, model.MethodsImpl), model), isDryRun);
         await WriteAsync(spocrDir, "SpocRDbContextServiceCollectionExtensions.cs", Render("SpocRDbContextServiceCollectionExtensions", GetTemplate_Di(finalNs), model), isDryRun);
 
         // Endpoint generation is gated to net10 (forward feature). We evaluate SPOCR_TFM or default major used by template loader.
@@ -141,7 +218,7 @@ public class DbContextGenerator
         return fallback.ToString();
     }
 
-    private static SourceText GetTemplate_Interface(string ns) => SourceText.From($"" +
+    private static SourceText GetTemplate_Interface(string ns, string methods) => SourceText.From($"" +
         "/// <summary>Generated interface for the database context abstraction.</summary>\n" +
         $"namespace {ns};\n\n" +
         "using System.Data.Common;\nusing System.Threading;\nusing System.Threading.Tasks;\n\n" +
@@ -150,7 +227,8 @@ public class DbContextGenerator
         "    DbConnection OpenConnection();\n" +
         "    Task<DbConnection> OpenConnectionAsync(CancellationToken cancellationToken = default);\n" +
         "    Task<bool> HealthCheckAsync(CancellationToken cancellationToken = default);\n" +
-    "    int CommandTimeout { get; }\n" +
+        "    int CommandTimeout { get; }\n" +
+        (string.IsNullOrWhiteSpace(methods) ? string.Empty : methods) +
         "}\n");
 
     private static SourceText GetTemplate_Options(string ns) => SourceText.From($"namespace {ns};\n\n" +
@@ -165,7 +243,7 @@ public class DbContextGenerator
         "    public bool EnableDiagnostics { get; set; } = true;\n" +
         "}\n");
 
-    private static SourceText GetTemplate_Context(string ns) => SourceText.From($"namespace {ns};\n\n" +
+    private static SourceText GetTemplate_Context(string ns, string methods) => SourceText.From($"namespace {ns};\n\n" +
         "using System.Data.Common;\nusing System.Diagnostics;\nusing System.Threading;\nusing System.Threading.Tasks;\nusing Microsoft.Data.SqlClient;\n\n" +
         "public partial class SpocRDbContext : ISpocRDbContext\n" +
         "{\n" +
@@ -193,6 +271,7 @@ public class DbContextGenerator
         "    {\n" +
         "        try { await using var conn = new SqlConnection(_options.ConnectionString); await conn.OpenAsync(cancellationToken).ConfigureAwait(false); return true; } catch { return false; }\n" +
         "    }\n" +
+        (string.IsNullOrWhiteSpace(methods) ? string.Empty : methods) +
         "}\n");
 
     private static SourceText GetTemplate_Di(string ns) => SourceText.From($"namespace {ns};\n\n" +
@@ -222,5 +301,32 @@ public class DbContextGenerator
     {
         var path = Path.Combine(dir, fileName);
         await _outputService.WriteAsync(path, SourceText.From(source), isDryRun);
+    }
+
+    private static string NormalizeProcedurePart(string procPart)
+    {
+        if (string.IsNullOrWhiteSpace(procPart)) return "Procedure";
+        var sb = new StringBuilder(procPart.Length);
+        foreach (var ch in procPart)
+        {
+            sb.Append(char.IsLetterOrDigit(ch) ? ch : '_');
+        }
+        var candidate = sb.ToString();
+        if (char.IsDigit(candidate[0])) candidate = "N" + candidate; // ensure valid identifier start
+        return candidate;
+    }
+
+    private static string ToPascalCase(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return "Schema";
+        var parts = input.Split(new[] { '-', '_', ' ', '.', '/', '\\' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(p => p.Trim())
+            .Where(p => p.Length > 0)
+            .Select(p => char.ToUpperInvariant(p[0]) + (p.Length > 1 ? p.Substring(1).ToLowerInvariant() : string.Empty));
+        var candidate = string.Concat(parts);
+        candidate = new string(candidate.Where(ch => char.IsLetterOrDigit(ch) || ch == '_').ToArray());
+        if (string.IsNullOrEmpty(candidate)) candidate = "Schema";
+        if (char.IsDigit(candidate[0])) candidate = "N" + candidate;
+        return candidate;
     }
 }

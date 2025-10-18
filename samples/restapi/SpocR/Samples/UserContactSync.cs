@@ -31,7 +31,7 @@ public sealed class UserContactSyncResult
 	
 }
 
-internal static partial class UserContactSyncProcedurePlan
+internal static partial class UserContactSyncPlan
 {
     private static ProcedureExecutionPlan? _cached;
     public static ProcedureExecutionPlan Instance => _cached ??= Create();
@@ -62,6 +62,16 @@ public static class UserContactSyncProcedure
 	public const string Name = "samples.UserContactSync";
 	public static Task<UserContactSyncResult> ExecuteAsync(DbConnection connection, UserContactSyncInput input, CancellationToken cancellationToken = default)
 	{
-		return ProcedureExecutor.ExecuteAsync<UserContactSyncResult>(connection, UserContactSyncProcedurePlan.Instance, input, cancellationToken);
+		return ProcedureExecutor.ExecuteAsync<UserContactSyncResult>(connection, UserContactSyncPlan.Instance, input, cancellationToken);
+	}
+}
+
+/// <summary>Convenience extension for executing 'samples.UserContactSync' via an <see cref="ISpocRDbContext"/>.</summary>
+public static class UserContactSyncExtensions
+{
+	public static async Task<UserContactSyncResult> UserContactSyncAsync(this ISpocRDbContext db, UserContactSyncInput input, CancellationToken cancellationToken = default)
+	{
+		await using var conn = await db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+		return await UserContactSyncProcedure.ExecuteAsync(conn, input, cancellationToken).ConfigureAwait(false);
 	}
 }

@@ -32,7 +32,7 @@ public sealed class UserBioUpdateResult
 	
 }
 
-internal static partial class UserBioUpdateProcedurePlan
+internal static partial class UserBioUpdatePlan
 {
     private static ProcedureExecutionPlan? _cached;
     public static ProcedureExecutionPlan Instance => _cached ??= Create();
@@ -65,6 +65,16 @@ public static class UserBioUpdateProcedure
 	public const string Name = "samples.UserBioUpdate";
 	public static Task<UserBioUpdateResult> ExecuteAsync(DbConnection connection, UserBioUpdateInput input, CancellationToken cancellationToken = default)
 	{
-		return ProcedureExecutor.ExecuteAsync<UserBioUpdateResult>(connection, UserBioUpdateProcedurePlan.Instance, input, cancellationToken);
+		return ProcedureExecutor.ExecuteAsync<UserBioUpdateResult>(connection, UserBioUpdatePlan.Instance, input, cancellationToken);
+	}
+}
+
+/// <summary>Convenience extension for executing 'samples.UserBioUpdate' via an <see cref="ISpocRDbContext"/>.</summary>
+public static class UserBioUpdateExtensions
+{
+	public static async Task<UserBioUpdateResult> UserBioUpdateAsync(this ISpocRDbContext db, UserBioUpdateInput input, CancellationToken cancellationToken = default)
+	{
+		await using var conn = await db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+		return await UserBioUpdateProcedure.ExecuteAsync(conn, input, cancellationToken).ConfigureAwait(false);
 	}
 }

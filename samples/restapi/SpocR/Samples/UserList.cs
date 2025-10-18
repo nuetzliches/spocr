@@ -30,7 +30,7 @@ public sealed class UserListResult
 	
 }
 
-internal static partial class UserListProcedurePlan
+internal static partial class UserListPlan
 {
     private static ProcedureExecutionPlan? _cached;
     public static ProcedureExecutionPlan Instance => _cached ??= Create();
@@ -58,6 +58,16 @@ public static class UserListProcedure
 	public const string Name = "samples.UserList";
 	public static Task<UserListResult> ExecuteAsync(DbConnection connection, CancellationToken cancellationToken = default)
 	{
-		return ProcedureExecutor.ExecuteAsync<UserListResult>(connection, UserListProcedurePlan.Instance, null, cancellationToken);
+		return ProcedureExecutor.ExecuteAsync<UserListResult>(connection, UserListPlan.Instance, null, cancellationToken);
+	}
+}
+
+/// <summary>Convenience extension for executing 'samples.UserList' via an <see cref="ISpocRDbContext"/>.</summary>
+public static class UserListExtensions
+{
+	public static async Task<UserListResult> UserListAsync(this ISpocRDbContext db, CancellationToken cancellationToken = default)
+	{
+		await using var conn = await db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+		return await UserListProcedure.ExecuteAsync(conn, cancellationToken).ConfigureAwait(false);
 	}
 }

@@ -125,7 +125,8 @@ public class CodeGenerationOrchestrator(
                         : null;
                     if (loader == null) consoleService.Warn($"[vNext] Templates-Verzeichnis fehlt: {templatesDir}");
                     var outDir = System.IO.Path.Combine(projectRoot, "SpocR");
-                    var vnextGen = new SpocR.SpocRVNext.SpocRGenerator(new SpocR.SpocRVNext.Engine.SimpleTemplateEngine(), loader, schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider(projectRoot));
+                    var schemaProvider = new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider(projectRoot);
+                    var vnextGen = new SpocR.SpocRVNext.SpocRGenerator(new SpocR.SpocRVNext.Engine.SimpleTemplateEngine(), loader, schemaProviderFactory: () => schemaProvider);
                     if (!System.IO.Directory.Exists(outDir)) System.IO.Directory.CreateDirectory(outDir);
                     var cfg = EnvConfiguration.Load(projectRoot: projectRoot);
                     var count = vnextGen.GenerateAll(cfg, projectRoot);

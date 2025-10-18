@@ -34,7 +34,7 @@ public sealed class UserDetailsWithOrdersResult
 	
 }
 
-internal static partial class UserDetailsWithOrdersProcedurePlan
+internal static partial class UserDetailsWithOrdersPlan
 {
     private static ProcedureExecutionPlan? _cached;
     public static ProcedureExecutionPlan Instance => _cached ??= Create();
@@ -65,6 +65,16 @@ public static class UserDetailsWithOrdersProcedure
 	public const string Name = "samples.UserDetailsWithOrders";
 	public static Task<UserDetailsWithOrdersResult> ExecuteAsync(DbConnection connection, UserDetailsWithOrdersInput input, CancellationToken cancellationToken = default)
 	{
-		return ProcedureExecutor.ExecuteAsync<UserDetailsWithOrdersResult>(connection, UserDetailsWithOrdersProcedurePlan.Instance, input, cancellationToken);
+		return ProcedureExecutor.ExecuteAsync<UserDetailsWithOrdersResult>(connection, UserDetailsWithOrdersPlan.Instance, input, cancellationToken);
+	}
+}
+
+/// <summary>Convenience extension for executing 'samples.UserDetailsWithOrders' via an <see cref="ISpocRDbContext"/>.</summary>
+public static class UserDetailsWithOrdersExtensions
+{
+	public static async Task<UserDetailsWithOrdersResult> UserDetailsWithOrdersAsync(this ISpocRDbContext db, UserDetailsWithOrdersInput input, CancellationToken cancellationToken = default)
+	{
+		await using var conn = await db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+		return await UserDetailsWithOrdersProcedure.ExecuteAsync(conn, input, cancellationToken).ConfigureAwait(false);
 	}
 }

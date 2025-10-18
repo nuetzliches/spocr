@@ -32,7 +32,7 @@ public sealed class OrderListAsJsonResult
 	
 }
 
-internal static partial class OrderListAsJsonProcedurePlan
+internal static partial class OrderListAsJsonPlan
 {
     private static ProcedureExecutionPlan? _cached;
     public static ProcedureExecutionPlan Instance => _cached ??= Create();
@@ -60,6 +60,16 @@ public static class OrderListAsJsonProcedure
 	public const string Name = "samples.OrderListAsJson";
 	public static Task<OrderListAsJsonResult> ExecuteAsync(DbConnection connection, CancellationToken cancellationToken = default)
 	{
-		return ProcedureExecutor.ExecuteAsync<OrderListAsJsonResult>(connection, OrderListAsJsonProcedurePlan.Instance, null, cancellationToken);
+		return ProcedureExecutor.ExecuteAsync<OrderListAsJsonResult>(connection, OrderListAsJsonPlan.Instance, null, cancellationToken);
+	}
+}
+
+/// <summary>Convenience extension for executing 'samples.OrderListAsJson' via an <see cref="ISpocRDbContext"/>.</summary>
+public static class OrderListAsJsonExtensions
+{
+	public static async Task<OrderListAsJsonResult> OrderListAsJsonAsync(this ISpocRDbContext db, CancellationToken cancellationToken = default)
+	{
+		await using var conn = await db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+		return await OrderListAsJsonProcedure.ExecuteAsync(conn, cancellationToken).ConfigureAwait(false);
 	}
 }

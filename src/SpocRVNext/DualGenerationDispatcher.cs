@@ -7,6 +7,8 @@ using SpocR.SpocRVNext.Utils;
 using SpocRVNext.Configuration;
 using SpocRVNext.Metadata;
 using SpocR.SpocRVNext.Generators;
+using System.Text.Json;
+using SpocR.Utils;
 
 namespace SpocR.SpocRVNext;
 
@@ -42,6 +44,9 @@ public sealed class DualGenerationDispatcher
         var solutionRoot = ProjectRootResolver.GetSolutionRootOrCwd();
         var templatesDir = Path.Combine(solutionRoot, "src", "SpocRVNext", "Templates");
         ITemplateLoader? loaderUnified = Directory.Exists(templatesDir) ? new FileSystemTemplateLoader(templatesDir) : null;
+
+        // Template cache-state: detect changes in template files and trigger ForceReload once.
+        TryApplyTemplateCacheState();
 
         switch (_cfg.GeneratorMode)
         {
@@ -101,6 +106,74 @@ public sealed class DualGenerationDispatcher
             "dual" => $"[dual] legacy+next written; diff summary created; next={nextContent}",
             _ => ""
         };
+    }
+
+    private void TryApplyTemplateCacheState()
+    {
+        try
+        {
+            var solutionRoot = ProjectRootResolver.GetSolutionRootOrCwd();
+            var projectRoot = ProjectRootResolver.ResolveCurrent();
+            var templatesDir = Path.Combine(solutionRoot, "src", "SpocRVNext", "Templates");
+            if (!Directory.Exists(templatesDir)) return; // nothing to hash
+
+            var manifest = SpocR.SpocRVNext.Utils.DirectoryHasher.HashDirectory(templatesDir, p => p.EndsWith(".spt", StringComparison.OrdinalIgnoreCase));
+            var templatesHash = manifest.AggregateSha256;
+
+            // Use the existing sample/project .spocr cache folder (same location as snapshot cache files)
+            var cacheDir = Path.Combine(projectRoot, ".spocr", "cache");
+            Directory.CreateDirectory(cacheDir);
+            var cacheFile = Path.Combine(cacheDir, "cache-state.json");
+            CacheState? previous = null;
+            if (File.Exists(cacheFile))
+            {
+                try
+                {
+                    var json = File.ReadAllText(cacheFile);
+                    previous = JsonSerializer.Deserialize<CacheState>(json);
+                }
+                catch { /* ignore corrupt */ }
+            }
+
+            var currentVersion = GetGeneratorVersion();
+            var state = new CacheState { TemplatesHash = templatesHash, GeneratorVersion = currentVersion, LastWriteUtc = DateTime.UtcNow };
+            var outJson = JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(cacheFile, outJson);
+
+            bool changed = previous == null || previous.TemplatesHash != templatesHash || previous.GeneratorVersion != currentVersion;
+            if (changed)
+            {
+                CacheControl.ForceReload = true; // one-time reload
+                var reason = previous == null ? "initialization" : (previous.TemplatesHash != templatesHash ? "hash-diff" : "version-change");
+                Console.Out.WriteLine($"[spocr vNext] Info: Template cache-state {reason}; hash={templatesHash.Substring(0, 8)} → reload metadata. path={cacheFile}");
+            }
+            else
+            {
+                Console.Out.WriteLine($"[spocr vNext] Info: Template cache-state unchanged (hash={templatesHash.Substring(0, 8)}) path={cacheFile}.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[spocr vNext] Warning: Failed template cache-state evaluation: {ex.Message}");
+        }
+    }
+
+    private static string GetGeneratorVersion()
+    {
+        try
+        {
+            // Attempt to read version from SpocR assembly (fallback hard-coded bridge label)
+            var asm = typeof(DualGenerationDispatcher).Assembly.GetName();
+            return asm.Version?.ToString() ?? "4.5-bridge";
+        }
+        catch { return "4.5-bridge"; }
+    }
+
+    private sealed class CacheState
+    {
+        public string TemplatesHash { get; set; } = string.Empty;
+        public string GeneratorVersion { get; set; } = string.Empty;
+        public DateTime LastWriteUtc { get; set; }
     }
 
     private static IEnumerable<string>? ReadAllowList(string baseOutputDir)

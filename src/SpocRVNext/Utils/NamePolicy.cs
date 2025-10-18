@@ -15,7 +15,7 @@ public static class NamePolicy
     public static string Input(string operation) => Sanitize(operation) + "Input";
     public static string Output(string operation) => Sanitize(operation) + "Output";
     public static string Result(string operation) => Sanitize(operation) + "Result";
-    public static string Procedure(string operation) => Sanitize(operation) + "Procedure";
+    public static string Procedure(string operation) => Sanitize(operation);
     // New unified result naming: Each result set becomes an inline record inside <Proc>Result.cs
     // For internal referencing we still need a deterministic type name per set.
     // Spec: Type name = <Proc><SetNameOrIndex>Result (no 'Row' suffix)

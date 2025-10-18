@@ -36,7 +36,7 @@ public sealed class OrderListByUserAsJsonResult
 	
 }
 
-internal static partial class OrderListByUserAsJsonProcedurePlan
+internal static partial class OrderListByUserAsJsonPlan
 {
     private static ProcedureExecutionPlan? _cached;
     public static ProcedureExecutionPlan Instance => _cached ??= Create();
@@ -67,6 +67,16 @@ public static class OrderListByUserAsJsonProcedure
 	public const string Name = "samples.OrderListByUserAsJson";
 	public static Task<OrderListByUserAsJsonResult> ExecuteAsync(DbConnection connection, OrderListByUserAsJsonInput input, CancellationToken cancellationToken = default)
 	{
-		return ProcedureExecutor.ExecuteAsync<OrderListByUserAsJsonResult>(connection, OrderListByUserAsJsonProcedurePlan.Instance, input, cancellationToken);
+		return ProcedureExecutor.ExecuteAsync<OrderListByUserAsJsonResult>(connection, OrderListByUserAsJsonPlan.Instance, input, cancellationToken);
+	}
+}
+
+/// <summary>Convenience extension for executing 'samples.OrderListByUserAsJson' via an <see cref="ISpocRDbContext"/>.</summary>
+public static class OrderListByUserAsJsonExtensions
+{
+	public static async Task<OrderListByUserAsJsonResult> OrderListByUserAsJsonAsync(this ISpocRDbContext db, OrderListByUserAsJsonInput input, CancellationToken cancellationToken = default)
+	{
+		await using var conn = await db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+		return await OrderListByUserAsJsonProcedure.ExecuteAsync(conn, input, cancellationToken).ConfigureAwait(false);
 	}
 }

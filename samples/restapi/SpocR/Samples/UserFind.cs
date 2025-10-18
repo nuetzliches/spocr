@@ -34,7 +34,7 @@ public sealed class UserFindResult
 	
 }
 
-internal static partial class UserFindProcedurePlan
+internal static partial class UserFindPlan
 {
     private static ProcedureExecutionPlan? _cached;
     public static ProcedureExecutionPlan Instance => _cached ??= Create();
@@ -65,6 +65,16 @@ public static class UserFindProcedure
 	public const string Name = "samples.UserFind";
 	public static Task<UserFindResult> ExecuteAsync(DbConnection connection, UserFindInput input, CancellationToken cancellationToken = default)
 	{
-		return ProcedureExecutor.ExecuteAsync<UserFindResult>(connection, UserFindProcedurePlan.Instance, input, cancellationToken);
+		return ProcedureExecutor.ExecuteAsync<UserFindResult>(connection, UserFindPlan.Instance, input, cancellationToken);
+	}
+}
+
+/// <summary>Convenience extension for executing 'samples.UserFind' via an <see cref="ISpocRDbContext"/>.</summary>
+public static class UserFindExtensions
+{
+	public static async Task<UserFindResult> UserFindAsync(this ISpocRDbContext db, UserFindInput input, CancellationToken cancellationToken = default)
+	{
+		await using var conn = await db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+		return await UserFindProcedure.ExecuteAsync(conn, input, cancellationToken).ConfigureAwait(false);
 	}
 }

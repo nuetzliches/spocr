@@ -32,20 +32,38 @@ Status-Legende:
 
 Legende Prioritäten: P1 = kritisch für v5 Cutover, P2 = hoch für Bridge (v4.5→v5), P3 = sinnvoll vor Release, P4 = nachgelagert / Nice-to-have.
 
-Aktueller Fokus (Top 10 P1/P2) – Update 2025-10-15:
+Aktueller Fokus – Update 2025-10-18:
 
-1. (P1) E014 End-to-End Nutzung mind. einer Stored Procedure im Sample – Roundtrip stabilisieren (Timeout/Ping Optimierung)
-2. (P1) E013 Test-Suite Ausbau: Multi-Result / unparsable SQL / Abschnittsreihenfolge Tests
-3. (P1) ResultSet Naming Dokumentation & Beispiele (Resolver already always-on) – ABGESCHLOSSEN 18.10.2025
-4. (P1) Golden Hash Strict Mode Entscheid + README / Policy (Status: relaxed – Strict Mode vorbereitet; Exit Codes 21–23 reserviert & dokumentiert; Ziel Aktivierung ab v5 Beta nach Coverage ≥60%)
-   note: README Abschnitt "Determinism & Golden Hash" hinzugefügt (18.10.2025)
-5. (P1) Coverage Gate Anhebung (Roadmap: 30%→50%→60%+; Ziel Core ≥80%) + CI Enforcement – DEFERRED Eskalation bis v5.0 (v4.5 Fokus: Messen & Transparente Reports, kein Fail bei Unterschreitung)
-6. (P2) E005 Template Engine Edge-Case Tests & Scope Freeze (keine Direktiven vor v5)
-7. (P2) E006 DbContext Stabilisierung & Logging Verbesserung im Sample
-8. (P2) E008 Konfig-Bereinigung: Mapping Tabelle Env vs. Legacy finalisieren + CHANGELOG Removed
-9. (P2) E010 Cutover Plan konkretisieren (Timeline + Abhängigkeiten) – README/Migration synchronisieren
-10. (P2) Quality-Gates Script CI Integration + Badges (Smoke/Determinism/Coverage/Quality)
-11. (P2) README Quick Start vNext Ergänzung (DbContext + Procedure Invocation Beispiel)
+API-KONZEPT Umsetzung & Entscheidungsfindung (siehe `DeveloperBranchUseOnly-API-CONCEPT.md`). Kernpunkte jetzt im Fokus statt früherer Liste 1–9:
+
+1. (P1) DbContext Methoden-Signaturen Generator (Interface Slicing: Schema-spezifische Partial Interfaces) – [x] Implementations-Skizze erstellt (Extension-Ansatz entschieden; Interface Slicing als zukünftige Option dokumentiert)
+2. (P1) Interceptor Interface (`ISpocRProcedureInterceptor`) finalisieren + erste Logging/Timing Implementierung – [x] Interface & NoOp Implementierung erstellt; Execution integriert (SetInterceptor + Pre/After Hooks mit Duration in `ProcedureExecutor`)
+3. (P1) Entscheidung Methodennamen Konfliktstrategie (Schema-Präfix bei Doppelungen?) dokumentieren – [x] Strategie dokumentiert (Namespaces per Schema + optionaler Schema-Präfix bei seltenen Konflikten; keine Overloads)
+   note: Vorgaben bestätigt: 1) Unterschiedliche Schemas erzeugen auch unterschiedliche Namespaces (SchemaPascalCase eingebunden) → reduziert natürliche Konflikte. 2) Bereinigung ersetzt nur nicht pfad-/klassennamen-kompatible Sonderzeichen durch '\_' (kein Entfernen/Normalisieren zur Deduplikation, keine aggressive Vereinheitlichung). 3) Prozedurnamen bleiben (abgesehen von Sonderzeichen-Ersatz) unverändert; kein Plural-Singulär Rewriting, kein Suffix Strip. 7) Zugriffskonzepte evaluiert: a) Extensions via using Namespace (Standard) b) db.[SchemaName].[ProcName]Async() via verschachtelte Schema-Accessor Proxy c) Mehrere injizierbare schema-spezifische DbContexts. Empfehlung: Start mit einfachem DbContext + Namespaces (Option a) → spätere Erweiterung: optionaler Schema Accessor (Option b) wenn Discoverability Bedarf steigt. Separate DbContexts pro Schema (Option c) aktuell verworfen (Fragmentierung / DI Overhead).
+   Kollisionslösung: Erst normaler Methodenname; falls Dublette trotz Namespace (selten bei identischem SchemaPascalCase + Name) → Schema-Präfix an Methodennamen anhängen (SalesGetOrderAsync). Keine Overloads.
+   Optional Anschluss-Schritte (Interceptor & Invocation Ausbau):
+   - LoggingProcedureInterceptor (structured logging: duration ms, success flag, error) implementieren [ ]
+   - DEVELOPMENT.md Abschnitt "Interceptors" (Registration, Best Practices, Fehlerhandling) ergänzen [ ]
+   - Reflection-Test für Extension Präsenz (<ProcName>Async + Wrapper Bridge) hinzufügen [ ]
+   - Doku Hinweis: Globaler statischer Interceptor vs. mögliche zukünftige DI-scoped Variante [ ]
+   - Beispiel-Code Snippet im README (Interceptor Registrierung während Startup) [ ]
+4. (P1) Aggregat Rückgabe-Konvention – Entscheidung BESTÄTIGT: Immer Unified Aggregate (kein Shortcut bei Single ResultSet) – [x] dokumentieren (API-CONCEPT.md Referenz) TODO: README Abschnitt ergänzen
+5. (P2) Streaming API Flags & Snapshot Erweiterungen (ResultSetStreamingKind, IsJsonPayload) – Spezifikation festziehen (Implementierung deferred v5)
+6. (P2) JSON Dual Mode Methoden-Suffixe fixieren (`JsonRawAsync`, `JsonDeserializeAsync`, `JsonElementsAsync`, `JsonStreamAsync`) – Naming Freeze
+7. (P2) ProcedureEndpoints Generator Opt-In Flag definieren (`SPOCR_GENERATE_API_ENDPOINTS` / CLI `--api-endpoints`) – Entscheidung + README TODO
+8. (P2) Wrapper vs. Static Low-Level Doku (Static Wrapper als Low-Level kennzeichnen) – Draft Erstellen
+9. (P2) Fluent Command Builder Abgrenzung (nur komplexe Szenarien; Flag) – Evaluations-Notiz + Entscheidung ob v5 oder später
+10. (P2) Decision Liste aus Abschnitt "Zu planende Entscheidungen" priorisieren & markieren (siehe unten konsolidierte Auswahl)
+
+Depriorisiert (jetzt außerhalb unmittelbarer Fokusliste): Coverage Schwellen Eskalation, Template Edge-Case Tests, allgemeine Logging Verfeinerungen – bleiben beobachtet.
+
+Entscheidungs-Priorisierung aus "Zu planende Entscheidungen" (Snapshot 18.10.2025):
+P1: Datums-/Zeitformat (UTC vs. lokal; Format Standard) · TwoWay Binding Inputs<->Outputs (DTO Reuse) · JSON ResultSet Dual Mode (Flags + Artefakte) · Namespace Fehlerfall ([spocr namespace] Fallback) Bereinigung.
+P2: Converters Modell (Attribute vs. zentraler Registry) · Output Cleanup nicht mehr vorhandener Artefakte · TemplateEngine erweiterte Schleifen · Collision Test für vorgeschlagene Namen · Parser Caching Strategie.
+P3: CTE Support (v5) · FOR JSON PATH root alias extraction · Performance Micro-Benchmark · Mixed Case Normalisierung final · Strict-Diff Aktivierung.
+P4: SPOCR_JSON_SPLIT_NESTED Entfernung Bewertung · Erweiterte Interceptor Hooks (OnJsonDeserialized) · Optional Compression.
+
+Hinweis: Implementierungsstart für DbContext Methoden (P1) erst nach finaler Bestätigung Punkte 1–4. Streaming & JSON Dual Mode bewusst v5 (Vorbereitung aber dokumentiert jetzt für frühe Review).
 
 Kurzfristig depriorisiert (Beispiele P3/P4): Performance Profiling, Nested Template Loops, Strict-Diff Eskalation, Minor Nullability Phase 2.
 

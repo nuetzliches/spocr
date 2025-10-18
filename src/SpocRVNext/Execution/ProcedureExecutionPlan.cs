@@ -42,6 +42,11 @@ public sealed record ResultSetMapping(string Name, Func<DbDataReader, Cancellati
 
 public static class ProcedureExecutor
 {
+    private static ISpocRProcedureInterceptor _interceptor = new NoOpProcedureInterceptor();
+
+    /// <summary>Sets a global interceptor. Thread-safe overwrite; expected rarely (e.g. application startup).</summary>
+    public static void SetInterceptor(ISpocRProcedureInterceptor interceptor) => _interceptor = interceptor ?? new NoOpProcedureInterceptor();
+
     public static async Task<TAggregate> ExecuteAsync<TAggregate>(DbConnection connection, ProcedureExecutionPlan plan, object? state = null, CancellationToken cancellationToken = default)
     {
         await using var cmd = connection.CreateCommand();
@@ -61,11 +66,17 @@ public static class ProcedureExecutor
             }
             cmd.Parameters.Add(param);
         }
+
+        object? beforeState = null;
+        var start = DateTime.UtcNow;
         try
         {
             if (connection.State != ConnectionState.Open) await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
             // Bind input values (if any) before execution
             plan.InputBinder?.Invoke(cmd, state); // wrapper supplies state (input record) if available
+
+            beforeState = await _interceptor.OnBeforeExecuteAsync(plan.ProcedureName, cmd, state, cancellationToken).ConfigureAwait(false);
+
             await using var reader = await cmd.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
             var resultSetResults = new List<object>(plan.ResultSets.Count);
             for (int i = 0; i < plan.ResultSets.Count; i++)
@@ -90,13 +101,17 @@ public static class ProcedureExecutor
             }
             object? outputObj = plan.OutputFactory?.Invoke(outputValues);
             var rsArray = resultSetResults.ToArray();
-            var aggregate = plan.AggregateFactory(true, null, outputObj, outputValues, rsArray);
-            return (TAggregate)aggregate;
+            var aggregateObj = plan.AggregateFactory(true, null, outputObj, outputValues, rsArray);
+            var duration = DateTime.UtcNow - start;
+            await _interceptor.OnAfterExecuteAsync(plan.ProcedureName, cmd, true, null, duration, beforeState, aggregateObj, cancellationToken).ConfigureAwait(false);
+            return (TAggregate)aggregateObj;
         }
         catch (Exception ex)
         {
-            var aggregate = plan.AggregateFactory(false, ex.Message, null, new Dictionary<string, object?>(), Array.Empty<object>());
-            return (TAggregate)aggregate;
+            var aggregateObj = plan.AggregateFactory(false, ex.Message, null, new Dictionary<string, object?>(), Array.Empty<object>());
+            var duration = DateTime.UtcNow - start;
+            try { await _interceptor.OnAfterExecuteAsync(plan.ProcedureName, cmd, false, ex.Message, duration, beforeState, aggregateObj, cancellationToken).ConfigureAwait(false); } catch { /* swallow interceptor errors */ }
+            return (TAggregate)aggregateObj;
         }
     }
 }

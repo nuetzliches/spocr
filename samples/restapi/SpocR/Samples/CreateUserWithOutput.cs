@@ -36,7 +36,7 @@ public sealed class CreateUserWithOutputResult
 	
 }
 
-internal static partial class CreateUserWithOutputProcedurePlan
+internal static partial class CreateUserWithOutputPlan
 {
     private static ProcedureExecutionPlan? _cached;
     public static ProcedureExecutionPlan Instance => _cached ??= Create();
@@ -70,6 +70,16 @@ public static class CreateUserWithOutputProcedure
 	public const string Name = "samples.CreateUserWithOutput";
 	public static Task<CreateUserWithOutputResult> ExecuteAsync(DbConnection connection, CreateUserWithOutputInput input, CancellationToken cancellationToken = default)
 	{
-		return ProcedureExecutor.ExecuteAsync<CreateUserWithOutputResult>(connection, CreateUserWithOutputProcedurePlan.Instance, input, cancellationToken);
+		return ProcedureExecutor.ExecuteAsync<CreateUserWithOutputResult>(connection, CreateUserWithOutputPlan.Instance, input, cancellationToken);
+	}
+}
+
+/// <summary>Convenience extension for executing 'samples.CreateUserWithOutput' via an <see cref="ISpocRDbContext"/>.</summary>
+public static class CreateUserWithOutputExtensions
+{
+	public static async Task<CreateUserWithOutputResult> CreateUserWithOutputAsync(this ISpocRDbContext db, CreateUserWithOutputInput input, CancellationToken cancellationToken = default)
+	{
+		await using var conn = await db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
+		return await CreateUserWithOutputProcedure.ExecuteAsync(conn, input, cancellationToken).ConfigureAwait(false);
 	}
 }
