@@ -139,6 +139,77 @@ Benefits:
 
 Referenced Tests: `EnvConfigurationTests` (precedence + invalid mode) and `BridgePolicyTests` (upgrade gating & override variable).
 
+### Namespace Derivation & Override
+
+SpocR derives a default root namespace for generated code when you do not explicitly supply one. The resolution order follows the same precedence chain shown above and is tested (see `EnvConfigurationTests`):
+
+```
+CLI --namespace flag > SPOCR_NAMESPACE environment variable > .env line SPOCR_NAMESPACE=... > project.output.namespace in spocr.json > inferred from containing directory name
+```
+
+Inference Rule:
+
+- If no explicit value is provided, the last segment of the project root directory is sanitized into a valid C# namespace identifier (non‑alphanumeric characters removed, leading digits prefixed with `_`).
+- Example: directory `c:\work\my-company.service` ⇒ inferred namespace `mycompanyservice` (then PascalCase applied per generator style if required).
+
+Override Examples:
+
+1. CLI (highest):
+
+```
+spocr generate --namespace My.Company.Service
+```
+
+2. Environment variable (Windows cmd):
+
+```
+set SPOCR_NAMESPACE=My.Company.Service
+spocr generate
+```
+
+3. .env file (checked into repo or provided in CI working directory):
+
+```
+SPOCR_NAMESPACE=My.Company.Service
+```
+
+4. Legacy `spocr.json` (bridge, slated for removal in v5):
+
+```jsonc
+{
+  "project": {
+    "output": {
+      "namespace": "My.Company.Service"
+    }
+  }
+}
+```
+
+Validation:
+
+- Empty or whitespace values are ignored (next source considered).
+- Values containing invalid characters are sanitized. If the sanitized result is empty or begins with an invalid start character, an exception is thrown early.
+- Leading digits: `123Service` becomes `_123Service`.
+- Disallowed characters: `My-Service.Core` becomes `MyServiceCore`.
+
+Failure Modes (all produce clear messages):
+
+- Providing a value with only invalid characters (e.g. `---`).
+- Providing a value longer than typical namespace limits after sanitization (guard rails > 512 chars, rare case).
+
+Recommended Practice:
+
+- Prefer CLI override in ephemeral automation (release pipelines) for clarity.
+- Use `.env` for local developer experimentation without committing changes to `spocr.json`.
+- Migrate any remaining `spocr.json` namespace fields before v5; they will be ignored once the bridge period ends.
+
+Next Steps (Roadmap):
+
+- v5: Remove legacy `project.output.namespace` fallback; rely only on CLI / env / .env.
+- Add analyzer hint when both CLI and env variable specify differing namespaces (warn about potential confusion).
+
+Referenced Tests: `NamespaceResolverTests`, `EnvConfigurationTests`.
+
 ### Migration Note: Removal of Legacy `Output`
 
 Older snapshots exposed a root-level `Output` array for JSON-returning procedures. This was removed in favor of a unified `ResultSets` model. Update any tooling referencing `Output` to:

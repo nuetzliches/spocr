@@ -20,6 +20,14 @@ internal static class ResultSetNameResolver
         if (string.IsNullOrWhiteSpace(procedureSql)) return null;
         try
         {
+            // Fast pre-scan for dynamic SQL patterns – skip naming to avoid misleading table suggestions
+            // Patterns: EXEC(@sql), sp_executesql, EXECUTE(@sql), concatenated assignment building dynamic T-SQL.
+            // We intentionally keep this heuristic conservative: if any dynamic pattern is found we bail out.
+            var lower = procedureSql.ToLowerInvariant();
+            if (lower.Contains("sp_executesql") || lower.Contains("exec(@") || lower.Contains("execute(@") || lower.Contains("exec (") || lower.Contains("exec sp_executesql"))
+            {
+                return null; // force generic naming
+            }
             var parser = new TSql150Parser(true);
             using var sr = new StringReader(procedureSql);
             var fragment = parser.Parse(sr, out IList<ParseError> errors);
