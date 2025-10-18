@@ -31,7 +31,7 @@ Aktueller Fokus (Top 10 P1/P2) – Update 2025-10-15:
 3. (P1) ResultSet Naming Dokumentation & Beispiele (Resolver already always-on)
 4. (P1) Golden Hash Strict Mode Entscheid + README / Policy (Status: relaxed – Strict Mode vorbereitet; Exit Codes 21–23 reserviert & dokumentiert; Ziel Aktivierung ab v5 Beta nach Coverage ≥60%)
    note: README Abschnitt "Determinism & Golden Hash" hinzugefügt (18.10.2025)
-5. (P1) Coverage Gate Anhebung (Roadmap: 30%→50%→60%+; Ziel Core ≥80%) + CI Enforcement
+5. (P1) Coverage Gate Anhebung (Roadmap: 30%→50%→60%+; Ziel Core ≥80%) + CI Enforcement – DEFERRED Eskalation bis v5.0 (v4.5 Fokus: Messen & Transparente Reports, kein Fail bei Unterschreitung)
 6. (P2) E005 Template Engine Edge-Case Tests & Scope Freeze (keine Direktiven vor v5)
 7. (P2) E006 DbContext Stabilisierung & Logging Verbesserung im Sample
 8. (P2) E008 Konfig-Bereinigung: Mapping Tabelle Env vs. Legacy finalisieren + CHANGELOG Removed
@@ -171,8 +171,8 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] (Optional) Info-Diff zwischen Legacy und neuem Output generiert (kein Paritäts-Zwang)
 - [ ] Automatisierte Qualitäts-Gates (eng/quality-gates.ps1) lokal und in CI erfolgreich
 - [ ] Test-Hosts nach Läufen bereinigt (eng/kill-testhosts.ps1) – kein Leak mehr
-- [ ] Code Coverage Mindestschwelle definiert und erreicht (Ziel: >80% Core-Logik)
-      note: Scoped vNext Coverage Gate implementiert (eng/quality-gates.ps1). Aktuelle Schwelle noch niedrig; Eskalationspfad offen.
+- [ ] Code Coverage Mindestschwelle definiert und erreicht (Ziel: >80% Core-Logik) – Schwellen-Aktivierung verschoben auf v5.0
+      note: v4.5 Phase = Reporting only (eng/quality-gates.ps1 liefert Messung ohne Fail). Eskalationspfad dokumentiert (README Golden Hash Abschnitt). Aktivierung Strict Gate erst nach stabiler >60% Kern-Coverage.
 - [ ] Negative Tests für ungültige spocr.json Konfigurationen
 - [x] Test: TableTypes Name Preservation (`PreservesOriginalNames_NoRenaming`) sichert unveränderte UDTT Bezeichner
 - [x] Entfernte Suffix-Normalisierung für TableTypes (Regression abgesichert)
@@ -248,11 +248,12 @@ Streaming & Invocation (vNext API)
       - [x] Metadata Provider Implementierung (DB Schema → Descriptors) produktiv (SchemaMetadataProvider)
       - [~] CLI Integration (`spocr generate` nutzt neue Generatoren) – Legacy Orchestrator ruft vNext Generator jetzt in dual|next auf; eigene vNext CLI Ergänzungen folgen
       - [~] Sample nutzt mindestens eine generierte Stored Procedure (Endpoints implementiert, noch Fehler 500 bei UserList)
-      - [ ] ResultSet Naming Strategie dokumentiert (Resolver aktiv; Beispiele ergänzen)
+      - [ ] ResultSet Naming Strategie dokumentiert (Resolver aktiv; Beispiele ergänzen) – Ergänzende Beispiele (Dynamic SQL Skip, Duplicate Suffix) noch ausstehend
       - [~] Tests: Snapshot / Determinismus für neue Artefakte (Basis vorhanden: Golden + Konsolidierte Procs; ausstehend: RowSet / Konfliktfälle)
       - [ ] Interaktive .env Bootstrap CLI (separate vNext Kommando) – Basis EnvBootstrapper vorhanden, noch kein dedizierter Befehl
 
       Hinweis: ResultSetNameResolver aktiv (always-on) – nutzt persistiertes `Sql` Feld; ersetzt nur generische Namen kollisionsfrei.
+      Update 2025-10-18: Dynamische SQL Erkennung (EXEC(@sql) / sp_executesql) implementiert – Resolver liefert in diesen Fällen bewusst kein Basis-Tabellen-Namensvorschlag (Tests: ResultSetNameResolverDynamicSqlTests).
 
       TODO entfernt: Performance Messung (nicht mehr erforderlich)
 
@@ -479,8 +480,8 @@ Connectivity gesichert (test-db Script + CI Integration). Offene Kernpunkte: Sta
 ## Aktuelle Sofort-Prioritäten (neu / validiert 2025-10-15)
 
 1. Coverage Threshold & Enforcement (≥80% Kernlogik) – CI Gate implementieren
-2. Dynamic SQL Detection Konzept (Resolver Skip) + erster Testfall
-3. CTE Support Vorarbeit (Parsing Strategie definieren, Minimal-Implementierung planen)
+2. Dynamic SQL Detection Konzept (Resolver Skip) + erster Testfall – ERLEDIGT (18.10.2025)
+3. CTE Support Vorarbeit (Parsing Strategie definieren, Minimal-Implementierung planen) – DEFERRED auf v5.0 (aktuell kein unmittelbarer Mehrwert für Bridge Phase)
 4. Doku Konsolidierung: TableTypes + ResultSet Naming + README Verlinkungen + Badge Sektion
 5. Golden Hash Strict Mode Entscheid (Policy Flags, Exit Codes Eskalation) & README Abschnitt
 6. CI Badges (Smoke / Determinism / Quality / Coverage) + Kill-Skript überall referenzieren
@@ -497,7 +498,7 @@ Connectivity gesichert (test-db Script + CI Integration). Offene Kernpunkte: Sta
 - [ ] Objekte, die nicht mehr im .spocr/schema enthalten sind aus dem Output löschen
 - [ ] TemplateEngine optimieren (z.B: verschachtelte for each ermöglichen)
 - [ ] Refactoring und Optimierung der SpocRVNext und vnext-Outputs durchführen
-- [ ] ResultSetNameResolver Improvements (geplant) - [ ] CTE support (first base table inside final query if no direct NamedTableReference) - [ ] FOR JSON PATH root alias extraction (use alias as name) - [ ] Dynamic SQL detection -> explicit skip marker - [ ] Collision test for suggested names - [ ] Parser performance micro-benchmark & caching - [ ] Optional config flag to disable resolver (SPOCR_DISABLE_RS_NAME_RESOLVER) - [ ] Snapshot Integration: Prozedur-SQL Felder erfassen (`Sql` oder `Definition` Key) beim `spocr pull` - [ ] Aktivierungs-Flag dokumentieren & Minimal-Doku (intern) erstellen
+- [ ] ResultSetNameResolver Improvements (geplant) - [ ] CTE support (erste Basis-Tabelle aus finaler Query, wenn kein direkter NamedTableReference) – verschoben zu v5.0 - [ ] FOR JSON PATH root alias extraction (Alias als Name nutzen) - [x] Dynamic SQL detection -> skip (implementiert 18.10.2025) - [ ] Collision test für vorgeschlagene Namen (Edge Cases Mehrere Tabellen, gleiche Basisnamen) - [ ] Parser Performance Micro-Benchmark & Caching Strategie (TSql150Parser Reuse) - [ ] Optionales Disable Flag (`SPOCR_DISABLE_RS_NAME_RESOLVER`) - [ ] Snapshot Integration: Prozedur-SQL Felder vollständiger erfassen (`Sql`/`Definition`) beim `spocr pull` - [ ] Aktivierungs-/Disable Flag Dokumentation (Kurzer Abschnitt README + interne Minimal-Doku)
 - [ ] Warum sind die Inputs vom Typ Output nicht in den Inputs enthalten? Wir brauchen TwoWay Binding
 - [ ] .env.example: Nur gültige verwenden und Kommentare ergänzen
 - [ ] die erzeugte .env soll mit denselben Kommentaren wie die .env.example angereichert werden (.env.example dient als dem Generator als Vorlage?)
