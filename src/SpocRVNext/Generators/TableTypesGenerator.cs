@@ -76,24 +76,13 @@ public sealed class TableTypesGenerator
             File.WriteAllText(interfacePath, ifaceCode, Encoding.UTF8);
             written++;
         }
-        // TableTypes filtering: default is 'all' (no BuildSchemas restriction) to support cross-schema forwarding.
-        // Activate legacy strict filtering only via env flag SPOCR_TABLETYPES_MODE=strict|filtered.
-        var ttMode = Environment.GetEnvironmentVariable("SPOCR_TABLETYPES_MODE")?.Trim().ToLowerInvariant();
-        bool applyStrictFilter = ttMode is "strict" or "filtered";
-        if (applyStrictFilter && _cfg.BuildSchemas is { Count: > 0 })
+        // Central BuildSchemas allow-list now applies to Procedures AND TableTypes (CHECKLIST 2025-10-15).
+        if (_cfg.BuildSchemas is { Count: > 0 })
         {
             var beforeT = types.Count;
             types = types.Where(t => _cfg.BuildSchemas.Contains(t.Schema)).ToList();
             var removedT = beforeT - types.Count;
-            if (removedT > 0)
-            {
-                try { Console.Out.WriteLine($"[spocr vNext] Info: TableTypes strict allow-list active -> {types.Count} of {beforeT} retained. Removed: {removedT}. Schemas: {string.Join(",", _cfg.BuildSchemas)}"); } catch { }
-            }
-        }
-        else if (_cfg.BuildSchemas is { Count: > 0 })
-        {
-            // Informational log: we deliberately do NOT filter to enable cross-schema usage (TVP forwarding).
-            try { Console.Out.WriteLine($"[spocr vNext] Info: TableTypes generation unfiltered despite BuildSchemas ({string.Join(",", _cfg.BuildSchemas)}) – mode={ttMode ?? "default"}"); } catch { }
+            try { Console.Out.WriteLine($"[spocr vNext] Info: TableTypes allow-list applied -> {types.Count}/{beforeT} retained (removed {removedT}). Schemas: {string.Join(",", _cfg.BuildSchemas)}"); } catch { }
         }
         foreach (var tt in types.OrderBy(t => t.Schema).ThenBy(t => t.Name))
         {

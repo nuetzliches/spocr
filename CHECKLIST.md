@@ -29,7 +29,8 @@ Aktueller Fokus (Top 10 P1/P2) – Update 2025-10-15:
 1. (P1) E014 End-to-End Nutzung mind. einer Stored Procedure im Sample – Roundtrip stabilisieren (Timeout/Ping Optimierung)
 2. (P1) E013 Test-Suite Ausbau: Multi-Result / unparsable SQL / Abschnittsreihenfolge Tests
 3. (P1) ResultSet Naming Dokumentation & Beispiele (Resolver already always-on)
-4. (P1) Golden Hash Strict Mode Entscheid + README / Policy (derzeit relaxed)
+4. (P1) Golden Hash Strict Mode Entscheid + README / Policy (Status: relaxed – Strict Mode vorbereitet; Exit Codes 21–23 reserviert & dokumentiert; Ziel Aktivierung ab v5 Beta nach Coverage ≥60%)
+   note: README Abschnitt "Determinism & Golden Hash" hinzugefügt (18.10.2025)
 5. (P1) Coverage Gate Anhebung (Roadmap: 30%→50%→60%+; Ziel Core ≥80%) + CI Enforcement
 6. (P2) E005 Template Engine Edge-Case Tests & Scope Freeze (keine Direktiven vor v5)
 7. (P2) E006 DbContext Stabilisierung & Logging Verbesserung im Sample
@@ -171,14 +172,15 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [ ] Automatisierte Qualitäts-Gates (eng/quality-gates.ps1) lokal und in CI erfolgreich
 - [ ] Test-Hosts nach Läufen bereinigt (eng/kill-testhosts.ps1) – kein Leak mehr
 - [ ] Code Coverage Mindestschwelle definiert und erreicht (Ziel: >80% Core-Logik)
-      note: Aktuell nur initiale niedrige Schwelle dokumentiert; Eskalation & Durchsetzung offen
+      note: Scoped vNext Coverage Gate implementiert (eng/quality-gates.ps1). Aktuelle Schwelle noch niedrig; Eskalationspfad offen.
 - [ ] Negative Tests für ungültige spocr.json Konfigurationen
 - [x] Test: TableTypes Name Preservation (`PreservesOriginalNames_NoRenaming`) sichert unveränderte UDTT Bezeichner
 - [x] Entfernte Suffix-Normalisierung für TableTypes (Regression abgesichert)
 - [x] Konsolidierte Prozedur-Datei Test (keine Duplikate Input/Output + deterministischer Doppel-Lauf)
 - [x] ResultSet Rename + Collision Tests (Resolver Basis abgesichert)
 - [x] BuildSchemas Filtering Test (Procedures) (`BuildSchemasFilteringTests`)
-- [ ] TableTypes Allow-List Filter Test (SPOCR_BUILD_SCHEMAS)
+- [x] TableTypes Allow-List Filter Test (SPOCR_BUILD_SCHEMAS)
+      note: Abgedeckt durch `Filters_TableTypes_By_BuildSchemas_AllowList` in `TableTypesGeneratorTests` (prüft Interface + gefilterte Schema-Ausgabe)
 
 ### Codegenerierung / SpocRVNext
 
@@ -206,17 +208,17 @@ Streaming & Invocation (vNext API)
 - [ ] Doku Abschnitt "Procedure Invocation Patterns" inkl. Streaming Beispiele
 - [ ] Interceptor Erweiterung (optional) für PreExecute/PostExecute Streaming Pfade
 - [ ] Entscheidung: Naming-Konvention Stream Methoden (ResultXStreamAsync vs. StreamResultXAsync) dokumentiert und fixiert
- - [ ] FOR JSON Dual Mode: Raw + Lazy Deserialization Methoden (JsonRawAsync / JsonDeserializeAsync / JsonElementsAsync / JsonStreamAsync)
- - [ ] ProcedureJsonHelper implementiert
- - [ ] Aggregate Lazy JSON Cache (JsonLazy<T>) integriert
- - [ ] Tests: Raw + Deserialize + Elements Streaming + Invalid JSON + Cancellation
- - [ ] Doku: Dual Mode JSON Nutzung & Best Practices (Wann Raw? Wann Lazy? Wann Streaming?)
- - [ ] Snapshot: pro ResultSet Flag IsJsonPayload (nicht nur pro Procedure)
- - [ ] Generator: Erzeuge JsonRawAsync, JsonDeserializeAsync<T>, JsonElementsAsync<T>, JsonStreamAsync
- - [ ] Incremental Parsing: Utf8JsonReader basierte Implementation für Elements Streaming
- - [ ] Fallback wenn Root nicht Array → InvalidOperationException Test
- - [ ] Performance Smoke: Großer JSON Payload (≥5MB) Vergleich Raw vs. Streaming (Messung dokumentieren)
- - [ ] Interceptor Erweiterung evaluieren (OnJsonDeserialized Hook) – Entscheidung dokumentieren
+- [ ] FOR JSON Dual Mode: Raw + Lazy Deserialization Methoden (JsonRawAsync / JsonDeserializeAsync / JsonElementsAsync / JsonStreamAsync)
+- [ ] ProcedureJsonHelper implementiert
+- [ ] Aggregate Lazy JSON Cache (JsonLazy<T>) integriert
+- [ ] Tests: Raw + Deserialize + Elements Streaming + Invalid JSON + Cancellation
+- [ ] Doku: Dual Mode JSON Nutzung & Best Practices (Wann Raw? Wann Lazy? Wann Streaming?)
+- [ ] Snapshot: pro ResultSet Flag IsJsonPayload (nicht nur pro Procedure)
+- [ ] Generator: Erzeuge JsonRawAsync, JsonDeserializeAsync<T>, JsonElementsAsync<T>, JsonStreamAsync
+- [ ] Incremental Parsing: Utf8JsonReader basierte Implementation für Elements Streaming
+- [ ] Fallback wenn Root nicht Array → InvalidOperationException Test
+- [ ] Performance Smoke: Großer JSON Payload (≥5MB) Vergleich Raw vs. Streaming (Messung dokumentieren)
+- [ ] Interceptor Erweiterung evaluieren (OnJsonDeserialized Hook) – Entscheidung dokumentieren
 
 #### Optional: Wrapper & Snapshot Referenzen
 
@@ -415,10 +417,11 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 - [x] Hash-Manifeste erzeugt (SHA256) pro Output
 - [x] Diff-Report + Allow-List Mechanismus vorhanden
 - [ ] Aktivierung reservierter Exit Codes (21–23) bei Policy-Eskalation implementieren (geplant erst ab v5.0)
-- [ ] Dokumentation: Anleitung zur Pflege der Allow-List (`.spocr-diff-allow`)
+      -- [x] Dokumentation: Anleitung zur Pflege der Allow-List (`.spocr-diff-allow`) (README Abschnitt enthält Workflow & Beispiel Globs)
 - [ ] Optionaler "strict-diff" Modus über ENV / CLI Flag getestet
 - [x] Snapshot-Timestamp (`GeneratedUtc`) aus Persistenz entfernt (deterministische Hashes / keine Timestamp-Diffs)
 - [x] Hash-Filter erweitert: Ignoriere dynamische `Generated at` Zeilen aus vNext Output-Dateien
+      note: Strict Mode Aktivierungskriterium: Kern-Coverage ≥60% & stabile Allow-List; README Abschnitt vorhanden (Determinism & Golden Hash, 18.10.2025)
 
 ### Sonstiges
 
@@ -453,7 +456,8 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 - [ ] samples\restapi\.env aus Template mit Kommentaren generieren - [x] Template-Datei `.env.example` anreichert (Erklär-Kommentare für Modus/Flags/Namespace vorhanden) - [ ] CLI Befehl/Bootstrap: `spocr env init` (optional) evaluieren
 - [ ] (OBSOLET) ResultSet Datei-Benennung vereinheitlichen (durch Konsolidierung in eine Prozedur-Datei nicht mehr relevant)
       Hinweis: Einzelne RowSet-Dateien existieren nicht mehr; alle Records (Inputs/Outputs/ResultSets/Aggregate/Plan/Executor) liegen in einer konsolidierten `<Proc>.cs`.
-      Folgeaufgaben (aktualisiert): - [ ] Test: Konsolidierte Datei enthält erwartete Abschnitte in Reihenfolge (Header→Inputs→Outputs→ResultSets→Aggregate→Plan→Executor) - [ ] Test: Kein doppelter Record-Name bei mehreren ResultSets (Multi-Table) - [x] Aktivierungs-Test Resolver (generische Namen ersetzt) - [ ] Negative Test: Unparsable SQL → Fallback (kein Crash) - [ ] Multi-ResultSet Szenario (nur erste Tabelle benannt, weitere generisch) - [ ] Mixed Case Tabellenname Normalisierung
+      Folgeaufgaben (aktualisiert): - [x] Test: Konsolidierte Datei enthält erwartete Abschnitte in Reihenfolge (Header→Inputs→Outputs→ResultSets→Aggregate→Plan→Executor) - [ ] Test: Kein doppelter Record-Name bei mehreren ResultSets (Multi-Table) - [x] Aktivierungs-Test Resolver (generische Namen ersetzt) - [x] Negative Test: Unparsable SQL → Fallback (kein Crash) - [ ] Multi-ResultSet Szenario (nur erste Tabelle benannt, weitere generisch) - [ ] Mixed Case Tabellenname Normalisierung
+      note: Ordering Tests (Single & Multi) implementiert in `UnifiedProcedureOrderingTests` (18.10.2025)
 - [x] Auto-Namespace Fallback für samples/restapi implementiert (erzwingt Basis `RestApi`) - [ ] Ergänzender Test für WorkingDir = `samples/restapi` (Folgetask – aktuell indirekt durch Integration abgedeckt)
 - [ ] .env Override Nutzung (SPOCR_NAMESPACE) dokumentieren & Beispiel ergänzen - [ ] README / docs: Abschnitt "Namespace Ableitung & Override" inkl. Beispiel diff - Fallback / Erzwingung via Smoke Script aktiv, Doku fehlt
 - [ ] Einheitliche Klein-/Großschreibung Schema-Ordner - [ ] Normalisierung (Entscheidung: Beibehalt Original vs. PascalCase) - [ ] Test: Mixed Case Snapshot → generierter Ordner konsistent - Status: Implementiert als PascalCase (Generator), Dokumentation noch offen

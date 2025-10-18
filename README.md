@@ -514,21 +514,24 @@ The project file no longer auto-increments version numbers; builds are reproduci
 
 SpocR uses categorized, spaced exit codes to allow future expansion without breaking CI consumers.
 
-| Code | Category        | Meaning / Usage                            | Emitted Now                | Notes                                  |
-| ---- | --------------- | ------------------------------------------ | -------------------------- | -------------------------------------- |
-| 0    | Success         | Successful execution                       | Yes                        | Stable                                 |
-| 10   | Validation      | Validation / user input failure            | Yes (validate path)        |                                        |
-| 20   | Generation      | Code generation pipeline error             | No                         | Reserved                               |
-| 30   | Dependency      | External system (DB/network) failure       | No                         | Reserved                               |
-| 40   | Testing         | Test suite failure (aggregate)             | Yes                        | 41=Unit, 42=Integration, 43=Validation |
-| 41   | Testing         | Unit test failure                          | Yes (unit failures)        | More specific than 40                  |
-| 42   | Testing         | Integration test failure                   | Yes (integration failures) | Falls back to 40 if ambiguous          |
-| 43   | Testing         | Validation test failure                    | Yes (validation failures)  | Structural / repository validation     |
-| 50   | Benchmark       | Benchmark execution failure                | No                         | Reserved (flag present, impl pending)  |
-| 60   | Rollback        | Rollback / recovery failed                 | No                         | Reserved                               |
-| 70   | Configuration   | Config parsing/validation error            | No                         | Reserved                               |
-| 80   | Internal        | Unexpected unhandled exception             | Yes (Program.cs catch)     | Critical – file issue/bug              |
-| 99   | Future/Reserved | Experimental / feature-flag reserved space | No                         | Avoid relying on this                  |
+| Code | Category        | Meaning / Usage                                    | Emitted Now                | Notes                                                |
+| ---- | --------------- | -------------------------------------------------- | -------------------------- | ---------------------------------------------------- |
+| 0    | Success         | Successful execution                               | Yes                        | Stable                                               |
+| 10   | Validation      | Validation / user input failure                    | Yes (validate path)        |                                                      |
+| 20   | Generation      | Code generation pipeline error                     | No                         | Reserved                                             |
+| 21   | Determinism     | Golden Hash diff violation (strict mode)           | No (informational only)    | Activates once strict mode enabled                   |
+| 22   | Determinism     | Golden Hash integrity failure (manifest malformed) | No                         | Hard failure – indicates corruption                  |
+| 23   | Determinism     | Diff allow-list violation (unexpected pattern)     | No                         | Enforced when strict mode + allow-list freeze active |
+| 30   | Dependency      | External system (DB/network) failure               | No                         | Reserved                                             |
+| 40   | Testing         | Test suite failure (aggregate)                     | Yes                        | 41=Unit, 42=Integration, 43=Validation               |
+| 41   | Testing         | Unit test failure                                  | Yes (unit failures)        | More specific than 40                                |
+| 42   | Testing         | Integration test failure                           | Yes (integration failures) | Falls back to 40 if ambiguous                        |
+| 43   | Testing         | Validation test failure                            | Yes (validation failures)  | Structural / repository validation                   |
+| 50   | Benchmark       | Benchmark execution failure                        | No                         | Reserved (flag present, impl pending)                |
+| 60   | Rollback        | Rollback / recovery failed                         | No                         | Reserved                                             |
+| 70   | Configuration   | Config parsing/validation error                    | No                         | Reserved                                             |
+| 80   | Internal        | Unexpected unhandled exception                     | Yes (Program.cs catch)     | Critical – file issue/bug                            |
+| 99   | Future/Reserved | Experimental / feature-flag reserved space         | No                         | Avoid relying on this                                |
 
 Guidance:
 
@@ -633,6 +636,116 @@ spocr test --validate --output results.xml
 If you rely on strict JUnit consumers today, treat this as experimental and validate the schema before ingest.
 
 For now, rely on 0 vs non‑zero; begin adapting scripts to treat 1 as a generic failure boundary. Future enhancements will keep 0 backward compatible and only refine non‑zero granularity.
+
+## Determinism & Golden Hash (Relaxed vs Strict Mode)
+
+SpocR generation aims to be deterministic: identical inputs (database schema + configuration + templates + tool version) produce identical output byte-for-byte. We track this via a Golden Hash manifest and diff statistics that allow us to detect unintended churn.
+
+### Concepts
+
+- Golden Hash Manifest: A JSON file containing SHA256 hashes (and sizes) of key generated artifacts (e.g. unified procedure files, result set records, template expansions). Draft format:
+
+  ```jsonc
+  {
+    "schemaVersion": 1,
+    "createdUtc": "2025-10-18T12:34:56Z",
+    "files": [
+      {
+        "path": "src/SpocRVNext/Generators/ProceduresGenerator.cs",
+        "sha256": "...",
+        "size": 4312
+      },
+      {
+        "path": "src/SpocRVNext/Templates/Procedures/UnifiedProcedure.spt",
+        "sha256": "...",
+        "size": 1287
+      }
+    ]
+  }
+  ```
+
+- Diff Stats: Supplemental report (`debug/diff-stats.json`) enumerating additions/removals/renames between current generation and last committed baseline.
+- Allow-List: A glob file (planned: `.spocr-diff-allow`) containing patterns of files or directories temporarily exempt from strict diff enforcement.
+
+### Modes
+
+| Mode           | Behavior                                                   | Exit Codes Used | Typical Phase      |
+| -------------- | ---------------------------------------------------------- | --------------- | ------------------ |
+| Relaxed        | Diff reported (JSON & console) but build passes            | None (always 0) | Current (bridge)   |
+| Soft Fail      | Diff triggers warning; CI may annotate but still returns 0 | None (0)        | Pre‑strict staging |
+| Strict         | Unexpected diff fails CI                                   | 21 / 23         | Post coverage ≥60% |
+| Integrity Fail | Manifest corruption / hash mismatch shape                  | 22              | Any (hard fail)    |
+
+### Activation Criteria (Strict Mode)
+
+Strict mode will only be enabled once ALL are true:
+
+1. vNext code coverage ≥ 60% (scoped gate already measures this).
+2. Golden Hash manifest stabilized (no unexplained churn for 5 consecutive generation runs).
+3. Allow-list frozen (no new wildcard expansions for 2 weeks).
+4. No outstanding template normalization TODOs (timestamp, machine-specific values removed).
+5. Procedural ordering tests (single + multi-result) consistently green (ensures layout determinism).
+
+### Reserved Determinism Exit Codes
+
+- 21 – Diff Violation: Generated output deviates from committed Golden Hash without allow-list coverage.
+- 22 – Manifest Integrity: Golden Hash manifest unreadable, malformed schemaVersion, or cryptographic hash set incomplete.
+- 23 – Allow-List Violation: Pattern attempted to mask a diff on a protected file (explicit negative rule or forced inclusion).
+
+These codes are currently defined but not emitted (table above shows “No”). CI consumers may prepare logic now; activation will be announced in CHANGELOG.
+
+### Workflow to Update Golden Hash
+
+1. Make intentional generator/template change.
+2. Run local generation with upcoming flag (planned) `spocr generate --write-golden` OR manually copy new diff `debug/diff-stats.json` → update manifest file.
+3. Inspect diff: ensure only expected files changed, and reason documented in PR description.
+4. Adjust `.spocr-diff-allow` ONLY if legitimately broad churn (avoid long-lived wildcards).
+5. Commit updated manifest + minimal allowed patterns; remove obsolete allow entries.
+6. Push & let CI re-hash; expect relaxed mode pass until strict activated.
+
+### Allow-List Example
+
+```
+# Temporary until v5 freeze
+src/SpocRVNext/Templates/**
+# Generated outputs (bridge period)
+Output-v9-0/**
+# Force inclusion: negative rule overrides broader wildcard
+!src/SpocRVNext/NamePolicy.cs
+```
+
+Lines beginning with `!` negate previous globs (ensuring critical files cannot be masked by broad patterns).
+
+### Troubleshooting Determinism Issues
+
+| Symptom                     | Possible Cause                             | Mitigation                                                            |
+| --------------------------- | ------------------------------------------ | --------------------------------------------------------------------- |
+| Hashes change on every run  | Hidden timestamp / GUID injection          | Remove dynamic value; use deterministic seed or remove field entirely |
+| Only whitespace hash diffs  | Template indentation normalization missing | Run formatter or adjust template to stable spacing                    |
+| Locale-specific casing diff | Culture-sensitive operations               | Use `CultureInfo.InvariantCulture` or ordinal comparisons             |
+| Path separator variation    | Windows vs Linux path normalization        | Normalize to forward slashes before hashing                           |
+
+### Best Practices
+
+- Avoid `DateTime.Now` or `Guid.NewGuid()` in any generated source.
+- Keep template includes deterministic (no environment-specific absolute paths).
+- Prefer sorted iterations (order by name/ordinal) before writing collections.
+- Validate ordering via existing unit tests whenever adding new sections.
+
+### Roadmap
+
+Phase steps (tentative):
+
+1. Informational (current) – produce diff stats only.
+2. Soft Fail – annotate diffs, still exit 0 (opt-in via env `SPOCR_STRICT_PREVIEW=1`).
+3. Strict – fail with 21/23; coverage gate escalated to ≥80%.
+4. Integrity Hardening – cryptographic signature of manifest itself (future) to detect tampering.
+
+Document updates will precede each escalation; CHANGELOG will note activation commits explicitly.
+
+### Why Determinism Matters
+
+Deterministic generation reduces review noise, prevents accidental drift, and allows hashing to become a high-signal quality gate. By enforcing a stable Golden Hash we can spot subtle template regressions early and keep migrations predictable.
 
 ## Requirements
 

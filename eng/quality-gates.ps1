@@ -5,13 +5,14 @@ param(
     [switch]$SkipTests,
     [switch]$SkipCoverage,
     [int]$CoverageThreshold = 80,
-    [string]$Configuration = 'Release'
+    [string]$Configuration = 'Release',
+    [string]$CoverageScope = 'SpocRVNext'  # Only enforce threshold on files whose path contains this substring (vNext code)
 )
 
 Write-Host "SpocR Quality Gates" -ForegroundColor Cyan
 Write-Host "===================" -ForegroundColor Cyan
 Write-Host "Configuration: $Configuration" -ForegroundColor DarkGray
-if (-not $SkipCoverage) { Write-Host "Coverage Threshold: $CoverageThreshold%" -ForegroundColor DarkGray }
+if (-not $SkipCoverage) { Write-Host "Coverage Threshold (Scoped to '$CoverageScope'): $CoverageThreshold%" -ForegroundColor DarkGray }
 
 $exitCode = 0
 
@@ -73,23 +74,63 @@ if (-not $SkipCoverage -and -not $SkipTests) {
     Write-Host "`nAnalyzing code coverage..." -ForegroundColor Yellow
     Ensure-ReportGenerator
     reportgenerator -reports:"$testResultsDir/**/coverage.cobertura.xml" -targetdir:"$coverageDir" -reporttypes:"Html;Badges;Cobertura" | Out-Null
-    $coverageSummary = Get-ChildItem -Path $coverageDir -Filter "Summary.xml" -Recurse | Select-Object -First 1
+    $coverageFiles = Get-ChildItem -Path $testResultsDir -Filter "coverage.cobertura.xml" -Recurse
     $summaryLog = Join-Path $coverageDir 'coverage-summary.log'
+    $scopedLog = Join-Path $coverageDir 'coverage-scoped.log'
+    $overallPercent = $null
+    $scopedPercent = $null
+    # Overall (from ReportGenerator summary if available)
+    $coverageSummary = Get-ChildItem -Path $coverageDir -Filter "Summary.xml" -Recurse | Select-Object -First 1
     if ($coverageSummary) {
         [xml]$xml = Get-Content $coverageSummary.FullName
         $lineRate = [double]$xml.coverage.'line-rate'
-        $percent = [math]::Round($lineRate * 100, 2)
-        $msg = "Line Coverage: $percent% (Threshold: $CoverageThreshold%)"
-        Write-Host $msg -ForegroundColor Cyan
-        Set-Content -Path $summaryLog -Value $msg
-        if ($CoverageThreshold -gt 0 -and $percent -lt $CoverageThreshold) {
-            Write-Host "Coverage below threshold ($CoverageThreshold%)" -ForegroundColor Red
-            $exitCode = 1
-        }
+        $overallPercent = [math]::Round($lineRate * 100, 2)
+        Write-Host "Overall Line Coverage: $overallPercent%" -ForegroundColor DarkGray
+        Set-Content -Path $summaryLog -Value "Overall Line Coverage: $overallPercent%"
     } else {
-        $warn = "No coverage summary produced (tests may have failed before collection)."
-        Write-Warning $warn
-        Set-Content -Path $summaryLog -Value $warn
+        Write-Warning "Overall coverage summary missing (Summary.xml not found)."
+    }
+    # Scoped vNext coverage (aggregate only SpocRVNext files)
+    if ($coverageFiles.Count -eq 0) {
+        Write-Warning "No Cobertura coverage files found for scoped analysis."
+    } else {
+        $totalLines = 0
+        $coveredLines = 0
+        foreach ($file in $coverageFiles) {
+            try {
+                [xml]$cxml = Get-Content $file.FullName
+                # Cobertura structure: coverage/packages/package/classes/class
+                $classes = $cxml.coverage.packages.package.classes.class
+                foreach ($cls in $classes) {
+                    $filename = $cls.filename
+                    if ([string]::IsNullOrEmpty($CoverageScope) -or $filename -like "*${CoverageScope}*") {
+                        # Sum line nodes
+                        $lines = $cls.lines.line
+                        foreach ($ln in $lines) {
+                            $totalLines++
+                            $hits = [int]$ln.hits
+                            if ($hits -gt 0) { $coveredLines++ }
+                        }
+                    }
+                }
+            } catch {
+                Write-Warning "Failed to parse coverage file $($file.FullName): $_"
+            }
+        }
+        if ($totalLines -gt 0) {
+            $scopedPercent = [math]::Round(($coveredLines / $totalLines) * 100, 2)
+            $scopedMsg = "Scoped Line Coverage ('$CoverageScope'): $scopedPercent% (Threshold: $CoverageThreshold%) | Covered $coveredLines / $totalLines lines"
+            Write-Host $scopedMsg -ForegroundColor Cyan
+            Set-Content -Path $scopedLog -Value $scopedMsg
+            if ($CoverageThreshold -gt 0 -and $scopedPercent -lt $CoverageThreshold) {
+                Write-Host "Scoped coverage below threshold ($CoverageThreshold%)" -ForegroundColor Red
+                $exitCode = 1
+            }
+        } else {
+            $warnScoped = "No lines matched scope '$CoverageScope' - scoped coverage gate skipped."
+            Write-Warning $warnScoped
+            Set-Content -Path $scopedLog -Value $warnScoped
+        }
     }
 }
 
