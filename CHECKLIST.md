@@ -169,7 +169,7 @@ EPICS Übersicht (oberste Steuerungsebene)
 
 - [x] Alle bestehenden Unit- & Integrationstests grün (Tests.sln)
 - [ ] Neue Tests für SpocRVNext (Happy Path + Fehlerfälle + Regression für entfernte Heuristiken)
-- [ ] (Optional) Info-Diff zwischen Legacy und neuem Output generiert (kein Paritäts-Zwang)
+- [>] (Optional) Info-Diff zwischen Legacy und neuem Output generiert (kein Paritäts-Zwang) – DEFERRED v5
 - [ ] Automatisierte Qualitäts-Gates (eng/quality-gates.ps1) lokal und in CI erfolgreich
 - [ ] Test-Hosts nach Läufen bereinigt (eng/kill-testhosts.ps1) – kein Leak mehr
 - [ ] Code Coverage Mindestschwelle definiert und erreicht (Ziel: >80% Core-Logik) – Schwellen-Aktivierung verschoben auf v5.0
@@ -206,26 +206,26 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [x] TableTypes: Timestamp `<remarks>` Zeile eingefügt und beim Hashing ignoriert (DirectoryHasher Filter)
 - [x] TableTypes: Original Snapshot Namen vollständig beibehalten (nur Sanitizing) – keine erzwungene \*TableType Suffix Ergänzung
 
-Streaming & Invocation (vNext API)
+Streaming & Invocation (vNext API / Verschoben zu v5)
 
-- [ ] Erweiterung ResultSetMapping um StreamingKind / Delegates
-- [ ] ProcedureStreamingHelper implementiert (Rows + Json)
+- [>] Erweiterung ResultSetMapping um StreamingKind / Delegates (DEFERRED v5)
+- [>] ProcedureStreamingHelper implementiert (Rows + Json) (DEFERRED v5)
 - [ ] Extension-Methoden für mind. 1 Prozedur generiert (Prototype)
 - [ ] Snapshot Flag / Erkennung FOR JSON Payload (IsJsonPayloadProcedure)
-- [ ] Unit Tests: Row Streaming (Mehrere Rows), JSON Streaming (Chunk), Cancellation Abbruch
-- [ ] Doku Abschnitt "Procedure Invocation Patterns" inkl. Streaming Beispiele
-- [ ] Interceptor Erweiterung (optional) für PreExecute/PostExecute Streaming Pfade
+- [>] Unit Tests: Row Streaming (Mehrere Rows), JSON Streaming (Chunk), Cancellation Abbruch (DEFERRED v5)
+- [>] Doku Abschnitt "Procedure Invocation Patterns" inkl. Streaming Beispiele (DEFERRED v5)
+- [>] Interceptor Erweiterung (optional) für PreExecute/PostExecute Streaming Pfade (DEFERRED v5)
 - [ ] Entscheidung: Naming-Konvention Stream Methoden (ResultXStreamAsync vs. StreamResultXAsync) dokumentiert und fixiert
 - [ ] FOR JSON Dual Mode: Raw + Lazy Deserialization Methoden (JsonRawAsync / JsonDeserializeAsync / JsonElementsAsync / JsonStreamAsync)
 - [ ] ProcedureJsonHelper implementiert
 - [ ] Aggregate Lazy JSON Cache (JsonLazy<T>) integriert
-- [ ] Tests: Raw + Deserialize + Elements Streaming + Invalid JSON + Cancellation
-- [ ] Doku: Dual Mode JSON Nutzung & Best Practices (Wann Raw? Wann Lazy? Wann Streaming?)
+- [>] Tests: Raw + Deserialize + Elements Streaming + Invalid JSON + Cancellation (DEFERRED v5)
+- [>] Doku: Dual Mode JSON Nutzung & Best Practices (Wann Raw? Wann Lazy? Wann Streaming?) (DEFERRED v5)
 - [ ] Snapshot: pro ResultSet Flag IsJsonPayload (nicht nur pro Procedure)
 - [ ] Generator: Erzeuge JsonRawAsync, JsonDeserializeAsync<T>, JsonElementsAsync<T>, JsonStreamAsync
-- [ ] Incremental Parsing: Utf8JsonReader basierte Implementation für Elements Streaming
+- [>] Incremental Parsing: Utf8JsonReader basierte Implementation für Elements Streaming (DEFERRED v5)
 - [ ] Fallback wenn Root nicht Array → InvalidOperationException Test
-- [ ] Performance Smoke: Großer JSON Payload (≥5MB) Vergleich Raw vs. Streaming (Messung dokumentieren)
+- [>] Performance Smoke: Großer JSON Payload (≥5MB) Vergleich Raw vs. Streaming (Messung dokumentieren) (DEFERRED v5)
 - [ ] Interceptor Erweiterung evaluieren (OnJsonDeserialized Hook) – Entscheidung dokumentieren
 
 #### Optional: Wrapper & Snapshot Referenzen
@@ -401,7 +401,7 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
       -- [ ] (Optional) Golden Hash Strict Mode aktivieren (Policy Eskalation)
       -- [ ] CI: Manual Trigger / Dokumentation für Golden Hash Aktualisierung (-WriteGolden) vorhanden
 - [ ] Caching/Restore Mechanismen (NuGet, Bun) effizient konfiguriert
-- [ ] ENV/CLI Flag für Generation definiert (`SPOCR_GENERATOR_MODE=dual|legacy|next` + `spocr generate --mode`) – Default in v4.5 = `dual` (README Abschnitt "Configuration Precedence" ergänzt; CLI Param-Doku noch offen)
+- [>] ENV/CLI Flag für Generation definiert (`SPOCR_GENERATOR_MODE=dual|legacy|next` + `spocr generate --mode`) – DEFERRED v5 für vollständige CLI Param-Doku; v4.5 belässt Default dual
 - [x] Allow-List Datei `.spocr-diff-allow` unterstützt (Glob) – optional, nur Noise-Reduktion
 - [x] SHA256 Hashing der generierten Dateien implementiert (Determinismus-Nachweis)
 - [x] CI Policy: Diffs aktuell rein informativ (Relaxed Mode) – zukünftige Eskalation geplant
@@ -490,7 +490,7 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 - [ ] Dateinamens-Konflikt Test (zwei Procs mit ähnlichen Namen + Suffix Handling) - Hash Manifest aktiv; Strict Mode (Fail Fast) offen
 - [ ] Dispatcher next-only Pfad: Gleiches Full Generation Set wie dual
 - [ ] Prüfen Codepfad (`SpocRGenerator` / Dispatcher)
-- [ ] Test: MODE=next erzeugt identische Artefakte wie dual (ohne Legacy) - Bisher nur manuelle Stichproben, automatischer Vergleich fehlt
+- [>] Test: MODE=next erzeugt identische Artefakte wie dual (ohne Legacy) – DEFERRED v5 (Paritätstest automatisieren)
 - [x] Sicherstellen, dass samples/restapi/.env nicht in git landet (`.gitignore` aktualisiert)
 - [ ] src\SpocRVNext\Templates_Header.spt optimieren (<auto-generated/> Block vereinheitlichen)
 
@@ -515,7 +515,7 @@ Connectivity gesichert (test-db Script + CI Integration). Offene Kernpunkte: Sta
 7. Sample Roundtrip Stabilisierung (Timeout / Startsequenz Analyse, Logging Verbesserung)
 8. Abschnittsreihenfolge Test für konsolidierte Prozedur-Dateien (Header→Inputs→Outputs→ResultSets→Aggregate→Plan→Executor)
 9. Namespace Override / Ableitung Doku + Beispiel diff
-10. Dispatcher next-only Pfad Paritätstest (MODE=next vs dual ohne Legacy) automatisieren
+10. Dispatcher next-only Pfad Paritätstest (MODE=next vs dual ohne Legacy) automatisieren – DEFERRED v5
 
 # Zu planende Entscheidungen
 
