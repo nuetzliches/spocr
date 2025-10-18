@@ -7,6 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using SpocR.SpocRVNext;
 using SpocRVNext.Configuration;
 using SpocR.Telemetry;
+using SpocR.SpocRVNext.GoldenHash; // golden hash commands
 
 namespace SpocR;
 
@@ -94,6 +95,33 @@ internal static class ProgramVNextCLI
             Console.WriteLine("Hash manifest (if next output) written under debug/codegen-demo/next/manifest.hash.json");
         }, modeOption, pathOption);
         root.Add(generateNextCommand);
+
+        // golden-hash write command
+        var writeGolden = new Command("write-golden", "Write (or overwrite) golden hash manifest for current vNext output under debug/golden-hash.json")
+        {
+            pathOption
+        };
+        writeGolden.SetHandler((string? path) =>
+        {
+            var targetRoot = string.IsNullOrWhiteSpace(path) ? System.IO.Directory.GetCurrentDirectory() : System.IO.Path.GetFullPath(path!);
+            var exit = GoldenHashCommands.WriteGolden(targetRoot);
+            Console.WriteLine(exit.Message);
+        }, pathOption);
+        root.Add(writeGolden);
+
+        // golden-hash verify command
+        var verifyGolden = new Command("verify-golden", "Verify current vNext output against golden hash manifest (relaxed unless SPOCR_STRICT_DIFF=1 or SPOCR_STRICT_GOLDEN=1)")
+        {
+            pathOption
+        };
+        verifyGolden.SetHandler((string? path) =>
+        {
+            var targetRoot = string.IsNullOrWhiteSpace(path) ? System.IO.Directory.GetCurrentDirectory() : System.IO.Path.GetFullPath(path!);
+            var result = GoldenHashCommands.VerifyGolden(targetRoot);
+            Console.WriteLine(result.Message);
+            if (result.ExitCode != 0) Environment.ExitCode = result.ExitCode; // do not throw
+        }, pathOption);
+        root.Add(verifyGolden);
 
         // init-env command
         var initEnv = new Command("init-env", "Create or update a .env in the target path (non-interactive unless --no-auto).")

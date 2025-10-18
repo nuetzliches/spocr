@@ -1,0 +1,26 @@
+{
+  "Schema": "samples",
+  "Name": "OrderImportTableType",
+  "UserTypeId": 264,
+  "Columns": [
+    {
+      "Name": "UserId",
+      "SqlTypeName": "int",
+      "IsNullable": true,
+      "MaxLength": 4
+    },
+    {
+      "Name": "TotalAmount",
+      "SqlTypeName": "decimal",
+      "IsNullable": false,
+      "MaxLength": 9
+    },
+    {
+      "Name": "PlacedAt",
+      "SqlTypeName": "datetime2",
+      "IsNullable": false,
+      "MaxLength": 8
+    }
+  ],
+  "Hash": "A469066DA51CEF71"
+}

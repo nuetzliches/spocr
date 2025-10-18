@@ -15,12 +15,12 @@ using System.Threading.Tasks;
 using RestApi.SpocR;
 
 public readonly record struct OrderListAsJsonResultSet1Result(
-    int UserId,
+    string UserId,
     string DisplayName,
     string Email,
-    int OrderId,
-    decimal TotalAmount,
-    DateTime PlacedAt,
+    string OrderId,
+    string TotalAmount,
+    string PlacedAt,
     string Notes
 );
 
@@ -42,7 +42,7 @@ internal static partial class OrderListAsJsonProcedurePlan
         };
 
 	var resultSets = new ResultSetMapping[] {
-            new("ResultSet1", async (r, ct) => { var list = new List<object>(); int o0=r.GetOrdinal("UserId"); int o1=r.GetOrdinal("DisplayName"); int o2=r.GetOrdinal("Email"); int o3=r.GetOrdinal("OrderId"); int o4=r.GetOrdinal("TotalAmount"); int o5=r.GetOrdinal("PlacedAt"); int o6=r.GetOrdinal("Notes"); while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new OrderListAsJsonResultSet1Result(r.GetInt32(o0), r.IsDBNull(o1) ? string.Empty : r.GetString(o1), r.IsDBNull(o2) ? string.Empty : r.GetString(o2), r.GetInt32(o3), r.GetDecimal(o4), r.GetDateTime(o5), r.IsDBNull(o6) ? string.Empty : r.GetString(o6))); } return list; }),
+            new("ResultSet1", async (r, ct) => { var list = new List<object>(); int o0=r.GetOrdinal("UserId"); int o1=r.GetOrdinal("DisplayName"); int o2=r.GetOrdinal("Email"); int o3=r.GetOrdinal("OrderId"); int o4=r.GetOrdinal("TotalAmount"); int o5=r.GetOrdinal("PlacedAt"); int o6=r.GetOrdinal("Notes"); while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new OrderListAsJsonResultSet1Result(r.IsDBNull(o0) ? string.Empty : r.GetString(o0), r.IsDBNull(o1) ? string.Empty : r.GetString(o1), r.IsDBNull(o2) ? string.Empty : r.GetString(o2), r.IsDBNull(o3) ? string.Empty : r.GetString(o3), r.IsDBNull(o4) ? string.Empty : r.GetString(o4), r.IsDBNull(o5) ? string.Empty : r.GetString(o5), r.IsDBNull(o6) ? string.Empty : r.GetString(o6))); } return list; }),
         };
 
 	object? OutputFactory(IReadOnlyDictionary<string, object?> values) => null;

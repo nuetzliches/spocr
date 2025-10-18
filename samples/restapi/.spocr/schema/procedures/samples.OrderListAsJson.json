@@ -1,0 +1,65 @@
+{
+  "Schema": "samples",
+  "Name": "OrderListAsJson",
+  "Inputs": [],
+  "ResultSets": [
+    {
+      "ReturnsJson": true,
+      "ReturnsJsonArray": true,
+      "ReturnsJsonWithoutArrayWrapper": false,
+      "JsonRootProperty": "OrderSummaries",
+      "Columns": [
+        {
+          "Name": "UserId",
+          "SqlTypeName": "nvarchar(max)",
+          "IsNullable": false,
+          "MaxLength": 0,
+          "JsonPath": "UserId"
+        },
+        {
+          "Name": "DisplayName",
+          "SqlTypeName": "nvarchar(max)",
+          "IsNullable": false,
+          "MaxLength": 0,
+          "JsonPath": "DisplayName"
+        },
+        {
+          "Name": "Email",
+          "SqlTypeName": "nvarchar(max)",
+          "IsNullable": false,
+          "MaxLength": 0,
+          "JsonPath": "Email"
+        },
+        {
+          "Name": "OrderId",
+          "SqlTypeName": "nvarchar(max)",
+          "IsNullable": false,
+          "MaxLength": 0,
+          "JsonPath": "OrderId"
+        },
+        {
+          "Name": "TotalAmount",
+          "SqlTypeName": "nvarchar(max)",
+          "IsNullable": false,
+          "MaxLength": 0,
+          "JsonPath": "TotalAmount"
+        },
+        {
+          "Name": "PlacedAt",
+          "SqlTypeName": "nvarchar(max)",
+          "IsNullable": false,
+          "MaxLength": 0,
+          "JsonPath": "PlacedAt"
+        },
+        {
+          "Name": "Notes",
+          "SqlTypeName": "nvarchar(max)",
+          "IsNullable": false,
+          "MaxLength": 0,
+          "JsonPath": "Notes"
+        }
+      ],
+      "HasSelectStar": false
+    }
+  ]
+}

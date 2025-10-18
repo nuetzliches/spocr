@@ -1,0 +1,44 @@
+{
+  "Schema": "samples",
+  "Name": "UserBioUpdate",
+  "Inputs": [
+    {
+      "Name": "@UserId",
+      "IsTableType": false,
+      "IsOutput": false,
+      "SqlTypeName": "int",
+      "IsNullable": true,
+      "MaxLength": 4
+    },
+    {
+      "Name": "@Bio",
+      "IsTableType": false,
+      "IsOutput": false,
+      "SqlTypeName": "nvarchar",
+      "IsNullable": true,
+      "MaxLength": 512
+    }
+  ],
+  "ResultSets": [
+    {
+      "ReturnsJson": false,
+      "ReturnsJsonArray": false,
+      "ReturnsJsonWithoutArrayWrapper": false,
+      "Columns": [
+        {
+          "Name": "UserId",
+          "SqlTypeName": "int",
+          "IsNullable": false,
+          "MaxLength": 4
+        },
+        {
+          "Name": "Bio",
+          "SqlTypeName": "nvarchar(512)",
+          "IsNullable": true,
+          "MaxLength": 512
+        }
+      ],
+      "HasSelectStar": false
+    }
+  ]
+}

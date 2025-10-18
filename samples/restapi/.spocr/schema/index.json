@@ -1,0 +1,96 @@
+{
+  "SchemaVersion": 1,
+  "Fingerprint": "B42C616D466D452E",
+  "Parser": {
+    "ToolVersion": "net9.0",
+    "ResultSetParserVersion": 5
+  },
+  "Stats": {
+    "ProcedureTotal": 10,
+    "ProcedureSkipped": 0,
+    "ProcedureLoaded": 10,
+    "UdttTotal": 3
+  },
+  "Procedures": [
+    {
+      "Schema": "samples",
+      "Name": "CreateUserWithOutput",
+      "File": "samples.CreateUserWithOutput.json",
+      "Hash": "EBE3024CD818B54C"
+    },
+    {
+      "Schema": "samples",
+      "Name": "OrderListAsJson",
+      "File": "samples.OrderListAsJson.json",
+      "Hash": "BBDC19E23CA58D81"
+    },
+    {
+      "Schema": "samples",
+      "Name": "OrderListByUserAsJson",
+      "File": "samples.OrderListByUserAsJson.json",
+      "Hash": "07D6940FFF58B178"
+    },
+    {
+      "Schema": "samples",
+      "Name": "SumWithOutput",
+      "File": "samples.SumWithOutput.json",
+      "Hash": "B4363A0FE1E56477"
+    },
+    {
+      "Schema": "samples",
+      "Name": "UserBioUpdate",
+      "File": "samples.UserBioUpdate.json",
+      "Hash": "3359B91CF0D663E6"
+    },
+    {
+      "Schema": "samples",
+      "Name": "UserContactSync",
+      "File": "samples.UserContactSync.json",
+      "Hash": "CE84AD7A0E271D2F"
+    },
+    {
+      "Schema": "samples",
+      "Name": "UserDetailsWithOrders",
+      "File": "samples.UserDetailsWithOrders.json",
+      "Hash": "BC2A6A772D2D602A"
+    },
+    {
+      "Schema": "samples",
+      "Name": "UserFind",
+      "File": "samples.UserFind.json",
+      "Hash": "EF7FA90E250A4222"
+    },
+    {
+      "Schema": "samples",
+      "Name": "UserList",
+      "File": "samples.UserList.json",
+      "Hash": "62B9832BFE949CC8"
+    },
+    {
+      "Schema": "samples",
+      "Name": "UserOrderHierarchyJson",
+      "File": "samples.UserOrderHierarchyJson.json",
+      "Hash": "6DB94B36B43D08C9"
+    }
+  ],
+  "TableTypes": [
+    {
+      "Schema": "samples",
+      "Name": "OrderImportTableType",
+      "File": "samples.OrderImportTableType.json",
+      "Hash": "0A087A9C1D4536EF"
+    },
+    {
+      "Schema": "samples",
+      "Name": "UserContactTableType",
+      "File": "samples.UserContactTableType.json",
+      "Hash": "4B4092F302EDF99B"
+    },
+    {
+      "Schema": "samples",
+      "Name": "UserIdListTableType",
+      "File": "samples.UserIdListTableType.json",
+      "Hash": "DBAD0CC5C2F36234"
+    }
+  ]
+}

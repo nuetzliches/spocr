@@ -8,6 +8,8 @@ branch_scope:
 status_conventions:
 	open: '[ ]'
 	done: '[x]'
+      deferred: '[>]'
+      partial: '[~]'
 categories:
 	- epics
 	- quality
@@ -182,6 +184,10 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [x] BuildSchemas Filtering Test (Procedures) (`BuildSchemasFilteringTests`)
 - [x] TableTypes Allow-List Filter Test (SPOCR_BUILD_SCHEMAS)
       note: Abgedeckt durch `Filters_TableTypes_By_BuildSchemas_AllowList` in `TableTypesGeneratorTests` (prüft Interface + gefilterte Schema-Ausgabe)
+- [x] Golden Hash CLI Commands Tests (`GoldenHashCommandsTests`) – Write & Verify & Strict-Verhalten (Exit Codes reserviert) validiert
+- [x] Integration Test: `UserListProcedure` Roundtrip – stabiler End-to-End Aufruf bestätigt
+- [ ] Erweiterte Golden Hash Tests: Multi-File Änderungen + Allow-List Interplay (`.spocr-diff-allow`) – offen (P1)
+- [ ] Negative Golden Hash Verify Test: Manipulierte Datei → erwartete Diff-Meldung (Relaxed Mode) – offen
 
 ### Codegenerierung / SpocRVNext
 
@@ -400,6 +406,10 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
       -- [x] CI: Determinism Verify separater Workflow (`determinism.yml`)
       -- [ ] (Optional) Golden Hash Strict Mode aktivieren (Policy Eskalation)
       -- [ ] CI: Manual Trigger / Dokumentation für Golden Hash Aktualisierung (-WriteGolden) vorhanden
+- [>] CI: Golden Hash Verify Schritt (Aufruf `verify-golden`) integriert – Relaxed Mode – DEFERRED v5.0 (Bridge Phase nur manuelles Write; Verify erst mit Coverage ≥60%)
+- [ ] CI Dokumentation: "Golden Hash Update Workflow" (manuelles `write-golden`, Review, Commit) – offen
+- [x] Golden Hash CLI Befehle implementiert (`write-golden`, `verify-golden`) – Funktion & Tests bestätigt (18.10.2025)
+- [ ] CHANGELOG Ergänzung: Reservierte Exit Codes (21–23) dokumentieren (nur README bisher) – offen
 - [ ] Caching/Restore Mechanismen (NuGet, Bun) effizient konfiguriert
 - [>] ENV/CLI Flag für Generation definiert (`SPOCR_GENERATOR_MODE=dual|legacy|next` + `spocr generate --mode`) – DEFERRED v5 für vollständige CLI Param-Doku; v4.5 belässt Default dual
 - [x] Allow-List Datei `.spocr-diff-allow` unterstützt (Glob) – optional, nur Noise-Reduktion
@@ -438,6 +448,9 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 - [x] Snapshot-Timestamp (`GeneratedUtc`) aus Persistenz entfernt (deterministische Hashes / keine Timestamp-Diffs)
 - [x] Hash-Filter erweitert: Ignoriere dynamische `Generated at` Zeilen aus vNext Output-Dateien
       note: Strict Mode Aktivierungskriterium: Kern-Coverage ≥60% & stabile Allow-List; README Abschnitt vorhanden (Determinism & Golden Hash, 18.10.2025)
+- [x] Golden Hash Manifest Mechanismus aktiv (`debug/golden-hash.json` bestätigt)
+- [ ] CI Durchsetzung Strict Golden Hash (Exit Codes) – DEFERRED bis Coverage ≥60% & Allow-List stabil
+- [ ] Erweiterte Diff Tests: ≥3 manipulierte Dateien → aggregierter Report & korrekter Relaxed Exit Code – offen
 
 ### Sonstiges
 

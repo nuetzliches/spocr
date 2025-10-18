@@ -1,0 +1,46 @@
+{
+  "Schema": "samples",
+  "Name": "CreateUserWithOutput",
+  "Inputs": [
+    {
+      "Name": "@DisplayName",
+      "IsTableType": false,
+      "IsOutput": false,
+      "SqlTypeName": "nvarchar",
+      "IsNullable": false,
+      "MaxLength": 128
+    },
+    {
+      "Name": "@Email",
+      "IsTableType": false,
+      "IsOutput": false,
+      "SqlTypeName": "nvarchar",
+      "IsNullable": false,
+      "MaxLength": 256
+    },
+    {
+      "Name": "@UserId",
+      "IsTableType": false,
+      "IsOutput": true,
+      "SqlTypeName": "int",
+      "IsNullable": true,
+      "MaxLength": 4
+    }
+  ],
+  "ResultSets": [
+    {
+      "ReturnsJson": false,
+      "ReturnsJsonArray": false,
+      "ReturnsJsonWithoutArrayWrapper": false,
+      "Columns": [
+        {
+          "Name": "CreatedUserId",
+          "SqlTypeName": "int",
+          "IsNullable": true,
+          "MaxLength": 4
+        }
+      ],
+      "HasSelectStar": false
+    }
+  ]
+}

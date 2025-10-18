@@ -34,66 +34,58 @@ internal sealed class ProcedureExecutionPlan
 {
     public ProcedureExecutionPlan(string name, ProcedureParameter[] parameters, ResultSetMapping[] resultSets,
         Func<IReadOnlyDictionary<string, object?>, object?> outputFactory,
-        Func<bool, string?, object?, IReadOnlyDictionary<string, object?>, object[], object> aggregateFactory,
-        Action<DbCommand, object?> binder)
+        Func<bool,string?,object?,IReadOnlyDictionary<string,object?>,object[],object> aggregateFactory,
+        Action<DbCommand,object?> binder)
     { Name = name; Parameters = parameters; ResultSets = resultSets; OutputFactory = outputFactory; AggregateFactory = aggregateFactory; Binder = binder; }
     public string Name { get; }
     public ProcedureParameter[] Parameters { get; }
     public ResultSetMapping[] ResultSets { get; }
     public Func<IReadOnlyDictionary<string, object?>, object?> OutputFactory { get; }
-    public Func<bool, string?, object?, IReadOnlyDictionary<string, object?>, object[], object> AggregateFactory { get; }
-    public Action<DbCommand, object?> Binder { get; }
+    public Func<bool,string?,object?,IReadOnlyDictionary<string,object?>,object[],object> AggregateFactory { get; }
+    public Action<DbCommand,object?> Binder { get; }
 }
 
 internal static class ProcedureExecutor
 {
     public static async Task<T> ExecuteAsync<T>(DbConnection connection, ProcedureExecutionPlan plan, object? input, CancellationToken ct)
     {
-        try
+        await using var cmd = connection.CreateCommand();
+        cmd.CommandText = plan.Name;
+        cmd.CommandType = System.Data.CommandType.StoredProcedure;
+        foreach (var p in plan.Parameters)
         {
-            await using var cmd = connection.CreateCommand();
-            cmd.CommandText = plan.Name;
-            cmd.CommandType = System.Data.CommandType.StoredProcedure;
-            foreach (var p in plan.Parameters)
-            {
-                var prm = cmd.CreateParameter();
-                prm.ParameterName = p.Name;
-                prm.DbType = p.DbType;
-                if (p.Size is int s && s > 0) prm.Size = s;
-                prm.Direction = p.IsOutput ? System.Data.ParameterDirection.InputOutput : System.Data.ParameterDirection.Input;
-                prm.Value = DBNull.Value;
-                cmd.Parameters.Add(prm);
-            }
-            plan.Binder(cmd, input);
-            var outputs = new Dictionary<string, object?>();
-            await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
-            var rsResults = new List<object>();
-            foreach (var rs in plan.ResultSets)
-            {
-                var list = await rs.Projector(reader, ct).ConfigureAwait(false);
-                rsResults.Add(list);
-                await reader.NextResultAsync(ct).ConfigureAwait(false);
-            }
-            foreach (DbParameter dbp in cmd.Parameters)
-            {
-                if (dbp.Direction.HasFlag(System.Data.ParameterDirection.Output) || dbp.Direction.HasFlag(System.Data.ParameterDirection.InputOutput))
-                {
-                    var key = dbp.ParameterName.TrimStart('@');
-                    outputs[key] = dbp.Value == DBNull.Value ? null : dbp.Value;
-                }
-            }
-            var outputObj = plan.OutputFactory(outputs);
-            // IMPORTANT: AggregateFactory (as emitted by current generator) expects each rs[i]
-            // to be the original List<object> so it can cast and perform further transforms.
-            // A prior change converted lists to object[] causing InvalidCastException when
-            // AggregateFactory attempted (List<object>)rs[0]. Revert to passing lists directly.
-            var aggregate = (T)plan.AggregateFactory(true, null, outputObj, outputs, rsResults.ToArray());
-            return aggregate;
+            var prm = cmd.CreateParameter();
+            prm.ParameterName = p.Name;
+            prm.DbType = p.DbType;
+            if (p.Size is int s && s > 0) prm.Size = s;
+            prm.Direction = p.IsOutput ? System.Data.ParameterDirection.InputOutput : System.Data.ParameterDirection.Input;
+            prm.Value = DBNull.Value;
+            cmd.Parameters.Add(prm);
         }
-        catch (Exception ex)
+        plan.Binder(cmd, input);
+        var outputs = new Dictionary<string, object?>();
+        await using var reader = await cmd.ExecuteReaderAsync(ct).ConfigureAwait(false);
+        var rsResults = new List<object>();
+        foreach (var rs in plan.ResultSets)
         {
-            Console.WriteLine($"[DIAG-ProcExec] plan={plan.Name} ex={ex.GetType().Name} msg={ex.Message}\n{ex}");
-            throw;
+            var list = await rs.Projector(reader, ct).ConfigureAwait(false);
+            rsResults.Add(list);
+            await reader.NextResultAsync(ct).ConfigureAwait(false);
         }
+        foreach (DbParameter dbp in cmd.Parameters)
+        {
+            if (dbp.Direction.HasFlag(System.Data.ParameterDirection.Output) || dbp.Direction.HasFlag(System.Data.ParameterDirection.InputOutput))
+            {
+                var key = dbp.ParameterName.TrimStart('@');
+                outputs[key] = dbp.Value == DBNull.Value ? null : dbp.Value;
+            }
+        }
+        var outputObj = plan.OutputFactory(outputs);
+        // Convert each collected result-set list to its object[] form once for the aggregate factory
+        var rsArrays = new object[rsResults.Count];
+        for (int i = 0; i < rsResults.Count; i++)
+            rsArrays[i] = ((List<object>)rsResults[i]).ToArray();
+        var aggregate = (T)plan.AggregateFactory(true, null, outputObj, outputs, rsArrays);
+        return aggregate;
     }
 }
