@@ -31,6 +31,8 @@
 
 Note: "Removed" means loader/parser will ignore & no longer bind; warning verbosity may increase shortly before v5.
 
+> Upcoming (v5) Removal of `spocr.json` Dependency: In v4.5 the file is still read as a fallback (only when `SPOCR_GENERATOR_DB` is absent). In v5.0 the generator will neither read nor parse `spocr.json`. If the file still exists a one‑time WARNING will be emitted advising to delete it (fully .env / ENV driven operation). No feature will rely on its contents post‑cutover.
+
 ## Configuration Changes
 
 Removed (planned / already removed):
@@ -43,6 +45,7 @@ Removed (planned / already removed):
 
 - Transitioning from `spocr.json` to environment variable / `.env` driven configuration for runtime & generation parameters.
 - Phase-in: BOTH `spocr.json` (legacy) and `.env` are read during v4.x. Full removal of JSON fallback happens in v5.0.
+- v5 behavior: Presence of `spocr.json` only triggers a warning (no parsing, no fallback). Safe to delete once `.env` / ENV contains required `SPOCR_*` keys.
 - Rationale: Simplify deployment, enable secret-less container usage, reduce JSON schema churn.
 - Precedence order (current draft): CLI flag > Environment variable > `.env` file > (legacy) `spocr.json` (fallback until v5.0 only).
 - Precedence order (updated): CLI flag > Environment variable > `.env` file > (legacy) `spocr.json` fallback (only used in dual|next if `SPOCR_GENERATOR_DB` is absent; ignored when `SPOCR_GENERATOR_DB` is present). Will be removed entirely in v5.0.
@@ -255,7 +258,6 @@ Planned escalation path:
 - Pluggable formatting pipelines (code style normalization)
 - Partial templates & macro system
 
-Last updated: 2025-10-12 (decisions section added)
 Last updated: 2025-10-12
 
 ## Auto-Update Gating (Major Bridge Policy)

@@ -29,7 +29,7 @@ jobs:
       - name: DB Connectivity Probe
         shell: pwsh
         run: |
-          if (Test-Path scripts/test-db.ps1) { pwsh scripts/test-db.ps1 -Retries 6 -TimeoutSeconds 60 } else { Write-Host 'test-db.ps1 nicht gefunden – Schritt übersprungen.' }
+          if (Test-Path eng/test-db.ps1) { pwsh eng/test-db.ps1 -Retries 6 -TimeoutSeconds 60 } else { Write-Host 'eng/test-db.ps1 nicht gefunden – Schritt übersprungen.' }
 
       - name: Run smoke test
         shell: pwsh

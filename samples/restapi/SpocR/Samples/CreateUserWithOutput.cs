@@ -32,37 +32,61 @@ public sealed class CreateUserWithOutputResult
 	public bool Success { get; init; }
 	public string? Error { get; init; }
 	public CreateUserWithOutputOutput? Output { get; init; }
-	public IReadOnlyList<CreateUserWithOutputResultSet1Result> Result1 { get; init; } = Array.Empty<CreateUserWithOutputResultSet1Result>();
+	public IReadOnlyList<CreateUserWithOutputResultSet1Result> Result { get; init; } = Array.Empty<CreateUserWithOutputResultSet1Result>();
 	
 }
 
 internal static partial class CreateUserWithOutputPlan
 {
-    private static ProcedureExecutionPlan? _cached;
-    public static ProcedureExecutionPlan Instance => _cached ??= Create();
-    private static ProcedureExecutionPlan Create()
-    {
-	var parameters = new ProcedureParameter[] {
+	private static ProcedureExecutionPlan? _cached;
+	public static ProcedureExecutionPlan Instance => _cached ??= Create();
+	private static ProcedureExecutionPlan Create()
+	{
+
+	var parameters = new ProcedureParameter[]
+	{
             new("@DisplayName", System.Data.DbType.String, 128, false, false),
             new("@Email", System.Data.DbType.String, 256, false, false),
             new("@UserId", System.Data.DbType.Int32, 4, true, true),
         };
 
-	var resultSets = new ResultSetMapping[] {
-            new("ResultSet1", async (r, ct) => { var list = new List<object>(); int o0=r.GetOrdinal("CreatedUserId"); while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new CreateUserWithOutputResultSet1Result(r.IsDBNull(o0) ? null : (int?)r.GetInt32(o0))); } return list; }),
+	var resultSets = new ResultSetMapping[]
+	{
+            new("ResultSet1", async (r, ct) =>
+	    {
+		var list = new List<object>();
+int o0=r.GetOrdinal("CreatedUserId");
+		while (await r.ReadAsync(ct).ConfigureAwait(false))
+		{
+		    list.Add(new CreateUserWithOutputResultSet1Result(r.IsDBNull(o0) ? null : (int?)r.GetInt32(o0)));
+		}
+		return list;
+	    }),
+
         };
 
-	object? OutputFactory(IReadOnlyDictionary<string, object?> values) => new CreateUserWithOutputOutput(values.TryGetValue("UserId", out var v_UserId) ? (int?)v_UserId : default);
-	object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs) => new CreateUserWithOutputResult { Success = success, Error = error, Output = (CreateUserWithOutputOutput?)output, Result1 = rs.Length > 0 ? Array.ConvertAll(((System.Collections.Generic.List<object>)rs[0]).ToArray(), o => (CreateUserWithOutputResultSet1Result)o).ToList() : Array.Empty<CreateUserWithOutputResultSet1Result>() };
-	void Binder(DbCommand cmd, object? state) {
-	var input = (CreateUserWithOutputInput)state!;
-        cmd.Parameters["@DisplayName"].Value = input.DisplayName;
-        cmd.Parameters["@Email"].Value = input.Email;
+		object? OutputFactory(IReadOnlyDictionary<string, object?> values) => new CreateUserWithOutputOutput(values.TryGetValue("UserId", out var v_UserId) ? (int?)v_UserId : default);
+		object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs)
+		{
+			return new CreateUserWithOutputResult
+			{
+				Success = success,
+				Error = error,
+				Output = (CreateUserWithOutputOutput?)output,
+				// ResultSet 0 → Result (robust list/array handling)
+				Result = rs.Length > 0 && rs[0] is object[] rows0 ? Array.ConvertAll(rows0, o => (CreateUserWithOutputResultSet1Result)o).ToList() : (rs.Length > 0 && rs[0] is System.Collections.Generic.List<object> list0 ? Array.ConvertAll(list0.ToArray(), o => (CreateUserWithOutputResultSet1Result)o).ToList() : Array.Empty<CreateUserWithOutputResultSet1Result>())
+			};
+		};
+		void Binder(DbCommand cmd, object? state)
+		{
+            var input = (CreateUserWithOutputInput)state!;
+            cmd.Parameters["@DisplayName"].Value = input.DisplayName;
+            cmd.Parameters["@Email"].Value = input.Email;
 
+		}
+		return new ProcedureExecutionPlan(
+			"samples.CreateUserWithOutput", parameters, resultSets, OutputFactory, AggregateFactory, Binder);
 	}
-	return new ProcedureExecutionPlan(
-	    "samples.CreateUserWithOutput", parameters, resultSets, OutputFactory, AggregateFactory, Binder);
-    }
 }
 
 /// <summary>Convenience extension for executing 'samples.CreateUserWithOutput' via an <see cref="ISpocRDbContext"/>.</summary>

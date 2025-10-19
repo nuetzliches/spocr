@@ -305,6 +305,7 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 
 - [ ] Alle als [Obsolet] markierten Typen enthalten klaren Hinweis & Migrationspfad
 - [ ] Dokumentierter Cut für v5.0 (Entfernung DataContext) in README / ROADMAP
+- [ ] (v5) Vollständige Entfernung der verbleibenden Laufzeit-/Build-Abhängigkeit zu `spocr.json` (reiner .env / ENV Betrieb). Falls in v5 noch eine `spocr.json` gefunden wird: WARNUNG ausgeben (Hinweis auf Aufräumen) – keine harte Nutzung mehr.
 - [ ] Liste entfallener Konfig-Properties (Project.Role.Kind, RuntimeConnectionStringIdentifier, Project.Output) im Changelog
       note: CHANGELOG enthält bislang keinen Removed-Abschnitt für diese Keys
 - [x] Migration von `spocr.json` auf `.env` / Environment Variablen dokumentiert (Mapping Tabelle)
@@ -482,7 +483,7 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 - [ ] (Regel) Keine "VNext" Namensbestandteile in Klassen / Dateien / Properties – Trennung ausschließlich über Ordner & Namespace `SpocRVNext`
 - [ ] (Prinzip) Qualität & Wartbarkeit des neuen Outputs > strikte Rückwärtskompatibilität (Breaking Changes sind erlaubt, sofern dokumentiert und migrierbar)
 - [ ] XML Kommentare auf den vnext Outputs optimieren.
-- [ ] Result1 und die Modellklassen sollen bei "Result" ohne Nummer beginnen, erst das zweite ResultSet bekommt die "1" (also 0-based Indexierung und 0 = "").
+- [x] Result1 und die Modellklassen sollen bei "Result" ohne Nummer beginnen, erst das zweite ResultSet bekommt die "1" (also 0-based Indexierung und 0 = "").
 
 ... (bei Bedarf weiter ergänzen) ...
 
@@ -529,7 +530,7 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 
 ## Nächste Kurzfristige Actions (veraltet – ersetzt durch neue Sofort-Prioritäten weiter unten)
 
-- (Erledigt) Skript `scripts/test-db.ps1` implementiert & in Smoke integriert
+- (Erledigt) Skript `eng/test-db.ps1` (ehem. `scripts/test-db.ps1`) implementiert & in Smoke integriert
 - (Erledigt) CI Smoke Schritt vorhanden
 - (Ersetzt) DB Connect Timeout Optimierung durch Kill-Skript + Retries – Feintuning optional verschoben
 

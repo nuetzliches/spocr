@@ -50,7 +50,7 @@ app.MapPost("/api/users", async (CreateUserWithOutputInput body, ISpocRDbContext
         {
             createdUserId = result.Output?.UserId,
             echo = new { body.DisplayName, body.Email },
-            resultSets = new { result1 = result.Result1 }
+            resultSets = new { result = result.Result }
         });
     }
     catch (Exception ex)

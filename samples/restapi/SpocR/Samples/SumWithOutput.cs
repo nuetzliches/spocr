@@ -33,38 +33,62 @@ public sealed class SumWithOutputResult
 	public bool Success { get; init; }
 	public string? Error { get; init; }
 	public SumWithOutputOutput? Output { get; init; }
-	public IReadOnlyList<SumWithOutputResultSet1Result> Result1 { get; init; } = Array.Empty<SumWithOutputResultSet1Result>();
+	public IReadOnlyList<SumWithOutputResultSet1Result> Result { get; init; } = Array.Empty<SumWithOutputResultSet1Result>();
 	
 }
 
 internal static partial class SumWithOutputPlan
 {
-    private static ProcedureExecutionPlan? _cached;
-    public static ProcedureExecutionPlan Instance => _cached ??= Create();
-    private static ProcedureExecutionPlan Create()
-    {
-	var parameters = new ProcedureParameter[] {
+	private static ProcedureExecutionPlan? _cached;
+	public static ProcedureExecutionPlan Instance => _cached ??= Create();
+	private static ProcedureExecutionPlan Create()
+	{
+
+	var parameters = new ProcedureParameter[]
+	{
             new("@A", System.Data.DbType.Int32, 4, false, true),
             new("@B", System.Data.DbType.Int32, 4, false, true),
             new("@Sum", System.Data.DbType.Int32, 4, true, true),
             new("@Success", System.Data.DbType.Boolean, 1, true, true),
         };
 
-	var resultSets = new ResultSetMapping[] {
-            new("ResultSet1", async (r, ct) => { var list = new List<object>(); int o0=r.GetOrdinal("Result"); while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new SumWithOutputResultSet1Result(r.IsDBNull(o0) ? null : (int?)r.GetInt32(o0))); } return list; }),
+	var resultSets = new ResultSetMapping[]
+	{
+            new("ResultSet1", async (r, ct) =>
+	    {
+		var list = new List<object>();
+int o0=r.GetOrdinal("Result");
+		while (await r.ReadAsync(ct).ConfigureAwait(false))
+		{
+		    list.Add(new SumWithOutputResultSet1Result(r.IsDBNull(o0) ? null : (int?)r.GetInt32(o0)));
+		}
+		return list;
+	    }),
+
         };
 
-	object? OutputFactory(IReadOnlyDictionary<string, object?> values) => new SumWithOutputOutput(values.TryGetValue("Sum", out var v_Sum) ? (int?)v_Sum : default, values.TryGetValue("Success", out var v_Success) ? (bool?)v_Success : default);
-	object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs) => new SumWithOutputResult { Success = success, Error = error, Output = (SumWithOutputOutput?)output, Result1 = rs.Length > 0 ? Array.ConvertAll(((System.Collections.Generic.List<object>)rs[0]).ToArray(), o => (SumWithOutputResultSet1Result)o).ToList() : Array.Empty<SumWithOutputResultSet1Result>() };
-	void Binder(DbCommand cmd, object? state) {
-	var input = (SumWithOutputInput)state!;
-        cmd.Parameters["@A"].Value = input.A;
-        cmd.Parameters["@B"].Value = input.B;
+		object? OutputFactory(IReadOnlyDictionary<string, object?> values) => new SumWithOutputOutput(values.TryGetValue("Sum", out var v_Sum) ? (int?)v_Sum : default, values.TryGetValue("Success", out var v_Success) ? (bool?)v_Success : default);
+		object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs)
+		{
+			return new SumWithOutputResult
+			{
+				Success = success,
+				Error = error,
+				Output = (SumWithOutputOutput?)output,
+				// ResultSet 0 → Result (robust list/array handling)
+				Result = rs.Length > 0 && rs[0] is object[] rows0 ? Array.ConvertAll(rows0, o => (SumWithOutputResultSet1Result)o).ToList() : (rs.Length > 0 && rs[0] is System.Collections.Generic.List<object> list0 ? Array.ConvertAll(list0.ToArray(), o => (SumWithOutputResultSet1Result)o).ToList() : Array.Empty<SumWithOutputResultSet1Result>())
+			};
+		};
+		void Binder(DbCommand cmd, object? state)
+		{
+            var input = (SumWithOutputInput)state!;
+            cmd.Parameters["@A"].Value = input.A;
+            cmd.Parameters["@B"].Value = input.B;
 
+		}
+		return new ProcedureExecutionPlan(
+			"samples.SumWithOutput", parameters, resultSets, OutputFactory, AggregateFactory, Binder);
 	}
-	return new ProcedureExecutionPlan(
-	    "samples.SumWithOutput", parameters, resultSets, OutputFactory, AggregateFactory, Binder);
-    }
 }
 
 /// <summary>Convenience extension for executing 'samples.SumWithOutput' via an <see cref="ISpocRDbContext"/>.</summary>

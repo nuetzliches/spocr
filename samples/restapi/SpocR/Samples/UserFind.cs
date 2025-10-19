@@ -30,34 +30,57 @@ public sealed class UserFindResult
 {
 	public bool Success { get; init; }
 	public string? Error { get; init; }
-	public IReadOnlyList<UserFindResultSet1Result> Result1 { get; init; } = Array.Empty<UserFindResultSet1Result>();
+	public IReadOnlyList<UserFindResultSet1Result> Result { get; init; } = Array.Empty<UserFindResultSet1Result>();
 	
 }
 
 internal static partial class UserFindPlan
 {
-    private static ProcedureExecutionPlan? _cached;
-    public static ProcedureExecutionPlan Instance => _cached ??= Create();
-    private static ProcedureExecutionPlan Create()
-    {
-	var parameters = new ProcedureParameter[] {
+	private static ProcedureExecutionPlan? _cached;
+	public static ProcedureExecutionPlan Instance => _cached ??= Create();
+	private static ProcedureExecutionPlan Create()
+	{
+
+	var parameters = new ProcedureParameter[]
+	{
             new("@UserId", System.Data.DbType.Int32, 4, false, true),
         };
 
-	var resultSets = new ResultSetMapping[] {
-            new("ResultSet1", async (r, ct) => { var list = new List<object>(); int o0=r.GetOrdinal("UserId"); int o1=r.GetOrdinal("Email"); int o2=r.GetOrdinal("DisplayName"); int o3=r.GetOrdinal("CreatedAt"); int o4=r.GetOrdinal("Bio"); while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new UserFindResultSet1Result(r.GetInt32(o0), r.IsDBNull(o1) ? string.Empty : r.GetString(o1), r.IsDBNull(o2) ? string.Empty : r.GetString(o2), r.GetDateTime(o3), r.IsDBNull(o4) ? string.Empty : r.GetString(o4))); } return list; }),
+	var resultSets = new ResultSetMapping[]
+	{
+            new("ResultSet1", async (r, ct) =>
+	    {
+		var list = new List<object>();
+int o0=r.GetOrdinal("UserId"); int o1=r.GetOrdinal("Email"); int o2=r.GetOrdinal("DisplayName"); int o3=r.GetOrdinal("CreatedAt"); int o4=r.GetOrdinal("Bio");
+		while (await r.ReadAsync(ct).ConfigureAwait(false))
+		{
+		    list.Add(new UserFindResultSet1Result(r.GetInt32(o0), r.IsDBNull(o1) ? string.Empty : r.GetString(o1), r.IsDBNull(o2) ? string.Empty : r.GetString(o2), r.GetDateTime(o3), r.IsDBNull(o4) ? string.Empty : r.GetString(o4)));
+		}
+		return list;
+	    }),
+
         };
 
-	object? OutputFactory(IReadOnlyDictionary<string, object?> values) => null;
-	object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs) => new UserFindResult { Success = success, Error = error, Result1 = rs.Length > 0 ? Array.ConvertAll(((System.Collections.Generic.List<object>)rs[0]).ToArray(), o => (UserFindResultSet1Result)o).ToList() : Array.Empty<UserFindResultSet1Result>() };
-	void Binder(DbCommand cmd, object? state) {
-	var input = (UserFindInput)state!;
-        cmd.Parameters["@UserId"].Value = input.UserId;
+		object? OutputFactory(IReadOnlyDictionary<string, object?> values) => null;
+		object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs)
+		{
+			return new UserFindResult
+			{
+				Success = success,
+				Error = error,
+				// ResultSet 0 → Result (robust list/array handling)
+				Result = rs.Length > 0 && rs[0] is object[] rows0 ? Array.ConvertAll(rows0, o => (UserFindResultSet1Result)o).ToList() : (rs.Length > 0 && rs[0] is System.Collections.Generic.List<object> list0 ? Array.ConvertAll(list0.ToArray(), o => (UserFindResultSet1Result)o).ToList() : Array.Empty<UserFindResultSet1Result>())
+			};
+		};
+		void Binder(DbCommand cmd, object? state)
+		{
+            var input = (UserFindInput)state!;
+            cmd.Parameters["@UserId"].Value = input.UserId;
 
+		}
+		return new ProcedureExecutionPlan(
+			"samples.UserFind", parameters, resultSets, OutputFactory, AggregateFactory, Binder);
 	}
-	return new ProcedureExecutionPlan(
-	    "samples.UserFind", parameters, resultSets, OutputFactory, AggregateFactory, Binder);
-    }
 }
 
 /// <summary>Convenience extension for executing 'samples.UserFind' via an <see cref="ISpocRDbContext"/>.</summary>

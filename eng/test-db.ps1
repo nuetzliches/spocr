@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Simpler Verbindungs-/Liveness-Test für die Sample DB (MSSQL) mit Retry & klaren Exit Codes.
+  Simpler Verbindungs-/Liveness-Test für eine SQL Server DB mit Retry & klaren Exit Codes.
 .DESCRIPTION
   Baut eine Verbindung auf Basis einer Connection String Quelle (Param, ENV oder .env Datei) auf.
   Exit Codes:
@@ -16,9 +16,9 @@
 .PARAMETER TimeoutSeconds
   Gesamtzeitlimit in Sekunden (Default 45)
 .EXAMPLE
-  pwsh scripts/test-db.ps1 -ConnectionString "Server=localhost,1433;User Id=sa;Password=Your!Passw0rd;TrustServerCertificate=true;" -Retries 8
+  pwsh eng/test-db.ps1 -ConnectionString "Server=localhost,1433;User Id=sa;Password=Your!Passw0rd;TrustServerCertificate=true;" -Retries 8
 .NOTES
-  Nutzt Microsoft.Data.SqlClient wenn verfügbar.
+  Verschoben aus scripts/test-db.ps1 (aufgeräumt, Pfad konsolidiert in eng/).
 #>
 [CmdletBinding()] param(
   [string]$ConnectionString,

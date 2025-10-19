@@ -32,33 +32,66 @@ public sealed class UserOrderHierarchyJsonResult
 {
 	public bool Success { get; init; }
 	public string? Error { get; init; }
-	public IReadOnlyList<UserOrderHierarchyJsonResultSet1Result> Result1 { get; init; } = Array.Empty<UserOrderHierarchyJsonResultSet1Result>();
-	public IReadOnlyList<UserOrderHierarchyJsonResultSet2Result> Result2 { get; init; } = Array.Empty<UserOrderHierarchyJsonResultSet2Result>();
+	public IReadOnlyList<UserOrderHierarchyJsonResultSet1Result> Result { get; init; } = Array.Empty<UserOrderHierarchyJsonResultSet1Result>();
+	public IReadOnlyList<UserOrderHierarchyJsonResultSet2Result> Result1 { get; init; } = Array.Empty<UserOrderHierarchyJsonResultSet2Result>();
 	
 }
 
 internal static partial class UserOrderHierarchyJsonPlan
 {
-    private static ProcedureExecutionPlan? _cached;
-    public static ProcedureExecutionPlan Instance => _cached ??= Create();
-    private static ProcedureExecutionPlan Create()
-    {
-	var parameters = new ProcedureParameter[] {
+	private static ProcedureExecutionPlan? _cached;
+	public static ProcedureExecutionPlan Instance => _cached ??= Create();
+	private static ProcedureExecutionPlan Create()
+	{
+
+	var parameters = Array.Empty<ProcedureParameter>();
+
+	var resultSets = new ResultSetMapping[]
+	{
+            new("ResultSet1", async (r, ct) =>
+	    {
+		var list = new List<object>();
+int o0=r.GetOrdinal("UserId"); int o1=r.GetOrdinal("DisplayName"); int o2=r.GetOrdinal("Email"); int o3=r.GetOrdinal("Orders");
+		while (await r.ReadAsync(ct).ConfigureAwait(false))
+		{
+		    list.Add(new UserOrderHierarchyJsonResultSet1Result(r.IsDBNull(o0) ? string.Empty : r.GetString(o0), r.IsDBNull(o1) ? string.Empty : r.GetString(o1), r.IsDBNull(o2) ? string.Empty : r.GetString(o2), r.IsDBNull(o3) ? string.Empty : r.GetString(o3)));
+		}
+		return list;
+	    }),
+
+            new("ResultSet2", async (r, ct) =>
+	    {
+		var list = new List<object>();
+int o0=r.GetOrdinal("OrderId"); int o1=r.GetOrdinal("TotalAmount"); int o2=r.GetOrdinal("PlacedAt"); int o3=r.GetOrdinal("Notes");
+		while (await r.ReadAsync(ct).ConfigureAwait(false))
+		{
+		    list.Add(new UserOrderHierarchyJsonResultSet2Result(r.IsDBNull(o0) ? string.Empty : r.GetString(o0), r.IsDBNull(o1) ? string.Empty : r.GetString(o1), r.IsDBNull(o2) ? string.Empty : r.GetString(o2), r.IsDBNull(o3) ? string.Empty : r.GetString(o3)));
+		}
+		return list;
+	    }),
+
         };
 
-	var resultSets = new ResultSetMapping[] {
-            new("ResultSet1", async (r, ct) => { var list = new List<object>(); int o0=r.GetOrdinal("UserId"); int o1=r.GetOrdinal("DisplayName"); int o2=r.GetOrdinal("Email"); int o3=r.GetOrdinal("Orders"); while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new UserOrderHierarchyJsonResultSet1Result(r.IsDBNull(o0) ? string.Empty : r.GetString(o0), r.IsDBNull(o1) ? string.Empty : r.GetString(o1), r.IsDBNull(o2) ? string.Empty : r.GetString(o2), r.IsDBNull(o3) ? string.Empty : r.GetString(o3))); } return list; }),
-            new("ResultSet2", async (r, ct) => { var list = new List<object>(); int o0=r.GetOrdinal("OrderId"); int o1=r.GetOrdinal("TotalAmount"); int o2=r.GetOrdinal("PlacedAt"); int o3=r.GetOrdinal("Notes"); while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new UserOrderHierarchyJsonResultSet2Result(r.IsDBNull(o0) ? string.Empty : r.GetString(o0), r.IsDBNull(o1) ? string.Empty : r.GetString(o1), r.IsDBNull(o2) ? string.Empty : r.GetString(o2), r.IsDBNull(o3) ? string.Empty : r.GetString(o3))); } return list; }),
-        };
+		object? OutputFactory(IReadOnlyDictionary<string, object?> values) => null;
+		object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs)
+		{
+			return new UserOrderHierarchyJsonResult
+			{
+				Success = success,
+				Error = error,
+				// ResultSet 0 → Result (robust list/array handling)
+				Result = rs.Length > 0 && rs[0] is object[] rows0 ? Array.ConvertAll(rows0, o => (UserOrderHierarchyJsonResultSet1Result)o).ToList() : (rs.Length > 0 && rs[0] is System.Collections.Generic.List<object> list0 ? Array.ConvertAll(list0.ToArray(), o => (UserOrderHierarchyJsonResultSet1Result)o).ToList() : Array.Empty<UserOrderHierarchyJsonResultSet1Result>()),
+				// ResultSet 1 → Result1 (robust list/array handling)
+				Result1 = rs.Length > 1 && rs[1] is object[] rows1 ? Array.ConvertAll(rows1, o => (UserOrderHierarchyJsonResultSet2Result)o).ToList() : (rs.Length > 1 && rs[1] is System.Collections.Generic.List<object> list1 ? Array.ConvertAll(list1.ToArray(), o => (UserOrderHierarchyJsonResultSet2Result)o).ToList() : Array.Empty<UserOrderHierarchyJsonResultSet2Result>())
+			};
+		};
+		void Binder(DbCommand cmd, object? state)
+		{
 
-	object? OutputFactory(IReadOnlyDictionary<string, object?> values) => null;
-	object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs) => new UserOrderHierarchyJsonResult { Success = success, Error = error, Result1 = rs.Length > 0 ? Array.ConvertAll(((System.Collections.Generic.List<object>)rs[0]).ToArray(), o => (UserOrderHierarchyJsonResultSet1Result)o).ToList() : Array.Empty<UserOrderHierarchyJsonResultSet1Result>(), Result2 = rs.Length > 1 ? Array.ConvertAll(((System.Collections.Generic.List<object>)rs[1]).ToArray(), o => (UserOrderHierarchyJsonResultSet2Result)o).ToList() : Array.Empty<UserOrderHierarchyJsonResultSet2Result>() };
-	void Binder(DbCommand cmd, object? state) {
-	
+		}
+		return new ProcedureExecutionPlan(
+			"samples.UserOrderHierarchyJson", parameters, resultSets, OutputFactory, AggregateFactory, Binder);
 	}
-	return new ProcedureExecutionPlan(
-	    "samples.UserOrderHierarchyJson", parameters, resultSets, OutputFactory, AggregateFactory, Binder);
-    }
 }
 
 /// <summary>Convenience extension for executing 'samples.UserOrderHierarchyJson' via an <see cref="ISpocRDbContext"/>.</summary>

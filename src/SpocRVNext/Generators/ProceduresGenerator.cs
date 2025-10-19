@@ -297,11 +297,19 @@ public sealed class ProceduresGenerator
                 foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
                 {
                     var rsType = NamePolicy.ResultSet(procPart, rs.Name);
-                    // Build plan meta for template
                     var ordinalDecls = string.Join(" ", rs.Fields.Select((f, idx) => $"int o{idx}=r.GetOrdinal(\"{f.Name}\");"));
                     var fieldExprs = string.Join(", ", rs.Fields.Select((f, idx) => MaterializeFieldExpressionCached(f, idx)));
-                    var propName = rs.Name.StartsWith("ResultSet", StringComparison.OrdinalIgnoreCase) ? "Result" + rs.Name.Substring("ResultSet".Length) : rs.Name;
-                    var assignment = $", {propName} = rs.Length > {rsIdx} ? Array.ConvertAll(((System.Collections.Generic.List<object>)rs[{rsIdx}]).ToArray(), o => ({rsType})o).ToList() : Array.Empty<{rsType}>()";
+                    // Property naming rule: first result set => "Result" (no index). Subsequent => Result1, Result2, ... (index-1)
+                    string propName;
+                    if (rsIdx == 0)
+                    {
+                        propName = "Result";
+                    }
+                    else
+                    {
+                        propName = "Result" + rsIdx.ToString();
+                    }
+                    var initializerExpr = $"rs.Length > {rsIdx} && rs[{rsIdx}] is object[] rows{rsIdx} ? Array.ConvertAll(rows{rsIdx}, o => ({rsType})o).ToList() : (rs.Length > {rsIdx} && rs[{rsIdx}] is System.Collections.Generic.List<object> list{rsIdx} ? Array.ConvertAll(list{rsIdx}.ToArray(), o => ({rsType})o).ToList() : Array.Empty<{rsType}>())";
                     var fieldsBlock = string.Join(Environment.NewLine, rs.Fields.Select((f, i) => $"    {f.ClrType} {f.PropertyName}{(i == rs.Fields.Count - 1 ? string.Empty : ",")}"));
                     rsMeta.Add(new
                     {
@@ -311,7 +319,7 @@ public sealed class ProceduresGenerator
                         OrdinalDecls = ordinalDecls,
                         FieldExprs = fieldExprs,
                         Index = rsIdx,
-                        AggregateAssignment = assignment,
+                        AggregateAssignment = initializerExpr,
                         FieldsBlock = fieldsBlock
                     });
                     rsIdx++;
@@ -328,16 +336,16 @@ public sealed class ProceduresGenerator
                 string outputFactoryArgs = proc.OutputFields.Count > 0 ? string.Join(", ", proc.OutputFields.Select(f => CastOutputValue(f))) : string.Empty;
 
                 // Aggregate assignments
-                var aggregateAssignments = rsMeta.Select(m => ((dynamic)m).AggregateAssignment as string).ToList();
-
                 var model = new
                 {
                     Namespace = finalNs,
                     UsingDirectives = usingBlock,
                     HEADER = header,
+                    HasParameters = proc.InputParameters.Count + proc.OutputFields.Count > 0,
                     HasInput = proc.InputParameters.Count > 0,
                     HasOutput = proc.OutputFields.Count > 0,
                     HasResultSets = proc.ResultSets.Count > 0,
+                    HasMultipleResultSets = proc.ResultSets.Count > 1,
                     InputParameters = proc.InputParameters.Select((p, i) => new { p.ClrType, p.PropertyName, Comma = i == proc.InputParameters.Count - 1 ? string.Empty : "," }).ToList(),
                     OutputFields = proc.OutputFields.Select((f, i) => new { f.ClrType, f.PropertyName, Comma = i == proc.OutputFields.Count - 1 ? string.Empty : "," }).ToList(),
                     ProcedureFullName = proc.Schema + "." + proc.ProcedureName,
@@ -351,7 +359,7 @@ public sealed class ProceduresGenerator
                     ResultSets = rsMeta,
                     OutputFactoryArgs = outputFactoryArgs,
                     HasAggregateOutput = proc.OutputFields.Count > 0,
-                    AggregateAssignments = aggregateAssignments
+                    // AggregateAssignments removed; template uses ResultSets[].AggregateAssignment directly
                 };
                 finalCode = _renderer.Render(unifiedTemplateRaw!, model);
             }

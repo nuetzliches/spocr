@@ -34,28 +34,59 @@ public sealed class {{ UnifiedResultTypeName }}
 
 internal static partial class {{ PlanTypeName }}
 {
-    private static ProcedureExecutionPlan? _cached;
-    public static ProcedureExecutionPlan Instance => _cached ??= Create();
-    private static ProcedureExecutionPlan Create()
-    {
-	var parameters = new ProcedureParameter[] {
+	private static ProcedureExecutionPlan? _cached;
+	public static ProcedureExecutionPlan Instance => _cached ??= Create();
+	private static ProcedureExecutionPlan Create()
+	{
+{{#if HasParameters}}
+	var parameters = new ProcedureParameter[]
+	{
 {{#each ParameterLines}}            {{ this }},
 {{/each}}        };
+{{else}}
+	var parameters = Array.Empty<ProcedureParameter>();
+{{/if}}
 
-	var resultSets = new ResultSetMapping[] {
-{{#each ResultSets}}            new("{{ Name }}", async (r, ct) => { var list = new List<object>(); {{ OrdinalDecls }} while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new {{ TypeName }}({{ FieldExprs }})); } return list; }),
+{{#if HasResultSets}}
+	var resultSets = new ResultSetMapping[]
+	{
+{{#each ResultSets}}            new("{{ Name }}", async (r, ct) =>
+	    {
+		var list = new List<object>();
+{{ OrdinalDecls }}
+		while (await r.ReadAsync(ct).ConfigureAwait(false))
+		{
+		    list.Add(new {{ TypeName }}({{ FieldExprs }}));
+		}
+		return list;
+	    }),
+
 {{/each}}        };
+{{else}}
+	var resultSets = Array.Empty<ResultSetMapping>();
+{{/if}}
 
-	object? OutputFactory(IReadOnlyDictionary<string, object?> values) => {{#if HasOutput}}new {{ OutputTypeName }}({{ OutputFactoryArgs }}){{else}}null{{/if}};
-	object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs) => new {{ UnifiedResultTypeName }} { Success = success, Error = error{{#if HasOutput}}, Output = ({{ OutputTypeName }}?)output{{/if}}{{#if HasResultSets}}{{#each ResultSets}}{{ AggregateAssignment }}{{/each}}{{/if}} };
-	void Binder(DbCommand cmd, object? state) {
-	{{#if HasInput}}var input = ({{ InputTypeName }})state!;
-{{#each InputAssignments}}        {{ this }}
+		object? OutputFactory(IReadOnlyDictionary<string, object?> values) => {{#if HasOutput}}new {{ OutputTypeName }}({{ OutputFactoryArgs }}){{else}}null{{/if}};
+		object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs)
+		{
+			return new {{ UnifiedResultTypeName }}
+			{
+				Success = success,
+				Error = error{{#if HasOutput}},
+				Output = ({{ OutputTypeName }}?)output{{/if}}{{#if HasResultSets}}{{#each ResultSets}},
+				// ResultSet {{ Index }} → {{ PropName }} (robust list/array handling)
+				{{ PropName }} = {{ AggregateAssignment }}{{/each}}{{/if}}
+			};
+		};
+		void Binder(DbCommand cmd, object? state)
+		{
+{{#if HasInput}}            var input = ({{ InputTypeName }})state!;
+{{#each InputAssignments}}            {{ this }}
 {{/each}}{{/if}}
+		}
+		return new ProcedureExecutionPlan(
+			"{{ ProcedureFullName }}", parameters, resultSets, OutputFactory, AggregateFactory, Binder);
 	}
-	return new ProcedureExecutionPlan(
-	    "{{ ProcedureFullName }}", parameters, resultSets, OutputFactory, AggregateFactory, Binder);
-    }
 }
 
 /// <summary>Convenience extension for executing '{{ ProcedureFullName }}' via an <see cref="ISpocRDbContext"/>.</summary>

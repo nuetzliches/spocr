@@ -107,9 +107,34 @@ public class SpocrManager(
 
         if (!configFile.Exists())
         {
-            consoleService.Error("Configuration file not found");
-            consoleService.Output($"\tTo create a configuration file, run '{Constants.Name} create'");
-            return ExecuteResultEnum.Error;
+            // Bridge: allow .env-only workflow in dual/next mode if SPOCR_GENERATOR_DB present
+            var genMode = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant();
+            var envConn = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_DB");
+            if (genMode is "dual" or "next" && !string.IsNullOrWhiteSpace(envConn))
+            {
+                consoleService.Warn("[bridge] spocr.json missing – proceeding using .env (SPOCR_GENERATOR_DB). Some legacy-only features unavailable.");
+                // Minimal config stub for downstream code expecting non-null
+                var stub = new ConfigurationModel
+                {
+                    Version = new Version(4, 0, 0, 0),
+                    TargetFramework = Constants.DefaultTargetFramework.ToFrameworkString(),
+                    Project = new ProjectModel
+                    {
+                        DataBase = new DataBaseModel { ConnectionString = envConn },
+                        Output = new OutputModel { Namespace = Environment.GetEnvironmentVariable("SPOCR_NAMESPACE") ?? "SpocR" }
+                    },
+                    Schema = new List<SchemaModel>()
+                };
+                // Use in-memory path: configFile not saved (skip save operations later)
+                dbContext.SetConnectionString(envConn);
+                consoleService.PrintTitle("Pulling database schema from database");
+            }
+            else
+            {
+                consoleService.Error("Configuration file not found");
+                consoleService.Output($"\tTo create a configuration file, run '{Constants.Name} create'");
+                return ExecuteResultEnum.Error;
+            }
         }
 
         var config = await LoadAndMergeConfigurationsAsync();
@@ -560,9 +585,18 @@ public class SpocrManager(
 
         if (!configFile.Exists())
         {
-            consoleService.Error("Configuration file not found");
-            consoleService.Output($"\tTo create a configuration file, run '{Constants.Name} create'");
-            return ExecuteResultEnum.Error;
+            var genModeMissing = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant();
+            var envConn = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_DB");
+            if (genModeMissing is "dual" or "next" && !string.IsNullOrWhiteSpace(envConn))
+            {
+                consoleService.Warn("[bridge] spocr.json missing – build proceeding using .env values.");
+            }
+            else
+            {
+                consoleService.Error("Configuration file not found");
+                consoleService.Output($"\tTo create a configuration file, run '{Constants.Name} create'");
+                return ExecuteResultEnum.Error;
+            }
         }
 
         await RunAutoUpdateAsync(options);
