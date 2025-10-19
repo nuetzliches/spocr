@@ -19,7 +19,8 @@ using SpocRVNext.Configuration;
 namespace SpocR;
 
 [Command(Name = "spocr", UnrecognizedArgumentHandling = UnrecognizedArgumentHandling.Throw)]
-[Subcommand(typeof(CreateCommand))]
+[Subcommand(typeof(CreateCommand))] // legacy (spocr.json) – deprecated in v5, replaced by 'init'
+[Subcommand(typeof(InitCommand))]   // v5+ initialization (.env bootstrap)
 [Subcommand(typeof(PullCommand))]
 [Subcommand(typeof(BuildCommand))]
 [Subcommand(typeof(RebuildCommand))]

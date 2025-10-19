@@ -15,10 +15,35 @@ Format loosely inspired by Keep a Changelog. Dates use ISO 8601 (UTC).
 - Major version bridge policy enforcement (blocks direct jump without env override `SPOCR_ALLOW_DIRECT_MAJOR`).
 - Dual generation observability: SHA256 hashing + diff manifests + allow-list `.spocr-diff-allow` (informational mode).
 - Global nullable enabled; legacy nullability warnings broadly suppressed via `.editorconfig` (phase 1 of Nullability Debt plan).
+- CLI `spocr init` command (creates `.env` from template, replaces legacy `spocr create` in v5; available during bridge for early adoption).
+- Golden Hash CLI commands (`write-golden`, `verify-golden`) with reserved strict determinism exit codes (21–23) documented.
 
 ### Changed
 
 - (placeholder)
+
+### Deprecated (Bridge Phase v4.5 → v5)
+
+- `spocr create` command (legacy JSON config initializer) – superseded by `spocr init` (ENV / `.env` bootstrap). A runtime warning will be introduced before v5 removal.
+- Configuration keys targeted for removal in v5:
+  - `Project.Role.Kind` (always behaves as `Default`)
+  - `Project.Role.DataBase.RuntimeConnectionStringIdentifier` (runtime DB is provided solely via host configuration / `AddSpocRDbContext` options)
+  - `Project.Output.*` (path / namespace steering replaced by auto namespace derivation + explicit `SPOCR_NAMESPACE` override)
+- Legacy `spocr.json` as a primary source (now only lowest precedence fallback; will be ignored entirely in v5).
+- Several restrictive naming / structure heuristics (EPIC E007) – removal in progress; full list will appear under "Removed" once documentation finalized.
+
+### Removed (In Progress – Documentation Stub)
+
+The following heuristics have been eliminated (implementation merged, documentation pending final audit):
+
+- Result set primary heuristic enforcing singular shortcut aggregate (now always unified aggregate)
+- Legacy JSON root-level `Output` array (replaced by unified `ResultSets`)
+- Template root environment override (`SPOCR_TEMPLATES_ROOT`) (templates resolve deterministically from internal path)
+  Further items will be enumerated with rationale & migration notes prior to v5 tag.
+
+### Determinism / Exit Codes
+
+Exit codes 21, 22, 23 are RESERVED for future strict determinism enforcement (Golden Hash diff, integrity, allow-list violations). They are NOT emitted yet in relaxed mode. Activation criteria: ≥60% core coverage + stable allow-list.
 
 ### Migration / Freeze
 

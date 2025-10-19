@@ -34,7 +34,13 @@ public sealed class ProceduresGenerator
 
     public int Generate(string ns, string baseOutputDir)
     {
-        var procs = _provider();
+        // Capture full unfiltered list (needed for cross-schema forwarding even if target schema excluded by allow-list)
+        var allProcedures = _provider();
+        var originalLookup = allProcedures
+            .GroupBy(p => (p.Schema ?? "dbo") + "." + (p.ProcedureName ?? string.Empty), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+        // Work list subject to filters
+        var procs = allProcedures.ToList();
         // 1) Positive allow-list: prefer EnvConfiguration.BuildSchemas; fallback to direct env var only if cfg missing
         HashSet<string>? buildSchemas = null;
         if (_cfg?.BuildSchemas is { Count: > 0 })
@@ -104,6 +110,109 @@ public sealed class ProceduresGenerator
             try { Console.Out.WriteLine("[spocr vNext] Info: ProceduresGenerator skipped – provider returned 0 procedures."); } catch { }
             return 0;
         }
+        // --- Cross-Schema EXEC Forwarding Phase (in-memory rewrite of ProcedureDescriptor sets) ---
+        // Strategy:
+        // 1) Detect placeholder wrapper: single ResultSet with ExecSource* metadata & Columns.Count == 0 -> replace with full forwarded sets from target (even if target filtered out).
+        // 2) Detect mixed case: at least one placeholder (Columns.Count == 0) + at least one non-empty set -> append forwarded sets after existing sets.
+        // 3) Duplicate avoidance: skip forwarded set names that already exist (case-insensitive). Optionally suffix with Fwd# if conflict.
+        // 4) Preserve ExecSource metadata on each forwarded set.
+        // NOTE: We do forwarding BEFORE template model construction so unified generation sees enriched sets.
+        var forwarded = new List<ProcedureDescriptor>();
+        foreach (var proc in procs)
+        {
+            if (proc.ResultSets == null || proc.ResultSets.Count == 0)
+            {
+                forwarded.Add(proc);
+                continue;
+            }
+            var placeholders = proc.ResultSets.Where(rs => rs.ExecSourceProcedureName != null && rs.Fields.Count == 0).ToList();
+            if (placeholders.Count == 0)
+            {
+                forwarded.Add(proc); // no forwarding needed
+                continue;
+            }
+            // Assume first placeholder drives target (multiple placeholders rare; process each sequentially)
+            var updatedSets = proc.ResultSets.ToList();
+            bool anyChange = false;
+            foreach (var ph in placeholders)
+            {
+                var targetKey = (ph.ExecSourceSchemaName ?? "dbo") + "." + (ph.ExecSourceProcedureName ?? string.Empty);
+                if (!originalLookup.TryGetValue(targetKey, out var targetProc) || targetProc.ResultSets == null || targetProc.ResultSets.Count == 0)
+                {
+                    // Could log diagnostic if enabled
+                    continue;
+                }
+                var isWrapper = proc.ResultSets.Count == placeholders.Count && proc.ResultSets.All(r => r.Fields.Count == 0); // pure wrapper: only placeholders
+                var existingNames = new HashSet<string>(updatedSets.Select(s => s.Name), StringComparer.OrdinalIgnoreCase);
+                var cloned = new List<ResultSetDescriptor>();
+                int fwdIndex = 0;
+                foreach (var targetSet in targetProc.ResultSets)
+                {
+                    // Compose forwarded name aligning with target set name; ensure unique
+                    var baseName = targetSet.Name;
+                    var finalName = baseName;
+                    while (existingNames.Contains(finalName))
+                    {
+                        finalName = baseName + "Fwd" + fwdIndex.ToString();
+                        fwdIndex++;
+                    }
+                    existingNames.Add(finalName);
+                    var clonedSet = new ResultSetDescriptor(
+                        Index: updatedSets.Count + cloned.Count, // provisional index after append/replace
+                        Name: finalName,
+                        Fields: targetSet.Fields,
+                        IsScalar: targetSet.IsScalar,
+                        Optional: targetSet.Optional,
+                        HasSelectStar: targetSet.HasSelectStar,
+                        ExecSourceSchemaName: ph.ExecSourceSchemaName,
+                        ExecSourceProcedureName: ph.ExecSourceProcedureName
+                    );
+                    cloned.Add(clonedSet);
+                }
+                if (isWrapper)
+                {
+                    // Replace ALL placeholder sets with forwarded clones (wrapper semantics)
+                    updatedSets = cloned;
+                }
+                else
+                {
+                    // Mixed case: remove placeholder and append clones at end preserving original order
+                    updatedSets.Remove(ph);
+                    updatedSets.AddRange(cloned);
+                }
+                anyChange = true;
+            }
+            if (anyChange)
+            {
+                // Re-index sets after modifications
+                var reIndexed = updatedSets.Select((rs, idx) => new ResultSetDescriptor(
+                    Index: idx,
+                    Name: rs.Name,
+                    Fields: rs.Fields,
+                    IsScalar: rs.IsScalar,
+                    Optional: rs.Optional,
+                    HasSelectStar: rs.HasSelectStar,
+                    ExecSourceSchemaName: rs.ExecSourceSchemaName,
+                    ExecSourceProcedureName: rs.ExecSourceProcedureName
+                )).ToList();
+                var newProc = new ProcedureDescriptor(
+                    ProcedureName: proc.ProcedureName,
+                    Schema: proc.Schema,
+                    OperationName: proc.OperationName,
+                    InputParameters: proc.InputParameters,
+                    OutputFields: proc.OutputFields,
+                    ResultSets: reIndexed,
+                    Summary: proc.Summary,
+                    Remarks: proc.Remarks
+                );
+                forwarded.Add(newProc);
+            }
+            else
+            {
+                forwarded.Add(proc);
+            }
+        }
+        procs = forwarded;
         string header = string.Empty;
         if (_loader != null && _loader.TryLoad("_Header", out var headerTpl)) header = headerTpl.TrimEnd() + Environment.NewLine;
         // Emit ExecutionSupport once (if template present and file missing or stale)

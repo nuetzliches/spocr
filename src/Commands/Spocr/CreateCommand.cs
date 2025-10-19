@@ -8,7 +8,7 @@ using SpocR.Utils;
 namespace SpocR.Commands.Spocr;
 
 [HelpOption("-?|-h|--help")]
-[Command("create", Description = "Creates a new SpocR Config")]
+[Command("create", Description = "(Deprecated v5) Creates a legacy spocr.json config. Use 'spocr init' for .env bootstrap.")]
 public class CreateCommand(
     SpocrManager spocrManager,
     SpocrProjectManager spocrProjectManager

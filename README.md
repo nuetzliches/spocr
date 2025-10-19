@@ -34,8 +34,8 @@ dotnet tool install --global SpocR
 ### Basic Usage
 
 ````bash
-# Initialize project
-spocr create --project MyProject
+# Initialize generator configuration (bridge phase)
+spocr init --namespace MyCompany.MyProject --mode dual --connection "Server=.;Database=MyDb;Trusted_Connection=True;" --schemas core,identity
 
 ```csharp
 var command = new SqlCommand("EXEC GetUserById", connection);
@@ -52,6 +52,32 @@ var result = await context.GetUserByIdAsync(new GetUserByIdInput {
 		UserId = 123
 });
 ```
+
+### Migration Note: `spocr init` vs. legacy `spocr create`
+
+During the v4.5 bridge phase a new initialization command `spocr init` is available and will fully replace `spocr create` in v5. Use `init` to create or update a `.env` file rather than generating a legacy `spocr.json` skeleton. The `.env` bootstrap merges a template (see `samples/restapi/.env.example`) with inferred values (schemas, optional namespace) and supports idempotent key upsert.
+
+| Legacy (`create`)              | New (`init`) Flag / Behavior                                   |
+| ------------------------------ | -------------------------------------------------------------- | ---- | ------------------------------- |
+| `--project <Name>`             | Use `--namespace` to set root namespace (auto inference else)  |
+| (writes `spocr.json`)          | Writes/updates `.env` (generator scope only)                   |
+| (no schema allow-list merging) | `--schemas core,banking` populates `SPOCR_BUILD_SCHEMAS`       |
+| (no explicit mode control)     | `--mode legacy                                                 | dual | next`sets`SPOCR_GENERATOR_MODE` |
+| (connection via config field)  | `--connection <conn>` sets `SPOCR_GENERATOR_DB` (generator DB) |
+| (no force overwrite flag)      | `--force` rewrites existing `.env` preserving comments         |
+
+Deprecation Path:
+
+- v4.5: `spocr create` still present but marked deprecated (warning to be added before v5).
+- v5: `spocr create` removed; `.env` becomes authoritative; `spocr.json` ignored for namespace/mode/db unless running in strict legacy mode (legacy mode itself may be removed soon thereafter).
+
+Benefits of switching now:
+
+- Deterministic precedence (CLI > ENV > .env > legacy fallback) already active.
+- Easier CI injection: set env vars or pass CLI flags without editing JSON.
+- Reduced churn: `.env` upsert preserves comments and ordering (template driven).
+
+Refer to documentation page "Env Bootstrap" for full details on template structure and precedence chain.
 
 ## Documentation
 

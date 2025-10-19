@@ -47,7 +47,7 @@ API-KONZEPT Umsetzung & Entscheidungsfindung (siehe `DeveloperBranchUseOnly-API-
    - Reflection-Test für Extension Präsenz (<ProcName>Async + Wrapper Bridge) hinzufügen [x]
    - Doku Hinweis: Globaler statischer Interceptor vs. mögliche zukünftige DI-scoped Variante (Trade-offs dokumentieren: Einfachheit vs. Request-Korrelation) [x]
    - Beispiel-Code Snippet im README (Interceptor Registrierung während Startup) [x]
-4. (P1) Aggregat Rückgabe-Konvention – Entscheidung BESTÄTIGT: Immer Unified Aggregate (kein Shortcut bei Single ResultSet) – [x] dokumentieren (API-CONCEPT.md Referenz) TODO: README Abschnitt ergänzen
+4. (P1) Aggregat Rückgabe-Konvention – Entscheidung BESTÄTIGT: Immer Unified Aggregate (kein Shortcut bei Single ResultSet) – [x] dokumentiert (API-CONCEPT.md Referenz + README Abschnitt ergänzt 19.10.2025)
 5. (P2) Streaming API Flags & Snapshot Erweiterungen (ResultSetStreamingKind, IsJsonPayload) – Spezifikation festziehen (Implementierung deferred v5)
 6. (P2) JSON Dual Mode Methoden-Suffixe fixieren (`JsonRawAsync`, `JsonDeserializeAsync`, `JsonElementsAsync`, `JsonStreamAsync`) – Naming Freeze
 7. (P2) ProcedureEndpoints Generator Opt-In Flag definieren (`SPOCR_GENERATE_API_ENDPOINTS` / CLI `--api-endpoints`) – Entscheidung + README TODO
@@ -191,16 +191,16 @@ EPICS Übersicht (oberste Steuerungsebene)
 
 ### Operative Tasks aus EPICS (Detail-Aufgaben folgen unter thematischen Sektionen)
 
-### Qualität & Tests (Update 2025-10-15)
+### Qualität & Tests (Update 2025-10-19)
 
 - [x] Alle bestehenden Unit- & Integrationstests grün (Tests.sln)
 - [ ] Neue Tests für SpocRVNext (Happy Path + Fehlerfälle + Regression für entfernte Heuristiken)
 - [>] (Optional) Info-Diff zwischen Legacy und neuem Output generiert (kein Paritäts-Zwang) – DEFERRED v5
-- [ ] Automatisierte Qualitäts-Gates (eng/quality-gates.ps1) lokal und in CI erfolgreich
+- [~] Automatisierte Qualitäts-Gates (eng/quality-gates.ps1) vorhanden (Script aktiv; CI Integration & README Verlinkung offen)
 - [ ] Test-Hosts nach Läufen bereinigt (eng/kill-testhosts.ps1) – kein Leak mehr
-- [ ] Code Coverage Mindestschwelle definiert und erreicht (Ziel: >80% Core-Logik) – Schwellen-Aktivierung verschoben auf v5.0
-      note: v4.5 Phase = Reporting only (eng/quality-gates.ps1 liefert Messung ohne Fail). Eskalationspfad dokumentiert (README Golden Hash Abschnitt). Aktivierung Strict Gate erst nach stabiler >60% Kern-Coverage.
-- [ ] Negative Tests für ungültige spocr.json Konfigurationen
+- [~] Code Coverage Mindestschwelle Strategie: Bridge Phase = Reporting (Threshold Parameter optional, Fail abgeschaltet <60%). Eskalationspfad: ≥60% Coverage → Aktivierung Strict Golden Hash + Coverage Gate; Ziel v5 ≥80%.
+  note: Script unterstützt `-CoverageThreshold`; CI Badge & Doku fehlen.
+- [ ] Negative Tests für ungültige ENV Kombinationen (spocr.json Fallback, invalid MODE, fehlende DB) – spocr.json spezifische Fälle ersetzt
 - [x] Test: TableTypes Name Preservation (`PreservesOriginalNames_NoRenaming`) sichert unveränderte UDTT Bezeichner
 - [x] Entfernte Suffix-Normalisierung für TableTypes (Regression abgesichert)
 - [x] Konsolidierte Prozedur-Datei Test (keine Duplikate Input/Output + deterministischer Doppel-Lauf)
@@ -327,17 +327,8 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 - [x] `.env.example` als autoritative Vorlage gekennzeichnet (Kommentar Kopfzeile)
 - [x] Logging: Klarer Hinweis auf nächste Schritte (Namespace prüfen, Generator Mode optional anpassen)
 
-### Logging & Messaging Alignment
-
-- [ ] Log Message "vNext (dual) – TableTypes" konsolidieren → Ein einheitlicher Block: `vNext: Generating TableTypes` oder in Gesamtdauer-Zusammenfassung integrieren
-      note: Doppelung/Verlust Kontext aktuell – gehört in Sequenz zu anderen Generator Steps
-
 ### Konfiguration & Artefakte (Update 2025-10-15)
 
-- [ ] Beispiel `spocr.json` im Sample aktualisiert (ohne entfallene Properties)
-- [ ] Validierungsskript/Schema für spocr.json hinzugefügt oder aktualisiert
-- [ ] Debug-Konfigurationen (debug/\*.json) konsistent mit neuen Pfaden
-- [ ] Output-Pfade (Output/, Output-v5-0/, etc.) aufgeräumt / veraltete entfernt sofern Version >=5.0 (post-migration)
 - [x] `.env` Beispieldatei hinzugefügt (Pfad: `samples/restapi/.env.example`) inkl. aller relevanten SPOCR\_\* Keys
       note: Enthält SPOCR_GENERATOR_MODE, SPOCR_EXPERIMENTAL_CLI, Bridge Policy Flags – `.env` ausschließlich Generator-Scope (kein Runtime Connection String). Entfernte Idee eines dedizierten Runtime DB Env Vars ersatzlos gestrichen. Precedence dokumentiert (README aktualisiert). Namespace / Output Dir Prefill via `.env` Bootstrap weiterhin möglich.
 - [x] `spocr pull` überschreibt lokale Konfiguration nicht mehr (nur interne Metadaten)
@@ -386,7 +377,7 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 - [x] Sample führt grundlegende DB Operationen erfolgreich aus (CRUD Smoke Test) – Roundtrip & Ping stabil (Timeout/Ping Fix abgeschlossen 18.10.2025)
       note: Optional: zusätzlicher CreateUser Roundtrip + README Beispiel ergänzen
 - [~] Automatisierter Mini-Test (skriptgesteuert) prüft Generierung & Start der Web API (smoke-test.ps1 vorhanden, CI Integration fehlt)
-- [ ] Sample beschreibt Aktivierung des neuen Outputs (Feature Flag) im README
+- [x] Sample beschreibt Aktivierung des neuen Outputs (Feature Flag) im README (Abschnitt vorhanden 19.10.2025)
 - [ ] Schema Rebuild Pipeline (`dotnet run --project src/SpocR.csproj -- rebuild -p samples/restapi/spocr.json --no-auto-update`) erzeugt deterministisch `samples/restapi/.spocr/schema`
 - [~] Generierter Output in `samples/restapi/SpocR` deterministisch (Golden Hash Feature implementiert, CI Verify offen) - Golden Write/Verify verfügbar, noch nicht in CI
 - [x] Namespace-Korrektur: `samples/restapi/SpocR/ITableType.cs` → `namespace RestApi.SpocR;`
@@ -424,7 +415,7 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 - [ ] Erste Issues / Feedback-Kanal beobachtet (24-48h Monitoring)
 - [ ] Roadmap
 
-### Automatisierung / CI (Update 2025-10-15)
+### Automatisierung / CI (Update 2025-10-19)
 
 - [ ] Pipeline Schritt: Codegen Diff (debug/model-diff-report.md) aktuell und verlinkt
 - [ ] Fail-Fast bei unerwarteten Generator-Änderungen (Diff Threshold)
@@ -437,7 +428,7 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 - [>] CI: Golden Hash Verify Schritt (Aufruf `verify-golden`) integriert – Relaxed Mode – DEFERRED v5.0 (Bridge Phase nur manuelles Write; Verify erst mit Coverage ≥60%)
 - [ ] CI Dokumentation: "Golden Hash Update Workflow" (manuelles `write-golden`, Review, Commit) – offen
 - [x] Golden Hash CLI Befehle implementiert (`write-golden`, `verify-golden`) – Funktion & Tests bestätigt (18.10.2025)
-- [ ] CHANGELOG Ergänzung: Reservierte Exit Codes (21–23) dokumentieren (nur README bisher) – offen
+- [ ] CHANGELOG Ergänzung: Reservierte Exit Codes (21–23) dokumentieren (README Abschnitt existiert; formaler Eintrag fehlt)
 - [ ] Caching/Restore Mechanismen (NuGet, Bun) effizient konfiguriert
 - [>] ENV/CLI Flag für Generation definiert (`SPOCR_GENERATOR_MODE=dual|legacy|next` + `spocr generate --mode`) – DEFERRED v5 für vollständige CLI Param-Doku; v4.5 belässt Default dual
 - [x] Allow-List Datei `.spocr-diff-allow` unterstützt (Glob) – optional, nur Noise-Reduktion
@@ -466,18 +457,18 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 - [ ] Phase 2: Schrittweises Entfernen alter Suppressions (Tracking Liste)
 - [ ] Phase 3: CI Eskalation (`SPOCR_STRICT_NULLABLE=1`) dokumentiert & aktiviert
 
-### Observability / Diff (Ergänzung)
+### Observability / Diff (Ergänzung) (Update 2025-10-19)
 
 - [x] Hash-Manifeste erzeugt (SHA256) pro Output
 - [x] Diff-Report + Allow-List Mechanismus vorhanden
-- [ ] Aktivierung reservierter Exit Codes (21–23) bei Policy-Eskalation implementieren (geplant erst ab v5.0)
+- [ ] Aktivierung reservierter Exit Codes (21–23) nach Coverage ≥60% & stabiler Allow-List (v5 Ziel)
       -- [x] Dokumentation: Anleitung zur Pflege der Allow-List (`.spocr-diff-allow`) (README Abschnitt enthält Workflow & Beispiel Globs)
 - [ ] Optionaler "strict-diff" Modus über ENV / CLI Flag getestet
 - [x] Snapshot-Timestamp (`GeneratedUtc`) aus Persistenz entfernt (deterministische Hashes / keine Timestamp-Diffs)
 - [x] Hash-Filter erweitert: Ignoriere dynamische `Generated at` Zeilen aus vNext Output-Dateien
       note: Strict Mode Aktivierungskriterium: Kern-Coverage ≥60% & stabile Allow-List; README Abschnitt vorhanden (Determinism & Golden Hash, 18.10.2025)
 - [x] Golden Hash Manifest Mechanismus aktiv (`debug/golden-hash.json` bestätigt)
-- [ ] CI Durchsetzung Strict Golden Hash (Exit Codes) – DEFERRED bis Coverage ≥60% & Allow-List stabil
+- [ ] CI Durchsetzung Strict Golden Hash (Exit Codes) – abhängig von Coverage ≥60% & stabiler Allow-List (Policy Draft offen)
 - [ ] Erweiterte Diff Tests: ≥3 manipulierte Dateien → aggregierter Report & korrekter Relaxed Exit Code – offen
 
 ### Sonstiges
@@ -503,15 +494,15 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 - [x] BuildSchemas Filtering zentral (Procedures & TableTypes)
 - [x] Hyphen-Support für Schema-Namen (Validation & Sanitizing)
 - [x] Output Duplikat-Cleanup (unsuffixed vs suffixed \*Output.cs)
-- [ ] Cross-Schema EXEC Forwarding (A) offen (Anhängen fremder ResultSets außerhalb Allow-List)
-- [ ] A: Cross-Schema EXEC Forwarding / Append
-      id: A
-      goal: ResultSets von EXEC-Zielprozeduren werden auch dann weitergeleitet bzw. angehängt, wenn das Ziel-Schema auf Ignore steht oder nicht aktiv geladen wurde.
-      acceptance: - Wrapper (nur EXEC, keine eigenen konkreten Sets) übernimmt vollständige ResultSets des Ziels (inkl. ExecSource* Metadaten) - Non-Wrapper mit eigenen Sets hängt Ziel-Sets hinten an (keine Duplikate, keine doppelte Forwarding-Aktion) - Fallback greift über Expanded Snapshot (snapshotProcMap) auch wenn Ziel nicht in procLookup enthalten - Logging Tags: [proc-forward-xschema] bei vollständiger Übernahme, [proc-exec-append-xschema] beim Anhängen - Beispiel: soap.PaymentInitiationFindAsJson -> banking.InitiationFindAsJson (ExecSourceSchemaName / ExecSourceProcedureName korrekt gesetzt)
-      depends: [E004, E014]
-      note: Brackets in ExecSource* optional (keine Änderung bestehender Tests); Fokus auf Vorhandensein / Merge
-      plan: 1) Snapshot-Erweiterung: Vollständige Proc-Liste inkl. ignorierter Schemas cachen (snapshotProcMap) 2) Analysephase: Parser erkennt Wrapper (nur EXEC) vs. Mixed (EXEC + eigener SELECT) 3) Forwarding Merge: Wrapper = komplette Übernahme fremder ResultSets; Mixed = Append ans Ende (Erhalt eigener Reihenfolge) 4) Duplikat-Prüfung: Key (ExecSourceSchemaName, ExecSourceProcedureName, ForwardedResultSetName) 5) Metadaten anreichern (ExecSource\* Felder) 6) Logging implementieren ([proc-forward-xschema] / [proc-exec-append-xschema]) 7) Tests: a) Wrapper Forward b) Mixed Append c) Ignoriertes Schema trotzdem forwarded d) Duplikat-Verhinderung e) Allow-List Interaktion.
-- [ ] samples\restapi\.env aus Template mit Kommentaren generieren
+- [~] Cross-Schema EXEC Forwarding (A) teilweise (Forwarding & Append implementiert; volle Testabdeckung offen)
+- [~] A: Cross-Schema EXEC Forwarding / Append
+  id: A
+  goal: ResultSets von EXEC-Zielprozeduren werden auch dann weitergeleitet bzw. angehängt, wenn das Ziel-Schema auf Ignore steht oder nicht aktiv geladen wurde.
+  acceptance: - Wrapper (nur EXEC, keine eigenen konkreten Sets) übernimmt vollständige ResultSets des Ziels (inkl. ExecSource* Metadaten) ✔ - Non-Wrapper mit eigenen Sets hängt Ziel-Sets hinten an ✔ - Fallback greift über Expanded Snapshot (snapshotProcMap) auch wenn Ziel nicht in procLookup enthalten ✔ - Logging Tags: [proc-forward-xschema] / [proc-exec-append-xschema] ✔ - Beispiel: soap.PaymentInitiationFindAsJson -> banking.InitiationFindAsJson (ExecSourceSchemaName / ExecSourceProcedureName korrekt gesetzt) – Edge-Case Tests (ignoriertes Schema / Duplikat / Allow-List) offen
+  depends: [E004, E014]
+  note: Brackets in ExecSource* optional (keine Änderung bestehender Tests); Fokus auf Vorhandensein / Merge
+  plan: 1) Snapshot-Erweiterung: Vollständige Proc-Liste inkl. ignorierter Schemas cachen (snapshotProcMap) 2) Analysephase: Parser erkennt Wrapper (nur EXEC) vs. Mixed (EXEC + eigener SELECT) 3) Forwarding Merge: Wrapper = komplette Übernahme fremder ResultSets; Mixed = Append ans Ende (Erhalt eigener Reihenfolge) 4) Duplikat-Prüfung: Key (ExecSourceSchemaName, ExecSourceProcedureName, ForwardedResultSetName) 5) Metadaten anreichern (ExecSource\* Felder) 6) Logging implementieren ([proc-forward-xschema] / [proc-exec-append-xschema]) 7) Tests: a) Wrapper Forward b) Mixed Append c) Ignoriertes Schema trotzdem forwarded d) Duplikat-Verhinderung e) Allow-List Interaktion.
+- [ ] samples\restapi\.env aus Template mit Kommentaren generieren (Bootstrap synchronisiert Kommentar-Blöcke aus `.env.example`; identische Reihenfolge & zukünftige v5 Preview Keys optional übernommen)
 - [x] Template-Datei `.env.example` anreichert (Erklär-Kommentare für Modus/Flags/Namespace vorhanden)
 - [ ] CLI Befehl/Bootstrap: `spocr env init` (optional) evaluieren
 - [ ] (OBSOLET) ResultSet Datei-Benennung vereinheitlichen (durch Konsolidierung in eine Prozedur-Datei nicht mehr relevant)
@@ -558,6 +549,26 @@ Connectivity gesichert (test-db Script + CI Integration). Offene Kernpunkte: Sta
 8. Abschnittsreihenfolge Test für konsolidierte Prozedur-Dateien (Header→Inputs→Outputs→ResultSets→Aggregate→Plan→Executor)
 9. Namespace Override / Ableitung Doku + Beispiel diff
 10. Dispatcher next-only Pfad Paritätstest (MODE=next vs dual ohne Legacy) automatisieren – DEFERRED v5
+
+## Deferred v5 Items (Consolidated)
+
+Status-Legende: [>] deferred (v5 Ziel) – Querverweis auf README / Roadmap Abschnitte.
+
+- [>] Entferne Fallback `project.output.namespace` (README "Namespace Derivation & Override" – Cutover v5)
+- [>] Analyzer Warnung bei widersprüchlichem Namespace (CLI vs ENV vs .env) (README Namespace Abschnitt – zukünftige Hint)
+- [>] Strict Diff / Golden Hash Aktivierung (Exit Codes 21–23) nach Coverage ≥60% (README Exit Codes + Determinism Abschnitt)
+- [>] Coverage Eskalationspfad: 60% Strict Mode aktiv, 80% v5 Ziel, 85%+ Post-Cutover (README Coverage Policy verfeinern, Checklist spiegeln)
+- [>] Streaming & JSON Dual Mode (Row / JSON IAsyncEnumerable + Lazy Cache) (README Preview / JSON Stored Procedures Alpha)
+- [>] Erweiterte JSON Methoden: JsonRawAsync / JsonDeserializeAsync<T> / JsonElementsAsync<T> / JsonStreamAsync (Generator-Erweiterung)
+- [>] Snapshot: pro ResultSet Flag IsJsonPayload (feinkörnige Kennzeichnung)
+- [>] Forwarded ResultSets Doku (ExecSource\* Meta-Felder detailliert) (UnifiedProcedure Erweiterung)
+- [>] JUnit Multi-Suite XML (getrennte suites für unit/integration/validation) (README JUnit Abschnitt Verbesserung)
+- [>] FOR JSON PATH root alias extraction (ResultSetNameResolver Verbesserungen)
+- [>] CTE Support (Basis-Tabelle aus finaler Query in CTE Fällen) (ResultSetNameResolver geplante Erweiterung)
+- [>] TwoWay Binding Inputs<->Outputs (DTO Reuse) – Entscheidung & Mapping Strategie
+- [>] Entfernte Heuristiken vollständige Doku (EPIC E007) – CHANGELOG Removed Abschnitt
+- [>] Obsolete Konfig Keys endgültige Entfernung (Project.Role.Kind, RuntimeConnectionStringIdentifier, Project.Output.\*) – v5 Cutover
+- [>] Analyzer Konflikt-Reporting für doppelte generierte Methodennamen (Namespace Präfix Strategie) – Post-Cutover
 
 # Zu planende Entscheidungen
 
