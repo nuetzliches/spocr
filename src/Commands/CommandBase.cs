@@ -18,7 +18,7 @@ public abstract class CommandBase : IAppCommand, ICommandOptions
     [Option("-f|--force", "Run command even if we got warnings", CommandOptionType.NoValue)]
     public virtual bool Force { get; set; }
 
-    [Option("-s|--silent", "Run without user interactions and dont check for updates", CommandOptionType.NoValue)]
+    [Option("-q|--quiet", "Run without user interactions and dont check for updates", CommandOptionType.NoValue)]
     public virtual bool Quiet { get; set; }
 
     [Option("-v|--verbose", "Show non necessary information", CommandOptionType.NoValue)]

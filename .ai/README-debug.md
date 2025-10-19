@@ -133,7 +133,7 @@ You can disable the auto-update check in different ways:
 | Method          | Usage                  | Notes                                        |
 | --------------- | ---------------------- | -------------------------------------------- |
 | CLI Flag        | `--no-auto-update`     | One-off run suppression                      |
-| Quiet Mode      | `--silent`             | Also suppresses interactive prompts          |
+| Quiet Mode      | `--quiet`              | Also suppresses interactive prompts          |
 | Env Var         | `SPOCR_SKIP_UPDATE=1`  | Accepts: 1, true, yes, on (case-insensitive) |
 | Env Var (alias) | `SPOCR_NO_UPDATE=true` | Alias for the same behavior                  |
 

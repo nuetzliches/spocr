@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using McMaster.Extensions.CommandLineUtils;
 using SpocR.Utils;
+using SpocR.Infrastructure;
 
 namespace SpocR.Commands.Spocr;
 
@@ -18,9 +19,6 @@ namespace SpocR.Commands.Spocr;
 [Command("init", Description = "Initialize SpocR project (.env bootstrap). Replaces legacy 'create' in v5.")]
 public class InitCommand : SpocrCommandBase
 {
-    [Option("-p|--path", "Target directory (defaults to current working directory)", CommandOptionType.SingleValue)]
-    public string TargetPath { get; set; } = Directory.GetCurrentDirectory();
-
     [Option("-n|--namespace", "Root namespace (SPOCR_NAMESPACE)", CommandOptionType.SingleValue)]
     public string RootNamespace { get; set; }
 
@@ -33,15 +31,13 @@ public class InitCommand : SpocrCommandBase
     [Option("-s|--schemas", "Comma separated allow-list (SPOCR_BUILD_SCHEMAS)", CommandOptionType.SingleValue)]
     public string Schemas { get; set; }
 
-    [Option("-f|--force", "Overwrite existing .env", CommandOptionType.NoValue)]
-    public bool Force { get; set; }
-
     public InitCommand(SpocR.Managers.SpocrProjectManager projectManager) : base(projectManager) { }
 
     public override async Task<int> OnExecuteAsync()
     {
         await base.OnExecuteAsync();
-        var dir = DirectoryUtils.IsPath(TargetPath) ? TargetPath : Path.GetFullPath(TargetPath);
+        var effectivePath = string.IsNullOrWhiteSpace(Path) ? Directory.GetCurrentDirectory() : Path;
+        var dir = DirectoryUtils.IsPath(effectivePath) ? effectivePath : System.IO.Path.GetFullPath(effectivePath);
         Directory.CreateDirectory(dir);
         var desiredMode = string.IsNullOrWhiteSpace(Mode) ? (Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE") ?? "dual") : Mode.Trim();
 

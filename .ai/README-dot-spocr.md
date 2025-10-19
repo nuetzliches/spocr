@@ -92,7 +92,7 @@ CLI flags:
 
 ```
 --no-auto-update   # disables check for that invocation
---silent           # implicitly suppresses update prompts
+--quiet            # implicitly suppresses update prompts
 ```
 
 If any is present, the auto-update service exits without contacting package sources.
