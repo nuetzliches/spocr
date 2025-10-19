@@ -40,10 +40,10 @@ public class UserListProcedureTests
         var result = await UserListProcedure.ExecuteAsync(conn, CancellationToken.None);
         result.ShouldNotBeNull();
         result.Success.ShouldBeTrue();
-        result.Result1.ShouldNotBeNull();
-        result.Result1.Count.ShouldBeGreaterThan(0); // At least one user expected in sample seed
+        result.Result.ShouldNotBeNull();
+        result.Result.Count.ShouldBeGreaterThan(0); // At least one user expected in sample seed
 
-        var first = result.Result1.First();
+        var first = result.Result.First();
         first.UserId.ShouldBeGreaterThan(0);
         first.Email.ShouldNotBeNull();
         first.Email.Trim().Length.ShouldBeGreaterThan(0);

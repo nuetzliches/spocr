@@ -18,7 +18,7 @@ public readonly record struct OrderListByUserAsJsonInput(
     int? UserId
 );
 
-public readonly record struct OrderListByUserAsJsonResultSet1Result(
+public readonly record struct OrderListByUserAsJsonResultSet(
     string UserId,
     string DisplayName,
     string Email,
@@ -32,7 +32,7 @@ public sealed class OrderListByUserAsJsonResult
 {
 	public bool Success { get; init; }
 	public string? Error { get; init; }
-	public IReadOnlyList<OrderListByUserAsJsonResultSet1Result> Result { get; init; } = Array.Empty<OrderListByUserAsJsonResultSet1Result>();
+	public IReadOnlyList<OrderListByUserAsJsonResultSet> Result { get; init; } = Array.Empty<OrderListByUserAsJsonResultSet>();
 	
 }
 
@@ -56,7 +56,7 @@ internal static partial class OrderListByUserAsJsonPlan
 int o0=r.GetOrdinal("UserId"); int o1=r.GetOrdinal("DisplayName"); int o2=r.GetOrdinal("Email"); int o3=r.GetOrdinal("OrderId"); int o4=r.GetOrdinal("TotalAmount"); int o5=r.GetOrdinal("PlacedAt"); int o6=r.GetOrdinal("Notes");
 		while (await r.ReadAsync(ct).ConfigureAwait(false))
 		{
-		    list.Add(new OrderListByUserAsJsonResultSet1Result(r.IsDBNull(o0) ? string.Empty : r.GetString(o0), r.IsDBNull(o1) ? string.Empty : r.GetString(o1), r.IsDBNull(o2) ? string.Empty : r.GetString(o2), r.IsDBNull(o3) ? string.Empty : r.GetString(o3), r.IsDBNull(o4) ? string.Empty : r.GetString(o4), r.IsDBNull(o5) ? string.Empty : r.GetString(o5), r.IsDBNull(o6) ? string.Empty : r.GetString(o6)));
+		    list.Add(new OrderListByUserAsJsonResultSet(r.IsDBNull(o0) ? string.Empty : r.GetString(o0), r.IsDBNull(o1) ? string.Empty : r.GetString(o1), r.IsDBNull(o2) ? string.Empty : r.GetString(o2), r.IsDBNull(o3) ? string.Empty : r.GetString(o3), r.IsDBNull(o4) ? string.Empty : r.GetString(o4), r.IsDBNull(o5) ? string.Empty : r.GetString(o5), r.IsDBNull(o6) ? string.Empty : r.GetString(o6)));
 		}
 		return list;
 	    }),
@@ -71,7 +71,7 @@ int o0=r.GetOrdinal("UserId"); int o1=r.GetOrdinal("DisplayName"); int o2=r.GetO
 				Success = success,
 				Error = error,
 				// ResultSet 0 → Result (robust list/array handling)
-				Result = rs.Length > 0 && rs[0] is object[] rows0 ? Array.ConvertAll(rows0, o => (OrderListByUserAsJsonResultSet1Result)o).ToList() : (rs.Length > 0 && rs[0] is System.Collections.Generic.List<object> list0 ? Array.ConvertAll(list0.ToArray(), o => (OrderListByUserAsJsonResultSet1Result)o).ToList() : Array.Empty<OrderListByUserAsJsonResultSet1Result>())
+				Result = rs.Length > 0 && rs[0] is object[] rows0 ? Array.ConvertAll(rows0, o => (OrderListByUserAsJsonResultSet)o).ToList() : (rs.Length > 0 && rs[0] is System.Collections.Generic.List<object> list0 ? Array.ConvertAll(list0.ToArray(), o => (OrderListByUserAsJsonResultSet)o).ToList() : Array.Empty<OrderListByUserAsJsonResultSet>())
 			};
 		};
 		void Binder(DbCommand cmd, object? state)

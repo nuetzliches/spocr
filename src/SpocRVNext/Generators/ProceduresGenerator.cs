@@ -296,7 +296,21 @@ public sealed class ProceduresGenerator
                 int rsIdx = 0;
                 foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
                 {
-                    var rsType = NamePolicy.ResultSet(procPart, rs.Name);
+                    // Type naming rule (0-based): first result set gets unsuffixed <Proc>Result; subsequent sets append numeric index.
+                    string rsType;
+                    // Determine a clean base set name (generic vs custom)
+                    bool isGeneric = rs.Name.StartsWith("ResultSet", StringComparison.OrdinalIgnoreCase);
+                    if (isGeneric)
+                    {
+                        var genericBase = rsIdx == 0 ? "ResultSet" : "ResultSet" + rsIdx.ToString();
+                        rsType = SanitizeType(procPart, genericBase);
+                    }
+                    else
+                    {
+                        var baseCustom = rs.Name;
+                        var chosen = rsIdx == 0 ? baseCustom : baseCustom + rsIdx.ToString();
+                        rsType = SanitizeType(procPart, chosen);
+                    }
                     var ordinalDecls = string.Join(" ", rs.Fields.Select((f, idx) => $"int o{idx}=r.GetOrdinal(\"{f.Name}\");"));
                     var fieldExprs = string.Join(", ", rs.Fields.Select((f, idx) => MaterializeFieldExpressionCached(f, idx)));
                     // Property naming rule: first result set => "Result" (no index). Subsequent => Result1, Result2, ... (index-1)
@@ -510,5 +524,15 @@ public sealed class ProceduresGenerator
         // Ensure exactly one trailing newline
         if (!code.EndsWith("\n")) code += Environment.NewLine;
         return code;
+    }
+
+    // Build a result set record type name without the trailing 'Result' suffix.
+    private static string SanitizeType(string procPart, string baseName)
+    {
+        // Reuse NamePolicy.ResultSet to leverage sanitization, then strip trailing 'Result'
+        var full = NamePolicy.ResultSet(procPart, baseName);
+        if (full.EndsWith("Result", StringComparison.Ordinal))
+            return full.Substring(0, full.Length - "Result".Length);
+        return full;
     }
 }

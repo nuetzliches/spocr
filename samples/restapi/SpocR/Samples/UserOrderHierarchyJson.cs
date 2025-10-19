@@ -14,14 +14,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using RestApi.SpocR;
 
-public readonly record struct UserOrderHierarchyJsonResultSet1Result(
+public readonly record struct UserOrderHierarchyJsonResultSet(
     string UserId,
     string DisplayName,
     string Email,
     string Orders
 );
 
-public readonly record struct UserOrderHierarchyJsonResultSet2Result(
+public readonly record struct UserOrderHierarchyJsonResultSet1(
     string OrderId,
     string TotalAmount,
     string PlacedAt,
@@ -32,8 +32,8 @@ public sealed class UserOrderHierarchyJsonResult
 {
 	public bool Success { get; init; }
 	public string? Error { get; init; }
-	public IReadOnlyList<UserOrderHierarchyJsonResultSet1Result> Result { get; init; } = Array.Empty<UserOrderHierarchyJsonResultSet1Result>();
-	public IReadOnlyList<UserOrderHierarchyJsonResultSet2Result> Result1 { get; init; } = Array.Empty<UserOrderHierarchyJsonResultSet2Result>();
+	public IReadOnlyList<UserOrderHierarchyJsonResultSet> Result { get; init; } = Array.Empty<UserOrderHierarchyJsonResultSet>();
+	public IReadOnlyList<UserOrderHierarchyJsonResultSet1> Result1 { get; init; } = Array.Empty<UserOrderHierarchyJsonResultSet1>();
 	
 }
 
@@ -54,7 +54,7 @@ internal static partial class UserOrderHierarchyJsonPlan
 int o0=r.GetOrdinal("UserId"); int o1=r.GetOrdinal("DisplayName"); int o2=r.GetOrdinal("Email"); int o3=r.GetOrdinal("Orders");
 		while (await r.ReadAsync(ct).ConfigureAwait(false))
 		{
-		    list.Add(new UserOrderHierarchyJsonResultSet1Result(r.IsDBNull(o0) ? string.Empty : r.GetString(o0), r.IsDBNull(o1) ? string.Empty : r.GetString(o1), r.IsDBNull(o2) ? string.Empty : r.GetString(o2), r.IsDBNull(o3) ? string.Empty : r.GetString(o3)));
+		    list.Add(new UserOrderHierarchyJsonResultSet(r.IsDBNull(o0) ? string.Empty : r.GetString(o0), r.IsDBNull(o1) ? string.Empty : r.GetString(o1), r.IsDBNull(o2) ? string.Empty : r.GetString(o2), r.IsDBNull(o3) ? string.Empty : r.GetString(o3)));
 		}
 		return list;
 	    }),
@@ -65,7 +65,7 @@ int o0=r.GetOrdinal("UserId"); int o1=r.GetOrdinal("DisplayName"); int o2=r.GetO
 int o0=r.GetOrdinal("OrderId"); int o1=r.GetOrdinal("TotalAmount"); int o2=r.GetOrdinal("PlacedAt"); int o3=r.GetOrdinal("Notes");
 		while (await r.ReadAsync(ct).ConfigureAwait(false))
 		{
-		    list.Add(new UserOrderHierarchyJsonResultSet2Result(r.IsDBNull(o0) ? string.Empty : r.GetString(o0), r.IsDBNull(o1) ? string.Empty : r.GetString(o1), r.IsDBNull(o2) ? string.Empty : r.GetString(o2), r.IsDBNull(o3) ? string.Empty : r.GetString(o3)));
+		    list.Add(new UserOrderHierarchyJsonResultSet1(r.IsDBNull(o0) ? string.Empty : r.GetString(o0), r.IsDBNull(o1) ? string.Empty : r.GetString(o1), r.IsDBNull(o2) ? string.Empty : r.GetString(o2), r.IsDBNull(o3) ? string.Empty : r.GetString(o3)));
 		}
 		return list;
 	    }),
@@ -80,9 +80,9 @@ int o0=r.GetOrdinal("OrderId"); int o1=r.GetOrdinal("TotalAmount"); int o2=r.Get
 				Success = success,
 				Error = error,
 				// ResultSet 0 → Result (robust list/array handling)
-				Result = rs.Length > 0 && rs[0] is object[] rows0 ? Array.ConvertAll(rows0, o => (UserOrderHierarchyJsonResultSet1Result)o).ToList() : (rs.Length > 0 && rs[0] is System.Collections.Generic.List<object> list0 ? Array.ConvertAll(list0.ToArray(), o => (UserOrderHierarchyJsonResultSet1Result)o).ToList() : Array.Empty<UserOrderHierarchyJsonResultSet1Result>()),
+				Result = rs.Length > 0 && rs[0] is object[] rows0 ? Array.ConvertAll(rows0, o => (UserOrderHierarchyJsonResultSet)o).ToList() : (rs.Length > 0 && rs[0] is System.Collections.Generic.List<object> list0 ? Array.ConvertAll(list0.ToArray(), o => (UserOrderHierarchyJsonResultSet)o).ToList() : Array.Empty<UserOrderHierarchyJsonResultSet>()),
 				// ResultSet 1 → Result1 (robust list/array handling)
-				Result1 = rs.Length > 1 && rs[1] is object[] rows1 ? Array.ConvertAll(rows1, o => (UserOrderHierarchyJsonResultSet2Result)o).ToList() : (rs.Length > 1 && rs[1] is System.Collections.Generic.List<object> list1 ? Array.ConvertAll(list1.ToArray(), o => (UserOrderHierarchyJsonResultSet2Result)o).ToList() : Array.Empty<UserOrderHierarchyJsonResultSet2Result>())
+				Result1 = rs.Length > 1 && rs[1] is object[] rows1 ? Array.ConvertAll(rows1, o => (UserOrderHierarchyJsonResultSet1)o).ToList() : (rs.Length > 1 && rs[1] is System.Collections.Generic.List<object> list1 ? Array.ConvertAll(list1.ToArray(), o => (UserOrderHierarchyJsonResultSet1)o).ToList() : Array.Empty<UserOrderHierarchyJsonResultSet1>())
 			};
 		};
 		void Binder(DbCommand cmd, object? state)

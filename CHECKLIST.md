@@ -484,6 +484,8 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 - [ ] (Prinzip) Qualität & Wartbarkeit des neuen Outputs > strikte Rückwärtskompatibilität (Breaking Changes sind erlaubt, sofern dokumentiert und migrierbar)
 - [ ] XML Kommentare auf den vnext Outputs optimieren.
 - [x] Result1 und die Modellklassen sollen bei "Result" ohne Nummer beginnen, erst das zweite ResultSet bekommt die "1" (also 0-based Indexierung und 0 = "").
+- [x] Finale Vereinheitlichung: Entferntes trailing "Result" bei Record-Typen (jetzt `...ResultSet`, `...ResultSet1`, ...) dokumentiert (DEVELOPMENT.md & README Abschnitt aktualisiert)
+      note: README & DEVELOPMENT.md aktualisiert 19.10.2025 – Integrationstests angepasst (UserList: Result statt Result1). Kein weiterer Code-Refactor offen.
 
 ... (bei Bedarf weiter ergänzen) ...
 

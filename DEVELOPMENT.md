@@ -68,36 +68,57 @@ Alle prozedurbezogenen Artefakte werden in möglichst wenige Dateien verdichtet:
 2. Output (nur falls OUTPUT Parameter): `<Proc>NameOutput.cs`
 3. Unified Result + ResultSets + Plan + Wrapper: `<Proc>NameResult.cs`
 
-Struktur von `<Proc>NameResult.cs`:
+Struktur von `<Proc>NameResult.cs` (finale Naming-Konvention):
 
 ```
 public sealed class <Proc>NameResult {
    public bool Success { get; init; }
    public string? Error { get; init; }
    public <Proc>NameOutput? Output { get; init; }          // optional
-   public IReadOnlyList<<Proc>NameResultSet1Result> Result1 { get; init; } = ...; // erster ResultSet
-   public IReadOnlyList<<Proc>Name<CustomName>Result> Result2 { get; init; } = ...; // usw.
+   public IReadOnlyList<<Proc>Name<ResultSetOrResolvedName>ResultSet> Result { get; init; } = ...;   // erster (Index 0)
+   public IReadOnlyList<<Proc>Name<NextResolvedName>ResultSet1>       Result1 { get; init; } = ...;  // zweiter (Index 1)
+   public IReadOnlyList<<Proc>Name<NextResolvedName>ResultSet2>       Result2 { get; init; } = ...;  // dritter (Index 2) usw.
 }
 
-public readonly record struct <Proc>NameResultSet1Result(...);
-// Weitere ResultSet-Record-Typen
+public readonly record struct <Proc>Name<ResultSetOrResolvedName>ResultSet(...);   // erster ResultSet-Record (ohne Nummer im Typnamen)
+public readonly record struct <Proc>Name<NextResolvedName>ResultSet1(...);          // zweiter ResultSet-Record (ab hier nummeriert)
+// Weitere ResultSet-Record-Typen (…ResultSet2, …ResultSet3, ...)
 
 internal static partial class <Proc>NameProcedurePlan { /* ExecutionPlan + Binder */ }
 public static class <Proc>NameProcedure { /* ExecuteAsync wrapper */ }
 ```
 
-Benennung:
+Benennung (FINAL):
 
-- Fallback ResultSet Namen (`ResultSet1`, `ResultSet2`, ...) werden als Properties zu `Result1`, `Result2`, ... gekürzt.
-- Die zugrundeliegenden Record-Typen behalten aktuell das Muster `<Proc>NameResultSet1Result` (deterministisch & eindeutig). Optional kann später auf `<Proc>NameResult1` verkürzt werden.
-- Es gibt keine separaten Dateien für Plan, Aggregate oder einzelne ResultSet Rows mehr.
-- Inline Output Record wurde entfernt (Duplikat), externer Output Record wird wiederverwendet.
+1. Aggregat-Properties (0-based Anzeige ohne führende Nummer):
+   - Erster ResultSet (Index 0) → Property `Result`
+   - Zweiter ResultSet (Index 1) → Property `Result1`
+   - Dritter ResultSet (Index 2) → Property `Result2` usw.
+2. Record-Typen der einzelnen ResultSets:
+   - Erster ResultSet-Typ: `<Proc>Name<ResolvedBaseName>ResultSet` (ohne Nummer hinter `ResultSet`)
+   - Weitere: `<Proc>Name<ResolvedBaseName>ResultSet1`, `<Proc>Name<ResolvedBaseName>ResultSet2`, ... (Nummer beginnt bei 1 für das zweite Set)
+   - Fallback generische Basisnamen (wenn kein sprechender Name ermittelt wird) lauten `ResultSet`, `ResultSet1`, `ResultSet2`, ... und werden analog eingebettet.
+3. Entfernt: Das frühere Suffix `Result` (z.B. `ResultSet1Result`) entfällt vollständig – die Endung ist jetzt immer `ResultSet` (+ optionale Nummer ≥1).
+4. Die Property-Namen und die Record-Typen laufen bewusst versetzt: Property des ersten Sets = `Result`, Record endet auf `ResultSet` (ohne Nummer) → minimale visuelle Redundanz.
+5. Custom / Resolver-Namen (z.B. Basis-Tabelle `Users`) werden eingebettet: `<Proc>NameUsersResultSet`, `<Proc>NameUsersResultSet1` … (bei Kollisionen Suffix-Nummer im Resolver-Basisnamen zusätzlich möglich, dann z.B. `<Proc>NameUsers1ResultSet`).
 
-Rationale:
+Nicht geändert:
 
-- Reduktion der Dateianzahl -> bessere Navigierbarkeit.
-- Konsistente API: Immer eine zentrale Result-Datei je Stored Procedure.
-- Stabilität der Typnamen für spätere Refactors / Migrationsskripte.
+- Keine separaten Dateien für Plan, Aggregate oder einzelne ResultSet Rows (alles konsolidiert).
+- Inline Output Record bleibt entfernt; externer Output Record wird referenziert falls vorhanden.
+
+Rationale der finalen Konvention:
+
+- Vermeidet doppelte Rede (kein `Result` + `ResultSet` + `Result` mehr in einem Typnamen).
+- Erste Property ohne Nummer beschleunigt häufigsten Zugriff (`result.Result` statt `result.Result0`).
+- Nummerierung erst ab zweitem Set reduziert visuelles Rauschen bei Single- / Dual-Result Verfahren.
+- Einheitliches `ResultSet` Suffix ermöglicht einfache Erkennung / Filterung via Tools (EndsWith("ResultSet")) ohne Sonderfall für erstes Set.
+
+Zusätzliche Rationale:
+
+- Stabilität der Typnamen für spätere Refactors / Migrationsskripte (nur einmalige Umbenennung in dieser Phase geplant).
+- Vereinfacht Test Assertions (Regex / EndsWith) und Refactoring-Skripte.
+- Minimiert Breaking Changes gegenüber der unmittelbar vorigen Zwischenstufe (nur Entfernen des trailing `Result`).
 
 Mögliche zukünftige Optimierungen (Backlog):
 

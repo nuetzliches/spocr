@@ -24,7 +24,7 @@ public readonly record struct SumWithOutputOutput(
     bool? Success
 );
 
-public readonly record struct SumWithOutputResultSet1Result(
+public readonly record struct SumWithOutputResultSet(
     int? Result
 );
 
@@ -33,7 +33,7 @@ public sealed class SumWithOutputResult
 	public bool Success { get; init; }
 	public string? Error { get; init; }
 	public SumWithOutputOutput? Output { get; init; }
-	public IReadOnlyList<SumWithOutputResultSet1Result> Result { get; init; } = Array.Empty<SumWithOutputResultSet1Result>();
+	public IReadOnlyList<SumWithOutputResultSet> Result { get; init; } = Array.Empty<SumWithOutputResultSet>();
 	
 }
 
@@ -60,7 +60,7 @@ internal static partial class SumWithOutputPlan
 int o0=r.GetOrdinal("Result");
 		while (await r.ReadAsync(ct).ConfigureAwait(false))
 		{
-		    list.Add(new SumWithOutputResultSet1Result(r.IsDBNull(o0) ? null : (int?)r.GetInt32(o0)));
+		    list.Add(new SumWithOutputResultSet(r.IsDBNull(o0) ? null : (int?)r.GetInt32(o0)));
 		}
 		return list;
 	    }),
@@ -76,7 +76,7 @@ int o0=r.GetOrdinal("Result");
 				Error = error,
 				Output = (SumWithOutputOutput?)output,
 				// ResultSet 0 → Result (robust list/array handling)
-				Result = rs.Length > 0 && rs[0] is object[] rows0 ? Array.ConvertAll(rows0, o => (SumWithOutputResultSet1Result)o).ToList() : (rs.Length > 0 && rs[0] is System.Collections.Generic.List<object> list0 ? Array.ConvertAll(list0.ToArray(), o => (SumWithOutputResultSet1Result)o).ToList() : Array.Empty<SumWithOutputResultSet1Result>())
+				Result = rs.Length > 0 && rs[0] is object[] rows0 ? Array.ConvertAll(rows0, o => (SumWithOutputResultSet)o).ToList() : (rs.Length > 0 && rs[0] is System.Collections.Generic.List<object> list0 ? Array.ConvertAll(list0.ToArray(), o => (SumWithOutputResultSet)o).ToList() : Array.Empty<SumWithOutputResultSet>())
 			};
 		};
 		void Binder(DbCommand cmd, object? state)

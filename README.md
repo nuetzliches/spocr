@@ -188,7 +188,7 @@ ProcedureExecutor.SetInterceptor(new LoggingProcedureInterceptor(logger));
 app.MapGet("/api/users", async (ISpocRDbContext db, CancellationToken ct) =>
 {
   var result = await db.UserListAsync(ct).ConfigureAwait(false);
-  return result.Success ? Results.Ok(result.Result1) : Results.Problem(result.Error);
+  return result.Success ? Results.Ok(result.Result) : Results.Problem(result.Error);
 });
 
 app.Run();
@@ -310,6 +310,37 @@ The resolver never renames a result set to an empty or invalid identifier; it si
 | Three SELECTs: `Users`, `Users`, `Users`                      | `Users`, `Users1`, `Users2` | Stable sequence; deterministic ordering tests cover this |
 | Dynamic SQL: `EXEC(@sql)` or `sp_executesql N'...SELECT ...'` | `ResultSet1`, `ResultSet2`  | Skip naming – dynamic content could vary                 |
 | Unparsable / exotic T‑SQL (parser error)                      | Generic names               | Safety first (no partial heuristics)                     |
+
+#### Unified Result Aggregate & Record Type Naming (Final)
+
+SpocR exposes both aggregate properties and underlying record types with a 0-based ergonomic convention:
+
+Aggregate properties (on `<Proc>NameResult`):
+
+- First result set (index 0): `Result`
+- Second result set (index 1): `Result1`
+- Third result set (index 2): `Result2` …
+
+Record types (row structs) appended inside the same unified file:
+
+- First: `<Proc>Name<ResolvedBaseName>ResultSet` (no numeric suffix)
+- Subsequent: `<Proc>Name<ResolvedBaseName>ResultSet1`, `<Proc>Name<ResolvedBaseName>ResultSet2`, ...
+
+Removed legacy suffix: Older transitional forms like `ResultSet1Result` have been replaced; the trailing `Result` is dropped permanently. Generic fallback names follow the same pattern (`ResultSet`, `ResultSet1`, `ResultSet2`, ...).
+
+Example (two sets, resolved base name = `Users` + generic second):
+
+```csharp
+public sealed class UserListResult {
+  public IReadOnlyList<UserListUsersResultSet> Result { get; init; } = Array.Empty<UserListUsersResultSet>();
+  public IReadOnlyList<UserListResultSet1>     Result1 { get; init; } = Array.Empty<UserListResultSet1>();
+}
+
+public readonly record struct UserListUsersResultSet(int Id, string Name);
+public readonly record struct UserListResultSet1(string Status);
+```
+
+Rationale: Minimizes visual noise for the most common single‑result scenario (`result.Result`) while preserving a uniform `ResultSet` suffix for type discovery and tooling. Numbering starts at 1 only where needed (second set onwards).
 
 #### Rationale for Suffix Strategy
 

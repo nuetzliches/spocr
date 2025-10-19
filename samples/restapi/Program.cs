@@ -31,8 +31,8 @@ app.MapGet("/", () => new { utc = DateTime.UtcNow, status = "ok" })
 // Simple list query
 app.MapGet("/api/users", async (ISpocRDbContext db, CancellationToken ct) =>
 {
-    await using var conn = await db.OpenConnectionAsync(ct).ConfigureAwait(false);
-    return await UserListProcedure.ExecuteAsync(conn, ct).ConfigureAwait(false);
+    var users = await db.UserListAsync(ct).ConfigureAwait(false);
+    return users;
 })
     .WithName("UserList");
 

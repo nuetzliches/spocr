@@ -23,7 +23,7 @@ public readonly record struct CreateUserWithOutputOutput(
     int? UserId
 );
 
-public readonly record struct CreateUserWithOutputResultSet1Result(
+public readonly record struct CreateUserWithOutputResultSet(
     int? CreatedUserId
 );
 
@@ -32,7 +32,7 @@ public sealed class CreateUserWithOutputResult
 	public bool Success { get; init; }
 	public string? Error { get; init; }
 	public CreateUserWithOutputOutput? Output { get; init; }
-	public IReadOnlyList<CreateUserWithOutputResultSet1Result> Result { get; init; } = Array.Empty<CreateUserWithOutputResultSet1Result>();
+	public IReadOnlyList<CreateUserWithOutputResultSet> Result { get; init; } = Array.Empty<CreateUserWithOutputResultSet>();
 	
 }
 
@@ -58,7 +58,7 @@ internal static partial class CreateUserWithOutputPlan
 int o0=r.GetOrdinal("CreatedUserId");
 		while (await r.ReadAsync(ct).ConfigureAwait(false))
 		{
-		    list.Add(new CreateUserWithOutputResultSet1Result(r.IsDBNull(o0) ? null : (int?)r.GetInt32(o0)));
+		    list.Add(new CreateUserWithOutputResultSet(r.IsDBNull(o0) ? null : (int?)r.GetInt32(o0)));
 		}
 		return list;
 	    }),
@@ -74,7 +74,7 @@ int o0=r.GetOrdinal("CreatedUserId");
 				Error = error,
 				Output = (CreateUserWithOutputOutput?)output,
 				// ResultSet 0 → Result (robust list/array handling)
-				Result = rs.Length > 0 && rs[0] is object[] rows0 ? Array.ConvertAll(rows0, o => (CreateUserWithOutputResultSet1Result)o).ToList() : (rs.Length > 0 && rs[0] is System.Collections.Generic.List<object> list0 ? Array.ConvertAll(list0.ToArray(), o => (CreateUserWithOutputResultSet1Result)o).ToList() : Array.Empty<CreateUserWithOutputResultSet1Result>())
+				Result = rs.Length > 0 && rs[0] is object[] rows0 ? Array.ConvertAll(rows0, o => (CreateUserWithOutputResultSet)o).ToList() : (rs.Length > 0 && rs[0] is System.Collections.Generic.List<object> list0 ? Array.ConvertAll(list0.ToArray(), o => (CreateUserWithOutputResultSet)o).ToList() : Array.Empty<CreateUserWithOutputResultSet>())
 			};
 		};
 		void Binder(DbCommand cmd, object? state)

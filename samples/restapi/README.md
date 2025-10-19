@@ -129,7 +129,7 @@ Generated code offers two access styles:
 ```csharp
 var agg = await db.UserListAsync(ct);
 if (!agg.Success) { /* handle error */ }
-foreach (var row in agg.Result1) { Console.WriteLine(row.DisplayName); }
+foreach (var row in agg.Result) { Console.WriteLine(row.DisplayName); }
 ```
 
 2. Low-level wrapper (manual connection scope, granular for interceptor / diagnostics):
@@ -150,15 +150,15 @@ SpocR vNext deliberately returns a unified aggregate record for every stored pro
 3. Determinism & Hashing: The aggregate acts as a stable root for hashing (Golden Hash) — field order and presence are normalized during generation.
 4. Diagnostics: Common metadata (Success, Error, Duration, DbVersion, ProcedureName) live in one place; logging/interceptors don't need overload proliferation.
 
-Excerpt from the conceptual design (see `DeveloperBranchUseOnly-API-CONCEPT.md`): a procedure with one result set still generates an aggregate `UserListResult` with `Result1` collection rather than returning the collection directly.
+Excerpt from the conceptual design (see `DeveloperBranchUseOnly-API-CONCEPT.md`): a procedure with one result set still generates an aggregate `UserListResult` with `Result` collection rather than returning the collection directly.
 
 Example (single result set):
 
 ```csharp
 var users = await db.UserListAsync(ct);
 if (!users.Success) { /* handle error */ }
-// Access first (and only) result set via Result1
-foreach (var row in users.Result1)
+// Access first (and only) result set via Result
+foreach (var row in users.Result)
 {
    Console.WriteLine(row.DisplayName);
 }
@@ -177,7 +177,7 @@ Low-level execution mirrors the same convention:
 ```csharp
 await using var conn = await db.OpenConnectionAsync(ct);
 var agg = await UserListProcedure.ExecuteAsync(conn, ct);
-// agg.Result1, agg.Result2, agg.Output, agg.Success, agg.Error
+// agg.Result, agg.Result1 (second set), agg.Output, agg.Success, agg.Error
 ```
 
 This uniform aggregate pattern avoids conditional return types and simplifies generic tooling (diffing, deterministic hashing, potential future pagination adapters). Treat the aggregate as the canonical envelope — collections inside may evolve, the envelope remains.

@@ -52,9 +52,9 @@ public class UserListDbContextExtensionInvocationTests
         // Assert
         result.ShouldNotBeNull();
         result.Success.ShouldBeTrue();
-        result.Result1.ShouldNotBeNull();
-        result.Result1.Count.ShouldBeGreaterThan(0);
-        var first = result.Result1.First();
+        result.Result.ShouldNotBeNull();
+        result.Result.Count.ShouldBeGreaterThan(0);
+        var first = result.Result.First();
         first.UserId.ShouldBeGreaterThan(0);
         first.DisplayName.ShouldNotBeNull();
         first.DisplayName.Trim().Length.ShouldBeGreaterThan(0);
