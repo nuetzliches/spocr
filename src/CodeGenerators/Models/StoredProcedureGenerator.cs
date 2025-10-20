@@ -65,15 +65,15 @@ public class StoredProcedureGenerator(
         bool NeedsModel(Definition.StoredProcedure sp)
         {
             if (sp.ResultSets == null || sp.ResultSets.Count == 0) return false;
-            // Primäres Set = erstes JSON sonst erstes
+            // Primary set = first JSON result set if any, otherwise the first result set
             var primary = sp.ResultSets.FirstOrDefault(r => r.ReturnsJson) ?? sp.ResultSets.First();
             if (primary == null) return false;
-            if (primary.ReturnsJson) return true; // JSON immer Modell (auch bei Column=0 für Deserialize)
+            if (primary.ReturnsJson) return true; // JSON always implies a model (even if column count is 0 for deserialize)
             var cols = primary.Columns?.Count ?? 0;
             if (cols == 0) return false;
             if (cols == 1)
             {
-                // Einzelspalte non-JSON -> nur Modell wenn nicht Skalar nvarchar(max) CRUD Pseudo
+                // Single non-JSON column -> only treat as model when not just a scalar nvarchar(max) pseudo CRUD value
                 var c = primary.Columns[0];
                 bool isNVarChar = (c.SqlTypeName?.StartsWith("nvarchar", StringComparison.OrdinalIgnoreCase) ?? false);
                 // Wenn es weitere Sets gibt und eines JSON ist -> wir brauchen das Modell falls dieses Set nicht das JSON ist
@@ -226,6 +226,19 @@ public class StoredProcedureGenerator(
 
     private MethodDeclarationSyntax GenerateStoredProcedureMethodText(MethodDeclarationSyntax methodNode, Definition.StoredProcedure storedProcedure, StoredProcedureMethodKind kind, bool isOverload)
     {
+        bool IsPseudoTabularCrud(Definition.StoredProcedure sp, StoredProcedureContentModel.ResultSet set)
+        {
+            if (sp == null || set == null) return false;
+            var cols = set.Columns?.Count ?? 0;
+            if (cols != 1) return false;
+            var lone = set.Columns.First();
+            bool loneIsNVarChar = (lone.SqlTypeName?.StartsWith("nvarchar", StringComparison.OrdinalIgnoreCase) ?? false);
+            bool noRoot = !(set.JsonRootProperty?.Length > 0);
+            bool flatPath = string.IsNullOrWhiteSpace(lone.JsonPath) || string.Equals(lone.JsonPath, lone.Name, StringComparison.OrdinalIgnoreCase);
+            bool legacyJsonSentinel = lone.Name.Equals("JSON_F52E2B61-18A1-11d1-B105-00805F49916B", StringComparison.OrdinalIgnoreCase);
+            // Rein strukturelle Heuristik: Einzelne nvarchar(max) Spalte ohne Root/verschachtelten Pfad -> pseudo tabular
+            return loneIsNVarChar && noRoot && flatPath && !legacyJsonSentinel;
+        }
         // Method name
         var baseName = $"{storedProcedure.Name}Async";
         if (kind == StoredProcedureMethodKind.Deserialize)
@@ -341,7 +354,7 @@ public class StoredProcedureGenerator(
         var returnType = "Task<CrudResult>";
         var returnModel = "CrudResult";
 
-        // Primäres Set bestimmen: bevorzuge erstes NICHT-ExecSource Platzhalter-Set, sonst erstes.
+    // Determine primary result set: prefer the first non-ExecSource placeholder, otherwise fall back to the first set.
         var firstSet = storedProcedure.ResultSets == null
                 ? null
                 : storedProcedure.ResultSets.FirstOrDefault(rs => string.IsNullOrEmpty(rs.ExecSourceProcedureName))
@@ -370,7 +383,7 @@ public class StoredProcedureGenerator(
                     var rs0 = targetSp.Content?.ResultSets?.FirstOrDefault();
                     if (rs0 != null)
                     {
-                        firstSet = rs0; // nutze echte Struktur für Rückgabeheuristik
+                        firstSet = rs0; // use real target structure for return type heuristic
                         isJson = rs0.ReturnsJson;
                         isJsonArray = isJson && rs0.ReturnsJsonArray;
                     }
@@ -378,24 +391,23 @@ public class StoredProcedureGenerator(
             }
             catch { /* best effort forward resolve */ }
         }
-        // Heuristik: Einige CRUD Procs werden fälschlich als JSON erkannt, obwohl ein einziger nvarchar(max)-Wert (z.B. Subselect) ausgegeben wird.
-        // Kriterien für Rückstufung: Name enthält CRUD Verb, genau 1 Column, keine explizite JsonRootProperty, Column-Name kein FOR JSON Sentinel,
-        // Column.SqlTypeName beginnt mit nvarchar, Column.JsonPath == Column.Name (keine verschachtelte Struktur).
+    // Heuristic: Some CRUD-like procedures are incorrectly classified as JSON while they only emit a single nvarchar(max) value (e.g. sub-select).
+    // Downgrade criteria (structural only now): exactly 1 column, no explicit JsonRootProperty, column name not legacy FOR JSON sentinel,
+    // column type starts with nvarchar, column.JsonPath equals column.Name (flat structure).
         if (isJson && firstSet != null)
         {
+            // Structural-only downgrade (name-based CRUD heuristic removed) except when the parser explicitly flagged JSON array/without wrapper.
+            // We now skip downgrade if the result set indicates array semantics or explicit JSON intent via ReturnsJsonArray/ReturnsJsonWithoutArrayWrapper.
             var colCount = firstSet.Columns?.Count ?? 0;
-            if (colCount == 1)
+            if (colCount == 1 && !firstSet.ReturnsJsonArray && !firstSet.ReturnsJsonWithoutArrayWrapper)
             {
-                var spNameLower = storedProcedure.Name.ToLowerInvariant();
-                bool crudName = spNameLower.Contains("create") || spNameLower.Contains("update") || spNameLower.Contains("delete") || spNameLower.Contains("merge") || spNameLower.Contains("upsert");
                 var col = firstSet.Columns[0];
                 bool isNVarChar = (col.SqlTypeName?.StartsWith("nvarchar", StringComparison.OrdinalIgnoreCase) ?? false);
                 bool isLegacyJsonSentinel = col.Name.Equals("JSON_F52E2B61-18A1-11d1-B105-00805F49916B", StringComparison.OrdinalIgnoreCase);
                 bool hasRoot = !string.IsNullOrWhiteSpace(firstSet.JsonRootProperty);
                 bool flatPath = string.Equals(col.JsonPath, col.Name, StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(col.JsonPath);
-                if (crudName && isNVarChar && !isLegacyJsonSentinel && !hasRoot && flatPath)
+                if (isNVarChar && !isLegacyJsonSentinel && !hasRoot && flatPath)
                 {
-                    // Rückstufung: Behandle als Nicht-JSON -> korrigiere Flags für nachfolgende Logik.
                     isJson = false;
                     isJsonArray = false;
                 }
@@ -406,13 +418,13 @@ public class StoredProcedureGenerator(
         var requiresAsync = isJson && kind == StoredProcedureMethodKind.Deserialize && !isOverload;
 
         var rawJson = false;
-        // Sonderfall: mehrere ResultSets, genau ein JSON Set -> treat as JSON primary
+            // Special case: multiple result sets but exactly one JSON set -> treat JSON as primary
         var totalSets = storedProcedure.ResultSets?.Count ?? 0;
         var jsonSetCount = storedProcedure.ResultSets?.Count(rs => rs.ReturnsJson) ?? 0;
         bool singleJsonAmongMultiple = totalSets > 1 && jsonSetCount == 1 && isJson;
         if ((isReferenceOnlyForward || singleJsonAmongMultiple) && isJson && kind == StoredProcedureMethodKind.Raw)
         {
-            // Referenz-only: Raw-Methode soll weiterhin string liefern (Durchreichen), aber nachfolgende Deserialize Methode nutzt Zielmodell.
+            // Reference-only forwarding: raw method still returns a string pass-through, deserialize variant uses the forwarded target model.
             rawJson = true;
             returnType = "Task<string>";
             returnExpression = returnExpression
@@ -511,25 +523,18 @@ public class StoredProcedureGenerator(
             }
             else
             {
-                var firstSet2 = firstSet; // verwende primäres Set für Typheuristik
+                var firstSet2 = firstSet; // use primary set for type heuristic
                 var columnCount = firstSet2?.Columns?.Count ?? 0;
                 var hasTabularResult = columnCount > 0;
                 var hasOutputs = storedProcedure.HasOutputs();
-                // Normalisierte Skip-Liste (ohne '@') für konsistente Erkennung
+                // Normalized skip list (without '@') for consistent detection
                 var baseOutputPropSkip = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "ResultId", "RecordId", "RowVersion", "Result" };
                 int customOutputCount = storedProcedure.GetOutputs()?.Count(o => !baseOutputPropSkip.Contains(o.Name.TrimStart('@'))) ?? 0;
-                // Pseudo-Tabular? Einzelne nvarchar(max)-Spalte ohne Root/komplexe Struktur bei CRUD -> nicht als echtes Tabular behandeln
-                bool isCrudName = storedProcedure.Name.ToLowerInvariant().Contains("create") || storedProcedure.Name.ToLowerInvariant().Contains("update") || storedProcedure.Name.ToLowerInvariant().Contains("delete") || storedProcedure.Name.ToLowerInvariant().Contains("merge") || storedProcedure.Name.ToLowerInvariant().Contains("upsert");
-                bool singlePseudoColumn = columnCount == 1;
-                var lone = singlePseudoColumn ? firstSet2?.Columns?.FirstOrDefault() : null;
-                bool loneIsNVarChar = lone != null && (lone.SqlTypeName?.StartsWith("nvarchar", StringComparison.OrdinalIgnoreCase) ?? false);
-                bool noRoot = !(firstSet2?.JsonRootProperty?.Length > 0);
-                bool flatPath = lone != null && (string.IsNullOrWhiteSpace(lone.JsonPath) || string.Equals(lone.JsonPath, lone.Name, StringComparison.OrdinalIgnoreCase));
-                bool legacyJsonSentinel = lone != null && lone.Name.Equals("JSON_F52E2B61-18A1-11d1-B105-00805F49916B", StringComparison.OrdinalIgnoreCase);
-                bool pseudoTabularCrud = isCrudName && singlePseudoColumn && loneIsNVarChar && noRoot && flatPath && !legacyJsonSentinel;
+                // Pseudo-tabular? Single nvarchar(max) column without root/complex structure -> treat as non-tabular (forces Output logic)
+                bool pseudoTabularCrud = IsPseudoTabularCrud(storedProcedure, firstSet2);
                 if (pseudoTabularCrud)
                 {
-                    hasTabularResult = false; // erzwinge Output-Logik
+                    hasTabularResult = false; // force Output logic
                 }
 
                 if (!hasTabularResult && hasOutputs && customOutputCount > 0)
@@ -561,14 +566,14 @@ public class StoredProcedureGenerator(
 
                     if (onlyMetaColumns && noCustomOutputs)
                     {
-                        // Generische Meta-Spalten -> CrudResult Rückgabe unabhängig vom Prozedurnamen
+                        // Meta-only columns -> return CrudResult regardless of procedure name
                         returnType = "Task<CrudResult>";
                         returnExpression = ReplacePlaceholder(returnExpression, "ExecuteSingleAsync<CrudResult>");
                     }
                     else
                     {
 
-                        // OBSOLETE Heuristic (scheduled for removal): List vs Single inference for *Find* / *List* names.
+                        // OBSOLETE heuristic (scheduled for removal): list vs single inference for *Find* / *List* names.
                         // Maintained temporarily for backward compatibility. Will be replaced by explicit metadata.
                         var nonOutputParams = storedProcedure.Input.Where(p => !p.IsOutput && !(p.IsTableType ?? false)).ToList();
                         bool IsIdName(string n) => n.Equals("@Id", StringComparison.OrdinalIgnoreCase) || n.EndsWith("Id", StringComparison.OrdinalIgnoreCase);
@@ -576,7 +581,7 @@ public class StoredProcedureGenerator(
                         bool singleIdParam = idParams.Count == 1 && nonOutputParams.Count == 1;
                         var nameLower = storedProcedure.Name.ToLowerInvariant();
                         bool nameSuggestsFind = nameLower.Contains("find") && !nameLower.Contains("list");
-                        // Treat any pattern FindBy* as explicit single-row intent (not nur FindById)
+                        // Treat any FindBy* pattern as explicit single-row intent (not only FindById)
                         bool nameIsFindByPattern = nameLower.Contains("findby");
                         bool fewParams = nonOutputParams.Count <= 2;
                         // Force single row when:

@@ -198,7 +198,7 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
     _lastLoadUtc = DateTime.UtcNow;
     _fingerprint = snapshot?.Fingerprint;
     try { _console.Verbose($"[snapshot-provider] loaded schemas={_schemas.Count} fingerprint={_fingerprint}"); } catch { }
-    // Reset ForceReload nach erstem tatsächlichen Reload, damit nachfolgende GetSchemas()-Aufrufe schnell sind.
+    // Reset ForceReload after first actual reload so subsequent GetSchemas() calls are fast.
     if (SpocR.Utils.CacheControl.ForceReload)
     {
         SpocR.Utils.CacheControl.ForceReload = false;
@@ -275,7 +275,7 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
             }).ToArray()
         }).ToList();
 
-                // Platzhalter-Sets (Forwarding Referenzen) werden jetzt nie gefiltert, da sie zur Auflösung des Ziel-Modells dienen.
+                // Placeholder sets (forwarding references) are never filtered now because they are required to resolve the target model.
 
         // Heuristic: single result set and a single legacy FOR JSON column -> mark as JSON
         if (sets.Count == 1)
@@ -290,30 +290,13 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
                     sets[0] = new StoredProcedureContentModel.ResultSet
                     {
                         ReturnsJson = true,
-                        ReturnsJsonArray = true, // konservativ: FOR JSON PATH ohne WITHOUT_ARRAY_WRAPPER -> Array
+                        ReturnsJsonArray = true, // conservative: FOR JSON PATH without WITHOUT_ARRAY_WRAPPER -> array
                         ReturnsJsonWithoutArrayWrapper = false,
                         JsonRootProperty = null,
-                        Columns = Array.Empty<StoredProcedureContentModel.ResultColumn>() // Struktur unbekannt
+                        Columns = Array.Empty<StoredProcedureContentModel.ResultColumn>() // structure unknown
                     };
                 }
-                else
-                {
-                    // Zusatz-Heuristik: Prozedurname enthält 'json' oder 'asjson' und einzelne nvarchar(max) Spalte -> Raw JSON
-                    var procNameLower = p.Name.ToLowerInvariant();
-                    bool nameIndicatesJson = procNameLower.Contains("json");
-                    bool isNVarChar = (col.SqlTypeName?.StartsWith("nvarchar", StringComparison.OrdinalIgnoreCase) ?? false);
-                    if (!s.ReturnsJson && nameIndicatesJson && isNVarChar)
-                    {
-                        sets[0] = new StoredProcedureContentModel.ResultSet
-                        {
-                            ReturnsJson = true,
-                            ReturnsJsonArray = false, // unbekannt, konservativ als Single-Objekt
-                            ReturnsJsonWithoutArrayWrapper = true,
-                            JsonRootProperty = null,
-                            Columns = new[] { new StoredProcedureContentModel.ResultColumn { Name = col.Name, SqlTypeName = col.SqlTypeName, IsNullable = col.IsNullable, MaxLength = col.MaxLength, JsonPath = col.Name } }
-                        };
-                    }
-                }
+                // Name-based JSON inference removed (only structural detection via parser / legacy sentinel remains).
             }
         }
         return sets.ToArray();

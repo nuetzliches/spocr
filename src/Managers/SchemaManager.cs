@@ -19,6 +19,27 @@ public class SchemaManager(
     ILocalCacheService localCacheService = null
 )
 {
+    // Logging prefixes used in this manager (overview):
+    // [proc-fixup-json-reparse]   Added JSON sets after placeholder-only detection via reparse.
+    // [proc-fixup-json-cols]      Extracted column names for synthetic JSON set.
+    // [proc-fixup-json-synth]     Synthesized minimal JSON result set when only EXEC placeholder existed.
+    // [proc-prune-json-nested]    Removed a nested FOR JSON expression-derived (inline) result set (not a real top-level output).
+    // [proc-prune-json-nested-warn] Heuristic prune failure (exception swallowed, verbose only).
+    // [proc-forward-multi]        Inserted multiple ExecSource placeholders for wrapper with >1 EXECs.
+    // [proc-forward-refonly]      Inserted single ExecSource placeholder preserving local sets (reference-only forwarding).
+    // [proc-forward-replace]      Replaced placeholder(s) entirely with forwarded target sets.
+    // [proc-forward-append]       Appended forwarded sets after existing local sets.
+    // [proc-forward-xschema]      Forwarded sets from cross-schema target (snapshot or direct load).
+    // [proc-forward-xschema-upgrade] Variation when upgrading empty JSON placeholders.
+    // [proc-exec-append]          Appended target sets for non-wrapper with single EXEC.
+    // [proc-exec-append-xschema]  Cross-schema append variant.
+    // [proc-wrapper-posthoc]      Post-hoc normalization to single ExecSource placeholder for pure wrapper.
+    // [proc-dedupe]               Removed duplicate result sets after forwarding/append phases.
+    // [proc-exec-miss]            EXEC keyword seen but AST failed to capture executed procedure (diagnostic).
+    // [ignore]                    Schema ignore processing diagnostics.
+    // [cache]                     Local cache snapshot load/save events.
+    // [timing]                    Overall timing diagnostics.
+    // These prefixes allow downstream log consumers to filter transformation phases precisely.
     public async Task<List<SchemaModel>> ListAsync(ConfigurationModel config, bool noCache = false, CancellationToken cancellationToken = default)
     {
         var dbSchemas = await dbContext.SchemaListAsync(cancellationToken);
@@ -57,190 +78,190 @@ public class SchemaManager(
             {
                 var working = Utils.DirectoryUtils.GetWorkingDirectory();
                 var schemaDir = System.IO.Path.Combine(working, ".spocr", "schema");
-        // Fixup-Phase: Verfahren mit genau einem Exec-Platzhalter aber fehlendem lokalem JSON-ResultSet reparieren.
-        // Szenario: Parser hat FOR JSON SELECT nicht erfasst (z.B. komplexe Konstruktion) und nach Forwarding existiert nur ein Platzhalter.
-        // Heuristik: Wenn Definition "FOR JSON" enthält und ResultSets genau 1 Platzhalter (Columns leer, ExecSource gesetzt, kein ReturnsJson) -> Reparse versuchen.
-        // Falls Reparse kein JSON liefert: einfache synthetische JSON Set hinzufügen (leer) zur Sicherung der Zweier-Struktur.
-        try
-        {
-            foreach (var schema in schemas)
-            {
-                foreach (var proc in schema.StoredProcedures ?? Enumerable.Empty<StoredProcedureModel>())
+                // Fixup phase: repair procedures that have exactly one EXEC placeholder but are missing a local JSON result set.
+                // Scenario: parser did not capture the FOR JSON SELECT (e.g. complex construction) and after forwarding only a placeholder remains.
+                // Heuristic: If definition contains "FOR JSON" and ResultSets has exactly one placeholder (empty columns, ExecSource set, ReturnsJson=false) -> attempt reparse.
+                // If reparse yields no JSON sets: add a minimal synthetic empty JSON set to preserve structure for downstream generation.
+                try
                 {
-                    var content = proc.Content;
-                    if (content?.ResultSets == null) continue;
-                    if (content.ResultSets.Count != 1) continue; // Nur eindeutiges Problem-Muster
-                    var rs0 = content.ResultSets[0];
-                    bool isExecPlaceholderOnly = !rs0.ReturnsJson && !rs0.ReturnsJsonArray && !rs0.ReturnsJsonWithoutArrayWrapper &&
-                                                 !string.IsNullOrEmpty(rs0.ExecSourceProcedureName) && (rs0.Columns == null || rs0.Columns.Count == 0);
-                    if (!isExecPlaceholderOnly) continue;
-                    var def = content.Definition;
-                    if (string.IsNullOrWhiteSpace(def))
+                    foreach (var schema in schemas)
                     {
-                        try
+                        foreach (var proc in schema.StoredProcedures ?? Enumerable.Empty<StoredProcedureModel>())
                         {
-                            var defLoad = await dbContext.StoredProcedureDefinitionAsync(proc.SchemaName, proc.Name, cancellationToken);
-                            def = defLoad?.Definition;
-                        }
-                        catch { /* ignore */ }
-                        if (string.IsNullOrWhiteSpace(def)) continue; // Kein Material verfügbar
-                    }
-                    if (def.IndexOf("FOR JSON", StringComparison.OrdinalIgnoreCase) < 0)
-                    {
-                        continue; // Keine JSON-Indikation
-                    }
-                    // Reparse zur Gewinnung potentieller JSON Sets
-                    StoredProcedureContentModel reparsed = null;
-                    try
-                    {
-                        reparsed = StoredProcedureContentModel.Parse(def, proc.SchemaName);
-                    }
-                    catch { /* best effort */ }
-                    var jsonSets = reparsed?.ResultSets?.Where(r => r.ReturnsJson)?.ToList();
-                    if (jsonSets != null && jsonSets.Count > 0)
-                    {
-                        // Platzhalter voranstellen, danach erkannte JSON Sets
-                        var newSets = new List<StoredProcedureContentModel.ResultSet> { rs0 };
-                        newSets.AddRange(jsonSets);
-                        proc.Content = new StoredProcedureContentModel
-                        {
-                            Definition = content.Definition,
-                            Statements = content.Statements,
-                            ContainsSelect = content.ContainsSelect,
-                            ContainsInsert = content.ContainsInsert,
-                            ContainsUpdate = content.ContainsUpdate,
-                            ContainsDelete = content.ContainsDelete,
-                            ContainsMerge = content.ContainsMerge,
-                            ContainsOpenJson = content.ContainsOpenJson,
-                            ResultSets = newSets,
-                            UsedFallbackParser = content.UsedFallbackParser,
-                            ParseErrorCount = content.ParseErrorCount,
-                            FirstParseError = content.FirstParseError,
-                            ExecutedProcedures = content.ExecutedProcedures,
-                            ContainsExecKeyword = content.ContainsExecKeyword,
-                            RawExecCandidates = content.RawExecCandidates,
-                            RawExecCandidateKinds = content.RawExecCandidateKinds
-                        };
-                        consoleService.Verbose($"[proc-json-fixup-reparse] {proc.SchemaName}.{proc.Name} added {jsonSets.Count} JSON set(s) after placeholder-only detection");
-                        continue;
-                    }
-                    // Synthetisches leeres JSON Set hinzufügen (Minimal-Fallback)
-                    var syntheticJson = new StoredProcedureContentModel.ResultSet
-                    {
-                        ReturnsJson = true,
-                        ReturnsJsonArray = true,
-                        ReturnsJsonWithoutArrayWrapper = false,
-                        JsonRootProperty = null,
-                        Columns = Array.Empty<StoredProcedureContentModel.ResultColumn>()
-                    };
-                    // Versuch einer einfachen Spaltenextraktion aus dem SELECT vor FOR JSON
-                    try
-                    {
-                        var forJsonIdx = def.IndexOf("FOR JSON", StringComparison.OrdinalIgnoreCase);
-                        if (forJsonIdx > 0)
-                        {
-                            // Suche rückwärts nach SELECT
-                            var selectIdx = def.LastIndexOf("SELECT", forJsonIdx, StringComparison.OrdinalIgnoreCase);
-                            if (selectIdx >= 0 && selectIdx < forJsonIdx)
+                            var content = proc.Content;
+                            if (content?.ResultSets == null) continue;
+                            if (content.ResultSets.Count != 1) continue; // Nur eindeutiges Problem-Muster
+                            var rs0 = content.ResultSets[0];
+                            bool isExecPlaceholderOnly = !rs0.ReturnsJson && !rs0.ReturnsJsonArray && !rs0.ReturnsJsonWithoutArrayWrapper &&
+                                                         !string.IsNullOrEmpty(rs0.ExecSourceProcedureName) && (rs0.Columns == null || rs0.Columns.Count == 0);
+                            if (!isExecPlaceholderOnly) continue;
+                            var def = content.Definition;
+                            if (string.IsNullOrWhiteSpace(def))
                             {
-                                var selectSegment = def.Substring(selectIdx, forJsonIdx - selectIdx);
-                                // Entferne initiales SELECT
-                                if (selectSegment.Length > 6)
+                                try
                                 {
-                                    selectSegment = selectSegment.Substring(6).Trim();
-                                    // Entferne evtl. TOP (...) Teile vereinfacht
-                                    if (selectSegment.StartsWith("TOP", StringComparison.OrdinalIgnoreCase))
+                                    var defLoad = await dbContext.StoredProcedureDefinitionAsync(proc.SchemaName, proc.Name, cancellationToken);
+                                    def = defLoad?.Definition;
+                                }
+                                catch { /* ignore */ }
+                                if (string.IsNullOrWhiteSpace(def)) continue; // Kein Material verfügbar
+                            }
+                            if (def.IndexOf("FOR JSON", StringComparison.OrdinalIgnoreCase) < 0)
+                            {
+                                continue; // Keine JSON-Indikation
+                            }
+                            // Reparse zur Gewinnung potentieller JSON Sets
+                            StoredProcedureContentModel reparsed = null;
+                            try
+                            {
+                                reparsed = StoredProcedureContentModel.Parse(def, proc.SchemaName);
+                            }
+                            catch { /* best effort */ }
+                            var jsonSets = reparsed?.ResultSets?.Where(r => r.ReturnsJson)?.ToList();
+                            if (jsonSets != null && jsonSets.Count > 0)
+                            {
+                                // Platzhalter voranstellen, danach erkannte JSON Sets
+                                var newSets = new List<StoredProcedureContentModel.ResultSet> { rs0 };
+                                newSets.AddRange(jsonSets);
+                                proc.Content = new StoredProcedureContentModel
+                                {
+                                    Definition = content.Definition,
+                                    Statements = content.Statements,
+                                    ContainsSelect = content.ContainsSelect,
+                                    ContainsInsert = content.ContainsInsert,
+                                    ContainsUpdate = content.ContainsUpdate,
+                                    ContainsDelete = content.ContainsDelete,
+                                    ContainsMerge = content.ContainsMerge,
+                                    ContainsOpenJson = content.ContainsOpenJson,
+                                    ResultSets = newSets,
+                                    UsedFallbackParser = content.UsedFallbackParser,
+                                    ParseErrorCount = content.ParseErrorCount,
+                                    FirstParseError = content.FirstParseError,
+                                    ExecutedProcedures = content.ExecutedProcedures,
+                                    ContainsExecKeyword = content.ContainsExecKeyword,
+                                    RawExecCandidates = content.RawExecCandidates,
+                                    RawExecCandidateKinds = content.RawExecCandidateKinds
+                                };
+                                consoleService.Verbose($"[proc-fixup-json-reparse] {proc.SchemaName}.{proc.Name} added {jsonSets.Count} JSON set(s) after placeholder-only detection");
+                                continue;
+                            }
+                            // Add synthetic empty JSON set (minimal fallback)
+                            var syntheticJson = new StoredProcedureContentModel.ResultSet
+                            {
+                                ReturnsJson = true,
+                                ReturnsJsonArray = true,
+                                ReturnsJsonWithoutArrayWrapper = false,
+                                JsonRootProperty = null,
+                                Columns = Array.Empty<StoredProcedureContentModel.ResultColumn>()
+                            };
+                            // Attempt a simple column extraction from the SELECT preceding FOR JSON
+                            try
+                            {
+                                var forJsonIdx = def.IndexOf("FOR JSON", StringComparison.OrdinalIgnoreCase);
+                                if (forJsonIdx > 0)
+                                {
+                                    // Search backwards for the preceding SELECT
+                                    var selectIdx = def.LastIndexOf("SELECT", forJsonIdx, StringComparison.OrdinalIgnoreCase);
+                                    if (selectIdx >= 0 && selectIdx < forJsonIdx)
                                     {
-                                        var afterTop = selectSegment.IndexOf(' ') + 1;
-                                        if (afterTop > 0 && afterTop < selectSegment.Length)
-                                            selectSegment = selectSegment.Substring(afterTop).Trim();
-                                    }
-                                    // Primitive Komma-Split (keine Tiefe für verschachtelte Ausdrücke)
-                                    var rawCols = selectSegment.Split(',');
-                                    var colModels = new List<StoredProcedureContentModel.ResultColumn>();
-                                    foreach (var raw in rawCols)
-                                    {
-                                        var part = raw.Trim();
-                                        if (string.IsNullOrWhiteSpace(part)) continue;
-                                        // Entferne mögliche FOR JSON Reste falls Split ungenau
-                                        var fjPos = part.IndexOf("FOR JSON", StringComparison.OrdinalIgnoreCase);
-                                        if (fjPos >= 0) part = part.Substring(0, fjPos).Trim();
-                                        // Alias extrahieren (AS alias) oder letztes Token
-                                        string name = null;
-                                        var asIdx = part.LastIndexOf(" AS ", StringComparison.OrdinalIgnoreCase);
-                                        if (asIdx > -1 && asIdx + 4 < part.Length)
+                                        var selectSegment = def.Substring(selectIdx, forJsonIdx - selectIdx);
+                                        // Remove initial SELECT keyword
+                                        if (selectSegment.Length > 6)
                                         {
-                                            name = part.Substring(asIdx + 4).Trim();
+                                            selectSegment = selectSegment.Substring(6).Trim();
+                                            // Remove possible TOP (...) segment (simplified)
+                                            if (selectSegment.StartsWith("TOP", StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                var afterTop = selectSegment.IndexOf(' ') + 1;
+                                                if (afterTop > 0 && afterTop < selectSegment.Length)
+                                                    selectSegment = selectSegment.Substring(afterTop).Trim();
+                                            }
+                                            // Primitive comma split (not handling nested expressions)
+                                            var rawCols = selectSegment.Split(',');
+                                            var colModels = new List<StoredProcedureContentModel.ResultColumn>();
+                                            foreach (var raw in rawCols)
+                                            {
+                                                var part = raw.Trim();
+                                                if (string.IsNullOrWhiteSpace(part)) continue;
+                                                // Trim potential trailing FOR JSON remnants if split was imprecise
+                                                var fjPos = part.IndexOf("FOR JSON", StringComparison.OrdinalIgnoreCase);
+                                                if (fjPos >= 0) part = part.Substring(0, fjPos).Trim();
+                                                // Extract alias (AS alias) or fall back to last token
+                                                string name = null;
+                                                var asIdx = part.LastIndexOf(" AS ", StringComparison.OrdinalIgnoreCase);
+                                                if (asIdx > -1 && asIdx + 4 < part.Length)
+                                                {
+                                                    name = part.Substring(asIdx + 4).Trim();
+                                                }
+                                                else
+                                                {
+                                                    // Split by spaces: take last token when not a function expression
+                                                    var tokens = part.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                                                    if (tokens.Length > 0)
+                                                        name = tokens.Last();
+                                                }
+                                                if (string.IsNullOrWhiteSpace(name)) continue;
+                                                // Remove brackets and schema/table prefixes
+                                                name = name.Trim('[', ']', '"');
+                                                if (name.Contains('.'))
+                                                    name = name.Split('.').Last();
+                                                // Ignore numeric tokens or parameters
+                                                if (name.StartsWith("@")) continue;
+                                                if (name.All(ch => char.IsDigit(ch))) continue;
+                                                // JSON path defaults to name
+                                                colModels.Add(new StoredProcedureContentModel.ResultColumn
+                                                {
+                                                    Name = name,
+                                                    JsonPath = name,
+                                                    SqlTypeName = null, // Type unknown on purpose left null
+                                                    IsNullable = true,
+                                                    MaxLength = null
+                                                });
+                                            }
+                                            if (colModels.Count > 0)
+                                            {
+                                                syntheticJson = new StoredProcedureContentModel.ResultSet
+                                                {
+                                                    ReturnsJson = true,
+                                                    ReturnsJsonArray = true,
+                                                    ReturnsJsonWithoutArrayWrapper = false,
+                                                    JsonRootProperty = null,
+                                                    Columns = colModels.ToArray()
+                                                };
+                                                consoleService.Verbose($"[proc-fixup-json-cols] {proc.SchemaName}.{proc.Name} extracted {colModels.Count} column(s) for synthetic JSON set");
+                                            }
                                         }
-                                        else
-                                        {
-                                            // Zerlege auf Leerzeichen: nimm letztes Token wenn kein Funktionsende
-                                            var tokens = part.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-                                            if (tokens.Length > 0)
-                                                name = tokens.Last();
-                                        }
-                                        if (string.IsNullOrWhiteSpace(name)) continue;
-                                        // Entferne Klammern und Schema/Table Präfixe
-                                        name = name.Trim('[', ']', '"');
-                                        if (name.Contains('.'))
-                                            name = name.Split('.').Last();
-                                        // Ignore numerische Tokens oder Parameter
-                                        if (name.StartsWith("@")) continue;
-                                        if (name.All(ch => char.IsDigit(ch))) continue;
-                                        // JSON Pfad = Name
-                                        colModels.Add(new StoredProcedureContentModel.ResultColumn
-                                        {
-                                            Name = name,
-                                            JsonPath = name,
-                                            SqlTypeName = "nvarchar", // Unbekannt -> konservativ
-                                            IsNullable = true,
-                                            MaxLength = null
-                                        });
-                                    }
-                                    if (colModels.Count > 0)
-                                    {
-                                        syntheticJson = new StoredProcedureContentModel.ResultSet
-                                        {
-                                            ReturnsJson = true,
-                                            ReturnsJsonArray = true,
-                                            ReturnsJsonWithoutArrayWrapper = false,
-                                            JsonRootProperty = null,
-                                            Columns = colModels.ToArray()
-                                        };
-                                        consoleService.Verbose($"[proc-json-fixup-cols] {proc.SchemaName}.{proc.Name} extracted {colModels.Count} column(s) for synthetic JSON set");
                                     }
                                 }
                             }
+                            catch { /* heuristic extraction best effort */ }
+                            proc.Content = new StoredProcedureContentModel
+                            {
+                                Definition = content.Definition,
+                                Statements = content.Statements,
+                                ContainsSelect = content.ContainsSelect,
+                                ContainsInsert = content.ContainsInsert,
+                                ContainsUpdate = content.ContainsUpdate,
+                                ContainsDelete = content.ContainsDelete,
+                                ContainsMerge = content.ContainsMerge,
+                                ContainsOpenJson = content.ContainsOpenJson,
+                                ResultSets = new[] { rs0, syntheticJson },
+                                UsedFallbackParser = content.UsedFallbackParser,
+                                ParseErrorCount = content.ParseErrorCount,
+                                FirstParseError = content.FirstParseError,
+                                ExecutedProcedures = content.ExecutedProcedures,
+                                ContainsExecKeyword = content.ContainsExecKeyword,
+                                RawExecCandidates = content.RawExecCandidates,
+                                RawExecCandidateKinds = content.RawExecCandidateKinds
+                            };
+                            consoleService.Verbose($"[proc-fixup-json-synth] {proc.SchemaName}.{proc.Name} synthesized JSON set after placeholder-only detection");
                         }
                     }
-                    catch { /* heuristische Extraktion best effort */ }
-                    proc.Content = new StoredProcedureContentModel
-                    {
-                        Definition = content.Definition,
-                        Statements = content.Statements,
-                        ContainsSelect = content.ContainsSelect,
-                        ContainsInsert = content.ContainsInsert,
-                        ContainsUpdate = content.ContainsUpdate,
-                        ContainsDelete = content.ContainsDelete,
-                        ContainsMerge = content.ContainsMerge,
-                        ContainsOpenJson = content.ContainsOpenJson,
-                        ResultSets = new[] { rs0, syntheticJson },
-                        UsedFallbackParser = content.UsedFallbackParser,
-                        ParseErrorCount = content.ParseErrorCount,
-                        FirstParseError = content.FirstParseError,
-                        ExecutedProcedures = content.ExecutedProcedures,
-                        ContainsExecKeyword = content.ContainsExecKeyword,
-                        RawExecCandidates = content.RawExecCandidates,
-                        RawExecCandidateKinds = content.RawExecCandidateKinds
-                    };
-                    consoleService.Verbose($"[proc-json-fixup-synth] {proc.SchemaName}.{proc.Name} synthesized JSON set after placeholder-only detection");
                 }
-            }
-        }
-        catch (Exception jsonFixEx)
-        {
-            consoleService.Verbose($"[proc-json-fixup-warn] {jsonFixEx.Message}");
-        }
+                catch (Exception jsonFixEx)
+                {
+                    consoleService.Verbose($"[proc-fixup-json-warn] {jsonFixEx.Message}");
+                }
 
                 if (System.IO.Directory.Exists(schemaDir))
                 {
@@ -639,6 +660,136 @@ public class SchemaManager(
                             ExecutedProcedures = storedProcedure.Content?.ExecutedProcedures
                         };
                     }
+                }
+
+                // Prune pass (refined): remove only nested inline FOR JSON expression-derived result sets.
+                // Detection now differentiates top-level FOR JSON output vs. inline column expression:
+                //  - Top-level: last non-empty statement ends with FOR JSON PATH (optional , WITHOUT_ARRAY_WRAPPER) followed only by whitespace/semicolon/END
+                //  - Nested: multiple FOR JSON occurrences or pattern inside parentheses ("(SELECT" ...) and NOT ending top-level.
+                // We only prune the final JSON set if it's classified as nested.
+                // After pruning, if NO JSON sets remain but a single top-level FOR JSON is detected, we recover a synthetic empty JSON set.
+                try
+                {
+                    var contentCheck = storedProcedure.Content;
+                    var rsListCheck = contentCheck?.ResultSets?.ToList();
+                    var def = contentCheck?.Definition;
+                    if (contentCheck != null && rsListCheck != null && rsListCheck.Count > 0 && !string.IsNullOrWhiteSpace(def))
+                    {
+                        var lastSet = rsListCheck.Last();
+                        bool candidate = lastSet.ReturnsJson && (lastSet.Columns?.Count ?? 0) >= 1 && string.IsNullOrWhiteSpace(lastSet.JsonRootProperty);
+                        if (candidate)
+                        {
+                            string defNorm = def.Replace('\r', ' ').Replace('\n', ' ').Trim();
+                            // Remove trailing GO or END tokens for end-check
+                            defNorm = System.Text.RegularExpressions.Regex.Replace(defNorm, @"(GO|END)\s*$", string.Empty, System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
+                            // Find last FOR JSON PATH occurrence
+                            int lastForJsonPos = defNorm.LastIndexOf("FOR JSON PATH", StringComparison.OrdinalIgnoreCase);
+                            bool hasForJson = lastForJsonPos >= 0;
+                            bool hasWithoutWrapper = defNorm.IndexOf("WITHOUT_ARRAY_WRAPPER", StringComparison.OrdinalIgnoreCase) >= 0;
+                            // Count occurrences
+                            int forJsonCount = 0; int idxScan = 0;
+                            while (idxScan < defNorm.Length)
+                            {
+                                int p = defNorm.IndexOf("FOR JSON PATH", idxScan, StringComparison.OrdinalIgnoreCase);
+                                if (p < 0) break; forJsonCount++; idxScan = p + 12;
+                            }
+                            // Determine if last occurrence reaches end (allow trailing semicolon & whitespace)
+                            bool endsTopLevel = false;
+                            if (hasForJson)
+                            {
+                                string tail = defNorm.Substring(lastForJsonPos).ToUpperInvariant();
+                                // Accept patterns ending with FOR JSON PATH or WITH WITHOUT_ARRAY_WRAPPER up to optional semicolon
+                                endsTopLevel = System.Text.RegularExpressions.Regex.IsMatch(tail, @"^FOR JSON PATH(, WITHOUT_ARRAY_WRAPPER)?\s*;?\s*$");
+                            }
+                            bool hasNestedSelectPattern = defNorm.IndexOf("(SELECT", StringComparison.OrdinalIgnoreCase) >= 0;
+                            bool multiNested = forJsonCount > 1 && !endsTopLevel;
+                            bool isNested = hasForJson && !endsTopLevel && (hasNestedSelectPattern || multiNested);
+                            if (isNested)
+                            {
+                                rsListCheck.RemoveAt(rsListCheck.Count - 1);
+                                storedProcedure.Content = new StoredProcedureContentModel
+                                {
+                                    Definition = contentCheck.Definition,
+                                    Statements = contentCheck.Statements,
+                                    ContainsSelect = contentCheck.ContainsSelect,
+                                    ContainsInsert = contentCheck.ContainsInsert,
+                                    ContainsUpdate = contentCheck.ContainsUpdate,
+                                    ContainsDelete = contentCheck.ContainsDelete,
+                                    ContainsMerge = contentCheck.ContainsMerge,
+                                    ContainsOpenJson = contentCheck.ContainsOpenJson,
+                                    ResultSets = rsListCheck.ToArray(),
+                                    UsedFallbackParser = contentCheck.UsedFallbackParser,
+                                    ParseErrorCount = contentCheck.ParseErrorCount,
+                                    FirstParseError = contentCheck.FirstParseError,
+                                    ExecutedProcedures = contentCheck.ExecutedProcedures,
+                                    ContainsExecKeyword = contentCheck.ContainsExecKeyword,
+                                    RawExecCandidates = contentCheck.RawExecCandidates,
+                                    RawExecCandidateKinds = contentCheck.RawExecCandidateKinds
+                                };
+                                consoleService.Verbose($"[proc-prune-json-nested] {storedProcedure.SchemaName}.{storedProcedure.Name} pruned nested inline FOR JSON (cols={lastSet.Columns?.Count})");
+                            }
+                            else
+                            {
+                                consoleService.Verbose($"[proc-prune-json-nested-skip] {storedProcedure.SchemaName}.{storedProcedure.Name} preserved top-level JSON output (nestedSelect={hasNestedSelectPattern} count={forJsonCount} endsTopLevel={endsTopLevel})");
+                            }
+                        }
+                    }
+                    // Recovery: if pruning removed all JSON sets incorrectly but a single top-level FOR JSON exists -> synthesize minimal JSON set.
+                    if (storedProcedure.Content?.ResultSets != null)
+                    {
+                        var jsonCount = storedProcedure.Content.ResultSets.Count(r => r.ReturnsJson);
+                        var defAll = storedProcedure.Content.Definition;
+                        if (jsonCount == 0 && !string.IsNullOrWhiteSpace(defAll))
+                        {
+                            string defNorm2 = defAll.Replace('\r', ' ').Replace('\n', ' ').Trim();
+                            defNorm2 = System.Text.RegularExpressions.Regex.Replace(defNorm2, @"(GO|END)\s*$", string.Empty, System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
+                            int lastPos = defNorm2.LastIndexOf("FOR JSON PATH", StringComparison.OrdinalIgnoreCase);
+                            if (lastPos >= 0)
+                            {
+                                int occ = 0; int sIdx = 0; while (sIdx < defNorm2.Length){ var p2 = defNorm2.IndexOf("FOR JSON PATH", sIdx, StringComparison.OrdinalIgnoreCase); if (p2 < 0) break; occ++; sIdx = p2 + 12; }
+                                string tail2 = defNorm2.Substring(lastPos).ToUpperInvariant();
+                                bool endsTop = System.Text.RegularExpressions.Regex.IsMatch(tail2, @"^FOR JSON PATH(, WITHOUT_ARRAY_WRAPPER)?\s*;?\s*$");
+                                if (occ == 1 && endsTop)
+                                {
+                                    // Synthesize empty array JSON result set
+                                    var existing = storedProcedure.Content.ResultSets.ToList();
+                                    existing.Add(new StoredProcedureContentModel.ResultSet
+                                    {
+                                        ReturnsJson = true,
+                                        ReturnsJsonArray = true,
+                                        ReturnsJsonWithoutArrayWrapper = tail2.Contains("WITHOUT_ARRAY_WRAPPER"),
+                                        JsonRootProperty = null,
+                                        Columns = Array.Empty<StoredProcedureContentModel.ResultColumn>()
+                                    });
+                                    var old = storedProcedure.Content;
+                                    storedProcedure.Content = new StoredProcedureContentModel
+                                    {
+                                        Definition = old.Definition,
+                                        Statements = old.Statements,
+                                        ContainsSelect = old.ContainsSelect,
+                                        ContainsInsert = old.ContainsInsert,
+                                        ContainsUpdate = old.ContainsUpdate,
+                                        ContainsDelete = old.ContainsDelete,
+                                        ContainsMerge = old.ContainsMerge,
+                                        ContainsOpenJson = old.ContainsOpenJson,
+                                        ResultSets = existing.ToArray(),
+                                        UsedFallbackParser = old.UsedFallbackParser,
+                                        ParseErrorCount = old.ParseErrorCount,
+                                        FirstParseError = old.FirstParseError,
+                                        ExecutedProcedures = old.ExecutedProcedures,
+                                        ContainsExecKeyword = old.ContainsExecKeyword,
+                                        RawExecCandidates = old.RawExecCandidates,
+                                        RawExecCandidateKinds = old.RawExecCandidateKinds
+                                    };
+                                    consoleService.Verbose($"[proc-json-top-recover] {storedProcedure.SchemaName}.{storedProcedure.Name} recovered synthetic top-level JSON result set");
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (Exception pruneEx)
+                {
+                    consoleService.Verbose($"[proc-prune-json-nested-warn] {storedProcedure.SchemaName}.{storedProcedure.Name} prune/refine failed: {pruneEx.Message}");
                 }
 
                 storedProcedure.ModifiedTicks = currentModifiedTicks;

@@ -139,11 +139,12 @@ EPICS Übersicht (oberste Steuerungsebene)
       acceptance: - DI Registrierung (IServiceCollection) vorhanden - Minimal API Mappings generierbar - Beispiel-Endpunkt im Sample funktioniert
       depends: [E003]
 
-- [ ] EPIC-E007 Heuristik-Abbau (P3)
+- [~] EPIC-E007 Heuristik-Abbau (P3)
       id: E007
       goal: Entfernung restriktiver Namens-/Strukturheuristiken
       acceptance: - Liste entfernte / geänderte Heuristiken dokumentiert (Dokumentation ausreichend, kein vollständiger Audit) - Regressionstests schützen kritische Fälle
       depends: [E003]
+      progress: Namensbasierte JSON-Erkennung (ProcName enthält 'Json'/'AsJson') entfernt; Legacy CrudResult Fallback für einfache nvarchar(max) JSON-Sets revertiert; Primäres ResultSet Auswahl = erstes nicht-ExecSource Placeholder; strukturelle Pseudo-CRUD Erkennung (ein einzelnes nvarchar(max) ohne FOR JSON) aktiv; Placeholder-Minimierung für Wrapper (nur ExecSource* Metadaten) umgesetzt; Fixup-Phase rekonstruiert fehlende JSON Sets (synthetische Columns mit SqlTypeName=null); Logging Präfixe vereinheitlicht ([proc-forward-xschema], [proc-exec-append-xschema], [proc-fixup-json-*]); CHANGELOG Removed Abschnitt ausstehend.
 
 - [ ] EPIC-E008 Konfig-Bereinigung (P2)
       id: E008
@@ -219,6 +220,16 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [x] Ermittlung des Namespaces automatisiert und dokumentierte Fallback-Strategie vorhanden
 - [x] Zentrale Positive Schema Allow-List (SPOCR_BUILD_SCHEMAS) für Procedures & TableTypes implementiert
 - [ ] Entfernte Spezifikationen/Heuristiken sauber entfernt und CHANGELOG Eintrag erstellt
+                  details:
+                        - Entfernt: Namensbasierte JSON-Heuristik ("Json" / "AsJson" im Prozedurnamen) – alleinige Struktur (FOR JSON / Parser Flags) entscheidet jetzt
+                        - Entfernt: Legacy CrudResult Fallback für einfache nvarchar(max) "JSON" Sets (Revert → richtige Output/Model Erzeugung)
+                        - Geändert: Primäres ResultSet = erstes nicht-Placeholder (kein ExecSource*) statt erstes JSON-ähnliches Set
+                        - Neu: IsPseudoTabularCrud Erkennung (ein einzelnes nvarchar(max) ohne FOR JSON) → Nutzung ExecuteSingleAsync statt ReadJsonAsync
+                        - Placeholder-Minimierung: Wrapper-Prozeduren persistieren nur ExecSource* Metadaten (keine synthetischen Spalten) im Snapshot
+                        - Fixup-Phase: Rekonstruiert fehlende JSON ResultSets bei Wrapper-only Snapshots; synthetische JSON Columns erhalten SqlTypeName=null (Signal: künstlich)
+                        - Logging: Vereinheitlichte Präfixe [proc-forward-xschema], [proc-exec-append-xschema], [proc-fixup-json-*] ersetzt frühere uneinheitliche Tags
+                        - Offen: CHANGELOG Eintrag "Removed heuristics" + vollständige Dokumentationsseite (removed-heuristics-v5.md inhaltlich füllen)
+                  status: [~] (technische Entfernung abgeschlossen, Dokumentation & CHANGELOG folgen)
 - [ ] Neuer `SpocRDbContext` implementiert inkl. moderner DI Patterns & Minimal API Extensions
 - [x] Grundgerüst via Template-Generator (Interface, Context, Options, DI) – aktiviert in `SPOCR_GENERATOR_MODE=dual|next`
 - [x] DbContext Optionen (ConnectionString / Name / Timeout / Retry / Diagnostics)
