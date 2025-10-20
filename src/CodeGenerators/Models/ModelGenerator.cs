@@ -45,6 +45,22 @@ public class ModelGenerator(
         var resultColumns = currentSet?.Columns?.ToList() ?? [];
         var hasResultColumns = resultColumns.Any();
 
+        // Suppression-Heuristik: CRUD-Prozedur mit genau 1 Spalte vom Typ nvarchar(max), keine JsonRootProperty, keine echte Tabularstruktur
+        // und die Spalte stammt aus einem Subselect (flacher JsonPath oder identisch mit Name) => kein Model generieren, nur Output.
+        var spNameLower = storedProcedure.Name.ToLowerInvariant();
+        bool isCrudVerbName = spNameLower.Contains("create") || spNameLower.Contains("update") || spNameLower.Contains("delete") || spNameLower.Contains("merge") || spNameLower.Contains("upsert");
+        bool singlePseudoColumn = hasResultColumns && resultColumns.Count == 1;
+        var loneCol = singlePseudoColumn ? resultColumns[0] : null;
+        bool loneIsNVarChar = loneCol != null && (loneCol.SqlTypeName?.StartsWith("nvarchar", System.StringComparison.OrdinalIgnoreCase) ?? false);
+        bool noJsonRoot = !(currentSet?.JsonRootProperty?.Length > 0);
+        bool flatJsonPath = loneCol != null && (string.IsNullOrWhiteSpace(loneCol.JsonPath) || string.Equals(loneCol.JsonPath, loneCol.Name, System.StringComparison.OrdinalIgnoreCase));
+        bool legacyJsonSentinel = loneCol != null && loneCol.Name.Equals("JSON_F52E2B61-18A1-11d1-B105-00805F49916B", System.StringComparison.OrdinalIgnoreCase);
+        if (isCrudVerbName && singlePseudoColumn && loneIsNVarChar && noJsonRoot && flatJsonPath && !legacyJsonSentinel)
+        {
+            consoleService.Verbose($"[model-skip] Suppressed model for CRUD '{storedProcedure.Name}' (pseudo single nvarchar column) – using Output only.");
+            return null; // keine Model-Erzeugung
+        }
+
         // Heuristic: Legacy FOR JSON output (single synthetic column) -> treat as raw JSON
         // Detection: exactly one column, name = JSON_F52E2B61-18A1-11d1-B105-00805F49916B (case-insensitive), nvarchar(max)
         var currentSetReturnsJson = currentSet?.ReturnsJson ?? false;
@@ -454,6 +470,20 @@ public class ModelGenerator(
         var currentSetReturnsJson = currentSet.ReturnsJson;
         var hasResultCols = (currentSet.Columns?.Any() ?? false);
         var isScalarResultCols = hasResultCols && !currentSetReturnsJson && currentSet.Columns.Count == 1;
+        // Gleiche Suppression-Heuristik wie oben anwenden, damit WriteSingleModelAsync keine Datei schreibt.
+        var spNameLower2 = storedProcedure.Name.ToLowerInvariant();
+        bool isCrudVerbName2 = spNameLower2.Contains("create") || spNameLower2.Contains("update") || spNameLower2.Contains("delete") || spNameLower2.Contains("merge") || spNameLower2.Contains("upsert");
+        bool singlePseudoColumn2 = hasResultCols && currentSet.Columns.Count == 1;
+        var loneCol2 = singlePseudoColumn2 ? currentSet.Columns[0] : null;
+        bool loneIsNVarChar2 = loneCol2 != null && (loneCol2.SqlTypeName?.StartsWith("nvarchar", System.StringComparison.OrdinalIgnoreCase) ?? false);
+        bool noJsonRoot2 = !(currentSet?.JsonRootProperty?.Length > 0);
+        bool flatJsonPath2 = loneCol2 != null && (string.IsNullOrWhiteSpace(loneCol2.JsonPath) || string.Equals(loneCol2.JsonPath, loneCol2.Name, System.StringComparison.OrdinalIgnoreCase));
+        bool legacyJsonSentinel2 = loneCol2 != null && loneCol2.Name.Equals("JSON_F52E2B61-18A1-11d1-B105-00805F49916B", System.StringComparison.OrdinalIgnoreCase);
+        if (isCrudVerbName2 && singlePseudoColumn2 && loneIsNVarChar2 && noJsonRoot2 && flatJsonPath2 && !legacyJsonSentinel2)
+        {
+            consoleService.Verbose($"[model-skip] Suppressed model write for CRUD '{storedProcedure.Name}' (pseudo single nvarchar column) – Output only.");
+            return; // nichts schreiben
+        }
         // Reverted: previously single-column non-JSON result sets were skipped entirely to reduce trivial DTO noise.
         // External projects rely on a stable model presence even for scalar result sets, so we now ALWAYS generate the
         // model (it will contain a single property). If future suppression is desired, introduce a config flag instead.

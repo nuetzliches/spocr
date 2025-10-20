@@ -57,6 +57,191 @@ public class SchemaManager(
             {
                 var working = Utils.DirectoryUtils.GetWorkingDirectory();
                 var schemaDir = System.IO.Path.Combine(working, ".spocr", "schema");
+        // Fixup-Phase: Verfahren mit genau einem Exec-Platzhalter aber fehlendem lokalem JSON-ResultSet reparieren.
+        // Szenario: Parser hat FOR JSON SELECT nicht erfasst (z.B. komplexe Konstruktion) und nach Forwarding existiert nur ein Platzhalter.
+        // Heuristik: Wenn Definition "FOR JSON" enthält und ResultSets genau 1 Platzhalter (Columns leer, ExecSource gesetzt, kein ReturnsJson) -> Reparse versuchen.
+        // Falls Reparse kein JSON liefert: einfache synthetische JSON Set hinzufügen (leer) zur Sicherung der Zweier-Struktur.
+        try
+        {
+            foreach (var schema in schemas)
+            {
+                foreach (var proc in schema.StoredProcedures ?? Enumerable.Empty<StoredProcedureModel>())
+                {
+                    var content = proc.Content;
+                    if (content?.ResultSets == null) continue;
+                    if (content.ResultSets.Count != 1) continue; // Nur eindeutiges Problem-Muster
+                    var rs0 = content.ResultSets[0];
+                    bool isExecPlaceholderOnly = !rs0.ReturnsJson && !rs0.ReturnsJsonArray && !rs0.ReturnsJsonWithoutArrayWrapper &&
+                                                 !string.IsNullOrEmpty(rs0.ExecSourceProcedureName) && (rs0.Columns == null || rs0.Columns.Count == 0);
+                    if (!isExecPlaceholderOnly) continue;
+                    var def = content.Definition;
+                    if (string.IsNullOrWhiteSpace(def))
+                    {
+                        try
+                        {
+                            var defLoad = await dbContext.StoredProcedureDefinitionAsync(proc.SchemaName, proc.Name, cancellationToken);
+                            def = defLoad?.Definition;
+                        }
+                        catch { /* ignore */ }
+                        if (string.IsNullOrWhiteSpace(def)) continue; // Kein Material verfügbar
+                    }
+                    if (def.IndexOf("FOR JSON", StringComparison.OrdinalIgnoreCase) < 0)
+                    {
+                        continue; // Keine JSON-Indikation
+                    }
+                    // Reparse zur Gewinnung potentieller JSON Sets
+                    StoredProcedureContentModel reparsed = null;
+                    try
+                    {
+                        reparsed = StoredProcedureContentModel.Parse(def, proc.SchemaName);
+                    }
+                    catch { /* best effort */ }
+                    var jsonSets = reparsed?.ResultSets?.Where(r => r.ReturnsJson)?.ToList();
+                    if (jsonSets != null && jsonSets.Count > 0)
+                    {
+                        // Platzhalter voranstellen, danach erkannte JSON Sets
+                        var newSets = new List<StoredProcedureContentModel.ResultSet> { rs0 };
+                        newSets.AddRange(jsonSets);
+                        proc.Content = new StoredProcedureContentModel
+                        {
+                            Definition = content.Definition,
+                            Statements = content.Statements,
+                            ContainsSelect = content.ContainsSelect,
+                            ContainsInsert = content.ContainsInsert,
+                            ContainsUpdate = content.ContainsUpdate,
+                            ContainsDelete = content.ContainsDelete,
+                            ContainsMerge = content.ContainsMerge,
+                            ContainsOpenJson = content.ContainsOpenJson,
+                            ResultSets = newSets,
+                            UsedFallbackParser = content.UsedFallbackParser,
+                            ParseErrorCount = content.ParseErrorCount,
+                            FirstParseError = content.FirstParseError,
+                            ExecutedProcedures = content.ExecutedProcedures,
+                            ContainsExecKeyword = content.ContainsExecKeyword,
+                            RawExecCandidates = content.RawExecCandidates,
+                            RawExecCandidateKinds = content.RawExecCandidateKinds
+                        };
+                        consoleService.Verbose($"[proc-json-fixup-reparse] {proc.SchemaName}.{proc.Name} added {jsonSets.Count} JSON set(s) after placeholder-only detection");
+                        continue;
+                    }
+                    // Synthetisches leeres JSON Set hinzufügen (Minimal-Fallback)
+                    var syntheticJson = new StoredProcedureContentModel.ResultSet
+                    {
+                        ReturnsJson = true,
+                        ReturnsJsonArray = true,
+                        ReturnsJsonWithoutArrayWrapper = false,
+                        JsonRootProperty = null,
+                        Columns = Array.Empty<StoredProcedureContentModel.ResultColumn>()
+                    };
+                    // Versuch einer einfachen Spaltenextraktion aus dem SELECT vor FOR JSON
+                    try
+                    {
+                        var forJsonIdx = def.IndexOf("FOR JSON", StringComparison.OrdinalIgnoreCase);
+                        if (forJsonIdx > 0)
+                        {
+                            // Suche rückwärts nach SELECT
+                            var selectIdx = def.LastIndexOf("SELECT", forJsonIdx, StringComparison.OrdinalIgnoreCase);
+                            if (selectIdx >= 0 && selectIdx < forJsonIdx)
+                            {
+                                var selectSegment = def.Substring(selectIdx, forJsonIdx - selectIdx);
+                                // Entferne initiales SELECT
+                                if (selectSegment.Length > 6)
+                                {
+                                    selectSegment = selectSegment.Substring(6).Trim();
+                                    // Entferne evtl. TOP (...) Teile vereinfacht
+                                    if (selectSegment.StartsWith("TOP", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        var afterTop = selectSegment.IndexOf(' ') + 1;
+                                        if (afterTop > 0 && afterTop < selectSegment.Length)
+                                            selectSegment = selectSegment.Substring(afterTop).Trim();
+                                    }
+                                    // Primitive Komma-Split (keine Tiefe für verschachtelte Ausdrücke)
+                                    var rawCols = selectSegment.Split(',');
+                                    var colModels = new List<StoredProcedureContentModel.ResultColumn>();
+                                    foreach (var raw in rawCols)
+                                    {
+                                        var part = raw.Trim();
+                                        if (string.IsNullOrWhiteSpace(part)) continue;
+                                        // Entferne mögliche FOR JSON Reste falls Split ungenau
+                                        var fjPos = part.IndexOf("FOR JSON", StringComparison.OrdinalIgnoreCase);
+                                        if (fjPos >= 0) part = part.Substring(0, fjPos).Trim();
+                                        // Alias extrahieren (AS alias) oder letztes Token
+                                        string name = null;
+                                        var asIdx = part.LastIndexOf(" AS ", StringComparison.OrdinalIgnoreCase);
+                                        if (asIdx > -1 && asIdx + 4 < part.Length)
+                                        {
+                                            name = part.Substring(asIdx + 4).Trim();
+                                        }
+                                        else
+                                        {
+                                            // Zerlege auf Leerzeichen: nimm letztes Token wenn kein Funktionsende
+                                            var tokens = part.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                                            if (tokens.Length > 0)
+                                                name = tokens.Last();
+                                        }
+                                        if (string.IsNullOrWhiteSpace(name)) continue;
+                                        // Entferne Klammern und Schema/Table Präfixe
+                                        name = name.Trim('[', ']', '"');
+                                        if (name.Contains('.'))
+                                            name = name.Split('.').Last();
+                                        // Ignore numerische Tokens oder Parameter
+                                        if (name.StartsWith("@")) continue;
+                                        if (name.All(ch => char.IsDigit(ch))) continue;
+                                        // JSON Pfad = Name
+                                        colModels.Add(new StoredProcedureContentModel.ResultColumn
+                                        {
+                                            Name = name,
+                                            JsonPath = name,
+                                            SqlTypeName = "nvarchar", // Unbekannt -> konservativ
+                                            IsNullable = true,
+                                            MaxLength = null
+                                        });
+                                    }
+                                    if (colModels.Count > 0)
+                                    {
+                                        syntheticJson = new StoredProcedureContentModel.ResultSet
+                                        {
+                                            ReturnsJson = true,
+                                            ReturnsJsonArray = true,
+                                            ReturnsJsonWithoutArrayWrapper = false,
+                                            JsonRootProperty = null,
+                                            Columns = colModels.ToArray()
+                                        };
+                                        consoleService.Verbose($"[proc-json-fixup-cols] {proc.SchemaName}.{proc.Name} extracted {colModels.Count} column(s) for synthetic JSON set");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch { /* heuristische Extraktion best effort */ }
+                    proc.Content = new StoredProcedureContentModel
+                    {
+                        Definition = content.Definition,
+                        Statements = content.Statements,
+                        ContainsSelect = content.ContainsSelect,
+                        ContainsInsert = content.ContainsInsert,
+                        ContainsUpdate = content.ContainsUpdate,
+                        ContainsDelete = content.ContainsDelete,
+                        ContainsMerge = content.ContainsMerge,
+                        ContainsOpenJson = content.ContainsOpenJson,
+                        ResultSets = new[] { rs0, syntheticJson },
+                        UsedFallbackParser = content.UsedFallbackParser,
+                        ParseErrorCount = content.ParseErrorCount,
+                        FirstParseError = content.FirstParseError,
+                        ExecutedProcedures = content.ExecutedProcedures,
+                        ContainsExecKeyword = content.ContainsExecKeyword,
+                        RawExecCandidates = content.RawExecCandidates,
+                        RawExecCandidateKinds = content.RawExecCandidateKinds
+                    };
+                    consoleService.Verbose($"[proc-json-fixup-synth] {proc.SchemaName}.{proc.Name} synthesized JSON set after placeholder-only detection");
+                }
+            }
+        }
+        catch (Exception jsonFixEx)
+        {
+            consoleService.Verbose($"[proc-json-fixup-warn] {jsonFixEx.Message}");
+        }
+
                 if (System.IO.Directory.Exists(schemaDir))
                 {
                     var latest = System.IO.Directory.GetFiles(schemaDir, "*.json")
@@ -551,6 +736,134 @@ public class SchemaManager(
                 bool onlyEmptyJsonSets = hasSets && content.ResultSets.All(rs => rs.ReturnsJson && (rs.Columns == null || rs.Columns.Count == 0));
                 bool allNonJsonSets = hasSets && content.ResultSets.All(rs => !rs.ReturnsJson);
                 bool hasOwnDml = content.ContainsSelect || content.ContainsInsert || content.ContainsUpdate || content.ContainsDelete || content.ContainsMerge;
+                // Multi-EXEC Forwarding: mehr als ein inneres EXEC -> Erzeuge Platzhalter-Sets für alle Ziel-ResultSets (Reihenfolge: Wrapper lokale Sets vs. Forwarded?)
+                if (content.ExecutedProcedures != null && content.ExecutedProcedures.Count > 1)
+                {
+                    var placeholders = new List<StoredProcedureContentModel.ResultSet>();
+                    foreach (var execRef in content.ExecutedProcedures)
+                    {
+                        if (execRef == null) continue;
+                        if (!procLookup.TryGetValue($"{execRef.Schema}.{execRef.Name}", out var targetProcMulti))
+                        {
+                            // Fallback: Snapshot oder direktes Laden ignorieren wir hier (Komplexität) – später erweiterbar.
+                            // Minimaler Platzhalter, falls keine Zielsets bekannt.
+                            placeholders.Add(new StoredProcedureContentModel.ResultSet
+                            {
+                                ExecSourceSchemaName = execRef.Schema,
+                                ExecSourceProcedureName = execRef.Name,
+                                Columns = Array.Empty<StoredProcedureContentModel.ResultColumn>()
+                            });
+                            continue;
+                        }
+                        var tSets = targetProcMulti.Content?.ResultSets ?? Array.Empty<StoredProcedureContentModel.ResultSet>();
+                        if (tSets.Count == 0)
+                        {
+                            placeholders.Add(new StoredProcedureContentModel.ResultSet
+                            {
+                                ExecSourceSchemaName = execRef.Schema,
+                                ExecSourceProcedureName = execRef.Name,
+                                Columns = Array.Empty<StoredProcedureContentModel.ResultColumn>()
+                            });
+                        }
+                        else
+                        {
+                            foreach (var ts in tSets)
+                            {
+                                placeholders.Add(new StoredProcedureContentModel.ResultSet
+                                {
+                                    ExecSourceSchemaName = execRef.Schema,
+                                    ExecSourceProcedureName = execRef.Name,
+                                    Columns = Array.Empty<StoredProcedureContentModel.ResultColumn>() // Struktur wird nicht geklont; nur Verknüpfung
+                                });
+                            }
+                        }
+                    }
+                    // Einfüge-Strategie: Erst alle Platzhalter (forwarded Reihenfolge innerer EXECs), dann lokale Sets damit Nummerierung konsistent bleibt.
+                    var localSets = content.ResultSets?.ToList() ?? new List<StoredProcedureContentModel.ResultSet>();
+                    bool hasAnyPlaceholder = localSets.Any(r => !string.IsNullOrEmpty(r.ExecSourceProcedureName) && (r.Columns == null || r.Columns.Count == 0));
+                    if (!hasAnyPlaceholder)
+                    {
+                        var combinedOrdered = new List<StoredProcedureContentModel.ResultSet>();
+                        combinedOrdered.AddRange(placeholders);
+                        combinedOrdered.AddRange(localSets);
+                        proc.Content = new StoredProcedureContentModel
+                        {
+                            Definition = content.Definition,
+                            Statements = content.Statements,
+                            ContainsSelect = content.ContainsSelect,
+                            ContainsInsert = content.ContainsInsert,
+                            ContainsUpdate = content.ContainsUpdate,
+                            ContainsDelete = content.ContainsDelete,
+                            ContainsMerge = content.ContainsMerge,
+                            ContainsOpenJson = content.ContainsOpenJson,
+                            ResultSets = combinedOrdered,
+                            UsedFallbackParser = content.UsedFallbackParser,
+                            ParseErrorCount = content.ParseErrorCount,
+                            FirstParseError = content.FirstParseError,
+                            ExecutedProcedures = content.ExecutedProcedures
+                        };
+                        consoleService.Verbose($"[proc-forward-multi] {proc.SchemaName}.{proc.Name} added {placeholders.Count} placeholder set(s) for {content.ExecutedProcedures.Count} EXEC(s) (kept {localSets.Count} local set(s))");
+                    }
+                    continue; // Multi-EXEC spezifisch abgeschlossen
+                }
+                // Referenz-only Forwarding: Prozedur hat eigene JSON Sets und genau einen EXEC -> nur Platzhalter einfügen, keine Ziel-Sets klonen.
+                if (content.ExecutedProcedures != null && content.ExecutedProcedures.Count == 1 && hasSets && content.ResultSets.Any(r => r.ReturnsJson))
+                {
+                    // Bereits vorhandener ExecSource Platzhalter?
+                    bool hasPlaceholder = content.ResultSets.Any(r => !string.IsNullOrEmpty(r.ExecSourceProcedureName) && (r.Columns == null || r.Columns.Count == 0));
+                    if (!hasPlaceholder)
+                    {
+                        var targetRef = content.ExecutedProcedures[0];
+                        var placeholder = new StoredProcedureContentModel.ResultSet
+                        {
+                            ExecSourceSchemaName = targetRef.Schema,
+                            ExecSourceProcedureName = targetRef.Name,
+                            Columns = Array.Empty<StoredProcedureContentModel.ResultColumn>()
+                        };
+                        // Lokale Sets: sicherstellen, dass keine ExecSource* Felder gesetzt bleiben
+                        var cleansedLocal = content.ResultSets.Select(ls =>
+                        {
+                            if (!string.IsNullOrEmpty(ls.ExecSourceProcedureName))
+                            {
+                                // Falls ein früherer Schritt fälschlich ExecSource gesetzt hat und Columns vorhanden sind -> entfernen
+                                if (ls.Columns != null && ls.Columns.Count > 0)
+                                {
+                                    return new StoredProcedureContentModel.ResultSet
+                                    {
+                                        ReturnsJson = ls.ReturnsJson,
+                                        ReturnsJsonArray = ls.ReturnsJsonArray,
+                                        ReturnsJsonWithoutArrayWrapper = ls.ReturnsJsonWithoutArrayWrapper,
+                                        JsonRootProperty = ls.JsonRootProperty,
+                                        Columns = ls.Columns,
+                                        HasSelectStar = ls.HasSelectStar
+                                    };
+                                }
+                            }
+                            return ls;
+                        }).ToList();
+                        var newSets = new List<StoredProcedureContentModel.ResultSet> { placeholder };
+                        newSets.AddRange(cleansedLocal); // lokale Sets behalten (ohne ExecSource)
+                        proc.Content = new StoredProcedureContentModel
+                        {
+                            Definition = content.Definition,
+                            Statements = content.Statements,
+                            ContainsSelect = content.ContainsSelect,
+                            ContainsInsert = content.ContainsInsert,
+                            ContainsUpdate = content.ContainsUpdate,
+                            ContainsDelete = content.ContainsDelete,
+                            ContainsMerge = content.ContainsMerge,
+                            ContainsOpenJson = content.ContainsOpenJson,
+                            ResultSets = newSets,
+                            UsedFallbackParser = content.UsedFallbackParser,
+                            ParseErrorCount = content.ParseErrorCount,
+                            FirstParseError = content.FirstParseError,
+                            ExecutedProcedures = content.ExecutedProcedures
+                        };
+                        consoleService.Verbose($"[proc-forward-refonly] {proc.SchemaName}.{proc.Name} inserted ExecSource placeholder for {targetRef.Schema}.{targetRef.Name} (kept {content.ResultSets.Count} local set(s))");
+                    }
+                    // Keine vollständige Forwarding-Verarbeitung nötig
+                    continue;
+                }
                 // Erweiterte Wrapper-Klassifikation: Auch Prozeduren mit ausschließlich non-JSON synthetischen Sets (kein eigener DML) gelten als Wrapper.
                 bool isWrapperCandidate = (!hasSets) || onlyEmptyJsonSets || (allNonJsonSets && !hasOwnDml);
                 if (!isWrapperCandidate)
@@ -743,7 +1056,25 @@ public class SchemaManager(
                 }).ToArray();
                 // Optional: spezifische Diagnose kann hier per Konfiguration ergänzt werden (keine Namensheuristik mehr)
 
-                // Replacement statt Append: vorhandene Sets verwerfen
+                // Nur ExecSource Platzhalter ersetzen: bestehende Sets, die keine echten Inhalte haben (Columns leer, kein JSON) und bereits ExecSource referenzieren
+                var existingSets = content.ResultSets ?? new List<StoredProcedureContentModel.ResultSet>();
+                bool isPlaceholder(StoredProcedureContentModel.ResultSet rs) =>
+                    (rs.Columns == null || rs.Columns.Count == 0) && !rs.ReturnsJson &&
+                    !string.IsNullOrEmpty(rs.ExecSourceProcedureName);
+                var preserved = existingSets.Where(rs => !isPlaceholder(rs)).ToList();
+                // Falls alle Sets Platzhalter waren (klassischer Wrapper) -> vollständiger Ersatz
+                List<StoredProcedureContentModel.ResultSet> final;
+                if (preserved.Count == 0)
+                {
+                    final = clonedSets.ToList();
+                    consoleService.Verbose($"[proc-forward-replace{(onlyEmptyJsonSets ? "-upgrade" : string.Empty)}] {proc.SchemaName}.{proc.Name} replaced placeholder sets with {clonedSets.Length} forwarded set(s) from {target.Schema}.{target.Name}");
+                }
+                else
+                {
+                    // Append forwarded Sets hinter eigene Sets
+                    final = preserved.Concat(clonedSets).ToList();
+                    consoleService.Verbose($"[proc-forward-append] {proc.SchemaName}.{proc.Name} appended {clonedSets.Length} forwarded set(s) (kept {preserved.Count} local set(s)) from {target.Schema}.{target.Name}");
+                }
                 proc.Content = new StoredProcedureContentModel
                 {
                     Definition = proc.Content.Definition,
@@ -754,13 +1085,12 @@ public class SchemaManager(
                     ContainsDelete = proc.Content.ContainsDelete,
                     ContainsMerge = proc.Content.ContainsMerge,
                     ContainsOpenJson = proc.Content.ContainsOpenJson,
-                    ResultSets = clonedSets, // ersetzt vollständig
+                    ResultSets = final,
                     UsedFallbackParser = proc.Content.UsedFallbackParser,
                     ParseErrorCount = proc.Content.ParseErrorCount,
                     FirstParseError = proc.Content.FirstParseError,
                     ExecutedProcedures = proc.Content.ExecutedProcedures
                 };
-                consoleService.Verbose($"[proc-forward-replace{(onlyEmptyJsonSets ? "-upgrade" : string.Empty)}] {proc.SchemaName}.{proc.Name} replaced sets with {clonedSets.Length} forwarded set(s) from {target.Schema}.{target.Name}");
             }
         }
         catch { /* best effort */ }
@@ -952,6 +1282,9 @@ public class SchemaManager(
                 var targetSets = targetSp.Content?.ResultSets;
                 var ownSets = c.ResultSets?.ToList() ?? new List<StoredProcedureContentModel.ResultSet>();
                 if (ownSets.Count == 0) return true;
+                // NEU: Wenn es ein eigenes (nicht forwardetes) JSON ResultSet mit echten Columns gibt, ist es kein reiner Wrapper.
+                bool hasOwnConcreteJson = ownSets.Any(rs => string.IsNullOrEmpty(rs.ExecSourceProcedureName) && rs.ReturnsJson && (rs.Columns?.Count ?? 0) > 0);
+                if (hasOwnConcreteJson) return false;
                 if (targetSets == null || targetSets.Count == 0) return false;
                 foreach (var os in ownSets)
                 {

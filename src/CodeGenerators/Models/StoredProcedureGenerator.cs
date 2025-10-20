@@ -64,13 +64,23 @@ public class StoredProcedureGenerator(
         // Determine if any stored procedure in this group actually produces a model (skip pure scalar non-JSON procs)
         bool NeedsModel(Definition.StoredProcedure sp)
         {
-            var set = sp.ResultSets?.FirstOrDefault();
-            if (set == null) return false; // zero-result => no model
-            var returnsJson = set.ReturnsJson;
-            var hasCols = set.Columns?.Any() ?? false;
-            var scalarNonJson = hasCols && !returnsJson && set.Columns.Count == 1; // skipped by model generator
-            if (!returnsJson && scalarNonJson) return false;
-            return true; // multi-col, json, or other tabular
+            if (sp.ResultSets == null || sp.ResultSets.Count == 0) return false;
+            // Primäres Set = erstes JSON sonst erstes
+            var primary = sp.ResultSets.FirstOrDefault(r => r.ReturnsJson) ?? sp.ResultSets.First();
+            if (primary == null) return false;
+            if (primary.ReturnsJson) return true; // JSON immer Modell (auch bei Column=0 für Deserialize)
+            var cols = primary.Columns?.Count ?? 0;
+            if (cols == 0) return false;
+            if (cols == 1)
+            {
+                // Einzelspalte non-JSON -> nur Modell wenn nicht Skalar nvarchar(max) CRUD Pseudo
+                var c = primary.Columns[0];
+                bool isNVarChar = (c.SqlTypeName?.StartsWith("nvarchar", StringComparison.OrdinalIgnoreCase) ?? false);
+                // Wenn es weitere Sets gibt und eines JSON ist -> wir brauchen das Modell falls dieses Set nicht das JSON ist
+                bool hasOtherJson = sp.ResultSets.Any(r => r != primary && r.ReturnsJson);
+                if (isNVarChar && !hasOtherJson) return false; // rein skalar
+            }
+            return true;
         }
 
         var needsModelUsing = storedProcedures.Any(NeedsModel);
@@ -112,9 +122,12 @@ public class StoredProcedureGenerator(
         root = root.WithUsings([.. usings]);
 
         // Conditionally add outputs usings (root + schema) if any proc has OUTPUT parameters
-        var baseOutputSkip = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "@ResultId", "@RecordId", "@RowVersion", "@Result" };
+        // Normalisierte Skip-Liste (ohne '@'), damit uneinheitliche Metadaten-Namensgebung (mit/ohne '@') konsistent behandelt wird.
+        var baseOutputSkip = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "ResultId", "RecordId", "RowVersion", "Result" };
+        // Helper zur Normalisierung eines OUTPUT-Namens
+        string NormalizeOutputName(string name) => (name ?? string.Empty).TrimStart('@');
         bool HasAnyOutputs = storedProcedures.Any(sp => sp.GetOutputs()?.Any() ?? false);
-        bool HasCustomOutputs = storedProcedures.Any(sp => (sp.GetOutputs()?.Count(o => !baseOutputSkip.Contains(o.Name)) ?? 0) > 0);
+        bool HasCustomOutputs = storedProcedures.Any(sp => (sp.GetOutputs()?.Count(o => !baseOutputSkip.Contains(NormalizeOutputName(o.Name))) ?? 0) > 0);
         // Für Extension-Rollen werden zwar keine Bootstrap-Outputs.cs Dateien erzeugt, aber individuelle Output-Klassen (Schema) werden generiert.
         // Daher benötigen die StoredProcedure-Extensions auch bei Extension-Rollen ein using auf das lokale Schema-Outputs-Namespace, damit
         // z.B. OrganizationUpdateIsDeletedOutput aufgelöst wird.
@@ -328,15 +341,85 @@ public class StoredProcedureGenerator(
         var returnType = "Task<CrudResult>";
         var returnModel = "CrudResult";
 
-        var firstSet = storedProcedure.ResultSets?.FirstOrDefault();
+        // Primäres Set bestimmen: bevorzuge erstes NICHT-ExecSource Platzhalter-Set, sonst erstes.
+        var firstSet = storedProcedure.ResultSets == null
+                ? null
+                : storedProcedure.ResultSets.FirstOrDefault(rs => string.IsNullOrEmpty(rs.ExecSourceProcedureName))
+                    ?? storedProcedure.ResultSets.FirstOrDefault();
         var isJson = firstSet?.ReturnsJson ?? false;
         var isJsonArray = isJson && (firstSet?.ReturnsJsonArray ?? false);
+        // Forwarding Referenz-only: genau ein Set, kein JSON, Columns leer, ExecSource gesetzt -> Ziel auflösen für Modellwahl
+        bool isReferenceOnlyForward = false;
+        string forwardSchema = null; string forwardProc = null;
+        if (storedProcedure.ResultSets?.Count == 1 && firstSet != null && !isJson && (firstSet.Columns == null || firstSet.Columns.Count == 0)
+            && !string.IsNullOrEmpty(firstSet.ExecSourceProcedureName))
+        {
+            isReferenceOnlyForward = true;
+            forwardSchema = firstSet.ExecSourceSchemaName;
+            forwardProc = firstSet.ExecSourceProcedureName;
+        }
+        if (isReferenceOnlyForward && !string.IsNullOrWhiteSpace(forwardSchema) && !string.IsNullOrWhiteSpace(forwardProc))
+        {
+            try
+            {
+                var schemasMeta = metadataProvider.GetSchemas();
+                var targetSchema = schemasMeta.FirstOrDefault(s => s.Name.Equals(forwardSchema, StringComparison.OrdinalIgnoreCase));
+                var targetSp = targetSchema?.StoredProcedures?.FirstOrDefault(sp => sp.Name.Equals(forwardProc, StringComparison.OrdinalIgnoreCase));
+                if (targetSp != null)
+                {
+                    var rs0 = targetSp.Content?.ResultSets?.FirstOrDefault();
+                    if (rs0 != null)
+                    {
+                        firstSet = rs0; // nutze echte Struktur für Rückgabeheuristik
+                        isJson = rs0.ReturnsJson;
+                        isJsonArray = isJson && rs0.ReturnsJsonArray;
+                    }
+                }
+            }
+            catch { /* best effort forward resolve */ }
+        }
+        // Heuristik: Einige CRUD Procs werden fälschlich als JSON erkannt, obwohl ein einziger nvarchar(max)-Wert (z.B. Subselect) ausgegeben wird.
+        // Kriterien für Rückstufung: Name enthält CRUD Verb, genau 1 Column, keine explizite JsonRootProperty, Column-Name kein FOR JSON Sentinel,
+        // Column.SqlTypeName beginnt mit nvarchar, Column.JsonPath == Column.Name (keine verschachtelte Struktur).
+        if (isJson && firstSet != null)
+        {
+            var colCount = firstSet.Columns?.Count ?? 0;
+            if (colCount == 1)
+            {
+                var spNameLower = storedProcedure.Name.ToLowerInvariant();
+                bool crudName = spNameLower.Contains("create") || spNameLower.Contains("update") || spNameLower.Contains("delete") || spNameLower.Contains("merge") || spNameLower.Contains("upsert");
+                var col = firstSet.Columns[0];
+                bool isNVarChar = (col.SqlTypeName?.StartsWith("nvarchar", StringComparison.OrdinalIgnoreCase) ?? false);
+                bool isLegacyJsonSentinel = col.Name.Equals("JSON_F52E2B61-18A1-11d1-B105-00805F49916B", StringComparison.OrdinalIgnoreCase);
+                bool hasRoot = !string.IsNullOrWhiteSpace(firstSet.JsonRootProperty);
+                bool flatPath = string.Equals(col.JsonPath, col.Name, StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(col.JsonPath);
+                if (crudName && isNVarChar && !isLegacyJsonSentinel && !hasRoot && flatPath)
+                {
+                    // Rückstufung: Behandle als Nicht-JSON -> korrigiere Flags für nachfolgende Logik.
+                    isJson = false;
+                    isJsonArray = false;
+                }
+            }
+        }
 
         // Only the pipe variant of a JSON Deserialize method performs the awaited deserialization; the context overload delegates.
         var requiresAsync = isJson && kind == StoredProcedureMethodKind.Deserialize && !isOverload;
 
         var rawJson = false;
-        if (isJson && kind == StoredProcedureMethodKind.Raw)
+        // Sonderfall: mehrere ResultSets, genau ein JSON Set -> treat as JSON primary
+        var totalSets = storedProcedure.ResultSets?.Count ?? 0;
+        var jsonSetCount = storedProcedure.ResultSets?.Count(rs => rs.ReturnsJson) ?? 0;
+        bool singleJsonAmongMultiple = totalSets > 1 && jsonSetCount == 1 && isJson;
+        if ((isReferenceOnlyForward || singleJsonAmongMultiple) && isJson && kind == StoredProcedureMethodKind.Raw)
+        {
+            // Referenz-only: Raw-Methode soll weiterhin string liefern (Durchreichen), aber nachfolgende Deserialize Methode nutzt Zielmodell.
+            rawJson = true;
+            returnType = "Task<string>";
+            returnExpression = returnExpression
+                .Replace("ExecuteSingleAsync<CrudResult>", "ReadJsonAsync")
+                .Replace("ExecuteListAsync<CrudResult>", "ReadJsonAsync");
+        }
+        else if (isJson && kind == StoredProcedureMethodKind.Raw)
         {
             rawJson = true;
             // Raw JSON keeps Task<string> and we call ReadJsonAsync
@@ -428,12 +511,26 @@ public class StoredProcedureGenerator(
             }
             else
             {
-                var firstSet2 = storedProcedure.ResultSets?.FirstOrDefault();
+                var firstSet2 = firstSet; // verwende primäres Set für Typheuristik
                 var columnCount = firstSet2?.Columns?.Count ?? 0;
                 var hasTabularResult = columnCount > 0;
                 var hasOutputs = storedProcedure.HasOutputs();
-                var baseOutputPropSkip = new[] { "@ResultId", "@RecordId", "@RowVersion", "@Result" };
-                var customOutputCount = storedProcedure.GetOutputs()?.Count(o => !baseOutputPropSkip.Contains(o.Name, StringComparer.OrdinalIgnoreCase)) ?? 0;
+                // Normalisierte Skip-Liste (ohne '@') für konsistente Erkennung
+                var baseOutputPropSkip = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "ResultId", "RecordId", "RowVersion", "Result" };
+                int customOutputCount = storedProcedure.GetOutputs()?.Count(o => !baseOutputPropSkip.Contains(o.Name.TrimStart('@'))) ?? 0;
+                // Pseudo-Tabular? Einzelne nvarchar(max)-Spalte ohne Root/komplexe Struktur bei CRUD -> nicht als echtes Tabular behandeln
+                bool isCrudName = storedProcedure.Name.ToLowerInvariant().Contains("create") || storedProcedure.Name.ToLowerInvariant().Contains("update") || storedProcedure.Name.ToLowerInvariant().Contains("delete") || storedProcedure.Name.ToLowerInvariant().Contains("merge") || storedProcedure.Name.ToLowerInvariant().Contains("upsert");
+                bool singlePseudoColumn = columnCount == 1;
+                var lone = singlePseudoColumn ? firstSet2?.Columns?.FirstOrDefault() : null;
+                bool loneIsNVarChar = lone != null && (lone.SqlTypeName?.StartsWith("nvarchar", StringComparison.OrdinalIgnoreCase) ?? false);
+                bool noRoot = !(firstSet2?.JsonRootProperty?.Length > 0);
+                bool flatPath = lone != null && (string.IsNullOrWhiteSpace(lone.JsonPath) || string.Equals(lone.JsonPath, lone.Name, StringComparison.OrdinalIgnoreCase));
+                bool legacyJsonSentinel = lone != null && lone.Name.Equals("JSON_F52E2B61-18A1-11d1-B105-00805F49916B", StringComparison.OrdinalIgnoreCase);
+                bool pseudoTabularCrud = isCrudName && singlePseudoColumn && loneIsNVarChar && noRoot && flatPath && !legacyJsonSentinel;
+                if (pseudoTabularCrud)
+                {
+                    hasTabularResult = false; // erzwinge Output-Logik
+                }
 
                 if (!hasTabularResult && hasOutputs && customOutputCount > 0)
                 {
@@ -457,29 +554,16 @@ public class StoredProcedureGenerator(
                     // AND the first result set only contains [ResultId] and/or [RecordId] (no real data columns),
                     // we collapse to Output and map those columns into Output so consumers have a consistent pattern.
                     // This predates richer model generation and will be removed once callers are migrated.
-                    var nameLowerCrud = storedProcedure.Name.ToLowerInvariant();
-                    bool isCrudVerb = nameLowerCrud.Contains("create") || nameLowerCrud.Contains("update") || nameLowerCrud.Contains("delete") || nameLowerCrud.Contains("merge") || nameLowerCrud.Contains("upsert");
-                    // Special cases: procedures without a classic CRUD verb that still only emit meta columns
-                    // and should be treated as minimal CRUD (fallback -> CrudResult)
-                    var crudVerbWhitelist = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-                    {
-                        "invoicesend"
-                    };
-                    if (crudVerbWhitelist.Contains(nameLowerCrud))
-                    {
-                        isCrudVerb = true;
-                    }
-                    var crudAllowedCols = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "resultid", "recordid" };
-                    var firstSetCols = firstSet2?.Columns?.Select(c => c.Name)?.ToList() ?? new List<string>();
-                    bool onlyCrudMetaColumns = firstSetCols.Count > 0 && firstSetCols.All(c => crudAllowedCols.Contains(c));
+                    var metaColsSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "resultid", "recordid", "rowversion" };
+                    var firstSetCols = firstSet2?.Columns?.Select(c => c.Name)?.Where(n => !string.IsNullOrWhiteSpace(n)).ToList() ?? new List<string>();
+                    bool onlyMetaColumns = firstSetCols.Count > 0 && firstSetCols.All(c => metaColsSet.Contains(c));
                     bool noCustomOutputs = !hasOutputs || customOutputCount == 0;
 
-                    if (isCrudVerb && onlyCrudMetaColumns && noCustomOutputs)
+                    if (onlyMetaColumns && noCustomOutputs)
                     {
-                        // OBSOLETE CRUD minimal result heuristic: collapse meta-only resultset to CrudResult
+                        // Generische Meta-Spalten -> CrudResult Rückgabe unabhängig vom Prozedurnamen
                         returnType = "Task<CrudResult>";
-                        returnExpression = ReplacePlaceholder(returnExpression, $"ExecuteSingleAsync<CrudResult>");
-                        // Skip obsolete list/find heuristic for this branch
+                        returnExpression = ReplacePlaceholder(returnExpression, "ExecuteSingleAsync<CrudResult>");
                     }
                     else
                     {

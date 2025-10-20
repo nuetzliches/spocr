@@ -72,7 +72,10 @@ public class StoredProcedureContentModel
         var captured = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var line in definition.Split('\n'))
         {
-            var l = line.Trim(); if (l.Length == 0) continue;
+            var originalLine = line;
+            var commentIndex = originalLine.IndexOf("--", StringComparison.Ordinal);
+            var effectiveLine = commentIndex >= 0 ? originalLine.Substring(0, commentIndex) : originalLine;
+            var l = effectiveLine.Trim(); if (l.Length == 0) continue; // Ignore fully commented / empty lines
             int iInsert = l.IndexOf("INSERT", StringComparison.OrdinalIgnoreCase);
             int iExec = l.IndexOf("EXEC", StringComparison.OrdinalIgnoreCase);
             if (iInsert >= 0 && iExec > iInsert)
@@ -91,12 +94,15 @@ public class StoredProcedureContentModel
 
         var containsExec = definition.IndexOf("EXEC", StringComparison.OrdinalIgnoreCase) >= 0;
         var rawExec = new List<string>(); var rawKinds = new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
-        if (containsExec)
+    if (containsExec)
         {
             foreach (var line in definition.Split('\n'))
             {
                 if (rawExec.Count >= 5) break;
-                var t = line.Trim(); if (t.Length == 0) continue;
+        var originalLine = line;
+        var commentIndex = originalLine.IndexOf("--", StringComparison.Ordinal);
+        var effectiveLine = commentIndex >= 0 ? originalLine.Substring(0, commentIndex) : originalLine;
+        var t = effectiveLine.Trim(); if (t.Length == 0) continue; // Skip commented-only lines
                 var idx = t.IndexOf("EXEC", StringComparison.OrdinalIgnoreCase); if (idx < 0) continue;
                 var after = t[(idx + 4)..].TrimStart('U','T','E',' ','\t').TrimStart();
                 if (after.StartsWith("sp_executesql", StringComparison.OrdinalIgnoreCase) || after.StartsWith("@") || after.StartsWith("(") || after.StartsWith("'")) continue;

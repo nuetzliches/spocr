@@ -275,6 +275,8 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
             }).ToArray()
         }).ToList();
 
+                // Platzhalter-Sets (Forwarding Referenzen) werden jetzt nie gefiltert, da sie zur Auflösung des Ziel-Modells dienen.
+
         // Heuristic: single result set and a single legacy FOR JSON column -> mark as JSON
         if (sets.Count == 1)
         {
@@ -293,6 +295,24 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
                         JsonRootProperty = null,
                         Columns = Array.Empty<StoredProcedureContentModel.ResultColumn>() // Struktur unbekannt
                     };
+                }
+                else
+                {
+                    // Zusatz-Heuristik: Prozedurname enthält 'json' oder 'asjson' und einzelne nvarchar(max) Spalte -> Raw JSON
+                    var procNameLower = p.Name.ToLowerInvariant();
+                    bool nameIndicatesJson = procNameLower.Contains("json");
+                    bool isNVarChar = (col.SqlTypeName?.StartsWith("nvarchar", StringComparison.OrdinalIgnoreCase) ?? false);
+                    if (!s.ReturnsJson && nameIndicatesJson && isNVarChar)
+                    {
+                        sets[0] = new StoredProcedureContentModel.ResultSet
+                        {
+                            ReturnsJson = true,
+                            ReturnsJsonArray = false, // unbekannt, konservativ als Single-Objekt
+                            ReturnsJsonWithoutArrayWrapper = true,
+                            JsonRootProperty = null,
+                            Columns = new[] { new StoredProcedureContentModel.ResultColumn { Name = col.Name, SqlTypeName = col.SqlTypeName, IsNullable = col.IsNullable, MaxLength = col.MaxLength, JsonPath = col.Name } }
+                        };
+                    }
                 }
             }
         }

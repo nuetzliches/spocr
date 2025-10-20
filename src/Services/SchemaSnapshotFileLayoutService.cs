@@ -174,7 +174,7 @@ public sealed class SchemaSnapshotFileLayoutService
         }
     }
 
-    // Entfernt für forwardete ResultSets (ExecSourceProcedureName gesetzt) die redundanten Modell-Properties
+    // Angepasst: Erhalte JSON-Flags & Columns auch bei forwardeten ResultSets (nur minimale Normalisierung möglich)
     private static string StripForwardedFlags(string json)
     {
         if (string.IsNullOrWhiteSpace(json)) return json;
@@ -200,27 +200,47 @@ public sealed class SchemaSnapshotFileLayoutService
                         writer.WriteStartArray();
                         foreach (var rs in prop.Value.EnumerateArray())
                         {
-                            // Prüfen ob forwardet
-                            string execSourceProc = null;
-                            if (rs.TryGetProperty("ExecSourceProcedureName", out var execEl) && execEl.ValueKind == JsonValueKind.String)
+                            // Erkennen eines reinen Platzhalters: ExecSource* gesetzt, keine Columns, kein ReturnsJson
+                            bool isPlaceholder = false;
+                            string execSchema = null;
+                            string execProc = null;
+                            if (rs.ValueKind == JsonValueKind.Object)
                             {
-                                execSourceProc = execEl.GetString();
+                                bool hasColumns = false;
+                                bool hasReturnsJson = false;
+                                foreach (var rp in rs.EnumerateObject())
+                                {
+                                    if (rp.NameEquals("ExecSourceSchemaName")) execSchema = rp.Value.GetString();
+                                    if (rp.NameEquals("ExecSourceProcedureName")) execProc = rp.Value.GetString();
+                                    if (rp.NameEquals("Columns"))
+                                    {
+                                        if (rp.Value.ValueKind == JsonValueKind.Array && rp.Value.GetArrayLength() > 0) hasColumns = true;
+                                    }
+                                    if (rp.NameEquals("ReturnsJson"))
+                                    {
+                                        if (rp.Value.ValueKind == JsonValueKind.True) hasReturnsJson = true;
+                                    }
+                                }
+                                isPlaceholder = !string.IsNullOrEmpty(execSchema) && !string.IsNullOrEmpty(execProc) && !hasColumns && !hasReturnsJson;
                             }
-                            if (!string.IsNullOrWhiteSpace(execSourceProc))
+                            if (isPlaceholder)
                             {
                                 writer.WriteStartObject();
-                                if (rs.TryGetProperty("ExecSourceSchemaName", out var execSchema))
+                                if (!string.IsNullOrEmpty(execSchema))
                                 {
-                                    writer.WritePropertyName("ExecSourceSchemaName");
-                                    execSchema.WriteTo(writer);
+                                    writer.WriteString("ExecSourceSchemaName", execSchema);
                                 }
-                                writer.WritePropertyName("ExecSourceProcedureName");
-                                writer.WriteStringValue(execSourceProc);
+                                if (!string.IsNullOrEmpty(execProc))
+                                {
+                                    writer.WriteString("ExecSourceProcedureName", execProc);
+                                }
                                 writer.WriteEndObject();
-                                continue;
                             }
-                            // Unverändertes ResultSet schreiben
-                            rs.WriteTo(writer);
+                            else
+                            {
+                                // Lokale oder forwarded echte Sets unverändert schreiben
+                                rs.WriteTo(writer);
+                            }
                         }
                         writer.WriteEndArray();
                     }
