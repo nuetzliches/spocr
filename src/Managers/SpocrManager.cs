@@ -11,8 +11,8 @@ using SpocR.Commands.Spocr;
 using SpocR.DataContext;
 using SpocR.Enums;
 using SpocR.Extensions;
-using SpocR.Models;
 using SpocR.Services;
+using SpocR.Models;
 using SpocR.DataContext.Queries;
 using SpocR.DataContext.Models;
 using SpocR.SpocRVNext.Engine; // vNext template engine
@@ -383,9 +383,9 @@ public class SpocrManager(
                                 Columns = rs.Columns.Select(c => new SnapshotResultColumn
                                 {
                                     Name = c.Name,
-                                    // Fallback: Ensure JSON result columns always have a SqlTypeName so generators can rely on presence.
-                                    // If parser/enrichment couldn't resolve a concrete type, we default to nvarchar(max).
-                                    SqlTypeName = string.IsNullOrWhiteSpace(c.SqlTypeName) && rs.ReturnsJson ? "nvarchar(max)" : c.SqlTypeName,
+                                    // New fallback: mark unresolved JSON column types as 'unknown' (no angle brackets to avoid parser/Enum issues).
+                                    // Generators will treat 'unknown' as NVARCHAR/string but emit a verbose notice; enrichment may replace before generation.
+                                    SqlTypeName = string.IsNullOrWhiteSpace(c.SqlTypeName) && rs.ReturnsJson ? "unknown" : c.SqlTypeName,
                                     IsNullable = c.IsNullable ?? false,
                                     MaxLength = c.MaxLength ?? 0,
                                     UserTypeSchemaName = c.UserTypeSchemaName,
@@ -400,7 +400,7 @@ public class SpocrManager(
                                         Columns = c.JsonResult.Columns?.Select(n => new SnapshotResultColumn
                                         {
                                             Name = n.Name,
-                                            SqlTypeName = string.IsNullOrWhiteSpace(n.SqlTypeName) && c.JsonResult.ReturnsJson ? "nvarchar(max)" : n.SqlTypeName,
+                                            SqlTypeName = string.IsNullOrWhiteSpace(n.SqlTypeName) && c.JsonResult.ReturnsJson ? "unknown" : n.SqlTypeName,
                                             IsNullable = n.IsNullable ?? false,
                                             MaxLength = n.MaxLength ?? 0,
                                             UserTypeSchemaName = n.UserTypeSchemaName,
@@ -605,6 +605,9 @@ public class SpocrManager(
             return ExecuteResultEnum.Aborted;
 
         consoleService.PrintTitle($"Build DataContext from {Constants.ConfigurationFile}");
+
+        // Configure AST verbose diagnostics (bind/derived logs) according to global --verbose flag
+        try { SpocR.Models.StoredProcedureContentModel.SetAstVerbose(options.Verbose); } catch { }
 
         // Reuse unified configuration loading + user overrides
         var mergedConfig = await LoadAndMergeConfigurationsAsync();

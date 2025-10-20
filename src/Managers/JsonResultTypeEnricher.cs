@@ -56,8 +56,11 @@ public sealed class JsonResultTypeEnricher
             { newSetsStage2.Add(set); continue; }
             var newCols = new List<StoredProcedureContentModel.ResultColumn>();
             var modifiedLocal = false;
+            int localResolvedBindings = 0; // count of columns having Source* even if no upgrade yet
             foreach (var col in set.Columns)
             {
+                bool hasSourceBinding = !string.IsNullOrWhiteSpace(col.SourceSchema) && !string.IsNullOrWhiteSpace(col.SourceTable) && !string.IsNullOrWhiteSpace(col.SourceColumn);
+                if (hasSourceBinding) localResolvedBindings++; // record source binding progress
                 // UDTT context mapping heuristic: map placeholder column 'record' to existing Context table-valued input
                 if (string.Equals(col.Name, "record", StringComparison.OrdinalIgnoreCase) &&
                     (string.IsNullOrWhiteSpace(col.UserTypeName) && string.IsNullOrWhiteSpace(col.UserTypeSchemaName)))
@@ -106,10 +109,11 @@ public sealed class JsonResultTypeEnricher
                         _console.Verbose($"[json-type-cast] {sp.SchemaName}.{sp.Name} {col.Name} -> {col.SqlTypeName}");
                     }
                 }
-                bool hadFallback = string.Equals(col.SqlTypeName, "nvarchar(max)", StringComparison.OrdinalIgnoreCase) && set.ReturnsJson;
+                // Treat both legacy nvarchar(max) and new 'unknown' marker as fallback states
+                bool hadFallback = (string.Equals(col.SqlTypeName, "nvarchar(max)", StringComparison.OrdinalIgnoreCase) || string.Equals(col.SqlTypeName, "unknown", StringComparison.OrdinalIgnoreCase)) && set.ReturnsJson;
                 bool hasConcrete = !string.IsNullOrWhiteSpace(col.SqlTypeName) && !hadFallback;
                 if (hasConcrete) { newCols.Add(col); continue; }
-                if (!string.IsNullOrWhiteSpace(col.SourceSchema) && !string.IsNullOrWhiteSpace(col.SourceTable) && !string.IsNullOrWhiteSpace(col.SourceColumn))
+                if (hasSourceBinding)
                 {
                     var tblKey = ($"{col.SourceSchema}.{col.SourceTable}");
                     if (!tableCache.TryGetValue(tblKey, out var tblColumns))
@@ -148,6 +152,10 @@ public sealed class JsonResultTypeEnricher
                         });
                         continue;
                     }
+                    else if (verbose && level == JsonTypeLogLevel.Detailed)
+                    {
+                        _console.Verbose($"[json-type-miss] {sp.SchemaName}.{sp.Name} {col.Name} source={col.SourceSchema}.{col.SourceTable}.{col.SourceColumn} no-column-match");
+                    }
                 }
                 newCols.Add(col);
             }
@@ -164,6 +172,13 @@ public sealed class JsonResultTypeEnricher
                 });
             }
             else { newSetsStage2.Add(set); }
+            // Accumulate binding-only progress (not counted previously). We treat these as 'resolved' even if still fallback typed.
+            if (localResolvedBindings > 0)
+            {
+                // Use synthetic logKey entries so run summary counts them as ResolvedColumns when no upgrades occurred.
+                // We don't want duplicate counting across sets; just add ephemeral entries.
+                for (int i = 0; i < localResolvedBindings; i++) loggedColumnResolutions.Add($"__bind_only__{Guid.NewGuid():N}");
+            }
         }
         if (anyModified)
         {

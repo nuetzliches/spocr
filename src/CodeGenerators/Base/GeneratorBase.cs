@@ -44,6 +44,15 @@ public abstract class GeneratorBase
             sqlTypeName = "Variant";
         }
 
+        // Graceful fallback for explicit unresolved JSON column marker introduced by vNext snapshot ('unknown').
+        // We intentionally map this placeholder to NVARCHAR and treat it as a string so generation can proceed.
+        // Downstream enrichment may later upgrade the SqlTypeName to a concrete value; logging kept verbose to avoid warning spam.
+        if (string.Equals(sqlTypeName, "unknown", StringComparison.OrdinalIgnoreCase))
+        {
+            ConsoleService.Verbose("[type-fallback] SqlTypeName 'unknown' mapped to NVARCHAR/string (pending enrichment upgrade).");
+            sqlTypeName = System.Data.SqlDbType.NVarChar.ToString();
+        }
+
         sqlTypeName = sqlTypeName.Split('(')[0];
         var sqlType = Enum.Parse<System.Data.SqlDbType>(sqlTypeName, true);
         var clrType = SqlDbHelper.GetType(sqlType, isNullable);
