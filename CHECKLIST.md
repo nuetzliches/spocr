@@ -55,6 +55,38 @@ API-KONZEPT Umsetzung & Entscheidungsfindung (siehe `DeveloperBranchUseOnly-API-
 9. (P2) Fluent Command Builder Abgrenzung (nur komplexe Szenarien; Flag) – Evaluations-Notiz + Entscheidung ob v5 oder später
 10. (P2) Decision Liste aus Abschnitt "Zu planende Entscheidungen" priorisieren & markieren (siehe unten konsolidierte Auswahl)
 
+### Zusatz-Fokus (Update 2025-10-20): vNext JSON Procedure Handling
+
+Problembeobachtung: Generiertes Model für JSON ResultSet `WorkflowListAsJsonResultSet` enthält falsche Typen – Beispiel:
+
+```csharp
+public readonly record struct WorkflowListAsJsonResultSet(
+      string workflowId, // sollte int sein (DB liefert Zahl)
+      string code,
+      string displayName,
+      string description
+);
+```
+
+Konsequenz: Numerische Tokens im JSON führen zu (jetzt abgefangenen) Konvertierungs-Fallbacks über den LenientStringConverter statt korrekter starker Typisierung.
+
+Ziele (P1 kurz vorziehen):
+1. Korrekte Typableitung für JSON ResultSets (numeric → int/long/decimal; bool → bool; datetime → DateTime/DateTimeOffset) statt alles als string.
+2. Validierung: Bei aktivem `ReturnsJson` Flag soll der Generator vorhandene Feld-Deskriptoren mit SQL-Typen mappen; JSON-Deserialisierung nutzt stark typisierte Records.
+3. Prüfpunkt: Falls Snapshot keine Spalten-Typen liefert (nur JSON-Spalte), heuristische Ableitung optional (DEFERRED) → zunächst Ausgabe Warnung: "JSON model property 'workflowId' defaulted to string; schema type: int".
+4. Konsolidierung: LenientStringConverter bleibt nur Sicherheitsnetz (nicht primärer Pfad für Zahl→string Umwandlung).
+5. Erweiterte Checklist-Tasks unten (Quality & Codegenerierung) aufgenommen.
+
+Neue Aufgaben:
+- [ ] JSON Model Typkorrektur für WorkflowListAsJson (workflowId → int)
+- [ ] Audit weiterer JSON ResultSets: Falsche string Platzhalter identifizieren & korrigieren
+- [ ] Generator: Mapping-Layer für ReturnsJson ResultSets implementieren (SQL Typname → C# Property Typ) vor Deserialisierung
+- [ ] Warnung ausgeben wenn Property als string generiert wurde, obwohl SQL Basis-Typ erkannt (einmal pro Build, aggregiert)
+- [ ] Tests: JSON Deserialisierung numeric, bool, datetime Felder ohne Lenient Converter (Converter nur für Mischfälle)
+- [ ] Dokumentation Abschnitt "vNext JSON Procedure Handling" (Deserialisierungspfad, Flags, Typableitung, Fallback Strategie)
+- [ ] Entferne temporäre Komplexität: Keine Schleifen/Aggregation bei Single NVARCHAR JSON Spalte (bereits umgesetzt, verifizieren)
+- [ ] Performance Mikro-Test: Direkte Deserialisierung vs. vorherige Aggregation (optional, DEFERRED)
+
 Depriorisiert (jetzt außerhalb unmittelbarer Fokusliste): Coverage Schwellen Eskalation, Template Edge-Case Tests, allgemeine Logging Verfeinerungen – bleiben beobachtet.
 
 Entscheidungs-Priorisierung aus "Zu planende Entscheidungen" (Snapshot 18.10.2025):
@@ -489,6 +521,29 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 
 ... (bei Bedarf weiter ergänzen) ...
 
+## Optionale Erweiterungen (neu hinzugefügt 2025-10-20)
+
+Diese Liste sammelt jüngst identifizierte optionale Verbesserungen rund um JSON Handling, Alias/Keyword Verarbeitung und Diagnostik des vNext Outputs.
+
+- [>] JSON-Erkennung verfeinern: Heuristik statt "alle Ordinals < 0" zusätzlich (a) exakt 1 physische Spalte, (b) Spaltenname unbekannt / generisch, (c) Muster für FOR JSON PATH Payload (Leading '[' oder '{').
+- [>] Streaming JSON Parser: Implementierung auf Basis `Utf8JsonReader` für sehr große Arrays (≥5MB) – vermeidet vollständiges Puffern; liefert `IAsyncEnumerable<T>`.
+- [>] Dual Mode JSON Methoden: Generator erzeugt `JsonRawAsync`, `JsonDeserializeAsync<T>`, `JsonElementsAsync`, `JsonStreamAsync` (bereits als P2/P5 konzeptionell geführt – hier konsolidiert).
+- [>] Non-Destructive FirstRow Dump: Ersetzen von `DumpFirstRow(r)` durch Peek-Mechanismus (Lesen der aktuellen Row ohne Cursor-Fortschritt oder Zwischenspeichern und Re-Emit), um Diagnose ohne Datenverlust zu ermöglichen.
+- [>] Keyword Escaping Strategie konfigurierbar: Alternative zum '@' Prefix (z.B. Suffix '_' oder vollständige Umbenennung mit Mapping-Dictionary) – Flag `SPOCR_KEYWORD_ESCAPE_STYLE`.
+- [>] Nested Alias Mapping: Aliase mit Punkt (z.B. `record.rowVersion`) optional als verschachtelte Record-Struktur generieren statt Unterstrich-Ersatz – Flag `SPOCR_NESTED_ALIAS_STRUCTS`.
+- [>] Strict Missing Columns Mode: Wenn erwartete Spalten fehlen und keine JSON-Heuristik greift → Exception statt silent Default; Flag `SPOCR_STRICT_COLUMNS`.
+- [>] JSON Root Type Erkennung: Unterschiedliche Pfade für Array vs. Object Root mit präziser Fehlermeldung bei Mixed Root.
+- [>] JSON Cache Layer: Lazy Deserialisierung mit internem Zwischenspeicher (einmaliges Parse, mehrfacher Zugriff) – Typ `JsonLazy<T>` im Aggregate.
+- [>] Performance Benchmark Harness: Mikro-Benchmarks für (a) Raw vs. Deserialize vs. Stream, (b) Column Ordinal Suche vs. Fallback JSON.
+- [>] Analyzer für direkte Record Initialisierung bei TableTypes (Builder/Factory Enforcement) – ersetzt zukünftige #warning.
+- [>] Erweiterter TVP Helper: Präzise SqlMetaData (Length, Precision, Scale) gemappt aus Snapshot-Metadaten statt generische Typannahmen.
+- [>] Interceptor Hook `OnJsonDeserialized`: Nach Abschluss der JSON Verarbeitung, vor Rückgabe des Aggregates.
+- [>] Flexible Property-Kollisionsstrategie: Bei mehrfach auftretenden Aliases nicht nur numerische Suffixe, sondern schema-basiertes Präfix optional.
+- [>] Konfigurierbare Default-Fallbacks: Anpassbare Werte für fehlende Spalten (z.B. `<missing>` statt leerer String) via `SPOCR_MISSING_STRING_VALUE` etc.
+
+Hinweis: Einige Punkte überschneiden sich mit bereits vorhandenen Deferred v5 Items; diese Liste dient als feingranulare Ergänzung für Priorisierung im Branch.
+
+
 # Fixes für zwischendurch
 
 - [x] samples\restapi\SpocR\samples Namespace-Korrektur (Generator + manuelle Files bereinigt)
@@ -573,6 +628,17 @@ Status-Legende: [>] deferred (v5 Ziel) – Querverweis auf README / Roadmap Absc
 - [>] Obsolete Konfig Keys endgültige Entfernung (Project.Role.Kind, RuntimeConnectionStringIdentifier, Project.Output.\*) – v5 Cutover
 - [>] Analyzer Konflikt-Reporting für doppelte generierte Methodennamen (Namespace Präfix Strategie) – Post-Cutover
 
+### Deferred v5 Items – TableType Validation & Construction Enhancements
+
+- [>] TableTypes: Automatische FluentValidation Rule-Emission (Nullability, Länge, Bereich) aus Snapshot-Metadaten
+- [>] TableTypes: Performance Toggle für Validierung (SPOCR_SKIP_VALIDATION) mit schnellem Pfad ohne Rule-Ausführung
+- [>] TableTypes: Analyzer statt #warning für direkte Record-Initialisierung (Erkennung von `new <TypeName>()` außerhalb Builder/Factory)
+- [>] TableTypes: TVP Binding Helper (Konvertierung Liste<ITableType> -> DataTable / SqlParameter mit SqlDbType.Structured)
+- [>] TableTypes: Partial Validator Erweiterungs-Hooks (Generator erzeugt partial Validator Klasse zur Nutzerergänzung)
+- [>] TableTypes: Nullable String Correctness Phase 2 (string? für IsNullable Columns, NonNullable Enforcement via Validation Rule)
+- [>] TableTypes: Optionales Caching der Validator Instanz (Singleton vs. statisch) Performance Messung vor Aktivierung
+- [>] TableTypes: Factory Overloads für häufige Pflicht-Kombinationen (ergibt schlankere Aufrufe ohne Builder)
+
 # Zu planende Entscheidungen
 
 - [x] Das Parameter -p|--path soll auch direkt den Pfad samples/restapi anstelle von samples/restapi/spocr.json akzeptieren.
@@ -598,3 +664,4 @@ Status-Legende: [>] deferred (v5 Ziel) – Querverweis auf README / Roadmap Absc
 - [ ] "HasSelectStar": false, Columns: [] (leer), "ResultSets": [] (leer) nicht ins schema json schreiben.
 - [ ] SPOCR_JSON_SPLIT_NESTED (bzw. SplitNestedJsonSets) ist wozu erforderlich?
       Wenn das ein Überbleibsel unserer fixes ist, bitte entfernen.
+- [ ] Der Deserializer für JSON Prozeduren soll als Default die Options aus den SpocrDbContextOptions verwenden (diese müssen als Default gesetzt sein).

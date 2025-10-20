@@ -51,15 +51,9 @@ internal static partial class {{ PlanTypeName }}
 	var resultSets = new ResultSetMapping[]
 	{
 {{#each ResultSets}}            new("{{ Name }}", async (r, ct) =>
-	    {
-		var list = new List<object>();
-{{ OrdinalDecls }}
-		while (await r.ReadAsync(ct).ConfigureAwait(false))
-		{
-		    list.Add(new {{ TypeName }}({{ FieldExprs }}));
-		}
-		return list;
-	    }),
+    {
+		{{ BodyBlock }}
+    }),
 
 {{/each}}        };
 {{else}}

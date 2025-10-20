@@ -95,8 +95,14 @@ public sealed class TableTypesGenerator
                 PropertyName = SpocR.SpocRVNext.Utils.NameSanitizer.SanitizeIdentifier(c.Name),
                 ClrType = MapSqlToClr(c.SqlType, c.IsNullable),
             }).ToList();
-            // Preserve original snapshot name (only sanitize). No suffix enforcement; snapshot already ensures uniqueness.
-            var typeName = SpocR.SpocRVNext.Utils.NameSanitizer.SanitizeIdentifier(tt.Name);
+            // Konsistente Naming-Konvention mit Input-Mapping: CLR-Typ = Pascal(TableTypeName) + 'Table'
+            var typeName = SpocR.SpocRVNext.Utils.NameSanitizer.SanitizeIdentifier(tt.Name); // kein Suffix hinzufügen
+            // Entferne ggf. veraltete Datei mit Suffix 'Table'
+            var obsolete = Path.Combine(schemaDir, typeName + "Table.cs");
+            if (File.Exists(obsolete))
+            {
+                try { File.Delete(obsolete); } catch { }
+            }
             var model = new
             {
                 Namespace = ns + "." + schemaPascal,

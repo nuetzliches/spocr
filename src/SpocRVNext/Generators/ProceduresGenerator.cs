@@ -216,26 +216,27 @@ public sealed class ProceduresGenerator
         string header = string.Empty;
         if (_loader != null && _loader.TryLoad("_Header", out var headerTpl)) header = headerTpl.TrimEnd() + Environment.NewLine;
         // Emit ExecutionSupport once (if template present and file missing or stale)
-        if (_loader != null && _loader.TryLoad("ExecutionSupport", out var execTpl))
-        {
-            var execPath = Path.Combine(baseOutputDir, "ExecutionSupport.cs");
-            bool write = !File.Exists(execPath);
-            if (!write)
+            if (_loader != null && _loader.TryLoad("ExecutionSupport", out var execTpl))
             {
-                try
+                var execPath = Path.Combine(baseOutputDir, "ExecutionSupport.cs");
+                bool write = !File.Exists(execPath);
+                if (!write)
                 {
-                    var existing = File.ReadAllText(execPath);
-                    if (!existing.Contains($"namespace {ns};")) write = true; // namespace mismatch
+                    try
+                    {
+                        var existing = File.ReadAllText(execPath);
+                        // Rewrite wenn Namespace falsch ODER TvpHelper fehlt ODER ReaderUtil fehlt (Template aktualisiert)
+                        if (!existing.Contains($"namespace {ns};") || !existing.Contains("TvpHelper") || !existing.Contains("ReaderUtil")) write = true;
+                    }
+                    catch { write = true; }
                 }
-                catch { write = true; }
+                if (write)
+                {
+                    var execModel = new { Namespace = ns, HEADER = header };
+                    var code = _renderer.Render(execTpl, execModel);
+                    File.WriteAllText(execPath, code);
+                }
             }
-            if (write)
-            {
-                var execModel = new { Namespace = ns, HEADER = header };
-                var code = _renderer.Render(execTpl, execModel);
-                File.WriteAllText(execPath, code);
-            }
-        }
         // StoredProcedure template no longer used after consolidation
         var written = 0;
         string? unifiedTemplateRaw = null;
@@ -289,7 +290,38 @@ public sealed class ProceduresGenerator
             string finalCode;
             if (hasUnifiedTemplate && unifiedTemplateRaw != null)
             {
-                var usingBlock = "using System;\nusing System.Collections.Generic;\nusing System.Linq;\nusing System.Data;\nusing System.Data.Common;\nusing System.Threading;\nusing System.Threading.Tasks;\nusing " + ns + ";";
+                // Dynamische Usings inkl. Cross-Schema TableType Referenzen
+                var usingSet = new HashSet<string>
+                {
+                    "using System;",
+                    "using System.Collections.Generic;",
+                    "using System.Linq;",
+                    "using System.Data;",
+                    "using System.Data.Common;",
+                    "using System.Threading;",
+                    "using System.Threading.Tasks;",
+                    $"using {ns};"
+                };
+                // Füge zusätzliche Schema-Namespace Usings hinzu falls Input-Parameter TableTypes anderer Schemas referenzieren
+                foreach (var ipParam in proc.InputParameters)
+                {
+                    if (ipParam.Attributes != null && ipParam.Attributes.Any(a => a.StartsWith("[TableTypeSchema(", StringComparison.Ordinal)))
+                    {
+                        var attr = ipParam.Attributes.First(a => a.StartsWith("[TableTypeSchema(", StringComparison.Ordinal));
+                        var schemaNameRaw = attr.Substring("[TableTypeSchema(".Length);
+                        schemaNameRaw = schemaNameRaw.TrimEnd(')', ' ');
+                        if (!string.IsNullOrWhiteSpace(schemaNameRaw))
+                        {
+                            var schemaPascalX = ToPascalCase(schemaNameRaw);
+                            // Skip if same schema as current proc
+                            if (!schemaPascalX.Equals(schemaPascal, StringComparison.Ordinal))
+                            {
+                                usingSet.Add($"using {ns}.{schemaPascalX};");
+                            }
+                        }
+                    }
+                }
+                var usingBlock = string.Join("\n", usingSet.OrderBy(u => u));
 
                 // Structured metadata for template-driven record generation
                 var rsMeta = new List<object>();
@@ -311,7 +343,53 @@ public sealed class ProceduresGenerator
                         var chosen = rsIdx == 0 ? baseCustom : baseCustom + rsIdx.ToString();
                         rsType = SanitizeType(procPart, chosen);
                     }
-                    var ordinalDecls = string.Join(" ", rs.Fields.Select((f, idx) => $"int o{idx}=r.GetOrdinal(\"{f.Name}\");"));
+                    // Alias-basierte Property-Namen zuerst bestimmen (für JSON-Fallback erforderlich)
+                    var usedNames = new HashSet<string>(StringComparer.Ordinal);
+                    var aliasProps = new List<string>();
+                    foreach (var f in rs.Fields)
+                    {
+                        var candidate = AliasToIdentifier(f.Name);
+                        if (!usedNames.Add(candidate))
+                        {
+                            var suffix = 1;
+                            while (!usedNames.Add(candidate + suffix.ToString())) suffix++;
+                            candidate = candidate + suffix.ToString();
+                        }
+                        aliasProps.Add(candidate);
+                    }
+                    var ordinalAssignments = rs.Fields.Select((f, idx) => $"int o{idx}=ReaderUtil.TryGetOrdinal(r, \"{f.Name}\");").ToList();
+                    // Nur noch optionaler First-Row Dump (Spalten-Missing- & Column-Dump Instrumentierung entfernt)
+                    var firstRowDump = "if (System.Environment.GetEnvironmentVariable(\"SPOCR_DUMP_FIRST_ROW\") == \"1\") ReaderUtil.DumpFirstRow(r);";
+                    // JSON Aggregator Fallback (FOR JSON PATH) falls alle Ordinals < 0 und trotzdem Feld-Metadata vorhanden
+                    var allMissingCondition = rs.Fields.Count > 0 ? string.Join(" && ", rs.Fields.Select((f, i) => $"o{i} < 0")) : "false"; // nur für Nicht-JSON Sets relevant
+                    // ReturnsJson Flag aus Snapshot nutzen (ResultSet Modell besitzt Properties)
+                    var isJson = rs.ReturnsJson;
+                        var isJsonArray = rs.ReturnsJsonArray;
+                        string jsonFallback = string.Empty;
+                        if (isJson)
+                        {
+                            // Vereinfachte direkte Deserialisierung: SQL liefert genau eine Zeile mit einer NVARCHAR(MAX) JSON-Spalte.
+                            // Keine Schleife, kein Fallback. Flags steuern Array vs Single.
+                            var optionsLiteral = "JsonSupport.Options";
+                            if (isJsonArray)
+                            {
+                                jsonFallback = $"{{ if (await r.ReadAsync(ct).ConfigureAwait(false) && !r.IsDBNull(0)) {{ var __raw = r.GetString(0); try {{ var __list = System.Text.Json.JsonSerializer.Deserialize<System.Collections.Generic.List<{rsType}>>(__raw, {optionsLiteral}); if (__list != null) foreach (var __e in __list) list.Add(__e); }} catch {{ }} }} }}";
+                            }
+                            else
+                            {
+                                jsonFallback = $"{{ if (await r.ReadAsync(ct).ConfigureAwait(false) && !r.IsDBNull(0)) {{ var __raw = r.GetString(0); try {{ var __single = System.Text.Json.JsonSerializer.Deserialize<{rsType}>(__raw, {optionsLiteral}); if (__single != null) list.Add(__single); }} catch {{ }} }} }}";
+                            }
+                        }
+                    string ordinalDecls;
+                    if (isJson)
+                    {
+                        // JSON ResultSet: keine Ordinal-Ermittlung, nur Deserialisierungscode
+                        ordinalDecls = jsonFallback;
+                    }
+                    else
+                    {
+                        ordinalDecls = string.Join(" ", ordinalAssignments) + " " + firstRowDump; // klassisches Mapping mit gecachten Ordinals
+                    }
                     var fieldExprs = string.Join(", ", rs.Fields.Select((f, idx) => MaterializeFieldExpressionCached(f, idx)));
                     // Property naming rule: first result set => "Result" (no index). Subsequent => Result1, Result2, ... (index-1)
                     string propName;
@@ -324,7 +402,18 @@ public sealed class ProceduresGenerator
                         propName = "Result" + rsIdx.ToString();
                     }
                     var initializerExpr = $"rs.Length > {rsIdx} && rs[{rsIdx}] is object[] rows{rsIdx} ? Array.ConvertAll(rows{rsIdx}, o => ({rsType})o).ToList() : (rs.Length > {rsIdx} && rs[{rsIdx}] is System.Collections.Generic.List<object> list{rsIdx} ? Array.ConvertAll(list{rsIdx}.ToArray(), o => ({rsType})o).ToList() : Array.Empty<{rsType}>())";
-                    var fieldsBlock = string.Join(Environment.NewLine, rs.Fields.Select((f, i) => $"    {f.ClrType} {f.PropertyName}{(i == rs.Fields.Count - 1 ? string.Empty : ",")}"));
+                    // BodyBlock ersetzt Template-If-Verwendung; enthält vollständigen Lambda-Inhalt.
+                    string bodyBlock;
+                    if (isJson)
+                    {
+                        bodyBlock = $"var list = new System.Collections.Generic.List<object>(); {jsonFallback} return list;";
+                    }
+                    else
+                    {
+                        var whileLoop = $"while (await r.ReadAsync(ct).ConfigureAwait(false)) {{ list.Add(new {rsType}({fieldExprs})); }}";
+                        bodyBlock = $"var list = new System.Collections.Generic.List<object>(); {ordinalDecls} {whileLoop} return list;";
+                    }
+                    var fieldsBlock = string.Join(Environment.NewLine, rs.Fields.Select((f, i) => $"    {f.ClrType} {aliasProps[i]}{(i == rs.Fields.Count - 1 ? string.Empty : ",")}"));
                     rsMeta.Add(new
                     {
                         Name = rs.Name,
@@ -334,7 +423,10 @@ public sealed class ProceduresGenerator
                         FieldExprs = fieldExprs,
                         Index = rsIdx,
                         AggregateAssignment = initializerExpr,
-                        FieldsBlock = fieldsBlock
+                        FieldsBlock = fieldsBlock,
+                        ReturnsJson = isJson,
+                        ReturnsJsonArray = isJsonArray,
+                        BodyBlock = bodyBlock
                     });
                     rsIdx++;
                 }
@@ -342,7 +434,18 @@ public sealed class ProceduresGenerator
                 // Parameters meta
                 var paramLines = new List<string>();
                 foreach (var ip in proc.InputParameters)
-                    paramLines.Add($"new(\"@{ip.Name}\", {MapDbType(ip.SqlTypeName)}, {EmitSize(ip)}, false, {ip.IsNullable.ToString().ToLowerInvariant()})");
+                {
+                    var isTableType = ip.Attributes != null && ip.Attributes.Any(a => a.StartsWith("[TableType]", StringComparison.Ordinal));
+                    if (isTableType)
+                    {
+                        // Use Object DbType placeholder; binder will override with SqlDbType.Structured
+                        paramLines.Add($"new(\"@{ip.Name}\", System.Data.DbType.Object, null, false, false)");
+                    }
+                    else
+                    {
+                        paramLines.Add($"new(\"@{ip.Name}\", {MapDbType(ip.SqlTypeName)}, {EmitSize(ip)}, false, {ip.IsNullable.ToString().ToLowerInvariant()})");
+                    }
+                }
                 foreach (var opf in proc.OutputFields)
                     paramLines.Add($"new(\"@{opf.Name}\", {MapDbType(opf.SqlTypeName)}, {EmitSize(opf)}, true, {opf.IsNullable.ToString().ToLowerInvariant()})");
 
@@ -369,7 +472,16 @@ public sealed class ProceduresGenerator
                     PlanTypeName = procedureTypeName + "Plan",
                     InputTypeName = inputTypeName,
                     ParameterLines = paramLines,
-                    InputAssignments = proc.InputParameters.Select(ip => $"cmd.Parameters[\"@{ip.Name}\"].Value = input.{ip.PropertyName};").ToList(),
+                    InputAssignments = proc.InputParameters.Select(ip =>
+                    {
+                        var isTableType = ip.Attributes != null && ip.Attributes.Any(a => a.StartsWith("[TableType]", StringComparison.Ordinal));
+                        if (isTableType)
+                        {
+                            // Build SqlDataRecord collection via reflection helper (ExecutionSupport.TvpHelper)
+                            return $"{{ var prm = cmd.Parameters[\"@{ip.Name}\"]; prm.Value = TvpHelper.BuildRecords(input.{ip.PropertyName}) ?? (object)DBNull.Value; if (prm is Microsoft.Data.SqlClient.SqlParameter sp) sp.SqlDbType = System.Data.SqlDbType.Structured; }}";
+                        }
+                        return $"cmd.Parameters[\"@{ip.Name}\"].Value = input.{ip.PropertyName};";
+                    }).ToList(),
                     ResultSets = rsMeta,
                     OutputFactoryArgs = outputFactoryArgs,
                     HasAggregateOutput = proc.OutputFields.Count > 0,
@@ -485,20 +597,29 @@ public sealed class ProceduresGenerator
             "Guid" or "Guid?" => "GetGuid",
             _ => null
         };
+        // Determine default fallback expression if ordinal not found
+        string defaultExpr = f.ClrType switch
+        {
+            "string" => "string.Empty",
+            "string?" => "null",
+            var t when t == "byte[]" => "System.Array.Empty<byte>()",
+            var t when t.EndsWith("?") => "null",
+            _ => $"default({f.ClrType})"
+        };
         if (accessor == null)
         {
             if (f.ClrType.StartsWith("byte[]"))
-                return $"r.IsDBNull(o{ordinalIndex}) ? System.Array.Empty<byte>() : (byte[])r.GetValue(o{ordinalIndex})";
+                return $"o{ordinalIndex} < 0 ? {defaultExpr} : (r.IsDBNull(o{ordinalIndex}) ? System.Array.Empty<byte>() : (byte[])r.GetValue(o{ordinalIndex}))";
             if (f.ClrType == "string")
-                return $"r.IsDBNull(o{ordinalIndex}) ? string.Empty : r.GetString(o{ordinalIndex})";
+                return $"o{ordinalIndex} < 0 ? {defaultExpr} : (r.IsDBNull(o{ordinalIndex}) ? string.Empty : r.GetString(o{ordinalIndex}))";
             if (f.ClrType == "string?")
-                return $"r.IsDBNull(o{ordinalIndex}) ? null : r.GetString(o{ordinalIndex})";
-            return $"r.GetValue(o{ordinalIndex})";
+                return $"o{ordinalIndex} < 0 ? {defaultExpr} : (r.IsDBNull(o{ordinalIndex}) ? null : r.GetString(o{ordinalIndex}))";
+            return $"o{ordinalIndex} < 0 ? {defaultExpr} : r.GetValue(o{ordinalIndex})";
         }
         var nullable = f.IsNullable && !f.ClrType.EndsWith("?") ? true : f.ClrType.EndsWith("?");
         if (nullable)
-            return $"r.IsDBNull(o{ordinalIndex}) ? null : ({f.ClrType})r.{accessor}(o{ordinalIndex})";
-        return $"r.{accessor}(o{ordinalIndex})";
+            return $"o{ordinalIndex} < 0 ? {defaultExpr} : (r.IsDBNull(o{ordinalIndex}) ? null : ({f.ClrType})r.{accessor}(o{ordinalIndex}))";
+        return $"o{ordinalIndex} < 0 ? {defaultExpr} : r.{accessor}(o{ordinalIndex})";
     }
 
     private static string ToPascalCase(string input)
@@ -535,4 +656,39 @@ public sealed class ProceduresGenerator
             return full.Substring(0, full.Length - "Result".Length);
         return full;
     }
+
+    private static string AliasToIdentifier(string alias)
+    {
+        if (string.IsNullOrWhiteSpace(alias)) return "_";
+        // Behalte Original-Casing; ersetze ungültige Zeichen durch '_'
+        var sb = new System.Text.StringBuilder(alias.Length);
+        for (int i = 0; i < alias.Length; i++)
+        {
+            var ch = alias[i];
+            if (i == 0)
+            {
+                if (char.IsLetter(ch) || ch == '_') sb.Append(ch);
+                else sb.Append('_');
+            }
+            else
+            {
+                if (char.IsLetterOrDigit(ch) || ch == '_') sb.Append(ch);
+                else sb.Append('_');
+            }
+        }
+        var ident = sb.ToString();
+        if (string.IsNullOrEmpty(ident)) ident = "_";
+        // Falls erstes Zeichen Ziffer -> Prefix '_'
+        if (char.IsDigit(ident[0])) ident = "_" + ident;
+        // C# reservierte Schlüsselwörter escapen mit '@'
+        if (IsCSharpKeyword(ident)) ident = "@" + ident;
+        return ident;
+    }
+
+    private static readonly HashSet<string> CSharpKeywords = new(new[]
+    {
+        "abstract","as","base","bool","break","byte","case","catch","char","checked","class","const","continue","decimal","default","delegate","do","double","else","enum","event","explicit","extern","false","finally","fixed","float","for","foreach","goto","if","implicit","in","int","interface","internal","is","lock","long","namespace","new","null","object","operator","out","override","params","private","protected","public","readonly","ref","return","sbyte","sealed","short","sizeof","stackalloc","static","string","struct","switch","this","throw","true","try","typeof","uint","ulong","unchecked","unsafe","ushort","using","virtual","void","volatile","while"
+    }, StringComparer.Ordinal);
+
+    private static bool IsCSharpKeyword(string ident) => CSharpKeywords.Contains(ident);
 }

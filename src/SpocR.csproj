@@ -55,8 +55,8 @@
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.1" />
     <PackageReference Include="Microsoft.SqlServer.TransactSql.ScriptDom" Version="170.128.0" />
     <PackageReference Include="System.Management" Version="9.0.9" />
-    <!-- Semantic versioning derived from Git tags (replace version if newer MinVer available) -->
     <PackageReference Include="MinVer" Version="6.0.0" PrivateAssets="all" />
+    <PackageReference Include="FluentValidation" Version="11.9.0" />
   </ItemGroup>
   <!-- MinVer configuration: expects tags like v1.2.3; prerelease tags produce -alpha.X etc -->
   <PropertyGroup Label="Versioning">

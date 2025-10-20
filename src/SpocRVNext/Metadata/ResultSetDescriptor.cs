@@ -10,5 +10,8 @@ public sealed record ResultSetDescriptor(
     bool Optional = true,
     bool HasSelectStar = false,
     string? ExecSourceSchemaName = null,
-    string? ExecSourceProcedureName = null
+    string? ExecSourceProcedureName = null,
+    bool ReturnsJson = false,
+    bool ReturnsJsonArray = false,
+    bool ReturnsJsonWithoutArrayWrapper = false
 );

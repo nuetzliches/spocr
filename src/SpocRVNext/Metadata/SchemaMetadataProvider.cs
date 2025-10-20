@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
-using SpocRVNext.Metadata; // reuse TableTypeInfo & ColumnInfo (legacy models)
+using SpocRVNext.Metadata; // reuse TableTypeInfo & ColumnInfo + TableTypeMetadataProvider
 using SpocR.SpocRVNext.Metadata; // bring descriptor record types into scope
 using SpocR.SpocRVNext.Utils;
 
@@ -185,9 +185,24 @@ namespace SpocR.SpocRVNext.Metadata
                         var sqlType = ip.GetPropertyOrDefault("SqlTypeName") ?? string.Empty;
                         var maxLen = ip.GetPropertyOrDefaultInt("MaxLength");
                         var isNullable = ip.GetPropertyOrDefaultBool("IsNullable");
-                        var clr = MapSqlToClr(sqlType, isNullable);
-                        var fd = new FieldDescriptor(clean, NamePolicy.Sanitize(clean), clr, isNullable, sqlType, maxLen);
                         var isOutput = ip.GetPropertyOrDefaultBool("IsOutput");
+                        bool isTableType = ip.GetPropertyOrDefaultBool("IsTableType");
+                        var ttSchema = ip.GetPropertyOrDefault("TableTypeSchema");
+                        var ttName = ip.GetPropertyOrDefault("TableTypeName");
+                        FieldDescriptor fd;
+                        if (isTableType && !string.IsNullOrWhiteSpace(ttName))
+                        {
+                            // Direkte UDTT-Zuordnung: CLR-Typ = Pascal(TableTypeName) (kein Renaming, nur Sonderzeichen bereinigen)
+                            var pascal = NamePolicy.Sanitize(ttName!);
+                            var attrs = new List<string> { "[TableType]" };
+                            if (!string.IsNullOrWhiteSpace(ttSchema)) attrs.Add($"[TableTypeSchema({ttSchema})]");
+                            fd = new FieldDescriptor(clean, NamePolicy.Sanitize(clean), pascal, false, sqlType, maxLen, Documentation: null, Attributes: attrs);
+                        }
+                        else
+                        {
+                            var clr = MapSqlToClr(sqlType, isNullable);
+                            fd = new FieldDescriptor(clean, NamePolicy.Sanitize(clean), clr, isNullable, sqlType, maxLen);
+                        }
                         if (isOutput) outputParams.Add(fd); else inputParams.Add(fd);
                     }
                 }
@@ -268,6 +283,16 @@ namespace SpocR.SpocRVNext.Metadata
                             hasSelectStar = hasStarRaw;
                         }
                         catch { /* best effort; leave null/defaults */ }
+                        bool returnsJson = false;
+                        bool returnsJsonArray = false;
+                        bool returnsJsonWithoutWrapper = false;
+                        try
+                        {
+                            returnsJson = rse.GetPropertyOrDefaultBool("ReturnsJson");
+                            returnsJsonArray = rse.GetPropertyOrDefaultBool("ReturnsJsonArray");
+                            returnsJsonWithoutWrapper = rse.GetPropertyOrDefaultBool("ReturnsJsonWithoutArrayWrapper");
+                        }
+                        catch { }
                         resultSetDescriptors.Add(new ResultSetDescriptor(
                             Index: idx,
                             Name: rsName,
@@ -276,7 +301,10 @@ namespace SpocR.SpocRVNext.Metadata
                             Optional: true,
                             HasSelectStar: hasSelectStar,
                             ExecSourceSchemaName: execSourceSchema,
-                            ExecSourceProcedureName: execSourceProc
+                            ExecSourceProcedureName: execSourceProc,
+                            ReturnsJson: returnsJson,
+                            ReturnsJsonArray: returnsJsonArray,
+                            ReturnsJsonWithoutArrayWrapper: returnsJsonWithoutWrapper
                         ));
                         idx++;
                     }
@@ -306,6 +334,7 @@ namespace SpocR.SpocRVNext.Metadata
 
             _procedures = procList.OrderBy(p => p.Schema).ThenBy(p => p.ProcedureName).ToList();
             _inputs = inputList.OrderBy(i => i.OperationName).ToList();
+            // UDTT Recovery Block entfernt – direkte Snapshot-Auswertung ersetzt Heuristik.
             _outputs = outputList.OrderBy(o => o.OperationName).ToList();
             _resultSets = rsList.OrderBy(r => r.Name).ToList();
             _results = resultDescriptors.OrderBy(r => r.OperationName).ToList();

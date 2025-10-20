@@ -29,6 +29,17 @@ public static class SpocRDbContextServiceCollectionExtensions
                 throw new InvalidOperationException("MaxOpenRetries must be >= 0");
             if (explicitOptions.RetryDelayMs is not null and <= 0)
                 throw new InvalidOperationException("RetryDelayMs must be > 0");
+            if (explicitOptions.JsonSerializerOptions == null)
+            {
+                var jsonOpts = new System.Text.Json.JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+                    NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowReadingFromString
+                };
+                // Converters können später ergänzt werden (tolerant numerics etc.)
+                explicitOptions.JsonSerializerOptions = jsonOpts;
+            }
             return explicitOptions;
         });
 

@@ -2,14 +2,67 @@
 namespace {{ Namespace }};
 
 using System;
+#if SPOCR_ENABLE_TABLETYPE_VALIDATION
+using FluentValidation;
+#endif
 
 /// <summary>
-/// User Defined Table Type {{ Schema }}.{{ Name }} (columns: {{ ColumnsCount }})
+/// User Defined Table Type {{ Schema }}.{{ Name }}
 /// <remarks>Generated at {{ GeneratedAt }}</remarks>
 /// </summary>
-public readonly record struct {{ TypeName }}(
-{{#each Columns}}    {{ ClrType }} {{ PropertyName }}{{ Separator }}
-{{/each}}) : ITableType
+public sealed record {{ TypeName }} : ITableType
 {
-    public static string TableTypeName => "{{ TableTypeName }}";
+{{#each Columns}}    public {{ ClrType }} {{ PropertyName }} { get; init; }
+{{/each}}
+#if SPOCR_ENFORCE_TABLETYPE_BUILDER
+	#warning Use the '{{ TypeName }}Builder' or factory method instead of object initializers.
+#endif
+
+	[Obsolete("Use the static Create(...) or builder for construction.")]
+	public {{ TypeName }}() { }
+
+	public static {{ TypeName }} Create(
+{{#each Columns}}        {{ ClrType }} {{ PropertyName }}{{ Separator }}
+{{/each}}    ) =>
+	#pragma warning disable CS0612, CS0618 // Suppress obsolete ctor usage in factory
+	new {{ TypeName }}
+	{
+{{#each Columns}}        {{ PropertyName }} = {{ PropertyName }}{{ Separator }}
+{{/each}}    };
+	#pragma warning restore CS0612, CS0618
+
+	#pragma warning disable CS0612, CS0618 // Suppress obsolete ctor usage warnings for internal factory construction
+
+	public sealed class {{ TypeName }}Builder
+	{
+{{#each Columns}}        private {{ ClrType }} _{{ PropertyName }};
+        private bool _has{{ PropertyName }};
+{{/each}}
+{{#each Columns}}        public {{ TypeName }}Builder With{{ PropertyName }}({{ ClrType }} value) { _{{ PropertyName }} = value; _has{{ PropertyName }} = true; return this; }
+{{/each}}        public {{ TypeName }} Build()
+        {
+			#pragma warning disable CS0612, CS0618 // Suppress obsolete ctor usage in builder
+			var result = new {{ TypeName }}
+            {
+{{#each Columns}}                {{ PropertyName }} = _{{ PropertyName }}{{ Separator }}
+{{/each}}            };
+			#pragma warning restore CS0612, CS0618
+#if SPOCR_ENABLE_TABLETYPE_VALIDATION
+            {{ TypeName }}Validator.Instance.ValidateAndThrow(result);
+#endif
+            return result;
+        }
+	}
+#pragma warning restore CS0612, CS0618
+#if SPOCR_ENABLE_TABLETYPE_VALIDATION
+	private sealed class {{ TypeName }}Validator : AbstractValidator<{{ TypeName }}>
+	{
+		public static readonly {{ TypeName }}Validator Instance = new();
+		public {{ TypeName }}Validator()
+		{
+			// Add rules (placeholder - extend generator to emit rules per column metadata, e.g. nullability / max length)
+			// Example: RuleFor(x => x.SomeColumn).NotNull();
+		}
+	}
+#endif
 }
