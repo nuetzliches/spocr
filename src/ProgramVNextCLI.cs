@@ -18,6 +18,7 @@ namespace SpocR;
 /// </summary>
 internal static class ProgramVNextCLI
 {
+    private static readonly bool Verbose = string.Equals(Environment.GetEnvironmentVariable("SPOCR_VERBOSE"), "1", StringComparison.Ordinal);
     public static async Task<int> TryRunAsync(string[] args)
     {
         if (!IsEnabled()) return -999; // signal not executed
@@ -64,7 +65,7 @@ internal static class ProgramVNextCLI
                 var renderer = provider.GetRequiredService<SpocR.SpocRVNext.Engine.ITemplateRenderer>();
                 var gen = new SpocRGenerator(renderer, schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider());
                 var output = gen.RenderDemo();
-                Console.WriteLine($"[mode={cfg.GeneratorMode}] {output}");
+                if (Verbose) Console.WriteLine($"[mode={cfg.GeneratorMode}] {output}");
                 success = true;
                 telemetry.Record(new ExperimentalCliUsageEvent(
                     command: "generate-demo",
@@ -91,8 +92,8 @@ internal static class ProgramVNextCLI
             var cfg = EnvConfiguration.Load(projectRoot: pr, cliOverrides: envOverrides, explicitConfigPath: path);
             var dispatcher = new SpocR.SpocRVNext.DualGenerationDispatcher(cfg, provider.GetRequiredService<SpocR.SpocRVNext.Engine.ITemplateRenderer>());
             var message = dispatcher.ExecuteDemo();
-            Console.WriteLine(message);
-            Console.WriteLine("Hash manifest (if next output) written under debug/codegen-demo/next/manifest.hash.json");
+            if (Verbose) Console.WriteLine(message);
+            if (Verbose) Console.WriteLine("Hash manifest (if next output) written under debug/codegen-demo/next/manifest.hash.json");
         }, modeOption, pathOption);
         root.Add(generateNextCommand);
 
@@ -105,7 +106,7 @@ internal static class ProgramVNextCLI
         {
             var targetRoot = string.IsNullOrWhiteSpace(path) ? System.IO.Directory.GetCurrentDirectory() : System.IO.Path.GetFullPath(path!);
             var exit = GoldenHashCommands.WriteGolden(targetRoot);
-            Console.WriteLine(exit.Message);
+            if (Verbose) Console.WriteLine(exit.Message);
         }, pathOption);
         root.Add(writeGolden);
 
@@ -118,7 +119,7 @@ internal static class ProgramVNextCLI
         {
             var targetRoot = string.IsNullOrWhiteSpace(path) ? System.IO.Directory.GetCurrentDirectory() : System.IO.Path.GetFullPath(path!);
             var result = GoldenHashCommands.VerifyGolden(targetRoot);
-            Console.WriteLine(result.Message);
+            if (Verbose) Console.WriteLine(result.Message);
             if (result.ExitCode != 0) Environment.ExitCode = result.ExitCode; // do not throw
         }, pathOption);
         root.Add(verifyGolden);
@@ -135,7 +136,7 @@ internal static class ProgramVNextCLI
             var target = string.IsNullOrWhiteSpace(path) ? System.IO.Directory.GetCurrentDirectory() : System.IO.Path.GetFullPath(path!);
             var desiredMode = string.IsNullOrWhiteSpace(mode) ? (Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE") ?? "dual") : mode!;
             var envPath = await SpocR.SpocRVNext.Cli.EnvBootstrapper.EnsureEnvAsync(target, desiredMode, autoApprove: true, force: force);
-            Console.WriteLine($"Initialized .env at: {envPath}");
+            if (Verbose) Console.WriteLine($"Initialized .env at: {envPath}");
         }, pathOption, forceOption, modeOption);
         root.Add(initEnv);
 

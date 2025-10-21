@@ -77,6 +77,7 @@ public class StoredProcedureContentModel
         var analysis = new Analysis(string.IsNullOrWhiteSpace(defaultSchema) ? "dbo" : defaultSchema);
         fragment.Accept(new Visitor(normalizedDefinition, analysis));
 
+
         // Build statements list
         var statements = analysis.StatementTexts.Any() ? analysis.StatementTexts.ToArray() : new[] { normalizedDefinition.Trim() };
 
@@ -147,6 +148,47 @@ public class StoredProcedureContentModel
         }
         var resultSets = AttachExecSource(analysis.JsonSets, execs, rawExec, rawKinds, analysis.DefaultSchema);
 
+        // Simple fallback binding: if parser failed to bind source schema/table for JSON result set columns,
+        // attempt to infer a single base table from the first FROM clause. This enables downstream enrichment
+        // (JsonResultTypeEnricher) to resolve concrete SqlTypeName / MaxLength / IsNullable from the database.
+        try
+        {
+            if (resultSets != null && resultSets.Count > 0)
+            {
+                // Extract first explicit FROM <schema>.<table>
+                var mFrom = System.Text.RegularExpressions.Regex.Match(normalizedDefinition, @"FROM\s+\[?(?<schema>[A-Za-z0-9_\-]+)\]?\.\[?(?<table>[A-Za-z0-9_]+)\]?", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                if (mFrom.Success)
+                {
+                    var fallbackSchema = mFrom.Groups["schema"].Value;
+                    var fallbackTable = mFrom.Groups["table"].Value;
+                    if (!string.IsNullOrWhiteSpace(fallbackSchema) && !string.IsNullOrWhiteSpace(fallbackTable))
+                    {
+                        foreach (var rs in resultSets)
+                        {
+                            if (rs?.Columns == null) continue;
+                            foreach (var col in rs.Columns)
+                            {
+                                if (col == null) continue;
+                                if (string.IsNullOrWhiteSpace(col.SourceSchema) || string.IsNullOrWhiteSpace(col.SourceTable))
+                                {
+                                    // Only assign if we have a plausible column name (avoid nested JSON containers)
+                                    if (col.IsNestedJson == true) continue;
+                                    col.SourceSchema = fallbackSchema;
+                                    col.SourceTable = fallbackTable;
+                                    // Preserve existing SourceColumn if set; otherwise use the alias as a first attempt
+                                    if (string.IsNullOrWhiteSpace(col.SourceColumn) && !string.IsNullOrWhiteSpace(col.Name))
+                                    {
+                                        col.SourceColumn = col.Name; // case-insensitive match performed later in enrichment
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch { /* non-fatal heuristic */ }
+
         return new StoredProcedureContentModel
         {
             Definition = definition,
@@ -201,6 +243,8 @@ public class StoredProcedureContentModel
             UsedFallbackParser = true
         };
     }
+
+    // (Removed) Token Fallback Helpers – not needed after revert
 
     // Modelle
     public sealed class ResultSet
@@ -289,6 +333,80 @@ public class StoredProcedureContentModel
         public override void ExplicitVisit(AlterProcedureStatement node) { _procedureDepth++; base.ExplicitVisit(node); _procedureDepth--; }
         private int _scalarSubqueryDepth; // Track nesting inside ScalarSubquery expressions
         public override void ExplicitVisit(SelectStatement node) { _analysis.ContainsSelect = true; base.ExplicitVisit(node); }
+        // Nach Basistraversal (QuerySpecification besucht) separater Pfad für Statement-Level FOR JSON (falls QuerySpecification.ForClause leer war)
+        public override void Visit(SelectStatement node)
+        {
+            base.Visit(node);
+            try
+            {
+                // In einigen ScriptDom Versionen hängt FOR JSON PATH direkt am inneren QuerySpecification (qs.ForClause).
+                // Falls nicht bereits durch QuerySpecification verarbeitet (qs.ForClause==null) versuchen wir hier NICHTS weiter,
+                // da SelectStatement selbst keine ForClause-Eigenschaft bereitstellt. Dieser Block bleibt als Sicherheitsanker
+                // falls zukünftige Versionen eine andere Zuweisung nutzen.
+                if (node?.QueryExpression is QuerySpecification qs && qs.ForClause is JsonForClause jsonClause && qs.SelectElements != null && !_analysis.JsonSets.Any())
+                {
+                    // Leichter Wiederverwendungs-Pfad: baue nur Spaltennamen (ohne komplexe Source-Bindings), da Alias-Auflösung
+                    // ausschließlich innerhalb der QuerySpecification SelectElements erfolgt ist.
+                    var builder = new JsonSetBuilder();
+                    var options = jsonClause.Options ?? Array.Empty<JsonForClauseOption>();
+                    if (options.Count == 0) builder.JsonWithArrayWrapper = true; else builder.JsonWithArrayWrapper = true;
+                    foreach (var opt in options)
+                    {
+                        switch (opt.OptionKind)
+                        {
+                            case JsonForClauseOptions.WithoutArrayWrapper: builder.JsonWithoutArrayWrapper = true; break;
+                            case JsonForClauseOptions.Root:
+                                if (builder.JsonRootProperty == null && opt.Value is Literal lit) builder.JsonRootProperty = ExtractLiteralValue(lit);
+                                break;
+                        }
+                    }
+                    if (!builder.JsonWithoutArrayWrapper) builder.JsonWithArrayWrapper = true;
+                    foreach (var sce in qs.SelectElements.OfType<SelectScalarExpression>())
+                    {
+                        var alias = sce.ColumnName?.Value;
+                        if (string.IsNullOrWhiteSpace(alias) && sce.ColumnName is IdentifierOrValueExpression ive)
+                        {
+                            try
+                            {
+                                if (ive.ValueExpression is StringLiteral sl && !string.IsNullOrWhiteSpace(sl.Value)) alias = sl.Value;
+                                else if (ive.Identifier != null && !string.IsNullOrWhiteSpace(ive.Identifier.Value)) alias = ive.Identifier.Value;
+                            }
+                            catch { }
+                        }
+                        if (string.IsNullOrWhiteSpace(alias) && sce.Expression is ColumnReferenceExpression cref && cref.MultiPartIdentifier?.Identifiers?.Count > 0)
+                            alias = cref.MultiPartIdentifier.Identifiers[^1].Value;
+                        if (string.IsNullOrWhiteSpace(alias))
+                        {
+                            // Minimal Token-Scan (keine Parent Offsets nötig, nur lokale Tokens)
+                            var tokens = sce.ScriptTokenStream;
+                            if (tokens != null)
+                            {
+                                for (int i = 0; i < tokens.Count; i++)
+                                {
+                                    var t = tokens[i];
+                                    if (t.TokenType == TSqlTokenType.As && i + 1 < tokens.Count)
+                                    {
+                                        var nxt = tokens[i + 1];
+                                        if (!string.IsNullOrWhiteSpace(nxt.Text) && nxt.Text.Length >= 2 && nxt.Text[0] == '\'' && nxt.Text[^1] == '\'')
+                                        { alias = nxt.Text.Substring(1, nxt.Text.Length - 2); break; }
+                                    }
+                                    else if (!string.IsNullOrWhiteSpace(t.Text) && t.Text.Length >= 2 && t.Text[0] == '\'' && t.Text[^1] == '\'')
+                                    { alias = t.Text.Substring(1, t.Text.Length - 2); break; }
+                                }
+                            }
+                        }
+                        if (string.IsNullOrWhiteSpace(alias)) continue;
+                        var name = SanitizeAliasPreserveDots(NormalizeJsonPath(alias));
+                        if (string.IsNullOrWhiteSpace(name)) continue;
+                        if (!builder.Columns.Any(c => c.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
+                            builder.Columns.Add(new ResultColumn { Name = name, ExpressionKind = ResultColumnExpressionKind.Unknown });
+                    }
+                    if (qs.SelectElements?.OfType<SelectStarExpression>().Any() == true) builder.HasSelectStar = true;
+                    _analysis.JsonSets.Add(builder.ToResultSet());
+                }
+            }
+            catch { }
+        }
         public override void ExplicitVisit(InsertStatement node) { _analysis.ContainsInsert = true; base.ExplicitVisit(node); }
         public override void ExplicitVisit(UpdateStatement node) { _analysis.ContainsUpdate = true; base.ExplicitVisit(node); }
         public override void ExplicitVisit(DeleteStatement node) { _analysis.ContainsDelete = true; base.ExplicitVisit(node); }
@@ -317,7 +435,13 @@ public class StoredProcedureContentModel
                 }
                 // Traverse children (collect additional references, derived tables, etc.)
                 base.ExplicitVisit(node);
-                // Only process FOR JSON queries
+                // Support FOR JSON PATH both on QuerySpecification.ForClause and parent SelectStatement.ForClause (ScriptDom may attach it at statement level)
+                // ScriptDom bietet keine direkte Parent-Eigenschaft auf QuerySpecification; daher approximieren wir:
+                // Falls node.ForClause null ist, prüfen wir, ob der übergeordnete SelectStatement (der diesen QuerySpecification enthält)
+                // einen ForClause besitzt. Da wir Parent nicht haben, nutzen wir eine Heuristik: Wenn node.ForClause null ist UND
+                // der aktuelle SelectStatement (wird vorher in ExplicitVisit(SelectStatement) erfasst) eine ForClause hat, wird diese
+                // später separat verarbeitet. Vereinfachung: Wir behandeln NUR node.ForClause hier; für Statement-Level FOR JSON
+                // greifen wir in ExplicitVisit(SelectStatement) ein (Fallback Pfad unten implementiert).
                 if (node.ForClause is not JsonForClause jsonClause)
                 {
                     // Restore outer scope before returning
@@ -341,8 +465,7 @@ public class StoredProcedureContentModel
                             if (builder.JsonRootProperty == null && opt.Value is Literal lit) builder.JsonRootProperty = ExtractLiteralValue(lit);
                             break;
                         default:
-                            if (opt.OptionKind != JsonForClauseOptions.WithoutArrayWrapper) builder.JsonWithArrayWrapper = true;
-                            break;
+                            if (opt.OptionKind != JsonForClauseOptions.WithoutArrayWrapper) builder.JsonWithArrayWrapper = true; break;
                     }
                 }
                 if (!builder.JsonWithoutArrayWrapper) builder.JsonWithArrayWrapper = true;
@@ -350,6 +473,15 @@ public class StoredProcedureContentModel
                 foreach (var sce in node.SelectElements.OfType<SelectScalarExpression>())
                 {
                     var alias = sce.ColumnName?.Value;
+                    if (string.IsNullOrWhiteSpace(alias) && sce.ColumnName is IdentifierOrValueExpression ive)
+                    {
+                        try
+                        {
+                            if (ive.ValueExpression is StringLiteral sl && !string.IsNullOrWhiteSpace(sl.Value)) alias = sl.Value;
+                            else if (ive.Identifier != null && !string.IsNullOrWhiteSpace(ive.Identifier.Value)) alias = ive.Identifier.Value;
+                        }
+                        catch { }
+                    }
                     if (string.IsNullOrWhiteSpace(alias))
                     {
                         if (sce.Expression is ColumnReferenceExpression implicitCr && implicitCr.MultiPartIdentifier?.Identifiers?.Count > 0)
@@ -357,7 +489,91 @@ public class StoredProcedureContentModel
                         else if (sce.Expression is CastCall castCall && castCall.Parameter is ColumnReferenceExpression castCol && castCol.MultiPartIdentifier?.Identifiers?.Count > 0)
                             alias = castCol.MultiPartIdentifier.Identifiers[^1].Value;
                     }
-                    if (string.IsNullOrWhiteSpace(alias)) continue; // AST-only policy: keine Text-/Regex-Heuristiken
+                    // Token-basierte (AST Token Stream) Alias-Erkennung (erweiterter Scan über Expression-Ende hinaus): AS 'literal'
+                    if (string.IsNullOrWhiteSpace(alias) && sce.ScriptTokenStream != null)
+                    {
+                        try
+                        {
+                            var tokens = sce.ScriptTokenStream;
+                            // Preferred: nutze Token Indices wenn verfügbar, ansonsten Offset-Heuristik
+                            int exprLastToken = sce.LastTokenIndex >= 0 ? sce.LastTokenIndex : -1;
+                            if (exprLastToken < 0)
+                            {
+                                // Fallback: bestimme Bereich über Offsets
+                                int exprStart = sce.StartOffset;
+                                int exprEnd = sce.StartOffset + sce.FragmentLength;
+                                // Finde letzten Token dessen Offset < exprEnd
+                                for (int i = 0; i < tokens.Count; i++)
+                                {
+                                    var tk = tokens[i];
+                                    if (tk.Offset >= exprEnd) { exprLastToken = i - 1; break; }
+                                    exprLastToken = i; // advance until we pass end
+                                }
+                            }
+                            int scanStart = Math.Min(tokens.Count - 1, Math.Max(0, exprLastToken + 1));
+                            for (int i = scanStart; i < tokens.Count; i++)
+                            {
+                                var t = tokens[i];
+                                // Abbruchbedingungen: nächstes SELECT-Element / FROM / Semikolon / Zeilenende-Komma
+                                if (t.TokenType == TSqlTokenType.Comma || t.TokenType == TSqlTokenType.Semicolon) break;
+                                if (t.Text != null && t.Text.Equals("FROM", StringComparison.OrdinalIgnoreCase)) break;
+                                if (t.TokenType == TSqlTokenType.As && i + 1 < tokens.Count)
+                                {
+                                    // nächster signifikanter Token
+                                    int j = i + 1;
+                                    while (j < tokens.Count && string.IsNullOrWhiteSpace(tokens[j].Text)) j++;
+                                    if (j >= tokens.Count) break;
+                                    var next = tokens[j];
+                                    var raw = next.Text;
+                                    if (!string.IsNullOrWhiteSpace(raw) && raw.Length >= 2 && raw[0] == '\'' && raw[^1] == '\'')
+                                    {
+                                        raw = raw.Substring(1, raw.Length - 2);
+                                        if (!string.IsNullOrWhiteSpace(raw)) { alias = raw; break; }
+                                    }
+                                }
+                                else if (t.Text != null && t.Text.Length >= 2 && t.Text[0] == '\'' && t.Text[^1] == '\'')
+                                {
+                                    // Pattern: <expr> 'alias'  (ohne explizites AS)
+                                    var raw = t.Text.Substring(1, t.Text.Length - 2);
+                                    if (!string.IsNullOrWhiteSpace(raw)) { alias = raw; break; }
+                                }
+                            }
+                        }
+                        catch { }
+                    }
+                    // Zusätzliche Alias-Erkennung für FOR JSON Pfad-Syntax inkl. Fälle, in denen ScriptDom das AS 'alias' außerhalb des Fragmentes schneidet.
+                    if (string.IsNullOrWhiteSpace(alias) && sce.StartOffset >= 0 && sce.FragmentLength > 0)
+                    {
+                        try
+                        {
+                            var endExpr = Math.Min(_definition.Length, sce.StartOffset + sce.FragmentLength);
+                            var exprSegment = _definition.Substring(sce.StartOffset, endExpr - sce.StartOffset);
+                            // Primär: AS 'alias' im Ausdruckssegment
+                            var m = System.Text.RegularExpressions.Regex.Match(exprSegment, @"AS\s+'([^']+)'", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                            if (!m.Success)
+                            {
+                                // Fallback: Einzelnes quoted literal (manche Alias-Stile ohne explizites AS)
+                                m = System.Text.RegularExpressions.Regex.Match(exprSegment, @"'([^']+)'", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                            }
+                            if (!m.Success)
+                            {
+                                // Forward-Scan bis FOR JSON oder nächstes SELECT/ FROM / GROUP BY zur Begrenzung
+                                int boundary = _definition.IndexOf("FOR JSON", endExpr, StringComparison.OrdinalIgnoreCase);
+                                if (boundary < 0) boundary = _definition.Length;
+                                int scanEnd = Math.Min(_definition.Length, endExpr + 300);
+                                if (boundary > endExpr && boundary < scanEnd) scanEnd = boundary;
+                                var forward = _definition.Substring(endExpr, scanEnd - endExpr);
+                                m = System.Text.RegularExpressions.Regex.Match(forward, @"AS\s+'([^']+)'", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                                if (!m.Success)
+                                {
+                                    m = System.Text.RegularExpressions.Regex.Match(forward, @"'([^']+)'", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                                }
+                            }
+                            if (m.Success) alias = m.Groups[1].Value;
+                        }
+                        catch { }
+                    }
+                    if (string.IsNullOrWhiteSpace(alias)) continue;
                     var path = NormalizeJsonPath(alias);
                     var col = new ResultColumn { Name = SanitizeAliasPreserveDots(path) };
                     var beforeBindings = new SourceBindingState();

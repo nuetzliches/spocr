@@ -93,13 +93,13 @@ public sealed class FunctionSnapshotCollector
                             {
                                 SnapshotFunctionColumn Map(JsonFunctionAstColumn c)
                                 {
-                                    var (sqlType, maxLen, isNullable) = SqlTypeInference.Infer(c);
+                                    // Keine Heuristik: nur Struktur übernehmen, Typ offen lassen (oder 'json' bei verschachtelten Strukturen).
                                     var mapped = new SnapshotFunctionColumn
                                     {
                                         Name = c.Name,
-                                        SqlTypeName = sqlType,
-                                        IsNullable = isNullable ? true : null,
-                                        MaxLength = maxLen != 0 ? maxLen : (int?)null,
+                                        SqlTypeName = (c.IsNestedJson || c.ReturnsJson) ? "json" : null,
+                                        IsNullable = null,
+                                        MaxLength = null,
                                         IsNestedJson = c.IsNestedJson ? true : null,
                                         ReturnsJson = c.ReturnsJson ? true : null,
                                         ReturnsJsonArray = c.ReturnsJsonArray,
@@ -306,8 +306,6 @@ public sealed class FunctionSnapshotCollector
             _console.Warn($"[fn-collect-error] {ex.Message}");
         }
     }
-
-    // Lokale InferType-Methoden entfernt zugunsten zentraler SqlTypeInference
 
     /// <summary>
     /// Heuristische Extraktion der SELECT-Liste für RETURN (SELECT ... FOR JSON ...) einer skalaren JSON Funktion.

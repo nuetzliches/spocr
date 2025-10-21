@@ -12,6 +12,7 @@ namespace SpocR.SpocRVNext.Cli;
 /// </summary>
 internal static class EnvBootstrapper
 {
+    private static readonly bool Verbose = string.Equals(Environment.GetEnvironmentVariable("SPOCR_VERBOSE"), "1", StringComparison.Ordinal);
     private const string ExampleRelativePath = "samples\\restapi\\.env.example";
     private const string EnvFileName = ".env";
 
@@ -37,7 +38,7 @@ internal static class EnvBootstrapper
                         existing += (existing.EndsWith("\n") ? string.Empty : "\n") +
                                     "SPOCR_BUILD_SCHEMAS=" + string.Join(",", inferred) + "\n";
                         File.WriteAllText(envPath, existing);
-                        try { Console.Out.WriteLine($"[spocr vNext] Augmented existing .env with SPOCR_BUILD_SCHEMAS={string.Join(",", inferred)}"); } catch { }
+                        try { if (Verbose) Console.Out.WriteLine($"[spocr vNext] Augmented existing .env with SPOCR_BUILD_SCHEMAS={string.Join(",", inferred)}"); } catch { }
                     }
                 }
             }
@@ -74,7 +75,7 @@ internal static class EnvBootstrapper
             Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine($"{(force ? "(re)created" : "Created")} {EnvFileName} at '{envPath}'.");
             Console.ResetColor();
-            Console.WriteLine("[spocr vNext] Next steps: (1) Review SPOCR_NAMESPACE (2) Adjust SPOCR_GENERATOR_MODE=next when comfortable (3) Re-run generation.");
+            if (Verbose) Console.WriteLine("[spocr vNext] Next steps: (1) Review SPOCR_NAMESPACE (2) Adjust SPOCR_GENERATOR_MODE=next when comfortable (3) Re-run generation.");
             Console.ResetColor();
         }
         catch (Exception ex)

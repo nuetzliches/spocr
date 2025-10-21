@@ -32,8 +32,6 @@ Status-Legende:
 
 ## Fokus & Prioritäten
 
-Neue Bereinigung (2025-10-21): Debug Artefakte entfernt (SPOCR_DUMP_FIRST_ROW) – Instrumentierung in vNext Generator und Output eliminiert.
-
 - [x] JSON Model Typkorrektur für WorkflowListAsJson (workflowId → int) – Mapping aktiv
 - [~] Audit weiterer JSON ResultSets: Erste Korrekturen (33 Felder, überwiegend rowVersion → byte[]) erfolgt; numerische/bool/datetime Fälle prüfen
 - [x] Generator: Mapping-Layer für ReturnsJson ResultSets implementiert (SQL Typname → C# Property Typ)
@@ -225,7 +223,7 @@ Streaming & Invocation (vNext API / Verschoben zu v5)
 - [>] Doku Abschnitt "Procedure Invocation Patterns" inkl. Streaming Beispiele (DEFERRED v5)
 - [>] Interceptor Erweiterung (optional) für PreExecute/PostExecute Streaming Pfade (DEFERRED v5)
 - [>] Entscheidung: Naming-Konvention Stream Methoden (ResultXStreamAsync vs. StreamResultXAsync) dokumentiert und fixiert
-- [~] FOR JSON Dual Mode: Raw + Lazy Deserialization Methoden (JsonRawAsync / JsonDeserializeAsync / JsonElementsAsync / JsonStreamAsync)
+- [ ] FOR JSON Dual Mode: Raw + Lazy Deserialization Methoden (JsonRawAsync / JsonDeserializeAsync / JsonElementsAsync / JsonStreamAsync)
 - [?] ProcedureJsonHelper implementiert
 - [?] Aggregate Lazy JSON Cache (JsonLazy<T>) integriert
 - [>] Tests: Raw + Deserialize + Elements Streaming + Invalid JSON + Cancellation (DEFERRED v5)
@@ -332,8 +330,8 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 - [?] Alle als [Obsolet] markierten Typen enthalten klaren Hinweis & Migrationspfad
 - [>] Dokumentierter Cut für v5.0 (Entfernung DataContext) in README / ROADMAP
 - [>] Vollständige Entfernung der verbleibenden Laufzeit-/Build-Abhängigkeit zu `spocr.json` (reiner .env / ENV Betrieb). Falls in v5 noch eine `spocr.json` gefunden wird: WARNUNG ausgeben (Hinweis auf Aufräumen) – keine harte Nutzung mehr.
-- [~] Liste entfallener Konfig-Properties (Project.Role.Kind, RuntimeConnectionStringIdentifier, Project.Output) im Changelog
-  note: CHANGELOG enthält bislang keinen Removed-Abschnitt für diese Keys
+- [ ] Liste entfallener Konfig-Properties (Project.Role.Kind, RuntimeConnectionStringIdentifier, Project.Output) im Changelog
+      note: CHANGELOG enthält bislang keinen Removed-Abschnitt für diese Keys
 - [x] Migration von `spocr.json` auf `.env` / Environment Variablen dokumentiert (Mapping Tabelle)
       note: Precedence aktualisiert (CLI > ENV > .env > spocr.json Fallback nur in dual|next wenn SPOCR_GENERATOR_DB fehlt). Fallback & Override implementiert in EnvConfiguration.
 - [x] SemVer Bewertung durchgeführt (Minor vs. Major Bump begründet)
@@ -361,9 +359,8 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 
 ### Dokumentation (Update 2025-10-18)
 
-- [~] docs Build läuft (Bun / Nuxt) ohne Fehler
-- [~] Neue Seiten für SpocRVNext (Architektur, Unterschiede, Migration) hinzugefügt
-- [~] Referenzen (CLI, Konfiguration, API) aktualisiert
+- [ ] docs Build läuft (Bun / Nuxt) ohne Fehler
+- [>] docs/content Referenzen (CLI, Konfiguration, API) aktualisiert
 - [x] README Quick Start an neuen Generator angepasst
       note: vNext DbContext Beispiel ergänzt & ValidateOnBuild entfernt (18.10.2025)
 - [x] Doku: TableTypes Abschnitt (Naming-Preservation, Timestamp `<remarks>` & Hash-Ignore, Interface `ITableType`, Schema-Unterordnerstruktur) in docs/3.reference oder 2.cli verlinkt
@@ -386,19 +383,19 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 
 ### Docs Deployment (GitHub Pages) – Planung
 
-- [~] Nuxt Static Generation konfigurieren (`bun run generate`) erzeugt vollständiges Prerender ohne SSR-Abhängigkeiten
-- [~] `nuxt.config.ts`: `nitro.static` / `routeRules` prüfen; `app.baseURL` für Pages (`/spocr/`) setzen falls kein CNAME
-- [~] Build-Workflow `.github/workflows/docs-pages.yml` anlegen (Branch `gh-pages` Deploy)
-- [~] Cache (bun) + Node Version (>= 20) in Workflow
-- [~] Artefakt-Publish: `docs/.output/public` oder `.dist` Ordner je nach Nuxt Version verifizieren
-- [~] 404 Handling (`404.html`) erzeugen (Nuxt auto oder manuell) für SPA History Fallback
-- [~] Link-Check Schritt (externe + interne) vor Deploy
-- [~] Badge im README (Docs Status / Pages URL)
-- [~] Checklist Update: Deployment aktiviert & erster erfolgreicher Publish
+- [ ] Nuxt Static Generation konfigurieren (`bun run generate`) erzeugt vollständiges Prerender ohne SSR-Abhängigkeiten
+- [ ] `nuxt.config.ts`: `nitro.static` / `routeRules` prüfen; `app.baseURL` für Pages (`/spocr/`) setzen falls kein CNAME
+- [ ] Build-Workflow `.github/workflows/docs-pages.yml` anlegen (Branch `gh-pages` Deploy)
+- [ ] Cache (bun) + Node Version (>= 20) in Workflow
+- [ ] Artefakt-Publish: `docs/.output/public` oder `.dist` Ordner je nach Nuxt Version verifizieren
+- [ ] 404 Handling (`404.html`) erzeugen (Nuxt auto oder manuell) für SPA History Fallback
+- [ ] Link-Check Schritt (externe + interne) vor Deploy
+- [ ] Badge im README (Docs Status / Pages URL)
+- [ ] Checklist Update: Deployment aktiviert & erster erfolgreicher Publish
 
 ### Samples / Demo (samples/restapi)
 
-- [~] Sample baut mit aktuellem Generator (dotnet build)
+- [x] Sample baut mit aktuellem Generator (dotnet build)
 - [x] Sample führt grundlegende DB Operationen erfolgreich aus (CRUD Smoke Test) – Roundtrip & Ping stabil (Timeout/Ping Fix abgeschlossen 18.10.2025)
       note: Optional: zusätzlicher CreateUser Roundtrip + README Beispiel ergänzen
 - [~] Automatisierter Mini-Test (skriptgesteuert) prüft Generierung & Start der Web API (smoke-test.ps1 vorhanden, CI Integration fehlt)
@@ -410,10 +407,10 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 
 ### Sicherheit & Compliance
 
-- [~] Keine geheimen Verbindungsstrings / Secrets committed (Review via Suche nach "Password=" / ";User Id=")
-- [~] Abhängigkeiten aktualisiert (dotnet list package --outdated geprüft) – sicherheitsrelevante Updates eingespielt
-- [~] Lizenz-Hinweise unverändert kompatibel (LICENSE, verwendete NuGet Packages)
-- [~] Minimale Berechtigungen für DB Tests (Least Privilege Account)
+- [ ] Keine geheimen Verbindungsstrings / Secrets committed (Review via Suche nach "Password=" / ";User Id=")
+- [ ] Abhängigkeiten aktualisiert (dotnet list package --outdated geprüft) – sicherheitsrelevante Updates eingespielt
+- [ ] Lizenz-Hinweise unverändert kompatibel (LICENSE, verwendete NuGet Packages)
+- [ ] Minimale Berechtigungen für DB Tests (Least Privilege Account)
 
 ### Performance & Wartung
 
@@ -459,19 +456,19 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 - [x] Major-Bridge Policy implementiert (Block direkte Major-Sprünge ohne `SPOCR_ALLOW_DIRECT_MAJOR`)
 - [x] README Hinweis zur Bridge Policy ergänzen (CHANGELOG Eintrag vorhanden)
 - [x] Testfall für geblocktes Major Update + Override hinzugefügt (`BridgePolicyTests`)
-- [~] Weitere Tests: Minor Update erlaubt, SkipVersion respektiert, Direkt-Major mit Override protokolliert
-- [~] Dokumentation Env Override Beispiele (`SPOCR_ALLOW_DIRECT_MAJOR=1`) in README / MIGRATION Guide
+- [ ] Weitere Tests: Minor Update erlaubt, SkipVersion respektiert, Direkt-Major mit Override protokolliert
+- [ ] Dokumentation Env Override Beispiele (`SPOCR_ALLOW_DIRECT_MAJOR=1`) in README / MIGRATION Guide
 
 - [x] Tests für EnvConfiguration Precedence & Invalid Mode vorhanden
       note: Zusätzlich Fallback-Test (spocr.json ConnectionString genutzt wenn SPOCR_GENERATOR_DB fehlt) & Override-Test (ENV gewinnt) ergänzt.
-- [~] Test: Experimental CLI Flag (`SPOCR_EXPERIMENTAL_CLI`) aktiviert neuen Parser nur bei gesetztem Flag
+- [ ] Test: Experimental CLI Flag (`SPOCR_EXPERIMENTAL_CLI`) aktiviert neuen Parser nur bei gesetztem Flag
 
 ### Nullable & Codequalität (Ergänzung)
 
 - [x] Globale Nullable aktiviert + Legacy-Unterdrückung via `.editorconfig`
 - [x] Selektive Reaktivierung für `SpocRVNext` und neue CLI Entry Points
-- [~] Phase 2: Schrittweises Entfernen alter Suppressions (Tracking Liste)
-- [~] Phase 3: CI Eskalation (`SPOCR_STRICT_NULLABLE=1`) dokumentiert & aktiviert
+- [ ] Phase 2: Schrittweises Entfernen alter Suppressions (Tracking Liste)
+- [ ] Phase 3: CI Eskalation (`SPOCR_STRICT_NULLABLE=1`) dokumentiert & aktiviert
 
 ### Observability / Diff (Ergänzung) (Update 2025-10-19)
 
@@ -490,9 +487,7 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 ### Sonstiges
 
 - [>] Konsistenter Stil der Commit Messages (Konvention definiert, z.B. Conventional Commits)
-- [~] Offene TODO Kommentare bewertet / priorisiert / entfernt falls nicht mehr nötig
-- [~] Issue Tracker Abgleich: Alle Items dieses Releases geschlossen oder verschoben
-- [~] Technische Schuldenliste aktualisiert
+- [ ] Offene TODO Kommentare bewertet / priorisiert / entfernt falls nicht mehr nötig
 - [!] (Regel) Implementierung IN CODE vollständig auf Englisch (Kommentare, öffentliche/ interne Bezeichner) – Ausnahme: `CHECKLIST.md` bleibt deutsch
 - [!] (Regel) Keine "VNext" Namensbestandteile in Klassen / Dateien / Properties – Trennung ausschließlich über Ordner & Namespace `SpocRVNext`
 - [!] (Prinzip) Qualität & Wartbarkeit des neuen Outputs > strikte Rückwärtskompatibilität (Breaking Changes sind erlaubt)
@@ -550,44 +545,22 @@ Hinweis: Einige Punkte überschneiden sich mit bereits vorhandenen Deferred v5 I
       Folgeaufgaben (aktualisiert): - [x] Test: Konsolidierte Datei enthält erwartete Abschnitte in Reihenfolge (Header→Inputs→Outputs→ResultSets→Aggregate→Plan→Executor) - [ ] Test: Kein doppelter Record-Name bei mehreren ResultSets (Multi-Table) - [x] Aktivierungs-Test Resolver (generische Namen ersetzt) - [x] Negative Test: Unparsable SQL → Fallback (kein Crash) - [ ] Multi-ResultSet Szenario (nur erste Tabelle benannt, weitere generisch) - [ ] Mixed Case Tabellenname Normalisierung
       note: Ordering Tests (Single & Multi) implementiert in `UnifiedProcedureOrderingTests` (18.10.2025)
 - [x] Auto-Namespace Fallback für samples/restapi implementiert (erzwingt Basis `RestApi`)
-- [~] Ergänzender Test für WorkingDir = `samples/restapi` (Folgetask – aktuell indirekt durch Integration abgedeckt)
-- [~] README / docs: Abschnitt "Namespace Ableitung & Override" inkl. Beispiel diff - Fallback / Erzwingung via Smoke Script aktiv, Doku fehlt
-- [~] Einheitliche Klein-/Großschreibung Schema-Ordner
-- [~] Dateinamen & Determinismus zusätzliche Tests
+- [ ] Ergänzender Test für WorkingDir = `samples/restapi` (Folgetask – aktuell indirekt durch Integration abgedeckt)
+- [ ] README / docs: Abschnitt "Namespace Ableitung & Override" inkl. Beispiel diff - Fallback / Erzwingung via Smoke Script aktiv, Doku fehlt
+- [x] Einheitliche Klein-/Großschreibung Schema-Ordner
+- [ ] Dateinamen & Determinismus zusätzliche Tests
 - [x] Grundlegende deterministische Hash Tests (Golden Snapshot) vorhanden
 - [x] Konsolidierte UnifiedProcedure Tests (Hash & IO Single Definition)
 - [?] Erweiterung: spezifische Artefakt-Typen (StoredProcedure Wrapper Section, ResultSet Records innerhalb Konsolidierungs-Datei)
-- [~] Dateinamens-Konflikt Test (zwei Procs mit ähnlichen Namen + Suffix Handling) - Hash Manifest aktiv; Strict Mode (Fail Fast) offen
+- [ ] Dateinamens-Konflikt Test (zwei Procs mit ähnlichen Namen + Suffix Handling) - Hash Manifest aktiv; Strict Mode (Fail Fast) offen
 - [?] Dispatcher next-only Pfad: Gleiches Full Generation Set wie dual
 - [?] Prüfen Codepfad (`SpocRGenerator` / Dispatcher)
 - [>] Test: MODE=next erzeugt identische Artefakte wie dual (ohne Legacy) – DEFERRED v5 (Paritätstest automatisieren)
 - [x] Sicherstellen, dass samples/restapi/.env nicht in git landet (`.gitignore` aktualisiert)
-- [~] src\SpocRVNext\Templates_Header.spt optimieren (<auto-generated/> Block vereinheitlichen)
+- [ ] src\SpocRVNext\Templates_Header.spt optimieren (<auto-generated/> Block vereinheitlichen)
 - [ ] SPOCR_ENFORCE_TABLETYPE_BUILDER migrieren zu SPOCR_SUPPRESS_WARNINGS
 - [ ] Keine Regex Fallbacks für AST-Parsing, alle Stellen durch pure AST-Navigation ersetzen
-
-## Nächste Kurzfristige Actions (veraltet – ersetzt durch neue Sofort-Prioritäten weiter unten)
-
-- (Erledigt) Skript `eng/test-db.ps1` (ehem. `scripts/test-db.ps1`) implementiert & in Smoke integriert
-- (Erledigt) CI Smoke Schritt vorhanden
-- (Ersetzt) DB Connect Timeout Optimierung durch Kill-Skript + Retries – Feintuning optional verschoben
-
-## Zwischenstand Zusammenfassung (aktualisiert)
-
-Connectivity gesichert (test-db Script + CI Integration). Offene Kernpunkte: Stabiler erfolgreicher Stored Procedure Roundtrip (UserList), Resolver Erweiterungen (Dynamic SQL / CTE), Coverage & Golden Hash Policy Eskalation.
-
-## Aktuelle Sofort-Prioritäten (neu / validiert 2025-10-15)
-
-1. Coverage Threshold & Enforcement (≥80% Kernlogik) – CI Gate implementieren
-2. Dynamic SQL Detection Konzept (Resolver Skip) + erster Testfall – ERLEDIGT (18.10.2025)
-3. CTE Support Vorarbeit (Parsing Strategie definieren, Minimal-Implementierung planen) – DEFERRED auf v5.0 (aktuell kein unmittelbarer Mehrwert für Bridge Phase)
-4. Doku Konsolidierung: TableTypes + ResultSet Naming + README Verlinkungen + Badge Sektion
-5. Golden Hash Strict Mode Entscheid (Policy Flags, Exit Codes Eskalation) & README Abschnitt
-6. CI Badges (Smoke / Determinism / Quality / Coverage) + Kill-Skript überall referenzieren
-7. Sample Roundtrip Stabilisierung (Timeout / Startsequenz Analyse, Logging Verbesserung)
-8. Abschnittsreihenfolge Test für konsolidierte Prozedur-Dateien (Header→Inputs→Outputs→ResultSets→Aggregate→Plan→Executor)
-9. Namespace Override / Ableitung Doku + Beispiel diff
-10. Dispatcher next-only Pfad Paritätstest (MODE=next vs dual ohne Legacy) automatisieren – DEFERRED v5
+- [ ] Keine JSON Models in legacy und keine SP Extension mit Model (using auf model entfernen)
 
 ## Deferred v5 Items (Consolidated)
 
@@ -623,8 +596,8 @@ Status-Legende: [>] deferred (v5 Ziel) – Querverweis auf README / Roadmap Absc
 # Zu planende Entscheidungen
 
 - [x] Das Parameter -p|--path soll auch direkt den Pfad samples/restapi anstelle von samples/restapi/spocr.json akzeptieren.
-- [~] ResultSets mit Typ Json sollen deserialisiert und raw produziert werden können. Per Service Config global, und auf jeder Prozedur separat
-- [~] TemplateEngine optimieren (z.B: verschachtelte for each ermöglichen)
+- [ ] ResultSets mit Typ Json sollen deserialisiert und raw produziert werden können. Per Service Config global, und auf jeder Prozedur separat
+- [>] TemplateEngine optimieren (z.B: verschachtelte for each ermöglichen)
 - [~] ResultSetNameResolver Improvements (geplant)
 - [>] CTE support (erste Basis-Tabelle aus finaler Query, wenn kein direkter NamedTableReference)
 - [x] FOR JSON PATH root alias extraction (Alias als Name nutzen)
@@ -640,6 +613,12 @@ Status-Legende: [>] deferred (v5 Ziel) – Querverweis auf README / Roadmap Absc
 **Status:** JSON Mapping Layer erfolgreich implementiert (33 `rowVersion` → `byte[]` Korrekturen). Neue Fokussierung auf Tests & Stabilisierung vor RC.
 
 ## Sofortige Prioritäten (P1 - Diese Woche)
+
+### Prio 1
+
+- [ ] Wir benötigen noch .spocr/schema/[tables|views|types] um beim AST Parsing die Typen auflösen zu können.
+- [ ] Sicherstellen, dass die .spocr/schema/tabletypes bereits die korrekten UDT-Typen beinhalten, Properties ergänzen, wenn nötig.
+- [ ] `types` müssen zuerst abgerufen werden, damit andere Objekte darauf referenzieren können, bzw. ihre finalen Typen bestimmen können.
 
 ### 1. JSON Deserialisierung Tests abschließen
 
@@ -665,14 +644,14 @@ Status-Legende: [>] deferred (v5 Ziel) – Querverweis auf README / Roadmap Absc
 ### 4. Determinismus & Coverage
 
 - [x] **Golden Hash Pipeline** (Rebuild → deterministische Hashes)
-- [~] **Coverage Baseline messen** (≥60% Ziel, Reporting aktivieren)
+- [ ] **Coverage Baseline messen** (≥60% Ziel, Reporting aktivieren)
 - [>] **CI Badges konsolidieren** (Smoke, DB-Smoke, Determinism Status)
 
 ### 5. Dokumentation RC-ready
 
-- [~] **Namespace Doku** (SPOCR_NAMESPACE Override + Beispiele)
-- [~] **CHANGELOG v4.5-rc** (Features, Removed Keys, v5 Preview Hinweise)
-- [~] **Migration Guide** (spocr.json → .env Übergang)
+- [ ] **Namespace Doku** (SPOCR_NAMESPACE Override + Beispiele)
+- [ ] **CHANGELOG v4.5-rc** (Features, Removed Keys, v5 Preview Hinweise)
+- [ ] **Migration Guide** (spocr.json → .env Übergang)
 
 ## Mittelfristig (P3 - Pre-RC)
 

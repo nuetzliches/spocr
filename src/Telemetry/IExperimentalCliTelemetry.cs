@@ -20,6 +20,10 @@ public sealed class ConsoleExperimentalCliTelemetry : IExperimentalCliTelemetry
 {
     public void Record(ExperimentalCliUsageEvent evt)
     {
-        System.Console.WriteLine($"[telemetry experimental-cli] command={evt.command} mode={evt.mode} success={evt.success} durationMs={evt.duration.TotalMilliseconds:F0}");
+        // Only emit telemetry line when verbose mode enabled to reduce default console noise.
+        if (string.Equals(System.Environment.GetEnvironmentVariable("SPOCR_VERBOSE"), "1", System.StringComparison.Ordinal))
+        {
+            System.Console.WriteLine($"[telemetry experimental-cli] command={evt.command} mode={evt.mode} success={evt.success} durationMs={evt.duration.TotalMilliseconds:F0}");
+        }
     }
 }

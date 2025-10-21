@@ -12,6 +12,7 @@ namespace SpocR.SpocRVNext.Execution;
 /// </summary>
 public sealed class ProcedureExecutionPlan
 {
+    // Fully qualified stored procedure name (schema + name). Generator now supplies an already bracketed, escaped identifier.
     public string ProcedureName { get; }
     public IReadOnlyList<ProcedureParameter> Parameters { get; }
     public IReadOnlyList<ResultSetMapping> ResultSets { get; }
@@ -27,6 +28,7 @@ public sealed class ProcedureExecutionPlan
         Func<bool, string?, object?, IReadOnlyDictionary<string, object?>, object[], object> aggregateFactory,
         Action<DbCommand, object?>? inputBinder = null)
     {
+        // Name is assumed pre-bracketed by code generator (no further normalization here to avoid double quoting / hidden mutations).
         ProcedureName = procedureName;
         Parameters = parameters;
         ResultSets = resultSets;

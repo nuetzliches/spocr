@@ -86,8 +86,10 @@ public sealed class JsonResultTypeEnricher
             }
 
             bool hadFallback = (string.Equals(col.SqlTypeName, "nvarchar(max)", StringComparison.OrdinalIgnoreCase) || string.Equals(col.SqlTypeName, "unknown", StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(col.SqlTypeName)) && isJsonContext;
-            bool hasConcrete = !string.IsNullOrWhiteSpace(col.SqlTypeName) && !hadFallback;
-            if (!hasConcrete && hasSourceBinding)
+            // Treat heuristic nvarchar with inline length (pattern nvarchar(x)) as upgrade candidates when binding available
+            bool looksHeuristic = !string.IsNullOrWhiteSpace(col.SqlTypeName) && col.SqlTypeName.StartsWith("nvarchar(", StringComparison.OrdinalIgnoreCase);
+            bool hasConcrete = !string.IsNullOrWhiteSpace(col.SqlTypeName) && !hadFallback && !looksHeuristic;
+            if (hasSourceBinding && col.ExpressionKind != StoredProcedureContentModel.ResultColumnExpressionKind.Cast)
             {
                 var tblKey = ($"{col.SourceSchema}.{col.SourceTable}");
                 if (!tableCache.TryGetValue(tblKey, out var tblColumns))
@@ -131,7 +133,7 @@ public sealed class JsonResultTypeEnricher
                         UserTypeName = col.UserTypeName
                     };
                 }
-                else if (verbose && level == JsonTypeLogLevel.Detailed)
+                else if (verbose && level == JsonTypeLogLevel.Detailed && !hasConcrete)
                 {
                     _console.Verbose($"[json-type-miss] {sp.SchemaName}.{sp.Name} {col.Name} source={col.SourceSchema}.{col.SourceTable}.{col.SourceColumn} no-column-match");
                 }
@@ -215,16 +217,7 @@ public sealed class JsonResultTypeEnricher
                     ReturnsJson = col.ReturnsJson == true,
                     ReturnsJsonArray = col.ReturnsJsonArray
                 };
-                var (infType, infLen, infNullable) = SqlTypeInference.Infer(pseudo);
-                if (string.IsNullOrWhiteSpace(col.SqlTypeName) || hadFallback)
-                {
-                    col.SqlTypeName = infType;
-                    if (col.IsNullable == null) col.IsNullable = infNullable;
-                    if (col.MaxLength == 0 || col.MaxLength == null) col.MaxLength = infLen != 0 ? infLen : null;
-                    modifiedLocal = true;
-                    if (verbose && level == JsonTypeLogLevel.Detailed)
-                        _console.Verbose($"[json-type-heuristic] {sp.SchemaName}.{sp.Name} {col.Name} -> {col.SqlTypeName}");
-                }
+                // Heuristik entfernt: kein Name-basiertes Typ Raten mehr. Ungebundene / uncasted Spalten behalten leeren Typ.
             }
 
             // Recurse into nested JSON columns

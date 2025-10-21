@@ -638,7 +638,8 @@ public sealed class ProceduresGenerator
                     HasMultipleResultSets = proc.ResultSets.Count > 1,
                     InputParameters = proc.InputParameters.Select((p, i) => new { p.ClrType, p.PropertyName, Comma = i == proc.InputParameters.Count - 1 ? string.Empty : "," }).ToList(),
                     OutputFields = proc.OutputFields.Select((f, i) => new { f.ClrType, f.PropertyName, Comma = i == proc.OutputFields.Count - 1 ? string.Empty : "," }).ToList(),
-                    ProcedureFullName = proc.Schema + "." + proc.ProcedureName,
+                    // Pre-bracket (and escape) schema & procedure name so runtime does not need to normalize.
+                    ProcedureFullName = "[" + (proc.Schema ?? string.Empty).Replace("]", "]]", StringComparison.Ordinal) + "].[" + (proc.ProcedureName ?? string.Empty).Replace("]", "]]", StringComparison.Ordinal) + "]",
                     ProcedureTypeName = procedureTypeName,
                     UnifiedResultTypeName = unifiedResultTypeName,
                     OutputTypeName = outputTypeName,

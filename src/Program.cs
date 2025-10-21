@@ -50,6 +50,17 @@ public class Program
     /// </summary>
     public static async Task<int> RunCliAsync(string[] args)
     {
+        var quiet = false;
+        // Lightweight parse for --quiet / -q early to suppress banners
+        for (int i = 0; i < args.Length; i++)
+        {
+            var a = args[i];
+            if (string.Equals(a, "--quiet", StringComparison.OrdinalIgnoreCase) || string.Equals(a, "-q", StringComparison.OrdinalIgnoreCase))
+            {
+                quiet = true;
+                break;
+            }
+        }
         // Early sniff -p/--path to set SPOCR_CONFIG_PATH before EnvConfiguration is loaded
         try
         {
@@ -203,10 +214,13 @@ public class Program
         // Explicit root handler to avoid reflection lookup issues (fallback help)
         app.OnExecute(() =>
         {
-            Console.WriteLine("spocr - SpocR CLI");
-            Console.WriteLine();
-            Console.WriteLine("Usage: spocr <command> [options]");
-            Console.WriteLine("Try 'spocr --help' or 'spocr <command> --help' for more information.");
+            if (!quiet)
+            {
+                Console.WriteLine("spocr - SpocR CLI");
+                Console.WriteLine();
+                Console.WriteLine("Usage: spocr <command> [options]");
+                Console.WriteLine("Try 'spocr --help' or 'spocr <command> --help' for more information.");
+            }
             return ExitCodes.Success;
         });
 
@@ -233,20 +247,32 @@ public class Program
     // Root command fallback: show help if no subcommand provided (McMaster looks for parameterless OnExecute/OnExecuteAsync)
     public Task<int> OnExecuteAsync()
     {
-        Console.WriteLine("spocr - SpocR CLI");
-        Console.WriteLine();
-        Console.WriteLine("Usage: spocr <command> [options]");
-        Console.WriteLine("Try 'spocr --help' or 'spocr <command> --help' for more information.");
+        var args = Environment.GetCommandLineArgs();
+        var hasQuiet = false;
+        for (int i = 0; i < args.Length; i++) { var a = args[i]; if (a.Equals("--quiet", StringComparison.OrdinalIgnoreCase) || a.Equals("-q", StringComparison.OrdinalIgnoreCase)) { hasQuiet = true; break; } }
+        if (!hasQuiet)
+        {
+            Console.WriteLine("spocr - SpocR CLI");
+            Console.WriteLine();
+            Console.WriteLine("Usage: spocr <command> [options]");
+            Console.WriteLine("Try 'spocr --help' or 'spocr <command> --help' for more information.");
+        }
         return Task.FromResult(ExitCodes.Success);
     }
 
     // Synchronous variant for McMaster default convention compatibility
     public int OnExecute()
     {
-        Console.WriteLine("spocr - SpocR CLI");
-        Console.WriteLine();
-        Console.WriteLine("Usage: spocr <command> [options]");
-        Console.WriteLine("Try 'spocr --help' or 'spocr <command> --help' for more information.");
+        var args2 = Environment.GetCommandLineArgs();
+        var hasQuiet2 = false;
+        for (int i = 0; i < args2.Length; i++) { var a = args2[i]; if (a.Equals("--quiet", StringComparison.OrdinalIgnoreCase) || a.Equals("-q", StringComparison.OrdinalIgnoreCase)) { hasQuiet2 = true; break; } }
+        if (!hasQuiet2)
+        {
+            Console.WriteLine("spocr - SpocR CLI");
+            Console.WriteLine();
+            Console.WriteLine("Usage: spocr <command> [options]");
+            Console.WriteLine("Try 'spocr --help' or 'spocr <command> --help' for more information.");
+        }
         return ExitCodes.Success;
     }
 

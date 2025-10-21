@@ -224,6 +224,7 @@ internal static class TvpHelper
 
 internal static class ReaderUtil
 {
+    private static readonly bool Verbose = string.Equals(Environment.GetEnvironmentVariable("SPOCR_VERBOSE"), "1", StringComparison.Ordinal);
     public static int TryGetOrdinal(DbDataReader reader, string name)
     {
         // Exact match first
@@ -250,6 +251,7 @@ internal static class ReaderUtil
     {
         try
         {
+            if (!Verbose) return;
             var cols = new System.Collections.Generic.List<string>();
             for (int i = 0; i < reader.FieldCount; i++)
             {
@@ -264,6 +266,7 @@ internal static class ReaderUtil
     {
         try
         {
+            if (!Verbose) return;
             if (!reader.HasRows) { System.Console.Out.WriteLine("[spocr vNext] Debug: No rows."); return; }
             // Peek without consuming row set permanently -> we cannot easily reset, so only call before main loop
             if (!reader.Read()) { System.Console.Out.WriteLine("[spocr vNext] Debug: Read failed."); return; }

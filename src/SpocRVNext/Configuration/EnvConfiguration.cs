@@ -24,6 +24,7 @@ public sealed class EnvConfiguration
 
     public static EnvConfiguration Load(string? projectRoot = null, IDictionary<string, string?>? cliOverrides = null, string? explicitConfigPath = null)
     {
+        var verbose = string.Equals(Environment.GetEnvironmentVariable("SPOCR_VERBOSE"), "1", StringComparison.Ordinal);
         projectRoot ??= Directory.GetCurrentDirectory();
         if (!string.IsNullOrWhiteSpace(explicitConfigPath) && File.Exists(explicitConfigPath))
         {
@@ -77,7 +78,7 @@ public sealed class EnvConfiguration
                     if (!string.IsNullOrWhiteSpace(conn))
                     {
                         fullConn = conn;
-                        Console.Out.WriteLine("[spocr vNext] Info: SPOCR_GENERATOR_DB not set – using spocr.json connection (bridge). Consider adding SPOCR_GENERATOR_DB to .env.");
+                        if (verbose) Console.Out.WriteLine("[spocr vNext] Info: SPOCR_GENERATOR_DB not set – using spocr.json connection (bridge). Consider adding SPOCR_GENERATOR_DB to .env.");
                     }
                 }
             }
@@ -88,7 +89,7 @@ public sealed class EnvConfiguration
         }
         else if (modeResolved is "dual" or "next" && !string.IsNullOrWhiteSpace(fullConn))
         {
-            Console.Out.WriteLine("[spocr vNext] Info: Connection from SPOCR_GENERATOR_DB resolved. spocr.json ignored.");
+            if (verbose) Console.Out.WriteLine("[spocr vNext] Info: Connection from SPOCR_GENERATOR_DB resolved. spocr.json ignored.");
         }
 
         var cfg = new EnvConfiguration
@@ -122,7 +123,7 @@ public sealed class EnvConfiguration
             {
                 try
                 {
-                    Console.WriteLine("[spocr vNext] Migration: no .env file found.");
+                    if (verbose) Console.WriteLine("[spocr vNext] Migration: no .env file found.");
                     Console.Write("[spocr vNext] Create new .env now? (Y/n): ");
                     string? answer = null; try { answer = Console.ReadLine(); } catch { }
                     bool create = true;
@@ -133,7 +134,7 @@ public sealed class EnvConfiguration
                     }
                     if (!create)
                     {
-                        Console.WriteLine("[spocr vNext] Skipped .env creation -> switching to legacy mode.");
+                        if (verbose) Console.WriteLine("[spocr vNext] Skipped .env creation -> switching to legacy mode.");
                         try { Environment.SetEnvironmentVariable("SPOCR_GENERATOR_MODE", "legacy"); } catch { }
                         cfg = new EnvConfiguration
                         {
@@ -166,7 +167,7 @@ public sealed class EnvConfiguration
                 }
                 catch (Exception px)
                 {
-                    Console.Error.WriteLine($"[spocr vNext] Prefill skipped: {px.Message}");
+                    if (verbose) Console.Error.WriteLine($"[spocr vNext] Prefill skipped: {px.Message}");
                 }
                 try
                 {
