@@ -53,6 +53,22 @@ public abstract class GeneratorBase
             sqlTypeName = System.Data.SqlDbType.NVarChar.ToString();
         }
 
+        // SQL Server besitzt keinen nativen JSON Typ; Snapshot kann nevertheless 'json' als Marker liefern.
+        // Mappe diesen Marker defensiv auf NVARCHAR damit Enum.Parse nicht fehlschlägt und die Generation fortsetzen kann.
+        if (string.Equals(sqlTypeName, "json", StringComparison.OrdinalIgnoreCase))
+        {
+            ConsoleService.Verbose("[type-fallback] SqlTypeName 'json' mapped to NVARCHAR/string (no native SQL Server JSON type)." );
+            sqlTypeName = System.Data.SqlDbType.NVarChar.ToString();
+        }
+
+        // SQL Server alias 'rowversion' (synonym zu deprecated 'timestamp') ist kein SqlDbType Enum Name ('Timestamp' existiert nur als historisches Konzept).
+        // Mappe auf Binary, da die CLR-Repräsentation ohnehin byte[] ist.
+        if (string.Equals(sqlTypeName, "rowversion", StringComparison.OrdinalIgnoreCase) || string.Equals(sqlTypeName, "timestamp", StringComparison.OrdinalIgnoreCase))
+        {
+            ConsoleService.Verbose("[type-fallback] SqlTypeName 'rowversion' mapped to VARBINARY (byte[]) for generation.");
+            sqlTypeName = System.Data.SqlDbType.VarBinary.ToString();
+        }
+
         sqlTypeName = sqlTypeName.Split('(')[0];
         var sqlType = Enum.Parse<System.Data.SqlDbType>(sqlTypeName, true);
         var clrType = SqlDbHelper.GetType(sqlType, isNullable);

@@ -413,7 +413,7 @@ public sealed class ProceduresGenerator
                     }
                     // Nested JSON sub-struct generation (always active for JSON sets with underscore groups)
                     string nestedRecordsBlock = string.Empty;
-                    if (isJson && rs.Fields.Any(f => f.Name.Contains('_')))
+                    if (isJson && rs.Fields.Any(f => f.Name.Contains('.') || f.Name.Contains('_')))
                     {
                         // Build hierarchical tree
                         var rootLeafFields = new List<FieldDescriptor>();
@@ -421,7 +421,7 @@ public sealed class ProceduresGenerator
                         var groups = new Dictionary<string, List<FieldDescriptor>>(StringComparer.OrdinalIgnoreCase);
                         foreach (var f in rs.Fields)
                         {
-                            var parts = f.Name.Split('_');
+                            var parts = f.Name.Contains('.') ? f.Name.Split('.') : f.Name.Split('_');
                             if (parts.Length == 1)
                             {
                                 rootLeafFields.Add(f);
@@ -465,7 +465,7 @@ public sealed class ProceduresGenerator
                             var subGroups = new Dictionary<string, List<FieldDescriptor>>(StringComparer.OrdinalIgnoreCase);
                             foreach (var f in fields)
                             {
-                                var parts = f.Name.Split('_');
+                                var parts = f.Name.Contains('.') ? f.Name.Split('.') : f.Name.Split('_');
                                 if (parts.Length == 2)
                                 {
                                     leaves.Add(new FieldDescriptor(parts[1], parts[1], f.ClrType, f.IsNullable, f.SqlTypeName, f.MaxLength, f.Documentation, f.Attributes));
@@ -482,7 +482,12 @@ public sealed class ProceduresGenerator
                             }
                             var typeName = BuildNestedTypeName(rootTypeName, groupName);
                             var paramLines = new List<string>();
-                            paramLines.AddRange(leaves.Select((lf, idx) => $"    {lf.ClrType} {lf.PropertyName}{(idx == leaves.Count && subGroups.Count == 0 ? string.Empty : ",")}"));
+                            // Kommas nur setzen, wenn entweder weitere Leaf-Parameter folgen oder Subgroups existieren
+                            paramLines.AddRange(leaves.Select((lf, idx) => {
+                                bool isLastLeaf = idx == leaves.Count - 1;
+                                var needsComma = !isLastLeaf || subGroups.Count > 0;
+                                return $"    {lf.ClrType} {lf.PropertyName}{(needsComma ? "," : string.Empty)}";
+                            }));
                             // Add sub-group properties (types) preserving first appearance order
                             int sgIndex = 0;
                             foreach (var sg in subGroups)
@@ -503,6 +508,11 @@ public sealed class ProceduresGenerator
                             var nestedList = BuildGroup(rsType, g, groups[g]);
                             builtTypes.AddRange(nestedList);
                         }
+                        try
+                        {
+                            Console.Out.WriteLine($"[spocr vNext] nested-json groups detected for {proc.OperationName}::{rs.Name} - groupCount={groupOrder.Count} groups=[{string.Join(",", groupOrder)}] rootLeaves={rootLeafFields.Count}");
+                        }
+                        catch { /* non-fatal logging */ }
                         nestedRecordsBlock = string.Join("\n", builtTypes.Select(t => t.Code));
 
                         // Rebuild fieldsBlock for root: root leaves + group properties
