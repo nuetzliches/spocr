@@ -5,29 +5,29 @@
 #nullable enable
 namespace RestApi.SpocR.Samples;
 
+using RestApi.SpocR;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Data;
 using System.Data.Common;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using RestApi.SpocR;
 
 public readonly record struct UserContactSyncInput(
-    string Contacts
+    UserContactTableType Contacts
 );
 
-public readonly record struct UserContactSyncResultSet(
+public readonly record struct UserContactSyncResult(
     int? UpdatedContacts,
     int? MissingContacts
 );
 
-public sealed class UserContactSyncResult
+public sealed class UserContactSyncAggregate
 {
 	public bool Success { get; init; }
 	public string? Error { get; init; }
-	public IReadOnlyList<UserContactSyncResultSet> Result { get; init; } = Array.Empty<UserContactSyncResultSet>();
+	public IReadOnlyList<UserContactSyncResult> Result { get; init; } = Array.Empty<UserContactSyncResult>();
 	
 }
 
@@ -40,39 +40,33 @@ internal static partial class UserContactSyncPlan
 
 	var parameters = new ProcedureParameter[]
 	{
-            new("@Contacts", System.Data.DbType.String, null, false, false),
+            new("@Contacts", System.Data.DbType.Object, null, false, false),
         };
 
 	var resultSets = new ResultSetMapping[]
 	{
             new("ResultSet1", async (r, ct) =>
-	    {
-		var list = new List<object>();
-int o0=r.GetOrdinal("UpdatedContacts"); int o1=r.GetOrdinal("MissingContacts");
-		while (await r.ReadAsync(ct).ConfigureAwait(false))
-		{
-		    list.Add(new UserContactSyncResultSet(r.IsDBNull(o0) ? null : (int?)r.GetInt32(o0), r.IsDBNull(o1) ? null : (int?)r.GetInt32(o1)));
-		}
-		return list;
-	    }),
+    {
+		var list = new System.Collections.Generic.List<object>(); int o0=ReaderUtil.TryGetOrdinal(r, "UpdatedContacts"); int o1=ReaderUtil.TryGetOrdinal(r, "MissingContacts"); if (System.Environment.GetEnvironmentVariable("SPOCR_DUMP_FIRST_ROW") == "1") ReaderUtil.DumpFirstRow(r); while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new UserContactSyncResult(o0 < 0 ? null : (r.IsDBNull(o0) ? null : (int?)r.GetInt32(o0)), o1 < 0 ? null : (r.IsDBNull(o1) ? null : (int?)r.GetInt32(o1)))); } return list;
+    }),
 
         };
 
 		object? OutputFactory(IReadOnlyDictionary<string, object?> values) => null;
 		object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs)
 		{
-			return new UserContactSyncResult
+			return new UserContactSyncAggregate
 			{
 				Success = success,
 				Error = error,
 				// ResultSet 0 → Result (robust list/array handling)
-				Result = rs.Length > 0 && rs[0] is object[] rows0 ? Array.ConvertAll(rows0, o => (UserContactSyncResultSet)o).ToList() : (rs.Length > 0 && rs[0] is System.Collections.Generic.List<object> list0 ? Array.ConvertAll(list0.ToArray(), o => (UserContactSyncResultSet)o).ToList() : Array.Empty<UserContactSyncResultSet>())
+				Result = rs.Length > 0 && rs[0] is object[] rows0 ? Array.ConvertAll(rows0, o => (UserContactSyncResult)o).ToList() : (rs.Length > 0 && rs[0] is System.Collections.Generic.List<object> list0 ? Array.ConvertAll(list0.ToArray(), o => (UserContactSyncResult)o).ToList() : Array.Empty<UserContactSyncResult>())
 			};
 		};
 		void Binder(DbCommand cmd, object? state)
 		{
             var input = (UserContactSyncInput)state!;
-            cmd.Parameters["@Contacts"].Value = input.Contacts;
+            { var prm = cmd.Parameters["@Contacts"]; prm.Value = TvpHelper.BuildRecords(input.Contacts) ?? (object)DBNull.Value; if (prm is Microsoft.Data.SqlClient.SqlParameter sp) sp.SqlDbType = System.Data.SqlDbType.Structured; }
 
 		}
 		return new ProcedureExecutionPlan(
@@ -83,7 +77,7 @@ int o0=r.GetOrdinal("UpdatedContacts"); int o1=r.GetOrdinal("MissingContacts");
 /// <summary>Convenience extension for executing 'samples.UserContactSync' via an <see cref="ISpocRDbContext"/>.</summary>
 public static class UserContactSyncExtensions
 {
-	public static async Task<UserContactSyncResult> UserContactSyncAsync(this ISpocRDbContext db, UserContactSyncInput input, CancellationToken cancellationToken = default)
+	public static async Task<UserContactSyncAggregate> UserContactSyncAsync(this ISpocRDbContext db, UserContactSyncInput input, CancellationToken cancellationToken = default)
 	{
 		await using var conn = await db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 		return await UserContactSyncProcedure.ExecuteAsync(conn, input, cancellationToken).ConfigureAwait(false);
@@ -94,8 +88,8 @@ public static class UserContactSyncExtensions
 public static class UserContactSyncProcedure
 {
 	public const string Name = "samples.UserContactSync";
-	public static Task<UserContactSyncResult> ExecuteAsync(DbConnection connection, UserContactSyncInput input, CancellationToken cancellationToken = default)
+	public static Task<UserContactSyncAggregate> ExecuteAsync(DbConnection connection, UserContactSyncInput input, CancellationToken cancellationToken = default)
 	{
-		return ProcedureExecutor.ExecuteAsync<UserContactSyncResult>(connection, UserContactSyncPlan.Instance, input, cancellationToken);
+		return ProcedureExecutor.ExecuteAsync<UserContactSyncAggregate>(connection, UserContactSyncPlan.Instance, input, cancellationToken);
 	}
 }

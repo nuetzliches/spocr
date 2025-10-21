@@ -1,9 +1,9 @@
 {
   "SchemaVersion": 1,
-  "Fingerprint": "B42C616D466D452E",
+  "Fingerprint": "872849885BD89C88",
   "Parser": {
     "ToolVersion": "net9.0",
-    "ResultSetParserVersion": 5
+    "ResultSetParserVersion": 8
   },
   "Stats": {
     "ProcedureTotal": 10,
@@ -16,61 +16,61 @@
       "Schema": "samples",
       "Name": "CreateUserWithOutput",
       "File": "samples.CreateUserWithOutput.json",
-      "Hash": "EBE3024CD818B54C"
+      "Hash": "799BB8A26DE25093"
     },
     {
       "Schema": "samples",
       "Name": "OrderListAsJson",
       "File": "samples.OrderListAsJson.json",
-      "Hash": "BBDC19E23CA58D81"
+      "Hash": "C949B78A5220A00D"
     },
     {
       "Schema": "samples",
       "Name": "OrderListByUserAsJson",
       "File": "samples.OrderListByUserAsJson.json",
-      "Hash": "07D6940FFF58B178"
+      "Hash": "6ADC17651A1EFA4A"
     },
     {
       "Schema": "samples",
       "Name": "SumWithOutput",
       "File": "samples.SumWithOutput.json",
-      "Hash": "B4363A0FE1E56477"
+      "Hash": "5A59A9C1697CEBDA"
     },
     {
       "Schema": "samples",
       "Name": "UserBioUpdate",
       "File": "samples.UserBioUpdate.json",
-      "Hash": "3359B91CF0D663E6"
+      "Hash": "DA96D1A64B8A0D5B"
     },
     {
       "Schema": "samples",
       "Name": "UserContactSync",
       "File": "samples.UserContactSync.json",
-      "Hash": "CE84AD7A0E271D2F"
+      "Hash": "7123A69AB826191A"
     },
     {
       "Schema": "samples",
       "Name": "UserDetailsWithOrders",
       "File": "samples.UserDetailsWithOrders.json",
-      "Hash": "BC2A6A772D2D602A"
+      "Hash": "762AD6E7C673EAAA"
     },
     {
       "Schema": "samples",
       "Name": "UserFind",
       "File": "samples.UserFind.json",
-      "Hash": "EF7FA90E250A4222"
+      "Hash": "5851A031B26A333F"
     },
     {
       "Schema": "samples",
       "Name": "UserList",
       "File": "samples.UserList.json",
-      "Hash": "62B9832BFE949CC8"
+      "Hash": "1E7E9688CB09CD60"
     },
     {
       "Schema": "samples",
       "Name": "UserOrderHierarchyJson",
       "File": "samples.UserOrderHierarchyJson.json",
-      "Hash": "6DB94B36B43D08C9"
+      "Hash": "D6BB1A62EFABE710"
     }
   ],
   "TableTypes": [
@@ -92,5 +92,6 @@
       "File": "samples.UserIdListTableType.json",
       "Hash": "DBAD0CC5C2F36234"
     }
-  ]
+  ],
+  "Functions": []
 }

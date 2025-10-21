@@ -10,6 +10,8 @@ status_conventions:
 	done: '[x]'
       deferred: '[>]'
       partial: '[~]'
+      question: '[?]'
+      fact: '[!]'
 categories:
 	- epics
 	- quality
@@ -28,83 +30,23 @@ Status-Legende:
 [>] deferred / verschoben (spätere Version, kein aktueller Fokus)
 [~] teilweise umgesetzt / Basis fertig, Feinschliff offen
 
-## Fokus & Prioritäten (Snapshot)
+## Fokus & Prioritäten
 
-Legende Prioritäten: P1 = kritisch für v5 Cutover, P2 = hoch für Bridge (v4.5→v5), P3 = sinnvoll vor Release, P4 = nachgelagert / Nice-to-have.
+Neue Bereinigung (2025-10-21): Debug Artefakte entfernt (SPOCR_DUMP_FIRST_ROW) – Instrumentierung in vNext Generator und Output eliminiert.
 
-Aktueller Fokus – Update 2025-10-21:
-
-API-KONZEPT Umsetzung & Entscheidungsfindung (siehe `DeveloperBranchUseOnly-API-CONCEPT.md`). Kernpunkte jetzt im Fokus statt früherer Liste 1–9:
-
-1. (P1) DbContext Methoden-Signaturen Generator (Interface Slicing: Schema-spezifische Partial Interfaces) – [x] Implementations-Skizze erstellt (Extension-Ansatz entschieden; Interface Slicing als zukünftige Option dokumentiert)
-2. (P1) Interceptor Interface (`ISpocRProcedureInterceptor`) finalisieren + erste Logging/Timing Implementierung – [x] Interface & NoOp Implementierung erstellt; Execution integriert (SetInterceptor + Pre/After Hooks mit Duration in `ProcedureExecutor`)
-3. (P1) Entscheidung Methodennamen Konfliktstrategie (Schema-Präfix bei Doppelungen?) dokumentieren – [x] Strategie dokumentiert (Namespaces per Schema + optionaler Schema-Präfix bei seltenen Konflikten; keine Overloads)
-   note: Vorgaben bestätigt: 1) Unterschiedliche Schemas erzeugen auch unterschiedliche Namespaces (SchemaPascalCase eingebunden) → reduziert natürliche Konflikte. 2) Bereinigung ersetzt nur nicht pfad-/klassennamen-kompatible Sonderzeichen durch '\_' (kein Entfernen/Normalisieren zur Deduplikation, keine aggressive Vereinheitlichung). 3) Prozedurnamen bleiben (abgesehen von Sonderzeichen-Ersatz) unverändert; kein Plural-Singulär Rewriting, kein Suffix Strip. 7) Zugriffskonzepte evaluiert: a) Extensions via using Namespace (Standard) b) db.[SchemaName].[ProcName]Async() via verschachtelte Schema-Accessor Proxy c) Mehrere injizierbare schema-spezifische DbContexts. Empfehlung: Start mit einfachem DbContext + Namespaces (Option a) → spätere Erweiterung: optionaler Schema Accessor (Option b) wenn Discoverability Bedarf steigt. Separate DbContexts pro Schema (Option c) aktuell verworfen (Fragmentierung / DI Overhead).
-   Kollisionslösung: Erst normaler Methodenname; falls Dublette trotz Namespace (selten bei identischem SchemaPascalCase + Name) → Schema-Präfix an Methodennamen anhängen (SalesGetOrderAsync). Keine Overloads.
-   Optional Anschluss-Schritte (Interceptor & Invocation Ausbau):
-   - LoggingProcedureInterceptor (structured logging: duration ms, success flag, error) implementieren [x]
-   - DEVELOPMENT.md Abschnitt "Interceptors" (Registration, Best Practices, Fehlerhandling) ergänzen [x]
-   - Reflection-Test für Extension Präsenz (<ProcName>Async + Wrapper Bridge) hinzufügen [x]
-   - Doku Hinweis: Globaler statischer Interceptor vs. mögliche zukünftige DI-scoped Variante (Trade-offs dokumentieren: Einfachheit vs. Request-Korrelation) [x]
-   - Beispiel-Code Snippet im README (Interceptor Registrierung während Startup) [x]
-4. (P1) Aggregat Rückgabe-Konvention – Entscheidung BESTÄTIGT: Immer Unified Aggregate (kein Shortcut bei Single ResultSet) – [x] dokumentiert (API-CONCEPT.md Referenz + README Abschnitt ergänzt 19.10.2025)
-5. (P2) Streaming API Flags & Snapshot Erweiterungen (ResultSetStreamingKind, IsJsonPayload) – Spezifikation festziehen (Implementierung deferred v5)
-6. (P2) JSON Dual Mode Methoden-Suffixe fixieren (`JsonRawAsync`, `JsonDeserializeAsync`, `JsonElementsAsync`, `JsonStreamAsync`) – Naming Freeze
-7. (P2) ProcedureEndpoints Generator Opt-In Flag definieren (`SPOCR_GENERATE_API_ENDPOINTS` / CLI `--api-endpoints`) – Entscheidung + README TODO
-8. (P2) Wrapper vs. Static Low-Level Doku (Static Wrapper als Low-Level kennzeichnen) – Draft Erstellen
-9. (P2) Fluent Command Builder Abgrenzung (nur komplexe Szenarien; Flag) – Evaluations-Notiz + Entscheidung ob v5 oder später
-10. (P2) Decision Liste aus Abschnitt "Zu planende Entscheidungen" priorisieren & markieren (siehe unten konsolidierte Auswahl)
-
-### Zusatz-Fokus (Update 2025-10-20): vNext JSON Procedure Handling
-
-Problembeobachtung (historisch, noch offen): Generiertes Model für JSON ResultSet `WorkflowListAsJsonResultSet` enthält falsche Typen – Beispiel:
-
-```csharp
-public readonly record struct WorkflowListAsJsonResultSet(
-      string workflowId, // sollte int sein (DB liefert Zahl)
-      string code,
-      string displayName,
-      string description
-);
-```
-
-Konsequenz: Numerische Tokens im JSON führen zu (jetzt abgefangenen) Konvertierungs-Fallbacks über den LenientStringConverter statt korrekter starker Typisierung.
-
-Ziele (P1 kurz vorziehen):
-
-1. Korrekte Typableitung für JSON ResultSets (numeric → int/long/decimal; bool → bool; datetime → DateTime/DateTimeOffset) statt alles als string.
-2. Validierung: Bei aktivem `ReturnsJson` Flag soll der Generator vorhandene Feld-Deskriptoren mit SQL-Typen mappen; JSON-Deserialisierung nutzt stark typisierte Records.
-3. Prüfpunkt: Falls Snapshot keine Spalten-Typen liefert (nur JSON-Spalte), heuristische Ableitung optional (DEFERRED) → zunächst Ausgabe Warnung: "JSON model property 'workflowId' defaulted to string; schema type: int".
-4. Konsolidierung: LenientStringConverter bleibt nur Sicherheitsnetz (nicht primärer Pfad für Zahl→string Umwandlung).
-5. Erweiterte Checklist-Tasks unten (Quality & Codegenerierung) aufgenommen.
-
-Neue Aufgaben:
-
-- [ ] JSON Model Typkorrektur für WorkflowListAsJson (workflowId → int)
-- [ ] Audit weiterer JSON ResultSets: Falsche string Platzhalter identifizieren & korrigieren
-- [ ] Generator: Mapping-Layer für ReturnsJson ResultSets implementieren (SQL Typname → C# Property Typ) vor Deserialisierung
-- [ ] Warnung ausgeben wenn Property als string generiert wurde, obwohl SQL Basis-Typ erkannt (einmal pro Build, aggregiert)
-- [ ] Tests: JSON Deserialisierung numeric, bool, datetime Felder ohne Lenient Converter (Converter nur für Mischfälle)
-- [ ] Dokumentation Abschnitt "vNext JSON Procedure Handling" (Deserialisierungspfad, Flags, Typableitung, Fallback Strategie)
-- [ ] Entferne temporäre Komplexität: Keine Schleifen/Aggregation bei Single NVARCHAR JSON Spalte (bereits umgesetzt, verifizieren)
+- [x] JSON Model Typkorrektur für WorkflowListAsJson (workflowId → int) – Mapping aktiv
+- [~] Audit weiterer JSON ResultSets: Erste Korrekturen (33 Felder, überwiegend rowVersion → byte[]) erfolgt; numerische/bool/datetime Fälle prüfen
+- [x] Generator: Mapping-Layer für ReturnsJson ResultSets implementiert (SQL Typname → C# Property Typ)
+- [x] Warnung/Aggregation aktiv (JsonTypeMapping Logs + optional JsonAudit Report)
+- [ ] Tests: JSON Deserialisierung numeric, bool, datetime Felder ohne Lenient Converter (Converter nur für Mischfälle) – AUSSTEHEND
+- [ ] Dokumentation Abschnitt "vNext JSON Procedure Handling" (Deserialisierungspfad, Flags, Typableitung, Fallback Strategie) – AUSSTEHEND
+- [x] Entfernte temporäre Komplexität: Keine Schleifen/Aggregation bei Single NVARCHAR JSON Spalte (verifiziert)
 - [ ] Performance Mikro-Test: Direkte Deserialisierung vs. vorherige Aggregation (optional, DEFERRED)
- - [x] Verschachtelte JSON Feld-Namen (Dot & Underscore) erzeugen jetzt hierarchische Sub-Records (Generator Anpassung 21.10.2025)
- - [x] Trailing Comma in verschachtelten Record Parametern entfernt (21.10.2025)
- - [x] Fallback SqlTypeName Marker 'json' → NVARCHAR & 'rowversion'/'timestamp' → VarBinary implementiert (Enum.Parse Schutz)
- - [x] Debug Logging für nested-json Gruppen entfernt (nur temporär für Verifikation genutzt)
- - [x] Kompatibilitätsentscheidung: Kein Feature Toggle für verschachtelte Records – immer aktiv (Dokumentation ergänzen)
-
-Depriorisiert (jetzt außerhalb unmittelbarer Fokusliste): Coverage Schwellen Eskalation, Template Edge-Case Tests, allgemeine Logging Verfeinerungen – bleiben beobachtet.
-
-Entscheidungs-Priorisierung aus "Zu planende Entscheidungen" (Snapshot 18.10.2025):
-P1: Datums-/Zeitformat (UTC vs. lokal; Format Standard) · TwoWay Binding Inputs<->Outputs (DTO Reuse) · JSON ResultSet Dual Mode (Flags + Artefakte) · Namespace Fehlerfall ([spocr namespace] Fallback) Bereinigung.
-P2: Converters Modell (Attribute vs. zentraler Registry) · Output Cleanup nicht mehr vorhandener Artefakte · TemplateEngine erweiterte Schleifen · Collision Test für vorgeschlagene Namen · Parser Caching Strategie.
-P3: CTE Support (v5) · FOR JSON PATH root alias extraction · Performance Micro-Benchmark · Mixed Case Normalisierung final · Strict-Diff Aktivierung.
-P4: SPOCR_JSON_SPLIT_NESTED Entfernung Bewertung · Erweiterte Interceptor Hooks (OnJsonDeserialized) · Optional Compression.
-
-Hinweis: Implementierungsstart für DbContext Methoden (P1) erst nach finaler Bestätigung Punkte 1–4. Streaming & JSON Dual Mode bewusst v5 (Vorbereitung aber dokumentiert jetzt für frühe Review).
-
-Kurzfristig depriorisiert (Beispiele P3/P4): Performance Profiling, Nested Template Loops, Strict-Diff Eskalation, Minor Nullability Phase 2.
+- [x] Verschachtelte JSON Feld-Namen (Dot & Underscore) erzeugen jetzt hierarchische Sub-Records (Generator Anpassung 21.10.2025)
+- [x] Trailing Comma in verschachtelten Record Parametern entfernt (21.10.2025)
+- [x] Fallback SqlTypeName Marker 'json' → NVARCHAR & 'rowversion'/'timestamp' → VarBinary implementiert (Enum.Parse Schutz)
+- [x] Debug Logging für nested-json Gruppen entfernt (nur temporär für Verifikation genutzt)
+- [x] Kompatibilitätsentscheidung: Kein Feature Toggle für verschachtelte Records – immer aktiv (Dokumentation ergänzen)
 
 ---
 
@@ -125,8 +67,6 @@ Dann den Build prüfen mit:
 ```bash
 dotnet build samples/restapi/RestApi.csproj -c Debug
 ```
-
-Legende: `[ ]` offene Aufgabe · `[x]` erledigt
 
 Status-Update (2025-10-17): Internationalisierung weiterhin vollständig (alle Code-Kommentare Englisch). Neue Änderungen seit 16.10:
 
@@ -257,8 +197,8 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [x] Template Engine Grundgerüst fertig (ohne Roslyn Abhängigkeiten)
 - [x] Ermittlung des Namespaces automatisiert und dokumentierte Fallback-Strategie vorhanden
 - [x] Zentrale Positive Schema Allow-List (SPOCR_BUILD_SCHEMAS) für Procedures & TableTypes implementiert
-- [ ] Entfernte Spezifikationen/Heuristiken sauber entfernt und CHANGELOG Eintrag erstellt
-- [ ] Neuer `SpocRDbContext` implementiert inkl. moderner DI Patterns & Minimal API Extensions
+- [>] Entfernte Spezifikationen/Heuristiken sauber entfernt und CHANGELOG Eintrag erstellt
+- [~] Neuer `SpocRDbContext` implementiert inkl. moderner DI Patterns & Minimal API Extensions
 - [x] Grundgerüst via Template-Generator (Interface, Context, Options, DI) – aktiviert in `SPOCR_GENERATOR_MODE=dual|next`
 - [x] DbContext Optionen (ConnectionString / Name / Timeout / Retry / Diagnostics)
 - [x] Scoped Registration Validierung (Startup Probe entfernt)
@@ -280,70 +220,28 @@ Streaming & Invocation (vNext API / Verschoben zu v5)
 
 - [>] Erweiterung ResultSetMapping um StreamingKind / Delegates (DEFERRED v5)
 - [>] ProcedureStreamingHelper implementiert (Rows + Json) (DEFERRED v5)
-- [ ] Extension-Methoden für mind. 1 Prozedur generiert (Prototype)
-- [ ] Snapshot Flag / Erkennung FOR JSON Payload (IsJsonPayloadProcedure)
+- [>] Extension-Methoden für mind. 1 Prozedur generiert (Prototype)
 - [>] Unit Tests: Row Streaming (Mehrere Rows), JSON Streaming (Chunk), Cancellation Abbruch (DEFERRED v5)
 - [>] Doku Abschnitt "Procedure Invocation Patterns" inkl. Streaming Beispiele (DEFERRED v5)
 - [>] Interceptor Erweiterung (optional) für PreExecute/PostExecute Streaming Pfade (DEFERRED v5)
-- [ ] Entscheidung: Naming-Konvention Stream Methoden (ResultXStreamAsync vs. StreamResultXAsync) dokumentiert und fixiert
-- [ ] FOR JSON Dual Mode: Raw + Lazy Deserialization Methoden (JsonRawAsync / JsonDeserializeAsync / JsonElementsAsync / JsonStreamAsync)
-- [ ] ProcedureJsonHelper implementiert
-- [ ] Aggregate Lazy JSON Cache (JsonLazy<T>) integriert
+- [>] Entscheidung: Naming-Konvention Stream Methoden (ResultXStreamAsync vs. StreamResultXAsync) dokumentiert und fixiert
+- [~] FOR JSON Dual Mode: Raw + Lazy Deserialization Methoden (JsonRawAsync / JsonDeserializeAsync / JsonElementsAsync / JsonStreamAsync)
+- [?] ProcedureJsonHelper implementiert
+- [?] Aggregate Lazy JSON Cache (JsonLazy<T>) integriert
 - [>] Tests: Raw + Deserialize + Elements Streaming + Invalid JSON + Cancellation (DEFERRED v5)
 - [>] Doku: Dual Mode JSON Nutzung & Best Practices (Wann Raw? Wann Lazy? Wann Streaming?) (DEFERRED v5)
-- [ ] Snapshot: pro ResultSet Flag IsJsonPayload (nicht nur pro Procedure)
-- [ ] Generator: Erzeuge JsonRawAsync, JsonDeserializeAsync<T>, JsonElementsAsync<T>, JsonStreamAsync
+- [>] Generator: Erzeuge JsonRawAsync, JsonDeserializeAsync<T>, JsonElementsAsync<T>, JsonStreamAsync
 - [>] Incremental Parsing: Utf8JsonReader basierte Implementation für Elements Streaming (DEFERRED v5)
-- [ ] Fallback wenn Root nicht Array → InvalidOperationException Test
+- [?] Fallback wenn Root nicht Array → InvalidOperationException Test
 - [>] Performance Smoke: Großer JSON Payload (≥5MB) Vergleich Raw vs. Streaming (Messung dokumentieren) (DEFERRED v5)
-- [ ] Interceptor Erweiterung evaluieren (OnJsonDeserialized Hook) – Entscheidung dokumentieren
-
-#### Optional: Wrapper & Snapshot Referenzen
-
-- [ ] Wrapper Referenz-Snapshot Format finalisieren (nur ExecSource Platzhalter ohne Columns) – Logging + Tests
-- [ ] Test: Wrapper mit leerem Placeholder -> Snapshot enthält 1 Referenz-ResultSet
-- [ ] Test: Non-Wrapper + EXEC + eigenem SELECT -> Snapshot behält eigene + forwarded referenzierte Sets korrekt
-- [ ] Review & Dokumentation Filter-Heuristik für leere Sets (Platzhalterentfernung) – optional Verbose Logging aktivieren
-- [ ] Doku Abschnitt: Unterschied forwarded (ExecSource) vs. direkte ResultSets (Columns/JSON)
-
-      Template Root Vereinfachung
-      - [x] Entfernt: `TemplateRootResolver` + ENV Override (`SPOCR_TEMPLATES_ROOT`) – Templates werden jetzt deterministisch aus `ApplicationRoot/src/SpocRVNext/Templates` geladen
-      - [x] Warn-Logging angepasst: Meldung bei fehlender `UnifiedProcedure.spt` zeigt nur noch "Templates-Pfad prüfen" (keine veralteten Resolver-Hinweise)
-
-      Standardisierung Header / Timestamp
-      - [x] Gemeinsames Header-Template (`_Header.spt`) mit `// <auto-generated/>` + Hinweis Bridge Phase v4.5
-      - [x] Alle bestehenden Templates nutzen Header-Include / Präfix (TableTypes + neue Artefakte)
-      - [x] Entscheidung Timestamp: verbleibt nur in `<remarks>` Zeilen; nicht im Header (Hash-stabil)
-
-      Erweiterte Generatoren (E014)
-      - [x] Template + Generator: Inputs (Parameter-DTOs / Value Objects)
-      - [x] Template + Generator: Outputs (DTO/Records)
-      - [x] Template + Generator: Results (Operation Result Types)
-      - [x] Template + Generator: StoredProcedure Wrapper (Execution Stubs Grundgerüst)
-      - [x] Per-Schema Dateilayout für neue Artefakte umgesetzt (`samples/restapi/[schema]/[Proc]Input.cs|Output.cs|Result.cs|Aggregate.cs|Plan.cs|Procedure.cs` + Row Sets `_ResultSetNameResult.cs`)
-      - [x] High-Level Result Records in per-Schema Layout verschoben (`[Proc]Result.cs`)
-      - [x] Execution Logic ADO.NET (ResultSets Mapping) implementiert (ProcedureExecutionPlan + ProcedureExecutor)
-      - [x] Metadata Provider Implementierung (DB Schema → Descriptors) produktiv (SchemaMetadataProvider)
-      - [~] CLI Integration (`spocr generate` nutzt neue Generatoren) – Legacy Orchestrator ruft vNext Generator jetzt in dual|next auf; eigene vNext CLI Ergänzungen folgen
-            note: Basis aktiv (dual/next Trigger). Offen: eigener vNext-only Befehl (z.B. `spocr vnext generate`), Help/Usage Doku, Param Validation.
-      - [~] Sample nutzt mindestens eine generierte Stored Procedure (Endpoints implementiert, noch Fehler 500 bei UserList)
-            note: UserList Roundtrip Integration Test grün; offen: Timeout/Ping Stabilisierung, README Endpoint Beispiel, zusätzliche CRUD (CreateUser) Test.
-      - [x] ResultSet Naming Strategie dokumentiert (Abschnitt enthält: Basis-Tabelle, Duplicate Suffix, Dynamic SQL Skip, Deferred Items) – Abschluss 18.10.2025
-      - [x] Erweiterung Quick Start Abschnitt für vNext DbContext + Stored Procedure Invocation Beispiel – Abschluss 18.10.2025
-      - [~] Tests: Snapshot / Determinismus für neue Artefakte (Basis vorhanden: Golden + Konsolidierte Procs; ausstehend: RowSet / Konfliktfälle)
-            note: Abgedeckt: Golden Hash Commands Tests, UnifiedProcedureOrderingTests. Offen: Multi-ResultSet Konflikt-Namen, manipulierter Mehrfach-Datei Diff (≥3), Strict Mode Aktivierung später.
-      - [ ] Interaktive .env Bootstrap CLI (separate vNext Kommando) – Basis EnvBootstrapper vorhanden, noch kein dedizierter Befehl
-
-      Hinweis: ResultSetNameResolver aktiv (always-on) – nutzt persistiertes `Sql` Feld; ersetzt nur generische Namen kollisionsfrei. Kein Disable-Schalter vorgesehen (Designentscheidung für Konsistenz & einfache Tests).
-      Update 2025-10-18: Dynamische SQL Erkennung (EXEC(@sql) / sp_executesql) implementiert – Resolver liefert in diesen Fällen bewusst kein Basis-Tabellen-Namensvorschlag (Tests: ResultSetNameResolverDynamicSqlTests).
-
-      TODO entfernt: Performance Messung (nicht mehr erforderlich)
+- [?] Interceptor Erweiterung evaluieren (OnJsonDeserialized Hook) – Entscheidung dokumentieren
 
 ### Funktionen & TVFs Snapshot / Mapping (Aktualisiert 2025-10-21)
 
 Ziel (Phase 1 IST-Zustand): Minimaler Snapshot für Scalar & Table-Valued Functions zur Analyse (künftige Invocation / Dependency Graph), unabhängig von BuildSchemas Allow-List. KEINE Speicherung von Definition, Hash oder ModifiedDate mehr – bewusst schlank für deterministische Diffs.
 
 Persistierte Felder je Funktion (aktuell):
+
 - schema, name
 - isTableValued
 - returnSqlType (leer für TVF)
@@ -355,6 +253,7 @@ Persistierte Felder je Funktion (aktuell):
 - isEncrypted (nur true → verschlüsselte Funktion ohne Definition)
 
 Umgesetzte Punkte:
+
 - [x] Batch Collect Queries (functions, params, tvf_cols) – 1 Roundtrip
 - [x] Rückgabe-Pseudo-Parameter Erkennung (leerer Name) für Scalar Functions → ReturnSqlType + Length/Nullable gefüllt
 - [x] TVF Columns Erfassung inkl. Kollisions-Suffix (Name, Name1, Name2 …)
@@ -367,6 +266,7 @@ Umgesetzte Punkte:
 - [x] Sortierung deterministisch (Schema + Name ASC)
 
 Nicht (mehr) Bestandteil Phase 1 (entfernt / verworfen):
+
 - Definition / Hash / Truncation (>4000) – entfällt zugunsten Minimalität
 - ModifiedDateUtc – nicht benötigt für Generator
 - Return Type Parsing via `RETURNS <type>` Regex – Rückgabetyp wird direkt aus Pseudo-Parameter entnommen
@@ -375,13 +275,15 @@ Nicht (mehr) Bestandteil Phase 1 (entfernt / verworfen):
 - Encrypted Definition Volltext Speicherung – entfällt (Flag reicht)
 
 Neu geplante Erweiterungen (Phase 2):
-- [ ] Dependencies Erfassen (Function → Function Referenzen) via `sys.sql_expression_dependencies` (nur FN/IF/TF) → neues Feld `dependencies[]` (Canonical: schema.functionName)
-- [ ] Zyklus-Erkennung / Markierung (optional: `[fn-dependency-cycle]` Log falls self-referencing oder Ring entdeckt)
-- [ ] Descriptor Angleichen (`FunctionDescriptor`) an schlankes Snapshot-Modell (Definition-Felder optional/entfernt)
-- [ ] Dokumentation Abschnitt "Funktionen & TVFs" mit aktualisiertem Feldschema + Dependency Graph Hinweis
-- [ ] CHANGELOG Eintrag „Preview: Function Snapshot (minimal)“
+
+- [?] Dependencies Erfassen (Function → Function Referenzen) via `sys.sql_expression_dependencies` (nur FN/IF/TF) → neues Feld `dependencies[]` (Canonical: schema.functionName)
+- [?] Zyklus-Erkennung / Markierung (optional: `[fn-dependency-cycle]` Log falls self-referencing oder Ring entdeckt)
+- [?] Descriptor Angleichen (`FunctionDescriptor`) an schlankes Snapshot-Modell (Definition-Felder optional/entfernt)
+- [?] Dokumentation Abschnitt "Funktionen & TVFs" mit aktualisiertem Feldschema + Dependency Graph Hinweis
+- [?] CHANGELOG Eintrag „Preview: Function Snapshot (minimal)“
 
 Deferred Items (später/v5):
+
 - [>] Generator: Scalar Function Async Methoden (ExecuteScalar) + Nullability Mapping
 - [>] Generator: TVF Streaming (`IAsyncEnumerable<RowRecord>`) + Materialize Helper
 - [>] CLR Typ Mapping Utility + Tests (SQL → C#) für Functions
@@ -389,23 +291,14 @@ Deferred Items (später/v5):
 - [>] Analyzer Warnung bei ungenutzten Function Methoden
 
 Risiken & Hinweise:
+
 - Verschlüsselte Funktionen: Nur Flag `isEncrypted=true`, keine weitere Metadatenableitung möglich.
 - TVF komplexe Expressions: sys.columns liefert generierte Namen – akzeptiert; keine heuristische Umbenennung.
 - FOR JSON Regex kann False Positives erzeugen bei kommentierten Codeblöcken – später Kommentar-Stripping (DEFERRED).
-- FOR JSON Parser Limitierungen (aktueller Stand vNext Regex-Heuristik):
-      - Kein vollständiges SQL AST: Es wird die erste/letzte Fundstelle `FOR JSON` mit vorausgehendem `SELECT` erfasst; komplexe CTE-Ketten oder mehrere SELECTs vor RETURN können zu Fehlzuordnungen führen.
-      - Keine explizite RETURN Statement Analyse: Wir suchen nur das Muster `SELECT ... FROM ... FOR JSON`; wenn das finale RETURN auf eine Variable verweist (z.B. `RETURN @payload`) wird die SELECT-Liste nicht erkannt.
-      - Kommentarinhalte (`-- inline`, `/* block */`) werden nicht entfernt → "FOR JSON" in Kommentaren kann fälschlich erkannt werden (False Positive Risiko).
-      - Nested Subqueries: Verschachtelte `(SELECT ... FOR JSON ...)` innerhalb der SELECT-Liste werden als JSON verschachtelte Property (`SqlTypeName = json`) markiert, aber weitere innere Properties werden nicht rekursiv extrahiert.
-      - Aliaserkennung eingeschränkt auf Muster `alias = expr` oder `expr AS alias`; komplexe Ausdrücke ohne Alias fallen auf heuristische Ableitung (letzter Identifier nach Punkt oder letztes Token) zurück.
-      - Typableitung minimal: Nur CAST/CONVERT Zieltypen werden übernommen; JSON_VALUE / JSON_QUERY erhalten `nvarchar(max)`; sonst Default `nvarchar(max)`.
-      - Keine Präzisions-/Skalenanalyse für decimal/numeric außerhalb eines direkten CAST/CONVERT.
-      - Duplikate in der SELECT-Liste werden im Snapshot durch Suffixe (`id`, `id1`, `id2` ...) aufgelöst; die Heuristik entscheidet rein nach bereits gesehenen Namen.
-      - Kein Entfernen von TOP-Level Klammerausdrücken, dadurch können leading `(` im Alias-Fallback verbleiben (geringe Auswirkung, später säubern).
-      - Performance: Ein einzelner Regex mit `Singleline` über die gesamte Funktionsdefinition; bei sehr großen Definitionen > (mehrere 100 KB) potenziell langsam – aktuell akzeptiert (Functions selten so groß).
-      - Erweiterungen (geplant): Kommentar-Stripping, bessere Auswahl des RETURN-nahen SELECT, robustere Tokenisierung, optionales Deaktivieren bei `SPOCR_STRICT_FUNCTION_JSON=1`.
+- FOR JSON Parser Limitierungen (aktueller Stand vNext Regex-Heuristik): - Kein vollständiges SQL AST: Es wird die erste/letzte Fundstelle `FOR JSON` mit vorausgehendem `SELECT` erfasst; komplexe CTE-Ketten oder mehrere SELECTs vor RETURN können zu Fehlzuordnungen führen. - Keine explizite RETURN Statement Analyse: Wir suchen nur das Muster `SELECT ... FROM ... FOR JSON`; wenn das finale RETURN auf eine Variable verweist (z.B. `RETURN @payload`) wird die SELECT-Liste nicht erkannt. - Kommentarinhalte (`-- inline`, `/* block */`) werden nicht entfernt → "FOR JSON" in Kommentaren kann fälschlich erkannt werden (False Positive Risiko). - Nested Subqueries: Verschachtelte `(SELECT ... FOR JSON ...)` innerhalb der SELECT-Liste werden als JSON verschachtelte Property (`SqlTypeName = json`) markiert, aber weitere innere Properties werden nicht rekursiv extrahiert. - Aliaserkennung eingeschränkt auf Muster `alias = expr` oder `expr AS alias`; komplexe Ausdrücke ohne Alias fallen auf heuristische Ableitung (letzter Identifier nach Punkt oder letztes Token) zurück. - Typableitung minimal: Nur CAST/CONVERT Zieltypen werden übernommen; JSON_VALUE / JSON_QUERY erhalten `nvarchar(max)`; sonst Default `nvarchar(max)`. - Keine Präzisions-/Skalenanalyse für decimal/numeric außerhalb eines direkten CAST/CONVERT. - Duplikate in der SELECT-Liste werden im Snapshot durch Suffixe (`id`, `id1`, `id2` ...) aufgelöst; die Heuristik entscheidet rein nach bereits gesehenen Namen. - Kein Entfernen von TOP-Level Klammerausdrücken, dadurch können leading `(` im Alias-Fallback verbleiben (geringe Auswirkung, später säubern). - Performance: Ein einzelner Regex mit `Singleline` über die gesamte Funktionsdefinition; bei sehr großen Definitionen > (mehrere 100 KB) potenziell langsam – aktuell akzeptiert (Functions selten so groß). - Erweiterungen (geplant): Kommentar-Stripping, bessere Auswahl des RETURN-nahen SELECT, robustere Tokenisierung, optionales Deaktivieren bei `SPOCR_STRICT_FUNCTION_JSON=1`.
 
 Open Design Fragen (aktualisiert):
+
 1. Dependencies nur Funktionen oder auch Prozeduren einbeziehen? (Aktuell Fokus: reine Function→Function Kanten)
 2. Nullability von ReturnTyp: Aktuell nur true gesetzt; sollen wir false ebenfalls persistieren (Konsistenz)? → Entscheidung offen.
 3. Sollen ignorierte Schemas auch für Dependencies berücksichtigt werden? (Vorschlag: Ja, wie bei Capture.)
@@ -418,12 +311,14 @@ Tracking: Erweiterungen oben als einzelne Checklist Tasks gepflegt.
 Ziel v5: Analoge Erfassung von Views (Schema, Name, Spalten, zugrundeliegende Basis-Tabellen/Objekt-Referenzen) zur Unterstützung besserer Typableitung / Impact-Analysen.
 
 Geplanter Minimalumfang:
+
 - [>] Snapshot Felder: schema, name, columns[] (Name, SqlTypeName, IsNullable, MaxLength), isIndexed? (optional), isMaterialized? (nur wenn unterstützt)
 - [>] Dependencies: Liste referenzierter Basis-Objekte (Tabellen, andere Views, Funktionen) via sys.sql_expression_dependencies
 - [>] Keine Persistenz vollständiger Definition (wie bei Functions) – evtl. Option `SPOCR_INCLUDE_VIEW_DEFINITION` (DEFERRED)
-- [>] Generator Vorbereitung: Spätere Unterstützung für strongly typed View Queries (SELECT * FROM View) – aktuelles Scope nur Analyse
+- [>] Generator Vorbereitung: Spätere Unterstützung für strongly typed View Queries (SELECT \* FROM View) – aktuelles Scope nur Analyse
 
 Open Punkte (v5 Entscheidung):
+
 - View Column Name Normalisierung notwendig oder 1:1 Übernahme? (Präferenz: 1:1)
 - Umgang mit Schemas außerhalb Allow-List: Gleiches Modell wie Functions (immer aufnehmen, Generation optional)
 - Performance Auswirkungen bei sehr vielen Views – ggf. separate CLI Flag `--include-views` (Opt-In)
@@ -434,22 +329,21 @@ Begründung für Deferral: Kein unmittelbarer Nutzen für v4.5 Bridge; Fokus akt
 
 note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Project.Output.*` sind ab 4.5 als obsolet markiert – tatsächliche Entfernung erfolgt erst mit v5. (Siehe Deprecation Timeline in `MIGRATION_SpocRVNext.md`)
 
-- [ ] Alle als [Obsolet] markierten Typen enthalten klaren Hinweis & Migrationspfad
-- [ ] Dokumentierter Cut für v5.0 (Entfernung DataContext) in README / ROADMAP
-- [ ] (v5) Vollständige Entfernung der verbleibenden Laufzeit-/Build-Abhängigkeit zu `spocr.json` (reiner .env / ENV Betrieb). Falls in v5 noch eine `spocr.json` gefunden wird: WARNUNG ausgeben (Hinweis auf Aufräumen) – keine harte Nutzung mehr.
-- [ ] Liste entfallener Konfig-Properties (Project.Role.Kind, RuntimeConnectionStringIdentifier, Project.Output) im Changelog
-      note: CHANGELOG enthält bislang keinen Removed-Abschnitt für diese Keys
+- [?] Alle als [Obsolet] markierten Typen enthalten klaren Hinweis & Migrationspfad
+- [>] Dokumentierter Cut für v5.0 (Entfernung DataContext) in README / ROADMAP
+- [>] Vollständige Entfernung der verbleibenden Laufzeit-/Build-Abhängigkeit zu `spocr.json` (reiner .env / ENV Betrieb). Falls in v5 noch eine `spocr.json` gefunden wird: WARNUNG ausgeben (Hinweis auf Aufräumen) – keine harte Nutzung mehr.
+- [~] Liste entfallener Konfig-Properties (Project.Role.Kind, RuntimeConnectionStringIdentifier, Project.Output) im Changelog
+  note: CHANGELOG enthält bislang keinen Removed-Abschnitt für diese Keys
 - [x] Migration von `spocr.json` auf `.env` / Environment Variablen dokumentiert (Mapping Tabelle)
       note: Precedence aktualisiert (CLI > ENV > .env > spocr.json Fallback nur in dual|next wenn SPOCR_GENERATOR_DB fehlt). Fallback & Override implementiert in EnvConfiguration.
-- [ ] Upgrade Hinweise in README + CHANGELOG integriert (kein separater Guide in dieser Phase)
-- [ ] SemVer Bewertung durchgeführt (Minor vs. Major Bump begründet)
+- [x] SemVer Bewertung durchgeführt (Minor vs. Major Bump begründet)
       note: Entscheidungskriterium: Entfernen Legacy DataContext + Identifier Fallback = Major (v5); v4.5 nur Bridge.
 
 ### Ziel-Framework spezifische Features
 
-- [ ] Gating: `SpocRDbContextEndpoints` nur für `net10.0` kompilieren (Analyzer/Conditional Compilation) – Dokumentation verlinken
-      note: Ältere TFs (net8/net9) erhalten nur DbContext + HealthCheck optional via manuelle Registrierung
-- [ ] README Abschnitt "Target Framework Matrix" (Endpoint Availability) ergänzen
+- [>] Gating: `SpocRDbContextEndpoints` nur für `net10.0` kompilieren (Analyzer/Conditional Compilation) – Dokumentation verlinken
+  note: Ältere TFs (net8/net9) erhalten nur DbContext + HealthCheck optional via manuelle Registrierung
+- [>] README Abschnitt "Target Framework Matrix" (Endpoint Availability) ergänzen
 
 ### Migration Bootstrap (.env Erst-Erstellung)
 
@@ -467,9 +361,9 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 
 ### Dokumentation (Update 2025-10-18)
 
-- [ ] docs Build läuft (Bun / Nuxt) ohne Fehler
-- [ ] Neue Seiten für SpocRVNext (Architektur, Unterschiede, Migration) hinzugefügt
-- [ ] Referenzen (CLI, Konfiguration, API) aktualisiert
+- [~] docs Build läuft (Bun / Nuxt) ohne Fehler
+- [~] Neue Seiten für SpocRVNext (Architektur, Unterschiede, Migration) hinzugefügt
+- [~] Referenzen (CLI, Konfiguration, API) aktualisiert
 - [x] README Quick Start an neuen Generator angepasst
       note: vNext DbContext Beispiel ergänzt & ValidateOnBuild entfernt (18.10.2025)
 - [x] Doku: TableTypes Abschnitt (Naming-Preservation, Timestamp `<remarks>` & Hash-Ignore, Interface `ITableType`, Schema-Unterordnerstruktur) in docs/3.reference oder 2.cli verlinkt
@@ -492,60 +386,50 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 
 ### Docs Deployment (GitHub Pages) – Planung
 
-- [ ] Nuxt Static Generation konfigurieren (`bun run generate`) erzeugt vollständiges Prerender ohne SSR-Abhängigkeiten
-- [ ] `nuxt.config.ts`: `nitro.static` / `routeRules` prüfen; `app.baseURL` für Pages (`/spocr/`) setzen falls kein CNAME
-- [ ] Build-Workflow `.github/workflows/docs-pages.yml` anlegen (Branch `gh-pages` Deploy)
-- [ ] Cache (bun) + Node Version (>= 20) in Workflow
-- [ ] Artefakt-Publish: `docs/.output/public` oder `.dist` Ordner je nach Nuxt Version verifizieren
-- [ ] 404 Handling (`404.html`) erzeugen (Nuxt auto oder manuell) für SPA History Fallback
-- [ ] Link-Check Schritt (externe + interne) vor Deploy
-- [ ] Badge im README (Docs Status / Pages URL)
-- [ ] Checklist Update: Deployment aktiviert & erster erfolgreicher Publish
+- [~] Nuxt Static Generation konfigurieren (`bun run generate`) erzeugt vollständiges Prerender ohne SSR-Abhängigkeiten
+- [~] `nuxt.config.ts`: `nitro.static` / `routeRules` prüfen; `app.baseURL` für Pages (`/spocr/`) setzen falls kein CNAME
+- [~] Build-Workflow `.github/workflows/docs-pages.yml` anlegen (Branch `gh-pages` Deploy)
+- [~] Cache (bun) + Node Version (>= 20) in Workflow
+- [~] Artefakt-Publish: `docs/.output/public` oder `.dist` Ordner je nach Nuxt Version verifizieren
+- [~] 404 Handling (`404.html`) erzeugen (Nuxt auto oder manuell) für SPA History Fallback
+- [~] Link-Check Schritt (externe + interne) vor Deploy
+- [~] Badge im README (Docs Status / Pages URL)
+- [~] Checklist Update: Deployment aktiviert & erster erfolgreicher Publish
 
-### Samples / Demo (samples/restapi) (Update 2025-10-15)
+### Samples / Demo (samples/restapi)
 
-- [x] Sample baut mit aktuellem Generator (dotnet build)
-      note: Build auf Branch erfolgreich (15.10.2025)
+- [~] Sample baut mit aktuellem Generator (dotnet build)
 - [x] Sample führt grundlegende DB Operationen erfolgreich aus (CRUD Smoke Test) – Roundtrip & Ping stabil (Timeout/Ping Fix abgeschlossen 18.10.2025)
       note: Optional: zusätzlicher CreateUser Roundtrip + README Beispiel ergänzen
 - [~] Automatisierter Mini-Test (skriptgesteuert) prüft Generierung & Start der Web API (smoke-test.ps1 vorhanden, CI Integration fehlt)
 - [x] Sample beschreibt Aktivierung des neuen Outputs (Feature Flag) im README (Abschnitt vorhanden 19.10.2025)
-- [ ] Schema Rebuild Pipeline (`dotnet run --project src/SpocR.csproj -- rebuild -p samples/restapi/spocr.json --no-auto-update`) erzeugt deterministisch `samples/restapi/.spocr/schema`
+- [!] Schema Rebuild Pipeline (`dotnet run --project src/SpocR.csproj -- rebuild -p samples/restapi/spocr.json --no-auto-update`) erzeugt deterministisch `samples/restapi/.spocr/schema`
 - [~] Generierter Output in `samples/restapi/SpocR` deterministisch (Golden Hash Feature implementiert, CI Verify offen) - Golden Write/Verify verfügbar, noch nicht in CI
 - [x] Namespace-Korrektur: `samples/restapi/SpocR/ITableType.cs` → `namespace RestApi.SpocR;`
-- [ ] Namespace-Korrektur: Dateien unter `samples/restapi/SpocR/samples/` → `namespace RestApi.SpocR.samples;`
-- [x] Namespace-Korrektur: Dateien unter `samples/restapi/SpocR/samples/` → vereinheitlicht zu `namespace RestApi.SpocR.<SchemaPascalCase>` (ohne Kategorie-Segmente)
+- [ ] (noch offen?) Namespace-Korrektur: Dateien unter `samples/restapi/SpocR/samples/` → `namespace RestApi.SpocR.samples;`
 
 ### Sicherheit & Compliance
 
-- [ ] Keine geheimen Verbindungsstrings / Secrets committed (Review via Suche nach "Password=" / ";User Id=")
-- [ ] Abhängigkeiten aktualisiert (dotnet list package --outdated geprüft) – sicherheitsrelevante Updates eingespielt
-- [ ] Lizenz-Hinweise unverändert kompatibel (LICENSE, verwendete NuGet Packages)
-- [ ] Minimale Berechtigungen für DB Tests (Least Privilege Account)
+- [~] Keine geheimen Verbindungsstrings / Secrets committed (Review via Suche nach "Password=" / ";User Id=")
+- [~] Abhängigkeiten aktualisiert (dotnet list package --outdated geprüft) – sicherheitsrelevante Updates eingespielt
+- [~] Lizenz-Hinweise unverändert kompatibel (LICENSE, verwendete NuGet Packages)
+- [~] Minimale Berechtigungen für DB Tests (Least Privilege Account)
 
 ### Performance & Wartung
 
-- [ ] Start-zu-Generierungszeit gemessen & dokumentiert
-- [ ] Speicherverbrauch während Codegeneration einmal profiliert (nur grober Richtwert)
-- [ ] Kein übermäßiger Dateichurn (idempotenter Output)
-- [ ] Logging reduziert auf sinnvolle Defaults (kein unnötiger Lärm im CI)
+- [>] Start-zu-Generierungszeit gemessen & dokumentiert
+- [>] Speicherverbrauch während Codegeneration einmal profiliert (nur grober Richtwert)
+- [>] Kein übermäßiger Dateichurn (idempotenter Output)
+- [>] Logging reduziert auf sinnvolle Defaults (kein unnötiger Lärm im CI)
 
 ### Release Vorbereitung
 
-- [ ] Version in `src/SpocR.csproj` und ggf. weiteren Projekten angehoben
-- [ ] Tag / Release Notes vorbereitet (Aus CHANGELOG generiert)
-- [ ] Git Clean Status vor Tag (keine uncommitted Changes)
-- [ ] CI Pipeline für Release Branch erfolgreich durchgelaufen
-- [ ] NuGet Paket lokal gebaut & installiert (Smoke Test CLI)
-- [ ] Signierung/Authentizität geprüft (falls relevant)
-
-### Nach dem Release
-
-- [ ] Veröffentlichung auf GitHub (Release + Tag) erfolgt
-- [ ] Paket im NuGet Index sichtbar & Version abrufbar
-- [ ] Quick Start Schritt-für-Schritt mit neuer Version einmal frisch durchgespielt
-- [ ] Erste Issues / Feedback-Kanal beobachtet (24-48h Monitoring)
-- [ ] Roadmap
+- [~] Version in `src/SpocR.csproj` und ggf. weiteren Projekten angehoben
+- [~] Tag / Release Notes vorbereitet (Aus CHANGELOG generiert)
+- [~] Git Clean Status vor Tag (keine uncommitted Changes)
+- [~] CI Pipeline für Release Branch erfolgreich durchgelaufen
+- [~] NuGet Paket lokal gebaut & installiert (Smoke Test CLI)
+- [~] Signierung/Authentizität geprüft (falls relevant)
 
 ### Automatisierung / CI (Update 2025-10-19)
 
@@ -575,62 +459,62 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 - [x] Major-Bridge Policy implementiert (Block direkte Major-Sprünge ohne `SPOCR_ALLOW_DIRECT_MAJOR`)
 - [x] README Hinweis zur Bridge Policy ergänzen (CHANGELOG Eintrag vorhanden)
 - [x] Testfall für geblocktes Major Update + Override hinzugefügt (`BridgePolicyTests`)
-- [ ] Weitere Tests: Minor Update erlaubt, SkipVersion respektiert, Direkt-Major mit Override protokolliert
-- [ ] Dokumentation Env Override Beispiele (`SPOCR_ALLOW_DIRECT_MAJOR=1`) in README / MIGRATION Guide
+- [~] Weitere Tests: Minor Update erlaubt, SkipVersion respektiert, Direkt-Major mit Override protokolliert
+- [~] Dokumentation Env Override Beispiele (`SPOCR_ALLOW_DIRECT_MAJOR=1`) in README / MIGRATION Guide
 
 - [x] Tests für EnvConfiguration Precedence & Invalid Mode vorhanden
       note: Zusätzlich Fallback-Test (spocr.json ConnectionString genutzt wenn SPOCR_GENERATOR_DB fehlt) & Override-Test (ENV gewinnt) ergänzt.
-- [ ] Test: Experimental CLI Flag (`SPOCR_EXPERIMENTAL_CLI`) aktiviert neuen Parser nur bei gesetztem Flag
+- [~] Test: Experimental CLI Flag (`SPOCR_EXPERIMENTAL_CLI`) aktiviert neuen Parser nur bei gesetztem Flag
 
 ### Nullable & Codequalität (Ergänzung)
 
 - [x] Globale Nullable aktiviert + Legacy-Unterdrückung via `.editorconfig`
 - [x] Selektive Reaktivierung für `SpocRVNext` und neue CLI Entry Points
-- [ ] Phase 2: Schrittweises Entfernen alter Suppressions (Tracking Liste)
-- [ ] Phase 3: CI Eskalation (`SPOCR_STRICT_NULLABLE=1`) dokumentiert & aktiviert
+- [~] Phase 2: Schrittweises Entfernen alter Suppressions (Tracking Liste)
+- [~] Phase 3: CI Eskalation (`SPOCR_STRICT_NULLABLE=1`) dokumentiert & aktiviert
 
 ### Observability / Diff (Ergänzung) (Update 2025-10-19)
 
 - [x] Hash-Manifeste erzeugt (SHA256) pro Output
 - [x] Diff-Report + Allow-List Mechanismus vorhanden
-- [ ] Aktivierung reservierter Exit Codes (21–23) nach Coverage ≥60% & stabiler Allow-List (v5 Ziel)
-      -- [x] Dokumentation: Anleitung zur Pflege der Allow-List (`.spocr-diff-allow`) (README Abschnitt enthält Workflow & Beispiel Globs)
-- [ ] Optionaler "strict-diff" Modus über ENV / CLI Flag getestet
+- [>] Aktivierung reservierter Exit Codes (21–23) nach Coverage ≥60% & stabiler Allow-List (v5 Ziel)
+  -- [x] Dokumentation: Anleitung zur Pflege der Allow-List (`.spocr-diff-allow`) (README Abschnitt enthält Workflow & Beispiel Globs)
+- [>] Optionaler "strict-diff" Modus über ENV / CLI Flag getestet
 - [x] Snapshot-Timestamp (`GeneratedUtc`) aus Persistenz entfernt (deterministische Hashes / keine Timestamp-Diffs)
 - [x] Hash-Filter erweitert: Ignoriere dynamische `Generated at` Zeilen aus vNext Output-Dateien
       note: Strict Mode Aktivierungskriterium: Kern-Coverage ≥60% & stabile Allow-List; README Abschnitt vorhanden (Determinism & Golden Hash, 18.10.2025)
 - [x] Golden Hash Manifest Mechanismus aktiv (`debug/golden-hash.json` bestätigt)
-- [ ] CI Durchsetzung Strict Golden Hash (Exit Codes) – abhängig von Coverage ≥60% & stabiler Allow-List (Policy Draft offen)
-- [ ] Erweiterte Diff Tests: ≥3 manipulierte Dateien → aggregierter Report & korrekter Relaxed Exit Code – offen
+- [>] CI Durchsetzung Strict Golden Hash (Exit Codes) – abhängig von Coverage ≥60% & stabiler Allow-List (Policy Draft offen)
+- [>] Erweiterte Diff Tests: ≥3 manipulierte Dateien → aggregierter Report & korrekter Relaxed Exit Code – offen
 
 ### Sonstiges
 
-- [ ] Konsistenter Stil der Commit Messages (Konvention definiert, z.B. Conventional Commits)
-- [ ] Offene TODO Kommentare bewertet / priorisiert / entfernt falls nicht mehr nötig
-- [ ] Issue Tracker Abgleich: Alle Items dieses Releases geschlossen oder verschoben
-- [ ] Technische Schuldenliste aktualisiert
-- [x] (Regel) Implementierung IN CODE vollständig auf Englisch (Kommentare, öffentliche/ interne Bezeichner) – Ausnahme: `CHECKLIST.md` bleibt deutsch
-      note: Abgeschlossen am 2025-10-16 (SchemaManager, SpocrManager, Snapshot/Layout Services, Provider, Orchestrator)
-- [ ] (Regel) Keine "VNext" Namensbestandteile in Klassen / Dateien / Properties – Trennung ausschließlich über Ordner & Namespace `SpocRVNext`
-- [ ] (Prinzip) Qualität & Wartbarkeit des neuen Outputs > strikte Rückwärtskompatibilität (Breaking Changes sind erlaubt, sofern dokumentiert und migrierbar)
+- [>] Konsistenter Stil der Commit Messages (Konvention definiert, z.B. Conventional Commits)
+- [~] Offene TODO Kommentare bewertet / priorisiert / entfernt falls nicht mehr nötig
+- [~] Issue Tracker Abgleich: Alle Items dieses Releases geschlossen oder verschoben
+- [~] Technische Schuldenliste aktualisiert
+- [!] (Regel) Implementierung IN CODE vollständig auf Englisch (Kommentare, öffentliche/ interne Bezeichner) – Ausnahme: `CHECKLIST.md` bleibt deutsch
+- [!] (Regel) Keine "VNext" Namensbestandteile in Klassen / Dateien / Properties – Trennung ausschließlich über Ordner & Namespace `SpocRVNext`
+- [!] (Prinzip) Qualität & Wartbarkeit des neuen Outputs > strikte Rückwärtskompatibilität (Breaking Changes sind erlaubt)
 - [ ] XML Kommentare auf den vnext Outputs optimieren.
 - [x] Result1 und die Modellklassen sollen bei "Result" ohne Nummer beginnen, erst das zweite ResultSet bekommt die "1" (also 0-based Indexierung und 0 = "").
 - [x] Finale Vereinheitlichung: Entferntes trailing "Result" bei Record-Typen (jetzt `...ResultSet`, `...ResultSet1`, ...) dokumentiert (DEVELOPMENT.md & README Abschnitt aktualisiert)
       note: README & DEVELOPMENT.md aktualisiert 19.10.2025 – Integrationstests angepasst (UserList: Result statt Result1). Kein weiterer Code-Refactor offen.
 
-... (bei Bedarf weiter ergänzen) ...
-
 ## Optionale Erweiterungen (neu hinzugefügt 2025-10-20)
 
 Diese Liste sammelt jüngst identifizierte optionale Verbesserungen rund um JSON Handling, Alias/Keyword Verarbeitung und Diagnostik des vNext Outputs.
 
+// Entfernte Debug Artefakte (SPOCR_DUMP_FIRST_ROW) – kein Wiedereinbau geplant
+
+- [x] Entfernung SPOCR_DUMP_FIRST_ROW & zugehöriger DumpFirstRow Codepfad (Generator & Templates)
 - [>] JSON-Erkennung verfeinern: Heuristik statt "alle Ordinals < 0" zusätzlich (a) exakt 1 physische Spalte, (b) Spaltenname unbekannt / generisch, (c) Muster für FOR JSON PATH Payload (Leading '[' oder '{').
 - [>] Streaming JSON Parser: Implementierung auf Basis `Utf8JsonReader` für sehr große Arrays (≥5MB) – vermeidet vollständiges Puffern; liefert `IAsyncEnumerable<T>`.
 - [>] Dual Mode JSON Methoden: Generator erzeugt `JsonRawAsync`, `JsonDeserializeAsync<T>`, `JsonElementsAsync`, `JsonStreamAsync` (bereits als P2/P5 konzeptionell geführt – hier konsolidiert).
 - [>] Non-Destructive FirstRow Dump: Ersetzen von `DumpFirstRow(r)` durch Peek-Mechanismus (Lesen der aktuellen Row ohne Cursor-Fortschritt oder Zwischenspeichern und Re-Emit), um Diagnose ohne Datenverlust zu ermöglichen.
 - [>] Keyword Escaping Strategie konfigurierbar: Alternative zum '@' Prefix (z.B. Suffix '\_' oder vollständige Umbenennung mit Mapping-Dictionary) – Flag `SPOCR_KEYWORD_ESCAPE_STYLE`.
 - [>] Nested Alias Mapping: Aliase mit Punkt (z.B. `record.rowVersion`) optional als verschachtelte Record-Struktur generieren statt Unterstrich-Ersatz – Flag `SPOCR_NESTED_ALIAS_STRUCTS`.
-      note: Basis-Verschachtelung ohne Toggle bereits umgesetzt; Item würde nur optionalen Toggle/Erweiterungsstrategie abdecken.
+  note: Basis-Verschachtelung ohne Toggle bereits umgesetzt; Item würde nur optionalen Toggle/Erweiterungsstrategie abdecken.
 - [>] Strict Missing Columns Mode: Wenn erwartete Spalten fehlen und keine JSON-Heuristik greift → Exception statt silent Default; Flag `SPOCR_STRICT_COLUMNS`.
 - [>] JSON Root Type Erkennung: Unterschiedliche Pfade für Array vs. Object Root mit präziser Fehlermeldung bei Mixed Root.
 - [>] JSON Cache Layer: Lazy Deserialisierung mit internem Zwischenspeicher (einmaliges Parse, mehrfacher Zugriff) – Typ `JsonLazy<T>` im Aggregate.
@@ -659,30 +543,27 @@ Hinweis: Einige Punkte überschneiden sich mit bereits vorhandenen Deferred v5 I
   depends: [E004, E014]
   note: Brackets in ExecSource* optional (keine Änderung bestehender Tests); Fokus auf Vorhandensein / Merge
   plan: 1) Snapshot-Erweiterung: Vollständige Proc-Liste inkl. ignorierter Schemas cachen (snapshotProcMap) 2) Analysephase: Parser erkennt Wrapper (nur EXEC) vs. Mixed (EXEC + eigener SELECT) 3) Forwarding Merge: Wrapper = komplette Übernahme fremder ResultSets; Mixed = Append ans Ende (Erhalt eigener Reihenfolge) 4) Duplikat-Prüfung: Key (ExecSourceSchemaName, ExecSourceProcedureName, ForwardedResultSetName) 5) Metadaten anreichern (ExecSource\* Felder) 6) Logging implementieren ([proc-forward-xschema] / [proc-exec-append-xschema]) 7) Tests: a) Wrapper Forward b) Mixed Append c) Ignoriertes Schema trotzdem forwarded d) Duplikat-Verhinderung e) Allow-List Interaktion.
-- [ ] samples\restapi\.env aus Template mit Kommentaren generieren (Bootstrap synchronisiert Kommentar-Blöcke aus `.env.example`; identische Reihenfolge & zukünftige v5 Preview Keys optional übernommen)
 - [x] Template-Datei `.env.example` anreichert (Erklär-Kommentare für Modus/Flags/Namespace vorhanden)
-- [ ] CLI Befehl/Bootstrap: `spocr env init` (optional) evaluieren
-- [ ] (OBSOLET) ResultSet Datei-Benennung vereinheitlichen (durch Konsolidierung in eine Prozedur-Datei nicht mehr relevant)
+- [>] CLI Befehl/Bootstrap: `spocr init` (ersetzt `create`)
+- [x] (OBSOLET) ResultSet Datei-Benennung vereinheitlichen (durch Konsolidierung in eine Prozedur-Datei nicht mehr relevant)
       Hinweis: Einzelne RowSet-Dateien existieren nicht mehr; alle Records (Inputs/Outputs/ResultSets/Aggregate/Plan/Executor) liegen in einer konsolidierten `<Proc>.cs`.
       Folgeaufgaben (aktualisiert): - [x] Test: Konsolidierte Datei enthält erwartete Abschnitte in Reihenfolge (Header→Inputs→Outputs→ResultSets→Aggregate→Plan→Executor) - [ ] Test: Kein doppelter Record-Name bei mehreren ResultSets (Multi-Table) - [x] Aktivierungs-Test Resolver (generische Namen ersetzt) - [x] Negative Test: Unparsable SQL → Fallback (kein Crash) - [ ] Multi-ResultSet Szenario (nur erste Tabelle benannt, weitere generisch) - [ ] Mixed Case Tabellenname Normalisierung
       note: Ordering Tests (Single & Multi) implementiert in `UnifiedProcedureOrderingTests` (18.10.2025)
 - [x] Auto-Namespace Fallback für samples/restapi implementiert (erzwingt Basis `RestApi`)
-- [ ] Ergänzender Test für WorkingDir = `samples/restapi` (Folgetask – aktuell indirekt durch Integration abgedeckt)
-- [ ] .env Override Nutzung (SPOCR_NAMESPACE) dokumentieren & Beispiel ergänzen
-- [ ] README / docs: Abschnitt "Namespace Ableitung & Override" inkl. Beispiel diff - Fallback / Erzwingung via Smoke Script aktiv, Doku fehlt
-- [ ] Einheitliche Klein-/Großschreibung Schema-Ordner
-- [ ] Normalisierung (Entscheidung: Beibehalt Original vs. PascalCase)
-- [ ] Test: Mixed Case Snapshot → generierter Ordner konsistent - Status: Implementiert als PascalCase (Generator), Dokumentation noch offen
-- [ ] Dateinamen & Determinismus zusätzliche Tests
+- [~] Ergänzender Test für WorkingDir = `samples/restapi` (Folgetask – aktuell indirekt durch Integration abgedeckt)
+- [~] README / docs: Abschnitt "Namespace Ableitung & Override" inkl. Beispiel diff - Fallback / Erzwingung via Smoke Script aktiv, Doku fehlt
+- [~] Einheitliche Klein-/Großschreibung Schema-Ordner
+- [~] Dateinamen & Determinismus zusätzliche Tests
 - [x] Grundlegende deterministische Hash Tests (Golden Snapshot) vorhanden
 - [x] Konsolidierte UnifiedProcedure Tests (Hash & IO Single Definition)
-- [ ] Erweiterung: spezifische Artefakt-Typen (StoredProcedure Wrapper Section, ResultSet Records innerhalb Konsolidierungs-Datei)
-- [ ] Dateinamens-Konflikt Test (zwei Procs mit ähnlichen Namen + Suffix Handling) - Hash Manifest aktiv; Strict Mode (Fail Fast) offen
-- [ ] Dispatcher next-only Pfad: Gleiches Full Generation Set wie dual
-- [ ] Prüfen Codepfad (`SpocRGenerator` / Dispatcher)
+- [?] Erweiterung: spezifische Artefakt-Typen (StoredProcedure Wrapper Section, ResultSet Records innerhalb Konsolidierungs-Datei)
+- [~] Dateinamens-Konflikt Test (zwei Procs mit ähnlichen Namen + Suffix Handling) - Hash Manifest aktiv; Strict Mode (Fail Fast) offen
+- [?] Dispatcher next-only Pfad: Gleiches Full Generation Set wie dual
+- [?] Prüfen Codepfad (`SpocRGenerator` / Dispatcher)
 - [>] Test: MODE=next erzeugt identische Artefakte wie dual (ohne Legacy) – DEFERRED v5 (Paritätstest automatisieren)
 - [x] Sicherstellen, dass samples/restapi/.env nicht in git landet (`.gitignore` aktualisiert)
-- [ ] src\SpocRVNext\Templates_Header.spt optimieren (<auto-generated/> Block vereinheitlichen)
+- [~] src\SpocRVNext\Templates_Header.spt optimieren (<auto-generated/> Block vereinheitlichen)
+- [ ] SPOCR_ENFORCE_TABLETYPE_BUILDER migrieren zu SPOCR_SUPPRESS_WARNINGS
 
 ## Nächste Kurzfristige Actions (veraltet – ersetzt durch neue Sofort-Prioritäten weiter unten)
 
@@ -741,30 +622,85 @@ Status-Legende: [>] deferred (v5 Ziel) – Querverweis auf README / Roadmap Absc
 # Zu planende Entscheidungen
 
 - [x] Das Parameter -p|--path soll auch direkt den Pfad samples/restapi anstelle von samples/restapi/spocr.json akzeptieren.
-- [ ] Darf die spocr.json bereits gelöscht werden, wenn eine .env existiert oder existieren in v4.5 noch Abhängigkeiten dorthin?
-- [ ] Wie handhaben wir Datums-/Zeitangaben. (z.B. UTC, lokale Zeit, Formatierung)
-- [ ] Wie bringen wir standard/custom Converters unter? (z.B. JsonConverter Attribute, AutoTrimmed Properties, andere Property oder Class Level Converters)
-- [ ] ResultSets mit Typ Json sollen deserialisiert und raw produziert werden können. Per Service Config global, und auf jeder Prozedur separat
-- [ ] Objekte, die nicht mehr im .spocr/schema enthalten sind aus dem Output löschen
-- [ ] TemplateEngine optimieren (z.B: verschachtelte for each ermöglichen)
-- [ ] Refactoring und Optimierung der SpocRVNext und vnext-Outputs durchführen
-- [ ] ResultSetNameResolver Improvements (geplant)
-- [ ] CTE support (erste Basis-Tabelle aus finaler Query, wenn kein direkter NamedTableReference) – verschoben zu v5.0
-- [ ] FOR JSON PATH root alias extraction (Alias als Name nutzen)
+- [~] ResultSets mit Typ Json sollen deserialisiert und raw produziert werden können. Per Service Config global, und auf jeder Prozedur separat
+- [~] TemplateEngine optimieren (z.B: verschachtelte for each ermöglichen)
+- [~] ResultSetNameResolver Improvements (geplant)
+- [>] CTE support (erste Basis-Tabelle aus finaler Query, wenn kein direkter NamedTableReference)
+- [x] FOR JSON PATH root alias extraction (Alias als Name nutzen)
 - [x] Dynamic SQL detection -> skip (implementiert 18.10.2025)
-- [ ] Collision test für vorgeschlagene Namen (Edge Cases Mehrere Tabellen, gleiche Basisnamen)
-- [ ] Parser Performance Micro-Benchmark & Caching Strategie (TSql150Parser Reuse)
-- [ ] Snapshot Integration: Prozedur-SQL Felder vollständiger erfassen (`Sql`/`Definition`) beim `spocr pull`
-- [ ] Warum sind die Inputs vom Typ Output nicht in den Inputs enthalten? Wir brauchen TwoWay Binding
-- [ ] .env.example: Nur gültige verwenden und Kommentare ergänzen
-- [ ] die erzeugte .env soll mit denselben Kommentaren wie die .env.example angereichert werden (.env.example dient als dem Generator als Vorlage?)
+- [>] Collision test für vorgeschlagene Namen (Edge Cases Mehrere Tabellen, gleiche Basisnamen)
+- [>] Parser Performance Micro-Benchmark & Caching Strategie (TSql150Parser Reuse)
+- [x] Snapshot Integration: Prozedur-SQL Felder vollständiger erfassen (`Sql`/`Definition`) beim `spocr pull`
+- [x] "HasSelectStar": false, Columns: [] (leer), "ResultSets": [] (leer) nicht ins schema json schreiben.
+- [x] Die Snapshots StoredProcedures.Inputs und Functions.Parameters sollen eine gemeinsame Modelbasis haben und `IsOutput` gilt nur für SPs. Für `false` Values (z.B.: IsNullable, IsOutput, HasDefaultValue oder auch MaxLength=0) ausgeblendet werden.
 
-- [ ] Das muss noch ein Fehler sein: [spocr namespace] No .csproj found upward. Using directory-based base name.
-- [ ] "HasSelectStar": false, Columns: [] (leer), "ResultSets": [] (leer) nicht ins schema json schreiben.
-- [ ] SPOCR_JSON_SPLIT_NESTED (bzw. SplitNestedJsonSets) ist wozu erforderlich?
-      Wenn das ein Überbleibsel unserer fixes ist, bitte entfernen.
-- [ ] Der Deserializer für JSON Prozeduren soll als Default die Options aus den SpocrDbContextOptions verwenden (diese müssen als Default gesetzt sein).
-- [ ] Die Snapshots StoredProcedures.Inputs und Functions.Parameters sollen eine gemeinsame Modelbasis haben und `IsOutput` gilt nur für SPs. Für `false` Values (z.B.: IsNullable, IsOutput, HasDefaultValue oder auch MaxLength=0) ausgeblendet werden. 
-- [ ] `IsTableType` soll immer aus `"TableType*"` abgeleitet werden. Keine eigene Property mehr (oder nur noch einen computed getter)
-- [ ] Aus Kommentaren, Code und Tests jene SQL-Typen,-Schema usw. durch solche ersetzen, die in samples/mssql existieren.
-- [ ] Hierarchise Sub-Structs: Aktuell PascalCase Segmente; Ziel: Originalsegment-Casing beibehalten (nur Sanitizing) – Implementierung ausstehend.
+# Aktueller Fokus (2025-10-21): JSON Typisierung abgeschlossen, nächste Prioritäten
+
+**Status:** JSON Mapping Layer erfolgreich implementiert (33 `rowVersion` → `byte[]` Korrekturen). Neue Fokussierung auf Tests & Stabilisierung vor RC.
+
+## Sofortige Prioritäten (P1 - Diese Woche)
+
+### 1. JSON Deserialisierung Tests abschließen
+
+- [x] Test Infrastructure (`JsonResultSetTypeMappingTests`, `JsonResultSetAuditTests`)
+- [x] **Array vs Single Object Test** (ReturnsJsonArray=true/false → korrekte Deserialisierung)
+- [x] **Boolean/DateTime Roundtrip Test** (ohne Lenient Converter Fallback)
+- [x] **byte[] rowVersion Test** (Base64 vs direkte Bytes, JSON Token Handling)
+
+### 2. Generator Test Coverage erweitern
+
+- [x] **Cross-Schema EXEC Forwarding Tests** (Wrapper, Mixed, ignorierte Schemas)
+- [x] **Multi-ResultSet Konflikt Test** (doppelte Namen + Suffix Logic)
+- [x] **Dynamic SQL Skip Test** (EXEC(@sql) → ResultSetNameResolver Skip)
+
+### 3. Sample Stabilisierung
+
+- [x] **UserList Endpoint 500 → 200** (SQL Connection/Timeout Fix)
+- [x] **CreateUser Roundtrip Test** (vollständiger CRUD Cycle)
+- [>] **README Endpoint Beispiele** (vNext DbContext Usage) – DEFERRED v5.0
+
+## Kurzfristige Prioritäten (P2 - Nächste 2 Wochen)
+
+### 4. Determinismus & Coverage
+
+- [x] **Golden Hash Pipeline** (Rebuild → deterministische Hashes)
+- [ ] **Coverage Baseline messen** (≥60% Ziel, Reporting aktivieren)
+- [ ] **CI Badges konsolidieren** (Smoke, DB-Smoke, Determinism Status)
+
+### 5. Dokumentation RC-ready
+
+- [ ] **Namespace Doku** (SPOCR_NAMESPACE Override + Beispiele)
+- [ ] **CHANGELOG v4.5-rc** (Features, Removed Keys, v5 Preview Hinweise)
+- [ ] **Migration Guide** (spocr.json → .env Übergang)
+
+## Mittelfristig (P3 - Pre-RC)
+
+### 6. Architektur-Verbesserungen
+
+- [ ] **IsTableType computed getter** (aus `"TableType*"` Pattern ableiten)
+- [ ] **SPOCR_JSON_SPLIT_NESTED audit** (obsolet? Entfernen wenn Überbleibsel)
+- [ ] **Nested JSON Sub-Structs Casing** (Original-Segmente vs. PascalCase)
+
+### 7. Configuration Modernisierung
+
+- [ ] **spocr.json Abhängigkeiten prüfen** (vollständiger .env Übergang möglich?)
+- [ ] **JsonSerializerOptions Integration** (SpocrDbContextOptions → JSON Defaults)
+- [ ] **.env Template Verbesserung** (Kommentare aus .env.example übernehmen)
+
+### 8. Advanced Features (Deferred/v5 Vorbereitung)
+
+- [ ] **TwoWay Binding evaluation** (Inputs ↔ Outputs Reuse Strategy)
+- [ ] **DateTime Strategy** (UTC vs. Local, ISO Format Standard)
+- [ ] **Custom Converters Framework** (JsonConverter Attributes, Property-Level)
+- [ ] **Output Cleanup** (obsolete Schema-Objekte automatisch entfernen)
+
+## Entscheidungsblöcke (Klärung erforderlich)
+
+1. **Converter Integration:** Sollen JSON Deserializer die `SpocrDbContextOptions` als Default nutzen?
+2. **Configuration Migration:** Ab wann ist `spocr.json` vollständig optional (nur .env)?
+3. **Schema Cleanup:** Automatisches Entfernen nicht mehr vorhandener Artefakte aktivieren?
+4. **Test Data:** Verwendung samples/mssql SQL-Typen in allen Tests statt synthetische?
+
+---
+
+**Tracking:** Erfolg bei 33 JSON `rowVersion` Korrekturen zeigt Mapping-Layer funktional. Hauptfokus jetzt: Tests ausbauen, Sample stabilisieren, RC-Dokumentation.

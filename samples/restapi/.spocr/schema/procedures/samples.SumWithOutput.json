@@ -3,32 +3,26 @@
   "Name": "SumWithOutput",
   "Inputs": [
     {
-      "Name": "@A",
-      "IsTableType": false,
-      "IsOutput": false,
+      "Name": "A",
       "SqlTypeName": "int",
       "IsNullable": true,
       "MaxLength": 4
     },
     {
-      "Name": "@B",
-      "IsTableType": false,
-      "IsOutput": false,
+      "Name": "B",
       "SqlTypeName": "int",
       "IsNullable": true,
       "MaxLength": 4
     },
     {
-      "Name": "@Sum",
-      "IsTableType": false,
+      "Name": "Sum",
       "IsOutput": true,
       "SqlTypeName": "int",
       "IsNullable": true,
       "MaxLength": 4
     },
     {
-      "Name": "@Success",
-      "IsTableType": false,
+      "Name": "Success",
       "IsOutput": true,
       "SqlTypeName": "bit",
       "IsNullable": true,
@@ -39,7 +33,6 @@
     {
       "ReturnsJson": false,
       "ReturnsJsonArray": false,
-      "ReturnsJsonWithoutArrayWrapper": false,
       "Columns": [
         {
           "Name": "Result",
@@ -47,8 +40,7 @@
           "IsNullable": true,
           "MaxLength": 4
         }
-      ],
-      "HasSelectStar": false
+      ]
     }
   ]
 }

@@ -63,11 +63,11 @@ public class ModelGenerator(
 
         // Heuristic: Legacy FOR JSON output (single synthetic column) -> treat as raw JSON
         // Detection: exactly one column, name = JSON_F52E2B61-18A1-11d1-B105-00805F49916B (case-insensitive), nvarchar(max)
-    var currentSetReturnsJson = currentSet?.ReturnsJson ?? false;
-    var genMode = System.Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant() ?? "dual";
-    bool legacyRawJsonOnly = genMode != "next"; // suppress JSON model generation in legacy/dual
-    // Legacy single-column FOR JSON heuristic removed. Rely solely on parser FOR JSON detection (vNext only).
-    var treatAsJson = currentSetReturnsJson && !legacyRawJsonOnly;
+        var currentSetReturnsJson = currentSet?.ReturnsJson ?? false;
+        var genMode = System.Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant() ?? "dual";
+        bool legacyRawJsonOnly = genMode != "next"; // suppress JSON model generation in legacy/dual
+                                                    // Legacy single-column FOR JSON heuristic removed. Rely solely on parser FOR JSON detection (vNext only).
+        var treatAsJson = currentSetReturnsJson && !legacyRawJsonOnly;
 
         // Local helpers
         string InferType(string sqlType, bool? nullable)
@@ -289,7 +289,7 @@ public class ModelGenerator(
         // Legacy auto-generated header removed for cleaner output and to minimize diff noise.
         // Intentionally no header injection here.
 
-    if (!hasResultColumns && currentSetReturnsJson && !legacyRawJsonOnly)
+        if (!hasResultColumns && currentSetReturnsJson && !legacyRawJsonOnly)
         {
             consoleService.Warn($"No JSON columns extracted for stored procedure '{storedProcedure.Name}'. Generated empty model (RawJson fallback).");
             // Add RawJson fallback property to surface payload
@@ -314,8 +314,25 @@ public class ModelGenerator(
 
         if (legacyRawJsonOnly && currentSetReturnsJson)
         {
-            consoleService.Verbose($"[legacy-json] Skipping JSON model generation for '{storedProcedure.Name}' (raw string fallback)." );
-            return null; // suppress model output completely
+            // In legacy/dual Mode bisher komplette Unterdrückung – führt zu NullRef in Tests bei leeren JSON Sets.
+            // Stattdessen erzeugen wir ein Minimalmodell mit Dokumentation, damit Konsumenten optional typisiert arbeiten können.
+            if (!hasResultColumns)
+            {
+                // Fallback RawJson Property – trotz legacy Modus für Diagnose.
+                classNode = AddProperty(classNode, "RawJson", "string");
+            }
+            var nsAfter = root.Members.OfType<BaseNamespaceDeclarationSyntax>().First();
+            var existingClassLegacy = nsAfter.Members.OfType<ClassDeclarationSyntax>().First();
+            root = root.ReplaceNode(existingClassLegacy, classNode);
+            root = TemplateManager.RemoveTemplateProperty(root);
+            // Doc Kommentar immer hinzufügen (unabhängig von Properties) für Erklärbarkeit.
+            var finalClass = root.Members.OfType<BaseNamespaceDeclarationSyntax>().First().Members.OfType<ClassDeclarationSyntax>().First();
+            var xml = "/// <summary>Generated JSON model (legacy mode) – columns suppressed or not inferred.</summary>" + System.Environment.NewLine +
+                      "/// <remarks>Raw JSON access still available via stored procedure Raw method. Upgrade to vNext mode for rich nested mapping.</remarks>" + System.Environment.NewLine;
+            var updatedLegacy = finalClass.WithLeadingTrivia(SyntaxFactory.ParseLeadingTrivia(xml).AddRange(finalClass.GetLeadingTrivia()));
+            var currentNsLegacy = (BaseNamespaceDeclarationSyntax)root.Members[0];
+            root = root.ReplaceNode(finalClass, updatedLegacy);
+            return TemplateManager.GenerateSourceText(root);
         }
         return TemplateManager.GenerateSourceText(root);
     }

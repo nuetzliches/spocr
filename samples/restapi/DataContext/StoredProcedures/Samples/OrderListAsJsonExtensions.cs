@@ -5,15 +5,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using RestApi.DataContext.Models;
 using RestApi.DataContext.Outputs;
-using RestApi.DataContext.Models.Samples;
-using System.Text.Json;
 
 namespace RestApi.DataContext.StoredProcedures.Samples
 {
     public static class OrderListAsJsonExtensions
     {
-        /// <summary>Executes stored procedure '[samples].[OrderListAsJson]' and returns the raw JSON string.</summary>
-        /// <remarks>Use <see cref = "OrderListAsJsonDeserializeAsync"/> to obtain a typed list.</remarks>
         public static Task<string> OrderListAsJsonAsync(this IAppDbContextPipe context, CancellationToken cancellationToken)
         {
             if (context == null)
@@ -27,33 +23,9 @@ namespace RestApi.DataContext.StoredProcedures.Samples
             return context.ReadJsonAsync("[samples].[OrderListAsJson]", parameters, cancellationToken);
         }
 
-        /// <summary>Executes stored procedure '[samples].[OrderListAsJson]' and returns the raw JSON string.</summary>
-        /// <remarks>Use <see cref = "OrderListAsJsonDeserializeAsync"/> to obtain a typed list.</remarks>
         public static Task<string> OrderListAsJsonAsync(this IAppDbContext context, CancellationToken cancellationToken)
         {
             return context.CreatePipe().OrderListAsJsonAsync(cancellationToken);
-        }
-
-        /// <summary>Executes stored procedure '[samples].[OrderListAsJson]' and deserializes the JSON response into List<OrderListAsJson>.</summary>
-        /// <remarks>Underlying raw JSON method: <see cref = "OrderListAsJsonAsync"/>.</remarks>
-        public static async Task<List<OrderListAsJson>> OrderListAsJsonDeserializeAsync(this IAppDbContextPipe context, CancellationToken cancellationToken)
-        {
-            if (context == null)
-            {
-                throw new ArgumentNullException(nameof(context));
-            }
-
-            var parameters = new List<SqlParameter>
-            {
-            };
-            return await context.ReadJsonDeserializeAsync<List<OrderListAsJson>>("[samples].[OrderListAsJson]", parameters, cancellationToken);
-        }
-
-        /// <summary>Executes stored procedure '[samples].[OrderListAsJson]' and deserializes the JSON response into List<OrderListAsJson>.</summary>
-        /// <remarks>Underlying raw JSON method: <see cref = "OrderListAsJsonAsync"/>.</remarks>
-        public static Task<List<OrderListAsJson>> OrderListAsJsonDeserializeAsync(this IAppDbContext context, CancellationToken cancellationToken)
-        {
-            return context.CreatePipe().OrderListAsJsonDeserializeAsync(cancellationToken);
         }
     }
 }

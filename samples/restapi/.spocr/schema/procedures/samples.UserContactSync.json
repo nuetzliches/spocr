@@ -3,20 +3,15 @@
   "Name": "UserContactSync",
   "Inputs": [
     {
-      "Name": "@Contacts",
-      "IsTableType": true,
+      "Name": "Contacts",
       "TableTypeSchema": "samples",
-      "TableTypeName": "UserContactTableType",
-      "IsOutput": false,
-      "IsNullable": false,
-      "MaxLength": 0
+      "TableTypeName": "UserContactTableType"
     }
   ],
   "ResultSets": [
     {
       "ReturnsJson": false,
       "ReturnsJsonArray": false,
-      "ReturnsJsonWithoutArrayWrapper": false,
       "Columns": [
         {
           "Name": "UpdatedContacts",
@@ -30,8 +25,7 @@
           "IsNullable": true,
           "MaxLength": 4
         }
-      ],
-      "HasSelectStar": false
+      ]
     }
   ]
 }

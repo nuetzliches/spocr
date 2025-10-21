@@ -5,30 +5,30 @@
 #nullable enable
 namespace RestApi.SpocR.Samples;
 
+using RestApi.SpocR;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Data;
 using System.Data.Common;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using RestApi.SpocR;
 
 public readonly record struct UserBioUpdateInput(
     int? UserId,
     string Bio
 );
 
-public readonly record struct UserBioUpdateResultSet(
+public readonly record struct UserBioUpdateResult(
     int UserId,
     string Bio
 );
 
-public sealed class UserBioUpdateResult
+public sealed class UserBioUpdateAggregate
 {
 	public bool Success { get; init; }
 	public string? Error { get; init; }
-	public IReadOnlyList<UserBioUpdateResultSet> Result { get; init; } = Array.Empty<UserBioUpdateResultSet>();
+	public IReadOnlyList<UserBioUpdateResult> Result { get; init; } = Array.Empty<UserBioUpdateResult>();
 	
 }
 
@@ -48,27 +48,21 @@ internal static partial class UserBioUpdatePlan
 	var resultSets = new ResultSetMapping[]
 	{
             new("ResultSet1", async (r, ct) =>
-	    {
-		var list = new List<object>();
-int o0=r.GetOrdinal("UserId"); int o1=r.GetOrdinal("Bio");
-		while (await r.ReadAsync(ct).ConfigureAwait(false))
-		{
-		    list.Add(new UserBioUpdateResultSet(r.GetInt32(o0), r.IsDBNull(o1) ? string.Empty : r.GetString(o1)));
-		}
-		return list;
-	    }),
+    {
+		var list = new System.Collections.Generic.List<object>(); int o0=ReaderUtil.TryGetOrdinal(r, "UserId"); int o1=ReaderUtil.TryGetOrdinal(r, "Bio"); if (System.Environment.GetEnvironmentVariable("SPOCR_DUMP_FIRST_ROW") == "1") ReaderUtil.DumpFirstRow(r); while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new UserBioUpdateResult(o0 < 0 ? default(int) : r.GetInt32(o0), o1 < 0 ? string.Empty : (r.IsDBNull(o1) ? string.Empty : r.GetString(o1)))); } return list;
+    }),
 
         };
 
 		object? OutputFactory(IReadOnlyDictionary<string, object?> values) => null;
 		object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs)
 		{
-			return new UserBioUpdateResult
+			return new UserBioUpdateAggregate
 			{
 				Success = success,
 				Error = error,
 				// ResultSet 0 → Result (robust list/array handling)
-				Result = rs.Length > 0 && rs[0] is object[] rows0 ? Array.ConvertAll(rows0, o => (UserBioUpdateResultSet)o).ToList() : (rs.Length > 0 && rs[0] is System.Collections.Generic.List<object> list0 ? Array.ConvertAll(list0.ToArray(), o => (UserBioUpdateResultSet)o).ToList() : Array.Empty<UserBioUpdateResultSet>())
+				Result = rs.Length > 0 && rs[0] is object[] rows0 ? Array.ConvertAll(rows0, o => (UserBioUpdateResult)o).ToList() : (rs.Length > 0 && rs[0] is System.Collections.Generic.List<object> list0 ? Array.ConvertAll(list0.ToArray(), o => (UserBioUpdateResult)o).ToList() : Array.Empty<UserBioUpdateResult>())
 			};
 		};
 		void Binder(DbCommand cmd, object? state)
@@ -86,7 +80,7 @@ int o0=r.GetOrdinal("UserId"); int o1=r.GetOrdinal("Bio");
 /// <summary>Convenience extension for executing 'samples.UserBioUpdate' via an <see cref="ISpocRDbContext"/>.</summary>
 public static class UserBioUpdateExtensions
 {
-	public static async Task<UserBioUpdateResult> UserBioUpdateAsync(this ISpocRDbContext db, UserBioUpdateInput input, CancellationToken cancellationToken = default)
+	public static async Task<UserBioUpdateAggregate> UserBioUpdateAsync(this ISpocRDbContext db, UserBioUpdateInput input, CancellationToken cancellationToken = default)
 	{
 		await using var conn = await db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 		return await UserBioUpdateProcedure.ExecuteAsync(conn, input, cancellationToken).ConfigureAwait(false);
@@ -97,8 +91,8 @@ public static class UserBioUpdateExtensions
 public static class UserBioUpdateProcedure
 {
 	public const string Name = "samples.UserBioUpdate";
-	public static Task<UserBioUpdateResult> ExecuteAsync(DbConnection connection, UserBioUpdateInput input, CancellationToken cancellationToken = default)
+	public static Task<UserBioUpdateAggregate> ExecuteAsync(DbConnection connection, UserBioUpdateInput input, CancellationToken cancellationToken = default)
 	{
-		return ProcedureExecutor.ExecuteAsync<UserBioUpdateResult>(connection, UserBioUpdatePlan.Instance, input, cancellationToken);
+		return ProcedureExecutor.ExecuteAsync<UserBioUpdateAggregate>(connection, UserBioUpdatePlan.Instance, input, cancellationToken);
 	}
 }

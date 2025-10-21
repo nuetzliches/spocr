@@ -10,6 +10,12 @@ using System.Collections.Generic;
 using System.Data.Common;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Reflection;
+using System.Data;
+using System.Linq;
+using Microsoft.Data.SqlClient;
+using Microsoft.Data.SqlClient.Server;
+using System.Buffers;
 
 internal sealed class ProcedureParameter
 {
@@ -43,6 +49,60 @@ internal sealed class ProcedureExecutionPlan
     public Func<IReadOnlyDictionary<string, object?>, object?> OutputFactory { get; }
     public Func<bool,string?,object?,IReadOnlyDictionary<string,object?>,object[],object> AggregateFactory { get; }
     public Action<DbCommand,object?> Binder { get; }
+}
+
+// Globale JSON Optionen falls pro ResultSet Deserialisierung nötig ist (Projektor hat keinen Zugriff auf DbContext Options Instanz)
+internal static class JsonSupport
+{
+    // Konverter: erlaubt Zahlen/Bool/Null für string Properties ohne Exception.
+    private sealed class LenientStringConverter : System.Text.Json.Serialization.JsonConverter<string>
+    {
+        public override string Read(ref System.Text.Json.Utf8JsonReader reader, Type typeToConvert, System.Text.Json.JsonSerializerOptions options)
+        {
+            return reader.TokenType switch
+            {
+                System.Text.Json.JsonTokenType.String => reader.GetString()!,
+                System.Text.Json.JsonTokenType.Number => reader.TryGetInt64(out var l) ? l.ToString() : reader.TryGetDouble(out var d) ? d.ToString(System.Globalization.CultureInfo.InvariantCulture) : GetSpanString(ref reader),
+                System.Text.Json.JsonTokenType.True => "true",
+                System.Text.Json.JsonTokenType.False => "false",
+                System.Text.Json.JsonTokenType.Null => string.Empty,
+                _ => string.Empty
+            };
+        }
+        public override void Write(System.Text.Json.Utf8JsonWriter writer, string value, System.Text.Json.JsonSerializerOptions options)
+        {
+            writer.WriteStringValue(value);
+        }
+        private static string GetSpanString(ref System.Text.Json.Utf8JsonReader reader)
+        {
+            try
+            {
+                if (reader.HasValueSequence)
+                {
+                    var seq = reader.ValueSequence; // ReadOnlySequence<byte>
+                    if (seq.IsSingleSegment)
+                    {
+                        return System.Text.Encoding.UTF8.GetString(seq.FirstSpan);
+                    }
+                    var buffer = new byte[seq.Length];
+                    seq.CopyTo(buffer);
+                    return System.Text.Encoding.UTF8.GetString(buffer);
+                }
+                return System.Text.Encoding.UTF8.GetString(reader.ValueSpan);
+            }
+            catch { return string.Empty; }
+        }
+    }
+    public static readonly System.Text.Json.JsonSerializerOptions Options = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+        NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.AllowReadingFromString
+    };
+    static JsonSupport()
+    {
+        Options.Converters.Add(new LenientStringConverter());
+    }
 }
 
 internal static class ProcedureExecutor
@@ -87,5 +147,137 @@ internal static class ProcedureExecutor
             rsArrays[i] = ((List<object>)rsResults[i]).ToArray();
         var aggregate = (T)plan.AggregateFactory(true, null, outputObj, outputs, rsArrays);
         return aggregate;
+    }
+}
+
+internal static class TvpHelper
+{
+    // Converts a single record or enumerable of records into SqlDataRecord collection for TVP binding.
+    public static IEnumerable<SqlDataRecord>? BuildRecords(object? value)
+    {
+        if (value == null) return null;
+        var list = value as System.Collections.IEnumerable;
+        if (list == null)
+        {
+            // wrap single instance
+            list = new object[] { value };
+        }
+        var enumerator = list.GetEnumerator();
+        // Peek first element to build metadata
+        if (!enumerator.MoveNext()) return null; // empty -> null
+        var first = enumerator.Current;
+        if (first == null) return null;
+        var rowType = first.GetType();
+        var properties = rowType.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+        var meta = new List<SqlMetaData>();
+        foreach (var p in properties)
+        {
+            var sqlType = MapClrToSqlDbType(p.PropertyType);
+            if (sqlType == SqlDbType.NVarChar || sqlType == SqlDbType.VarBinary)
+            {
+                // No length metadata available -> use Max for simplicity
+                meta.Add(new SqlMetaData(p.Name, sqlType, SqlMetaData.Max));
+            }
+            else if (sqlType == SqlDbType.Decimal)
+            {
+                meta.Add(new SqlMetaData(p.Name, sqlType, 18, 4));
+            }
+            else
+            {
+                meta.Add(new SqlMetaData(p.Name, sqlType));
+            }
+        }
+        var records = new List<SqlDataRecord>();
+        // Add first row
+        var firstRecord = new SqlDataRecord(meta.ToArray());
+        var firstValues = properties.Select(pr => pr.GetValue(first) ?? DBNull.Value).ToArray();
+        firstRecord.SetValues(firstValues);
+        records.Add(firstRecord);
+        // Remaining rows
+        while (enumerator.MoveNext())
+        {
+            var current = enumerator.Current;
+            if (current == null) continue;
+            var rec = new SqlDataRecord(meta.ToArray());
+            var values = properties.Select(pr => pr.GetValue(current) ?? DBNull.Value).ToArray();
+            rec.SetValues(values);
+            records.Add(rec);
+        }
+        return records.Count > 0 ? records : null;
+    }
+
+    private static SqlDbType MapClrToSqlDbType(Type t)
+    {
+        t = Nullable.GetUnderlyingType(t) ?? t;
+        if (t == typeof(int)) return SqlDbType.Int;
+        if (t == typeof(long)) return SqlDbType.BigInt;
+        if (t == typeof(short)) return SqlDbType.SmallInt;
+        if (t == typeof(byte)) return SqlDbType.TinyInt;
+        if (t == typeof(bool)) return SqlDbType.Bit;
+        if (t == typeof(decimal)) return SqlDbType.Decimal;
+        if (t == typeof(double)) return SqlDbType.Float;
+        if (t == typeof(float)) return SqlDbType.Real;
+        if (t == typeof(DateTime)) return SqlDbType.DateTime2;
+        if (t == typeof(Guid)) return SqlDbType.UniqueIdentifier;
+        if (t == typeof(byte[])) return SqlDbType.VarBinary;
+        // default string
+        return SqlDbType.NVarChar;
+    }
+}
+
+internal static class ReaderUtil
+{
+    public static int TryGetOrdinal(DbDataReader reader, string name)
+    {
+        // Exact match first
+        for (int i = 0; i < reader.FieldCount; i++)
+        {
+            if (reader.GetName(i).Equals(name, StringComparison.Ordinal)) return i;
+        }
+        // Case-insensitive fallback
+        for (int i = 0; i < reader.FieldCount; i++)
+        {
+            if (reader.GetName(i).Equals(name, StringComparison.OrdinalIgnoreCase)) return i;
+        }
+        // Loose normalization (remove underscores, to lowercase)
+        var normalized = new string(name.Where(ch => ch != '_').ToArray()).ToLowerInvariant();
+        for (int i = 0; i < reader.FieldCount; i++)
+        {
+            var candidate = new string(reader.GetName(i).Where(ch => ch != '_').ToArray()).ToLowerInvariant();
+            if (candidate == normalized) return i;
+        }
+        return -1; // Not found
+    }
+
+    public static void DumpColumns(DbDataReader reader)
+    {
+        try
+        {
+            var cols = new System.Collections.Generic.List<string>();
+            for (int i = 0; i < reader.FieldCount; i++)
+            {
+                cols.Add(reader.GetName(i));
+            }
+            System.Console.Out.WriteLine("[spocr vNext] Debug: Columns=" + string.Join(",", cols));
+        }
+        catch { }
+    }
+
+    public static void DumpFirstRow(DbDataReader reader)
+    {
+        try
+        {
+            if (!reader.HasRows) { System.Console.Out.WriteLine("[spocr vNext] Debug: No rows."); return; }
+            // Peek without consuming row set permanently -> we cannot easily reset, so only call before main loop
+            if (!reader.Read()) { System.Console.Out.WriteLine("[spocr vNext] Debug: Read failed."); return; }
+            var pairs = new System.Collections.Generic.List<string>();
+            for (int i = 0; i < reader.FieldCount; i++)
+            {
+                var val = reader.IsDBNull(i) ? "<NULL>" : Convert.ToString(reader.GetValue(i)) ?? "";
+                pairs.Add(reader.GetName(i) + "=" + val);
+            }
+            System.Console.Out.WriteLine("[spocr vNext] Debug: FirstRow=" + string.Join(";", pairs));
+        }
+        catch { }
     }
 }

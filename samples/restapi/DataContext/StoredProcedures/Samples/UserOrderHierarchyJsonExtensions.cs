@@ -5,15 +5,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using RestApi.DataContext.Models;
 using RestApi.DataContext.Outputs;
-using RestApi.DataContext.Models.Samples;
-using System.Text.Json;
 
 namespace RestApi.DataContext.StoredProcedures.Samples
 {
     public static class UserOrderHierarchyJsonExtensions
     {
-        /// <summary>Executes stored procedure '[samples].[UserOrderHierarchyJson]' and returns the raw JSON string.</summary>
-        /// <remarks>Use <see cref = "UserOrderHierarchyJsonDeserializeAsync"/> to obtain a typed list.</remarks>
         public static Task<string> UserOrderHierarchyJsonAsync(this IAppDbContextPipe context, CancellationToken cancellationToken)
         {
             if (context == null)
@@ -27,33 +23,9 @@ namespace RestApi.DataContext.StoredProcedures.Samples
             return context.ReadJsonAsync("[samples].[UserOrderHierarchyJson]", parameters, cancellationToken);
         }
 
-        /// <summary>Executes stored procedure '[samples].[UserOrderHierarchyJson]' and returns the raw JSON string.</summary>
-        /// <remarks>Use <see cref = "UserOrderHierarchyJsonDeserializeAsync"/> to obtain a typed list.</remarks>
         public static Task<string> UserOrderHierarchyJsonAsync(this IAppDbContext context, CancellationToken cancellationToken)
         {
             return context.CreatePipe().UserOrderHierarchyJsonAsync(cancellationToken);
-        }
-
-        /// <summary>Executes stored procedure '[samples].[UserOrderHierarchyJson]' and deserializes the JSON response into List<UserOrderHierarchyJson>.</summary>
-        /// <remarks>Underlying raw JSON method: <see cref = "UserOrderHierarchyJsonAsync"/>.</remarks>
-        public static async Task<List<UserOrderHierarchyJson>> UserOrderHierarchyJsonDeserializeAsync(this IAppDbContextPipe context, CancellationToken cancellationToken)
-        {
-            if (context == null)
-            {
-                throw new ArgumentNullException(nameof(context));
-            }
-
-            var parameters = new List<SqlParameter>
-            {
-            };
-            return await context.ReadJsonDeserializeAsync<List<UserOrderHierarchyJson>>("[samples].[UserOrderHierarchyJson]", parameters, cancellationToken);
-        }
-
-        /// <summary>Executes stored procedure '[samples].[UserOrderHierarchyJson]' and deserializes the JSON response into List<UserOrderHierarchyJson>.</summary>
-        /// <remarks>Underlying raw JSON method: <see cref = "UserOrderHierarchyJsonAsync"/>.</remarks>
-        public static Task<List<UserOrderHierarchyJson>> UserOrderHierarchyJsonDeserializeAsync(this IAppDbContext context, CancellationToken cancellationToken)
-        {
-            return context.CreatePipe().UserOrderHierarchyJsonDeserializeAsync(cancellationToken);
         }
     }
 }

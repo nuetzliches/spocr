@@ -5,14 +5,14 @@
 #nullable enable
 namespace RestApi.SpocR.Samples;
 
+using RestApi.SpocR;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Data;
 using System.Data.Common;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using RestApi.SpocR;
 
 public readonly record struct SumWithOutputInput(
     int? A,
@@ -24,16 +24,16 @@ public readonly record struct SumWithOutputOutput(
     bool? Success
 );
 
-public readonly record struct SumWithOutputResultSet(
+public readonly record struct SumWithOutputResult(
     int? Result
 );
 
-public sealed class SumWithOutputResult
+public sealed class SumWithOutputAggregate
 {
 	public bool Success { get; init; }
 	public string? Error { get; init; }
 	public SumWithOutputOutput? Output { get; init; }
-	public IReadOnlyList<SumWithOutputResultSet> Result { get; init; } = Array.Empty<SumWithOutputResultSet>();
+	public IReadOnlyList<SumWithOutputResult> Result { get; init; } = Array.Empty<SumWithOutputResult>();
 	
 }
 
@@ -55,28 +55,22 @@ internal static partial class SumWithOutputPlan
 	var resultSets = new ResultSetMapping[]
 	{
             new("ResultSet1", async (r, ct) =>
-	    {
-		var list = new List<object>();
-int o0=r.GetOrdinal("Result");
-		while (await r.ReadAsync(ct).ConfigureAwait(false))
-		{
-		    list.Add(new SumWithOutputResultSet(r.IsDBNull(o0) ? null : (int?)r.GetInt32(o0)));
-		}
-		return list;
-	    }),
+    {
+		var list = new System.Collections.Generic.List<object>(); int o0=ReaderUtil.TryGetOrdinal(r, "Result"); if (System.Environment.GetEnvironmentVariable("SPOCR_DUMP_FIRST_ROW") == "1") ReaderUtil.DumpFirstRow(r); while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new SumWithOutputResult(o0 < 0 ? null : (r.IsDBNull(o0) ? null : (int?)r.GetInt32(o0)))); } return list;
+    }),
 
         };
 
 		object? OutputFactory(IReadOnlyDictionary<string, object?> values) => new SumWithOutputOutput(values.TryGetValue("Sum", out var v_Sum) ? (int?)v_Sum : default, values.TryGetValue("Success", out var v_Success) ? (bool?)v_Success : default);
 		object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs)
 		{
-			return new SumWithOutputResult
+			return new SumWithOutputAggregate
 			{
 				Success = success,
 				Error = error,
 				Output = (SumWithOutputOutput?)output,
 				// ResultSet 0 → Result (robust list/array handling)
-				Result = rs.Length > 0 && rs[0] is object[] rows0 ? Array.ConvertAll(rows0, o => (SumWithOutputResultSet)o).ToList() : (rs.Length > 0 && rs[0] is System.Collections.Generic.List<object> list0 ? Array.ConvertAll(list0.ToArray(), o => (SumWithOutputResultSet)o).ToList() : Array.Empty<SumWithOutputResultSet>())
+				Result = rs.Length > 0 && rs[0] is object[] rows0 ? Array.ConvertAll(rows0, o => (SumWithOutputResult)o).ToList() : (rs.Length > 0 && rs[0] is System.Collections.Generic.List<object> list0 ? Array.ConvertAll(list0.ToArray(), o => (SumWithOutputResult)o).ToList() : Array.Empty<SumWithOutputResult>())
 			};
 		};
 		void Binder(DbCommand cmd, object? state)
@@ -94,7 +88,7 @@ int o0=r.GetOrdinal("Result");
 /// <summary>Convenience extension for executing 'samples.SumWithOutput' via an <see cref="ISpocRDbContext"/>.</summary>
 public static class SumWithOutputExtensions
 {
-	public static async Task<SumWithOutputResult> SumWithOutputAsync(this ISpocRDbContext db, SumWithOutputInput input, CancellationToken cancellationToken = default)
+	public static async Task<SumWithOutputAggregate> SumWithOutputAsync(this ISpocRDbContext db, SumWithOutputInput input, CancellationToken cancellationToken = default)
 	{
 		await using var conn = await db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 		return await SumWithOutputProcedure.ExecuteAsync(conn, input, cancellationToken).ConfigureAwait(false);
@@ -105,8 +99,8 @@ public static class SumWithOutputExtensions
 public static class SumWithOutputProcedure
 {
 	public const string Name = "samples.SumWithOutput";
-	public static Task<SumWithOutputResult> ExecuteAsync(DbConnection connection, SumWithOutputInput input, CancellationToken cancellationToken = default)
+	public static Task<SumWithOutputAggregate> ExecuteAsync(DbConnection connection, SumWithOutputInput input, CancellationToken cancellationToken = default)
 	{
-		return ProcedureExecutor.ExecuteAsync<SumWithOutputResult>(connection, SumWithOutputPlan.Instance, input, cancellationToken);
+		return ProcedureExecutor.ExecuteAsync<SumWithOutputAggregate>(connection, SumWithOutputPlan.Instance, input, cancellationToken);
 	}
 }

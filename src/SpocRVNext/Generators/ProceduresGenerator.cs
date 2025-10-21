@@ -12,6 +12,7 @@ using SpocRVNext.Configuration;
 using SpocR.SpocRVNext.Utils;
 using SpocR.Models;
 using System.Text.Json;
+using SpocR.SpocRVNext.Diagnostics;
 
 namespace SpocR.SpocRVNext.Generators;
 
@@ -136,20 +137,23 @@ public sealed class ProceduresGenerator
             bool anyChange = false;
             foreach (var ph in placeholders)
             {
+                try { Console.Out.WriteLine($"[proc-forward-debug] candidate placeholder proc={proc.Schema}.{proc.ProcedureName} -> target={ph.ExecSourceSchemaName}.{ph.ExecSourceProcedureName} fields={ph.Fields.Count}"); } catch { }
                 var targetKey = (ph.ExecSourceSchemaName ?? "dbo") + "." + (ph.ExecSourceProcedureName ?? string.Empty);
                 if (!originalLookup.TryGetValue(targetKey, out var targetProc) || targetProc.ResultSets == null || targetProc.ResultSets.Count == 0)
                 {
                     // Could log diagnostic if enabled
+                    try { Console.Out.WriteLine($"[proc-forward-debug][skip] targetKey={targetKey} found={(originalLookup.ContainsKey(targetKey))} targetRsCount={(originalLookup.ContainsKey(targetKey) ? originalLookup[targetKey].ResultSets?.Count : 0)}"); } catch { }
                     continue;
                 }
                 var isWrapper = proc.ResultSets.Count == placeholders.Count && proc.ResultSets.All(r => r.Fields.Count == 0); // pure wrapper: only placeholders
+                try { Console.Out.WriteLine($"[proc-forward-debug] forwarding mode={(isWrapper ? "wrapper" : "mixed")} targetRs={targetProc.ResultSets.Count}"); } catch { }
                 var existingNames = new HashSet<string>(updatedSets.Select(s => s.Name), StringComparer.OrdinalIgnoreCase);
                 var cloned = new List<ResultSetDescriptor>();
                 int fwdIndex = 0;
                 foreach (var targetSet in targetProc.ResultSets)
                 {
                     // Compose forwarded name aligning with target set name; ensure unique
-                    var baseName = targetSet.Name;
+                    var baseName = (ph.ExecSourceProcedureName != null ? ph.ExecSourceProcedureName + "_" : string.Empty) + targetSet.Name;
                     var finalName = baseName;
                     while (existingNames.Contains(finalName))
                     {
@@ -181,6 +185,7 @@ public sealed class ProceduresGenerator
                     updatedSets.AddRange(cloned);
                 }
                 anyChange = true;
+                try { Console.Out.WriteLine($"[proc-forward-debug] applied forwarding sets={updatedSets.Count}"); } catch { }
             }
             if (anyChange)
             {
@@ -195,6 +200,7 @@ public sealed class ProceduresGenerator
                     ExecSourceSchemaName: rs.ExecSourceSchemaName,
                     ExecSourceProcedureName: rs.ExecSourceProcedureName
                 )).ToList();
+                try { Console.Out.WriteLine($"[proc-forward-debug-finalizing] {proc.Schema}.{proc.ProcedureName} -> sets=" + string.Join(",", reIndexed.Select(r => r.Name + ":" + r.Fields.Count))); } catch { }
                 var newProc = new ProcedureDescriptor(
                     ProcedureName: proc.ProcedureName,
                     Schema: proc.Schema,
@@ -209,10 +215,19 @@ public sealed class ProceduresGenerator
             }
             else
             {
+                try { Console.Out.WriteLine($"[proc-forward-debug-finalizing] {proc.Schema}.{proc.ProcedureName} (unchanged) sets=" + string.Join(",", proc.ResultSets.Select(r => r.Name + ":" + r.Fields.Count))); } catch { }
                 forwarded.Add(proc);
             }
         }
         procs = forwarded;
+        try
+        {
+            foreach (var fp in procs)
+            {
+                Console.Out.WriteLine($"[proc-forward-debug-summary] {fp.Schema}.{fp.ProcedureName} sets={fp.ResultSets.Count} -> {string.Join(";", fp.ResultSets.Select(r => r.Name + ":" + r.Fields.Count))}");
+            }
+        }
+        catch { }
         string header = string.Empty;
         if (_loader != null && _loader.TryLoad("_Header", out var headerTpl)) header = headerTpl.TrimEnd() + Environment.NewLine;
         // Emit ExecutionSupport once (if template present and file missing or stale)
@@ -388,7 +403,7 @@ public sealed class ProceduresGenerator
                     }
                     var ordinalAssignments = effectiveFields.Select((f, idx) => $"int o{idx}=ReaderUtil.TryGetOrdinal(r, \"{f.Name}\");").ToList();
                     // Nur noch optionaler First-Row Dump (Spalten-Missing- & Column-Dump Instrumentierung entfernt)
-                    var firstRowDump = "if (System.Environment.GetEnvironmentVariable(\"SPOCR_DUMP_FIRST_ROW\") == \"1\") ReaderUtil.DumpFirstRow(r);";
+                    // Removed debug artifact (SPOCR_DUMP_FIRST_ROW) – first row dump instrumentation eliminated for cleaner generated output.
                     // JSON Aggregator Fallback (FOR JSON PATH) falls alle Ordinals < 0 und trotzdem Feld-Metadata vorhanden
                     var allMissingCondition = rs.Fields.Count > 0 ? string.Join(" && ", rs.Fields.Select((f, i) => $"o{i} < 0")) : "false"; // nur für Nicht-JSON Sets relevant
                     // ReturnsJson Flag aus Snapshot nutzen (ResultSet Modell besitzt Properties)
@@ -417,7 +432,7 @@ public sealed class ProceduresGenerator
                     }
                     else
                     {
-                        ordinalDecls = string.Join(" ", ordinalAssignments) + " " + firstRowDump; // klassisches Mapping mit gecachten Ordinals
+                        ordinalDecls = string.Join(" ", ordinalAssignments); // classic mapping with cached ordinals (debug dump removed)
                     }
                     var fieldExprs = string.Join(", ", effectiveFields.Select((f, idx) => MaterializeFieldExpressionCached(f, idx)));
                     // Property Namen bleiben analog: Result, Result1, Result2 ...
@@ -673,6 +688,16 @@ public sealed class ProceduresGenerator
                 catch { /* ignore */ }
             }
         }
+        // JSON Audit Hook: optional report generation if env var set (SPOCR_JSON_AUDIT=1)
+        try
+        {
+            if (Environment.GetEnvironmentVariable("SPOCR_JSON_AUDIT") == "1")
+            {
+                JsonResultSetAudit.WriteReport(_projectRoot, procs);
+                Console.Out.WriteLine($"[spocr vNext] JsonAudit written: {Path.Combine(_projectRoot, "debug", "json-audit.txt")}");
+            }
+        }
+        catch { /* ignore audit failures */ }
         return written;
     }
 

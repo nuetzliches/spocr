@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using RestApi.DataContext.Models;
 using RestApi.DataContext.Outputs;
+using RestApi.DataContext.Models.Samples;
 using RestApi.DataContext.Inputs.Samples;
 using RestApi.DataContext.Outputs.Samples;
 

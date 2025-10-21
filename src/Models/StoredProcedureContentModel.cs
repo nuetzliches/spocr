@@ -38,8 +38,16 @@ public class StoredProcedureContentModel
         if (string.IsNullOrWhiteSpace(definition))
             return new StoredProcedureContentModel { Definition = definition };
 
-        // Normalisierung mehrfacher Semikolons (Parser Toleranz für ";;")
+        // Normalisierung mehrfacher Semikolons (Parser Toleranz für ";;").
+        // Bewahre dennoch ein einzelnes Abschluss-Semikolon falls mehrere hintereinander stehen, da einige Tests
+        // Double-Terminierung (";;") verwenden. Reduziere Sequenzen auf ein Semikolon.
         var normalizedDefinition = System.Text.RegularExpressions.Regex.Replace(definition, @";{2,}", ";");
+        // Falls ein FOR JSON PATH Block direkt vor entfernten doppelten Semikolons endete, stellen wir sicher,
+        // dass mindestens ein abschließendes Semikolon vorhanden bleibt (rein kosmetisch für nachgelagerte Regex-Heuristiken).
+        if (!normalizedDefinition.TrimEnd().EndsWith(";", StringComparison.Ordinal))
+        {
+            normalizedDefinition = normalizedDefinition.TrimEnd() + ";";
+        }
         TSqlFragment fragment;
         IList<ParseError> parseErrors;
         using (var reader = new StringReader(normalizedDefinition))
@@ -66,16 +74,16 @@ public class StoredProcedureContentModel
             };
         }
 
-    var analysis = new Analysis(string.IsNullOrWhiteSpace(defaultSchema) ? "dbo" : defaultSchema);
-    fragment.Accept(new Visitor(normalizedDefinition, analysis));
+        var analysis = new Analysis(string.IsNullOrWhiteSpace(defaultSchema) ? "dbo" : defaultSchema);
+        fragment.Accept(new Visitor(normalizedDefinition, analysis));
 
         // Build statements list
-    var statements = analysis.StatementTexts.Any() ? analysis.StatementTexts.ToArray() : new[] { normalizedDefinition.Trim() };
+        var statements = analysis.StatementTexts.Any() ? analysis.StatementTexts.ToArray() : new[] { normalizedDefinition.Trim() };
 
         // Exec forwarding logic
         var execsRaw = analysis.ExecutedProcedures.Select(e => new ExecutedProcedureCall { Schema = e.Schema, Name = e.Name, IsCaptured = false }).ToList();
         var captured = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-    foreach (var line in normalizedDefinition.Split('\n'))
+        foreach (var line in normalizedDefinition.Split('\n'))
         {
             var originalLine = line;
             var commentIndex = originalLine.IndexOf("--", StringComparison.Ordinal);
@@ -97,7 +105,7 @@ public class StoredProcedureContentModel
         }
         var execs = execsRaw.Where(e => !e.IsCaptured).ToArray();
 
-    var containsExec = normalizedDefinition.IndexOf("EXEC", StringComparison.OrdinalIgnoreCase) >= 0;
+        var containsExec = normalizedDefinition.IndexOf("EXEC", StringComparison.OrdinalIgnoreCase) >= 0;
         var rawExec = new List<string>(); var rawKinds = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (containsExec)
         {
@@ -120,7 +128,8 @@ public class StoredProcedureContentModel
         // Fallback-Schicht bei ParseErrors ohne erkannte JSON Sets: heuristische Erkennung nur wenn AST keine Sets brachte.
         if ((parseErrors?.Count ?? 0) > 0 && (analysis.JsonSets == null || analysis.JsonSets.Count == 0))
         {
-            bool hasForJson = normalizedDefinition.IndexOf("FOR JSON PATH", StringComparison.OrdinalIgnoreCase) >= 0;
+            // Robuste Erkennung auch bei zusätzlichem Semikolon / Whitespace: FOR   JSON   PATH
+            bool hasForJson = System.Text.RegularExpressions.Regex.IsMatch(normalizedDefinition, @"FOR\s+JSON\s+PATH\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
             if (hasForJson)
             {
                 bool withoutArray = normalizedDefinition.IndexOf("WITHOUT_ARRAY_WRAPPER", StringComparison.OrdinalIgnoreCase) >= 0;
