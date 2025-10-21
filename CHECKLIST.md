@@ -32,7 +32,7 @@ Status-Legende:
 
 Legende Prioritäten: P1 = kritisch für v5 Cutover, P2 = hoch für Bridge (v4.5→v5), P3 = sinnvoll vor Release, P4 = nachgelagert / Nice-to-have.
 
-Aktueller Fokus – Update 2025-10-18:
+Aktueller Fokus – Update 2025-10-21:
 
 API-KONZEPT Umsetzung & Entscheidungsfindung (siehe `DeveloperBranchUseOnly-API-CONCEPT.md`). Kernpunkte jetzt im Fokus statt früherer Liste 1–9:
 
@@ -57,7 +57,7 @@ API-KONZEPT Umsetzung & Entscheidungsfindung (siehe `DeveloperBranchUseOnly-API-
 
 ### Zusatz-Fokus (Update 2025-10-20): vNext JSON Procedure Handling
 
-Problembeobachtung: Generiertes Model für JSON ResultSet `WorkflowListAsJsonResultSet` enthält falsche Typen – Beispiel:
+Problembeobachtung (historisch, noch offen): Generiertes Model für JSON ResultSet `WorkflowListAsJsonResultSet` enthält falsche Typen – Beispiel:
 
 ```csharp
 public readonly record struct WorkflowListAsJsonResultSet(
@@ -88,6 +88,11 @@ Neue Aufgaben:
 - [ ] Dokumentation Abschnitt "vNext JSON Procedure Handling" (Deserialisierungspfad, Flags, Typableitung, Fallback Strategie)
 - [ ] Entferne temporäre Komplexität: Keine Schleifen/Aggregation bei Single NVARCHAR JSON Spalte (bereits umgesetzt, verifizieren)
 - [ ] Performance Mikro-Test: Direkte Deserialisierung vs. vorherige Aggregation (optional, DEFERRED)
+ - [x] Verschachtelte JSON Feld-Namen (Dot & Underscore) erzeugen jetzt hierarchische Sub-Records (Generator Anpassung 21.10.2025)
+ - [x] Trailing Comma in verschachtelten Record Parametern entfernt (21.10.2025)
+ - [x] Fallback SqlTypeName Marker 'json' → NVARCHAR & 'rowversion'/'timestamp' → VarBinary implementiert (Enum.Parse Schutz)
+ - [x] Debug Logging für nested-json Gruppen entfernt (nur temporär für Verifikation genutzt)
+ - [x] Kompatibilitätsentscheidung: Kein Feature Toggle für verschachtelte Records – immer aktiv (Dokumentation ergänzen)
 
 Depriorisiert (jetzt außerhalb unmittelbarer Fokusliste): Coverage Schwellen Eskalation, Template Edge-Case Tests, allgemeine Logging Verfeinerungen – bleiben beobachtet.
 
@@ -269,6 +274,7 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [x] TableTypes: Always-On Generation (Interface `ITableType` einmalig, Records je Schema unter `SpocR/<schema>/`) integriert in Build (dual|next)
 - [x] TableTypes: Timestamp `<remarks>` Zeile eingefügt und beim Hashing ignoriert (DirectoryHasher Filter)
 - [x] TableTypes: Original Snapshot Namen vollständig beibehalten (nur Sanitizing) – keine erzwungene \*TableType Suffix Ergänzung
+      note: Nested JSON Sub-Struct Generation aktiv (immer an) – künftige Doku: Segment Case-Preservation / Mapping Regeln
 
 Streaming & Invocation (vNext API / Verschoben zu v5)
 
@@ -624,6 +630,7 @@ Diese Liste sammelt jüngst identifizierte optionale Verbesserungen rund um JSON
 - [>] Non-Destructive FirstRow Dump: Ersetzen von `DumpFirstRow(r)` durch Peek-Mechanismus (Lesen der aktuellen Row ohne Cursor-Fortschritt oder Zwischenspeichern und Re-Emit), um Diagnose ohne Datenverlust zu ermöglichen.
 - [>] Keyword Escaping Strategie konfigurierbar: Alternative zum '@' Prefix (z.B. Suffix '\_' oder vollständige Umbenennung mit Mapping-Dictionary) – Flag `SPOCR_KEYWORD_ESCAPE_STYLE`.
 - [>] Nested Alias Mapping: Aliase mit Punkt (z.B. `record.rowVersion`) optional als verschachtelte Record-Struktur generieren statt Unterstrich-Ersatz – Flag `SPOCR_NESTED_ALIAS_STRUCTS`.
+      note: Basis-Verschachtelung ohne Toggle bereits umgesetzt; Item würde nur optionalen Toggle/Erweiterungsstrategie abdecken.
 - [>] Strict Missing Columns Mode: Wenn erwartete Spalten fehlen und keine JSON-Heuristik greift → Exception statt silent Default; Flag `SPOCR_STRICT_COLUMNS`.
 - [>] JSON Root Type Erkennung: Unterschiedliche Pfade für Array vs. Object Root mit präziser Fehlermeldung bei Mixed Root.
 - [>] JSON Cache Layer: Lazy Deserialisierung mit internem Zwischenspeicher (einmaliges Parse, mehrfacher Zugriff) – Typ `JsonLazy<T>` im Aggregate.
@@ -760,3 +767,4 @@ Status-Legende: [>] deferred (v5 Ziel) – Querverweis auf README / Roadmap Absc
 - [ ] Die Snapshots StoredProcedures.Inputs und Functions.Parameters sollen eine gemeinsame Modelbasis haben und `IsOutput` gilt nur für SPs. Für `false` Values (z.B.: IsNullable, IsOutput, HasDefaultValue oder auch MaxLength=0) ausgeblendet werden. 
 - [ ] `IsTableType` soll immer aus `"TableType*"` abgeleitet werden. Keine eigene Property mehr (oder nur noch einen computed getter)
 - [ ] Aus Kommentaren, Code und Tests jene SQL-Typen,-Schema usw. durch solche ersetzen, die in samples/mssql existieren.
+- [ ] Hierarchise Sub-Structs: Aktuell PascalCase Segmente; Ziel: Originalsegment-Casing beibehalten (nur Sanitizing) – Implementierung ausstehend.

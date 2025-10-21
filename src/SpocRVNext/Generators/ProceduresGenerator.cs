@@ -508,11 +508,6 @@ public sealed class ProceduresGenerator
                             var nestedList = BuildGroup(rsType, g, groups[g]);
                             builtTypes.AddRange(nestedList);
                         }
-                        try
-                        {
-                            Console.Out.WriteLine($"[spocr vNext] nested-json groups detected for {proc.OperationName}::{rs.Name} - groupCount={groupOrder.Count} groups=[{string.Join(",", groupOrder)}] rootLeaves={rootLeafFields.Count}");
-                        }
-                        catch { /* non-fatal logging */ }
                         nestedRecordsBlock = string.Join("\n", builtTypes.Select(t => t.Code));
 
                         // Rebuild fieldsBlock for root: root leaves + group properties
