@@ -143,9 +143,48 @@ public sealed class SchemaSnapshotFileLayoutService
         {
             var fileName = $"{SpocR.SpocRVNext.Utils.NameSanitizer.SanitizeForFile(fn.Schema)}.{SpocR.SpocRVNext.Utils.NameSanitizer.SanitizeForFile(fn.Name)}.json";
             var path = Path.Combine(fnDir, fileName);
-                // Prune: leere Columns Liste bei nicht-TVF oder leerer TVF -> null (nicht schreiben)
-                if (fn.Columns != null && fn.Columns.Count == 0) fn.Columns = null;
-                var json = JsonSerializer.Serialize(fn, _jsonOptions);
+            // IsTableValued: false prunen (nur true behalten)
+            if (fn.IsTableValued == false) fn.IsTableValued = null;
+            // Return Felder bei JSON-Skalaren Funktionen entfernen
+            if (fn.ReturnsJson == true)
+            {
+                fn.ReturnSqlType = null; // nicht persistieren
+                fn.ReturnIsNullable = null;
+                // ReturnMaxLength lassen wir vorerst stehen (kann zur Unterscheidung NVARCHAR(MAX) vs NVARCHAR(200) dienen), optional später prunen
+            }
+            // Leere Columns Liste -> null
+            if (fn.Columns != null && fn.Columns.Count == 0) fn.Columns = null;
+            // Parameter Pruning
+            if (fn.Parameters != null && fn.Parameters.Count > 0)
+            {
+                foreach (var prm in fn.Parameters)
+                {
+                    if (prm == null) continue;
+                    if (prm.IsOutput == false) prm.IsOutput = null;
+                    if (prm.HasDefaultValue != true) prm.HasDefaultValue = null;
+                    if (prm.IsNullable == false) prm.IsNullable = null;
+                    if (prm.MaxLength.HasValue && prm.MaxLength.Value == 0) prm.MaxLength = null;
+                }
+            }
+            // Columns (rekursiv) Pruning
+            void PruneFnColumns(List<SnapshotFunctionColumn> cols)
+            {
+                if (cols == null) return;
+                foreach (var c in cols.ToList())
+                {
+                    if (c == null) continue;
+                    if (c.IsNullable == false) c.IsNullable = null;
+                    if (c.MaxLength.HasValue && c.MaxLength.Value == 0) c.MaxLength = null;
+                    if (c.IsNestedJson == false) c.IsNestedJson = null; // nur true behalten
+                    if (c.ReturnsJson == false) c.ReturnsJson = null;
+                    if (c.ReturnsJsonArray == false) c.ReturnsJsonArray = null;
+                    if (!string.IsNullOrWhiteSpace(c.JsonRootProperty)) c.JsonRootProperty = c.JsonRootProperty.Trim();
+                    if (c.Columns != null && c.Columns.Count == 0) c.Columns = null;
+                    if (c.Columns != null) PruneFnColumns(c.Columns);
+                }
+            }
+            if (fn.Columns != null) PruneFnColumns(fn.Columns);
+            var json = JsonSerializer.Serialize(fn, _jsonOptions);
             var newHash = HashUtils.Sha256Hex(json).Substring(0, 16);
             bool needsWrite = true;
             if (existingFnFiles.TryGetValue(fileName, out var existingPath))

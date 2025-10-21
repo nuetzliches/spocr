@@ -363,14 +363,14 @@ public class SpocrManager(
                             Name = sp.Name,
                             Inputs = (sp.Input ?? []).Select(i => new SnapshotInput
                             {
-                                Name = i.Name,
-                                IsTableType = i.IsTableType == true,
+                                Name = i.Name?.TrimStart('@'),
                                 TableTypeSchema = i.TableTypeSchemaName,
                                 TableTypeName = i.TableTypeName,
-                                IsOutput = i.IsOutput,
+                                IsOutput = i.IsOutput ? true : null,
                                 SqlTypeName = i.SqlTypeName,
-                                IsNullable = i.IsNullable ?? false,
-                                MaxLength = i.MaxLength ?? 0
+                                IsNullable = (i.IsNullable ?? false) ? true : null,
+                                MaxLength = (i.MaxLength.HasValue && i.MaxLength.Value > 0) ? i.MaxLength.Value : null,
+                                // HasDefaultValue derzeit nicht im StoredProcedureInputModel verfügbar (nur Function Parameters Flag) → ausgelassen
                             }).ToList(),
                             ResultSets = rsFiltered.Select(rs => new SnapshotResultSet
                             {

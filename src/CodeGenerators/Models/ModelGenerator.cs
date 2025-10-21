@@ -63,9 +63,11 @@ public class ModelGenerator(
 
         // Heuristic: Legacy FOR JSON output (single synthetic column) -> treat as raw JSON
         // Detection: exactly one column, name = JSON_F52E2B61-18A1-11d1-B105-00805F49916B (case-insensitive), nvarchar(max)
-        var currentSetReturnsJson = currentSet?.ReturnsJson ?? false;
-        // Legacy single-column FOR JSON heuristic removed. Rely solely on parser FOR JSON detection.
-        var treatAsJson = currentSetReturnsJson;
+    var currentSetReturnsJson = currentSet?.ReturnsJson ?? false;
+    var genMode = System.Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant() ?? "dual";
+    bool legacyRawJsonOnly = genMode != "next"; // suppress JSON model generation in legacy/dual
+    // Legacy single-column FOR JSON heuristic removed. Rely solely on parser FOR JSON detection (vNext only).
+    var treatAsJson = currentSetReturnsJson && !legacyRawJsonOnly;
 
         // Local helpers
         string InferType(string sqlType, bool? nullable)
@@ -286,7 +288,7 @@ public class ModelGenerator(
         // Legacy auto-generated header removed for cleaner output and to minimize diff noise.
         // Intentionally no header injection here.
 
-        if (!hasResultColumns && currentSetReturnsJson)
+    if (!hasResultColumns && currentSetReturnsJson && !legacyRawJsonOnly)
         {
             consoleService.Warn($"No JSON columns extracted for stored procedure '{storedProcedure.Name}'. Generated empty model (RawJson fallback).");
             // Add RawJson fallback property to surface payload
@@ -309,6 +311,11 @@ public class ModelGenerator(
             }
         }
 
+        if (legacyRawJsonOnly && currentSetReturnsJson)
+        {
+            consoleService.Verbose($"[legacy-json] Skipping JSON model generation for '{storedProcedure.Name}' (raw string fallback)." );
+            return null; // suppress model output completely
+        }
         return TemplateManager.GenerateSourceText(root);
     }
 

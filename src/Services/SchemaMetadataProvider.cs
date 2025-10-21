@@ -150,10 +150,10 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
                         {
                             Name = i.Name,
                             SqlTypeName = i.SqlTypeName,
-                            IsNullable = i.IsNullable,
-                            MaxLength = i.MaxLength,
-                            IsOutput = i.IsOutput,
-                            IsTableType = i.IsTableType,
+                                IsNullable = i.IsNullable ?? false,
+                                MaxLength = i.MaxLength ?? 0,
+                                IsOutput = i.IsOutput ?? false,
+                                IsTableType = !string.IsNullOrWhiteSpace(i.TableTypeName) && !string.IsNullOrWhiteSpace(i.TableTypeSchema),
                             UserTypeName = i.TableTypeName,
                             UserTypeSchemaName = i.TableTypeSchema
                         })).ToList(),

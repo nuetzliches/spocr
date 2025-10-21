@@ -61,7 +61,9 @@ public abstract class GeneratorBase
 
     protected static string GetIdentifierFromSqlInputTableType(string name)
     {
-        name = $"{name[1..].FirstCharToLower()}";
+        if (string.IsNullOrEmpty(name)) return name;
+        var working = name.StartsWith("@") && name.Length > 1 ? name[1..] : name;
+        name = working.FirstCharToLower();
         var reservedKeyWords = new[] { "params", "namespace" };
         if (reservedKeyWords.Contains(name))
         {
@@ -72,8 +74,9 @@ public abstract class GeneratorBase
 
     protected static string GetPropertyFromSqlInputTableType(string name)
     {
-        name = $"{name[1..].FirstCharToUpper()}";
-        return name;
+        if (string.IsNullOrEmpty(name)) return name;
+        var working = name.StartsWith("@") && name.Length > 1 ? name[1..] : name;
+        return working.FirstCharToUpper();
     }
 
     protected static string GetTypeNameForTableType(Definition.TableType tableType)

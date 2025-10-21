@@ -62,21 +62,23 @@ public class StoredProcedureGenerator(
         }
 
         // Determine if any stored procedure in this group actually produces a model (skip pure scalar non-JSON procs)
+        var genMode = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant() ?? "dual";
+        bool legacyRawJsonOnly = genMode != "next"; // in dual/legacy modes suppress JSON model generation
         bool NeedsModel(Definition.StoredProcedure sp)
         {
             if (sp.ResultSets == null || sp.ResultSets.Count == 0) return false;
-            // Primary set = first JSON result set if any, otherwise the first result set
+            // Primäres Set: erstes JSON Set (falls vorhanden) sonst erstes Set
             var primary = sp.ResultSets.FirstOrDefault(r => r.ReturnsJson) ?? sp.ResultSets.First();
             if (primary == null) return false;
-            if (primary.ReturnsJson) return true; // JSON always implies a model (even if column count is 0 for deserialize)
+            // Im Legacy/Dual Modus niemals ein Modell für JSON ResultSets erzeugen
+            if (legacyRawJsonOnly && primary.ReturnsJson) return false;
+            if (primary.ReturnsJson && !legacyRawJsonOnly) return true; // vNext: JSON erzeugt Modell
             var cols = primary.Columns?.Count ?? 0;
             if (cols == 0) return false;
             if (cols == 1)
             {
-                // Single non-JSON column -> only treat as model when not just a scalar nvarchar(max) pseudo CRUD value
                 var c = primary.Columns[0];
                 bool isNVarChar = (c.SqlTypeName?.StartsWith("nvarchar", StringComparison.OrdinalIgnoreCase) ?? false);
-                // Wenn es weitere Sets gibt und eines JSON ist -> wir brauchen das Modell falls dieses Set nicht das JSON ist
                 bool hasOtherJson = sp.ResultSets.Any(r => r != primary && r.ReturnsJson);
                 if (isNVarChar && !hasOtherJson) return false; // rein skalar
             }
@@ -263,9 +265,9 @@ public class StoredProcedureGenerator(
             overloadOptionsMethodNode = GenerateStoredProcedureMethodText(overloadOptionsMethodNode, storedProcedure, StoredProcedureMethodKind.Raw, true);
             root = root.AddMethod(ref classNode, overloadOptionsMethodNode);
 
-            // Add Deserialize variants for JSON returning procedures (inspect first result set)
+            // Add Deserialize variants for JSON returning procedures (suppressed in legacy/dual)
             var firstSet = storedProcedure.ResultSets?.FirstOrDefault();
-            if (firstSet?.ReturnsJson ?? false)
+            if ((firstSet?.ReturnsJson ?? false) && !legacyRawJsonOnly)
             {
                 nsNode = (NamespaceDeclarationSyntax)root.Members[0];
                 classNode = (ClassDeclarationSyntax)nsNode.Members[0];
@@ -288,8 +290,8 @@ public class StoredProcedureGenerator(
         classNode = (ClassDeclarationSyntax)nsNode.Members[0];
         root = root.ReplaceNode(classNode, classNode.WithMembers([.. classNode.Members.Cast<MethodDeclarationSyntax>().Skip(2)]));
 
-        // Ensure JSON deserialization namespace is present if any SP returns JSON
-        if (storedProcedures.Any(sp => sp.ResultSets?.FirstOrDefault()?.ReturnsJson ?? false)
+        // Ensure JSON deserialization namespace is present only in vNext when any SP returns JSON
+        if (!legacyRawJsonOnly && storedProcedures.Any(sp => sp.ResultSets?.FirstOrDefault()?.ReturnsJson ?? false)
             && !root.Usings.Any(u => u.Name.ToString() == "System.Text.Json"))
         {
             root = root.AddUsings(SyntaxFactory.UsingDirective(SyntaxFactory.ParseName("System.Text.Json"))).NormalizeWhitespace();
@@ -375,9 +377,12 @@ public class StoredProcedureGenerator(
             {
                 var isLastItem = i == lastInput;
 
+                // Name wurde beim Snapshot ggf. bereits von führendem '@' befreit. Nur abschneiden, wenn tatsächlich noch vorhanden.
+                var rawParamName = i.Name ?? string.Empty;
+                var normalizedParamName = rawParamName.StartsWith("@") && rawParamName.Length > 1 ? rawParamName[1..] : rawParamName;
                 var args = new List<SyntaxNodeOrToken>
                 {
-                    SyntaxFactory.Argument(SyntaxFactory.LiteralExpression(SyntaxKind.StringLiteralExpression, SyntaxFactory.Literal(i.Name[1..]))),
+                    SyntaxFactory.Argument(SyntaxFactory.LiteralExpression(SyntaxKind.StringLiteralExpression, SyntaxFactory.Literal(normalizedParamName))),
                     SyntaxFactory.Token(SyntaxKind.CommaToken),
                     SyntaxFactory.Argument(SyntaxFactory.IdentifierName($"input.{GetPropertyFromSqlInputTableType(i.Name)}"))
                 };
@@ -437,8 +442,10 @@ public class StoredProcedureGenerator(
                 ? null
                 : storedProcedure.ResultSets.FirstOrDefault(rs => string.IsNullOrEmpty(rs.ExecSourceProcedureName))
                     ?? storedProcedure.ResultSets.FirstOrDefault();
-        var isJson = firstSet?.ReturnsJson ?? false;
-        var isJsonArray = isJson && (firstSet?.ReturnsJsonArray ?? false);
+    var genModeLocal = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant() ?? "dual";
+    bool legacyRawOnly = genModeLocal != "next"; // treat JSON sets as raw-only outside vNext
+    var isJson = firstSet?.ReturnsJson ?? false;
+    var isJsonArray = isJson && (firstSet?.ReturnsJsonArray ?? false);
         // Forwarding Referenz-only: genau ein Set, kein JSON, Columns leer, ExecSource gesetzt -> Ziel auflösen für Modellwahl
         bool isReferenceOnlyForward = false;
         string forwardSchema = null; string forwardProc = null;
@@ -493,7 +500,7 @@ public class StoredProcedureGenerator(
         }
 
         // Only the pipe variant of a JSON Deserialize method performs the awaited deserialization; the context overload delegates.
-        var requiresAsync = isJson && kind == StoredProcedureMethodKind.Deserialize && !isOverload;
+    var requiresAsync = isJson && kind == StoredProcedureMethodKind.Deserialize && !isOverload && !legacyRawOnly;
 
         var rawJson = false;
         // Special case: multiple result sets but exactly one JSON set -> treat JSON as primary
@@ -518,7 +525,7 @@ public class StoredProcedureGenerator(
                 .Replace("ExecuteSingleAsync<CrudResult>", "ReadJsonAsync")
                 .Replace("ExecuteListAsync<CrudResult>", "ReadJsonAsync");
         }
-        else if (isJson && kind == StoredProcedureMethodKind.Deserialize)
+    else if (isJson && kind == StoredProcedureMethodKind.Deserialize && !legacyRawOnly)
         {
             returnModel = storedProcedure.Name;
             if (isJsonArray)
@@ -714,7 +721,7 @@ public class StoredProcedureGenerator(
         methodNode = methodNode.WithBody(methodBody);
 
         // Add XML documentation for JSON methods
-        if (isJson)
+        if (isJson && !legacyRawOnly)
         {
             var xmlSummary = string.Empty;
             if (kind == StoredProcedureMethodKind.Raw)

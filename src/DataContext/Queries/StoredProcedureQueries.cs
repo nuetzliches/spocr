@@ -90,7 +90,8 @@ public static class StoredProcedureQueries
                                     t1.is_table_type, 
                                     t1.name AS user_type_name, 
                                     t1.user_type_id,
-                                    t1s.name AS user_type_schema_name
+                                    t1s.name AS user_type_schema_name,
+                                    CAST(p.has_default_value AS BIT) AS has_default_value
                                 FROM sys.parameters AS p 
                                 LEFT OUTER JOIN sys.types t ON t.system_type_id = p.system_type_id AND t.user_type_id = p.system_type_id 
                                 LEFT OUTER JOIN sys.types AS t1 ON t1.system_type_id = p.system_type_id AND t1.user_type_id = p.user_type_id

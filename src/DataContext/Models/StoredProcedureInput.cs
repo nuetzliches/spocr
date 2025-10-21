@@ -20,4 +20,7 @@ public class StoredProcedureInput : Column
     [SqlFieldName("user_type_schema_name")]
     public string UserTypeSchemaName { get; set; }
     public List<Column> TableTypeColumns { get; set; }
+
+    [SqlFieldName("has_default_value")]
+    public bool HasDefaultValue { get; set; }
 }

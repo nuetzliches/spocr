@@ -201,13 +201,13 @@ public class SnapshotProcedure
 public class SnapshotInput
 {
     public string Name { get; set; }
-    public bool IsTableType { get; set; }
     public string TableTypeSchema { get; set; }
     public string TableTypeName { get; set; }
-    public bool IsOutput { get; set; }
+    public bool? IsOutput { get; set; }
     public string SqlTypeName { get; set; }
-    public bool IsNullable { get; set; }
-    public int MaxLength { get; set; }
+    public bool? IsNullable { get; set; }
+    public int? MaxLength { get; set; }
+    public bool? HasDefaultValue { get; set; } // nur schreiben wenn true
 }
 
 public class SnapshotResultSet
@@ -275,12 +275,12 @@ public class SnapshotFunction
 {
     public string Schema { get; set; }
     public string Name { get; set; }
-    public bool IsTableValued { get; set; }
-    public string ReturnSqlType { get; set; } // empty for TVF
+    public bool? IsTableValued { get; set; } // false wird vor Persistierung gepruned (nur true schreiben)
+    public string ReturnSqlType { get; set; } // leer für TVF oder gepruned bei JSON
     public int? ReturnMaxLength { get; set; } // nur für skalare Funktionen
-    public bool? ReturnIsNullable { get; set; } // nur für skalare Funktionen
+    public bool? ReturnIsNullable { get; set; } // nur für skalare Funktionen (bei JSON gepruned)
     public List<SnapshotFunctionParameter> Parameters { get; set; } = new();
-    public List<SnapshotFunctionColumn> Columns { get; set; } = new(); // TVF row columns (empty for scalar)
+    public List<SnapshotFunctionColumn> Columns { get; set; } = new(); // Für TVF oder JSON Spalten (Nested möglich)
     public bool? ReturnsJson { get; set; } // heuristisch aus Definition abgeleitet (FOR JSON)
     public bool? ReturnsJsonArray { get; set; } // true wenn FOR JSON ohne WITHOUT_ARRAY_WRAPPER
     public string JsonRootProperty { get; set; } // optional aus Pfad ableitbar (zukünftige AST-Analyse)
@@ -291,22 +291,28 @@ public class SnapshotFunction
 public class SnapshotFunctionParameter
 {
     public string Name { get; set; }
-    public bool IsTableType { get; set; }
     public string TableTypeSchema { get; set; }
     public string TableTypeName { get; set; }
-    public bool IsOutput { get; set; }
+    public bool? IsOutput { get; set; }
     public string SqlTypeName { get; set; }
-    public bool IsNullable { get; set; }
-    public int MaxLength { get; set; }
+    public bool? IsNullable { get; set; }
+    public int? MaxLength { get; set; }
     // Hinweis: Default-Wert Information wird vorerst nicht persistiert zur Vereinheitlichung mit StoredProcedure Inputs.
+    public bool? HasDefaultValue { get; set; } // nur true persistieren
 }
 
 public class SnapshotFunctionColumn
 {
     public string Name { get; set; }
     public string SqlTypeName { get; set; }
-    public bool IsNullable { get; set; }
-    public int MaxLength { get; set; }
+    public bool? IsNullable { get; set; }
+    public int? MaxLength { get; set; }
+    // Nested JSON Unterstützung (analog ResultSet Columns, aber leichtgewichtig)
+    public bool? IsNestedJson { get; set; } // true wenn Unterstruktur (Objekt/Array) enthalten ist
+    public bool? ReturnsJson { get; set; } // Kennzeichnet JSON Subselect
+    public bool? ReturnsJsonArray { get; set; } // true wenn Subselect ein Array zurück gibt
+    public string JsonRootProperty { get; set; } // Root('x') oder impliziter Alias
+    public List<SnapshotFunctionColumn> Columns { get; set; } = new(); // rekursive Verschachtelung
 }
 
 public class SnapshotParserInfo
