@@ -71,6 +71,7 @@ public readonly record struct WorkflowListAsJsonResultSet(
 Konsequenz: Numerische Tokens im JSON führen zu (jetzt abgefangenen) Konvertierungs-Fallbacks über den LenientStringConverter statt korrekter starker Typisierung.
 
 Ziele (P1 kurz vorziehen):
+
 1. Korrekte Typableitung für JSON ResultSets (numeric → int/long/decimal; bool → bool; datetime → DateTime/DateTimeOffset) statt alles als string.
 2. Validierung: Bei aktivem `ReturnsJson` Flag soll der Generator vorhandene Feld-Deskriptoren mit SQL-Typen mappen; JSON-Deserialisierung nutzt stark typisierte Records.
 3. Prüfpunkt: Falls Snapshot keine Spalten-Typen liefert (nur JSON-Spalte), heuristische Ableitung optional (DEFERRED) → zunächst Ausgabe Warnung: "JSON model property 'workflowId' defaulted to string; schema type: int".
@@ -78,6 +79,7 @@ Ziele (P1 kurz vorziehen):
 5. Erweiterte Checklist-Tasks unten (Quality & Codegenerierung) aufgenommen.
 
 Neue Aufgaben:
+
 - [ ] JSON Model Typkorrektur für WorkflowListAsJson (workflowId → int)
 - [ ] Audit weiterer JSON ResultSets: Falsche string Platzhalter identifizieren & korrigieren
 - [ ] Generator: Mapping-Layer für ReturnsJson ResultSets implementieren (SQL Typname → C# Property Typ) vor Deserialisierung
@@ -331,6 +333,54 @@ Streaming & Invocation (vNext API / Verschoben zu v5)
 
       TODO entfernt: Performance Messung (nicht mehr erforderlich)
 
+### Funktionen & TVFs Snapshot / Mapping (Neu 2025-10-21)
+
+Ziel: Funktionen (Scalar & Table-Valued) analog zu TableTypes unabhängig von BuildSchemas Allow-List persistent erfassen (für Analyse, zukünftige Invocation, Typableitung) und erste Generator-Artefakte bereitstellen. Keine Heuristik – rein aus sys.objects / sys.parameters / sys.types / Definition (OBJECT_DEFINITION). Basis für Entfernung `IsRecordAsJson` sobald Rückgabe-/Row-Typen korrekt.
+
+- [ ] Snapshot: Erfasse Scalar Functions (object types: FN) inkl. SchemaName, FunctionName, Definition Hash, ModifiedDate, Return SqlType
+- [ ] Snapshot: Erfasse Inline & Multi-Statement Table-Valued Functions (object types: IF, TF) inkl. Rowdefinition (Columns + SqlType + IsNullable)
+- [ ] Snapshot Format Erweiterung: Abschnitt `functions` mit Feldern: schemaName, functionName, isTableValued, returnSqlType (scalar), columns[] (tvf), parameters[] (name, sqlType, maxLength, isOutput, isNullable, ordinal), definition (string, optional truncated >N chars), modifiedDateUtc
+- [ ] Snapshot: Unabhängig von `SPOCR_BUILD_SCHEMAS` → Funktionen anderer Schemas werden trotzdem aufgenommen (wie UDTTs) – Filter nur für Generierung nicht für Persistenz
+- [ ] Metadata Provider: Neue Deskriptoren `FunctionDescriptor`, `FunctionParameterDescriptor`, `TableValuedFunctionColumnDescriptor`
+- [ ] Typableitung: SQL → CLR (scalar) (int, bigint, decimal(p,s), bit, nvarchar, uniqueidentifier, datetime2, date, time, varbinary, float, money)
+- [ ] Typableitung: TVF Row → Record Struct (Namensstrategie ähnlich ResultSetNameResolver; Konflikte numerisch suffixen)
+- [ ] Generator: Scalar Function Extension Methoden (Sync/Async): `Task<TReturn> <FunctionName>Async(<params>, CancellationToken ct = default)` (ADO.NET `ExecuteScalarAsync`)
+- [ ] Generator: TVF Invocation Helper: `IAsyncEnumerable<RowRecord> <FunctionName>StreamAsync(...)` + `Task<List<RowRecord>> <FunctionName>Async(...)`
+- [ ] Generator: Nullability korrekt (optionale Parameters & nullable return types falls erlaubt)
+- [ ] Entferne Property `IsRecordAsJson` nachdem JSON `record` Felder typisiert (Abhängigkeit: JSON Typableitung Tasks weiter oben abgeschlossen)
+- [ ] Tests: Snapshot Pull enthält Function-Einträge (Scalar + TVF Beispiel aus Sample DB) – deterministische Reihenfolge (SchemaName + FunctionName ASC)
+- [ ] Tests: Generator erzeugt erwartete Methoden-Signaturen für Beispiel-Funktion (Parameter Mapping, Rückgabe-Typ)
+- [ ] Tests: TVF Row Mapping (Mehrere Spalten, korrekt typisierte Record Struct, Streaming Enumeration)
+- [ ] Tests: Collision Handling bei zwei TVFs mit gleicher Basis (Suffix korrekt)
+- [ ] Tests: Nullable Parameter / Default-Werte Szenario (Parameter mit Default in SQL → Aufruf ohne Argument möglich)
+- [ ] Docs: Abschnitt "Funktionen & TVFs" (Erfassung, Nutzung, Limitierungen v4.5 Bridge) – Hinweis: Invocation optional / Preview
+- [ ] Docs: Beispielcode Scalar Function & TVF Streaming
+- [ ] CHANGELOG: Added – Function & TVF snapshot capture (Preview) (nur ein Eintrag, detaillierte Nutzung später)
+- [ ] Logging: Pull Prozess gibt Anzahl erkannter Functions (`[snapshot-functions] count=<n>`) aus
+- [ ] CLI Hilfe: `spocr pull` Hinweis auf Function/TVF Erfassung (Preview Flag falls deaktivierbar) – Entscheidung ob Flag nötig (vermutlich Always-On)
+- [ ] Performance: Einmaliger Collect Query vs. pro Funktion (Batch Query mit JOINs) – dokumentieren
+- [ ] Optional (DEFERRED): Rückgabe komplexer TableTypes aus Funktionen (falls vorkommend) – Analyse ob notwendig
+- [>] Optional (DEFERRED): Analyzer Warnung bei ungenutzter generierter Function Methode
+
+Open Design Fragen:
+
+1. Werden gefilterte Schemas (Allow-List) für Functions komplett ignoriert? Aktuell: Aufnahme ja, Generation nein → akzeptiert? (Dokumentieren)
+2. Parameter Default-Werte: Snapshot speichert `hasDefaultValue` Flag + optional Roh-Definition extrahieren? (P2 – falls einfach)
+3. TVF Rowdefinition Ermittlung: Parsing aus OBJECT_DEFINITION vs. sys.columns (präferiert: sys.columns für zurückgegebenes Table Objekt)
+4. Namenskonflikte zwischen Procedures und Functions: Unterschiedliche Namespaces ausreichend? (Präfix SchemaPascalCase + FunctionName) – Overload vermeiden.
+
+Hinweis: Erstes Ziel ist reine Snapshot Persistenz + minimaler Generator Prototype (Scalar Function). TVF Generation kann folgen, falls Rowdefinition ohne komplexes Parsing verfügbar.
+
+Abhängigkeiten / depends: [E014] (Erweiterte Generatoren), [E007] (Heuristik-Abbau – keine Alias-Heuristik für Functions), JSON Typableitung Tasks (für Entfernung `IsRecordAsJson`).
+
+Risiken & Edge Cases:
+
+- Verschlüsselte Funktionen (Encryption) → OBJECT_DEFINITION liefert NULL: Snapshot soll `definition` leer lassen + Flag `isEncrypted` (optional später)
+- Schema Rename vs. Function Snapshot Inkonsistenz (Low Risk) – Kein automatischer Cleanup v4.5
+- TVF mit CROSS APPLY / komplexen Expressions im SELECT: sys.columns liefert generierte Namen – akzeptiert als Row-Felder.
+
+Tracking: Items oben werden wie andere Checklist Tasks mit Status-Markern gepflegt.
+
 ### Migration / Breaking Changes (Update 2025-10-15)
 
 note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Project.Output.*` sind ab 4.5 als obsolet markiert – tatsächliche Entfernung erfolgt erst mit v5. (Siehe Deprecation Timeline in `MIGRATION_SpocRVNext.md`)
@@ -529,7 +579,7 @@ Diese Liste sammelt jüngst identifizierte optionale Verbesserungen rund um JSON
 - [>] Streaming JSON Parser: Implementierung auf Basis `Utf8JsonReader` für sehr große Arrays (≥5MB) – vermeidet vollständiges Puffern; liefert `IAsyncEnumerable<T>`.
 - [>] Dual Mode JSON Methoden: Generator erzeugt `JsonRawAsync`, `JsonDeserializeAsync<T>`, `JsonElementsAsync`, `JsonStreamAsync` (bereits als P2/P5 konzeptionell geführt – hier konsolidiert).
 - [>] Non-Destructive FirstRow Dump: Ersetzen von `DumpFirstRow(r)` durch Peek-Mechanismus (Lesen der aktuellen Row ohne Cursor-Fortschritt oder Zwischenspeichern und Re-Emit), um Diagnose ohne Datenverlust zu ermöglichen.
-- [>] Keyword Escaping Strategie konfigurierbar: Alternative zum '@' Prefix (z.B. Suffix '_' oder vollständige Umbenennung mit Mapping-Dictionary) – Flag `SPOCR_KEYWORD_ESCAPE_STYLE`.
+- [>] Keyword Escaping Strategie konfigurierbar: Alternative zum '@' Prefix (z.B. Suffix '\_' oder vollständige Umbenennung mit Mapping-Dictionary) – Flag `SPOCR_KEYWORD_ESCAPE_STYLE`.
 - [>] Nested Alias Mapping: Aliase mit Punkt (z.B. `record.rowVersion`) optional als verschachtelte Record-Struktur generieren statt Unterstrich-Ersatz – Flag `SPOCR_NESTED_ALIAS_STRUCTS`.
 - [>] Strict Missing Columns Mode: Wenn erwartete Spalten fehlen und keine JSON-Heuristik greift → Exception statt silent Default; Flag `SPOCR_STRICT_COLUMNS`.
 - [>] JSON Root Type Erkennung: Unterschiedliche Pfade für Array vs. Object Root mit präziser Fehlermeldung bei Mixed Root.
@@ -542,7 +592,6 @@ Diese Liste sammelt jüngst identifizierte optionale Verbesserungen rund um JSON
 - [>] Konfigurierbare Default-Fallbacks: Anpassbare Werte für fehlende Spalten (z.B. `<missing>` statt leerer String) via `SPOCR_MISSING_STRING_VALUE` etc.
 
 Hinweis: Einige Punkte überschneiden sich mit bereits vorhandenen Deferred v5 Items; diese Liste dient als feingranulare Ergänzung für Priorisierung im Branch.
-
 
 # Fixes für zwischendurch
 

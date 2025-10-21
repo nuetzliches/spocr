@@ -156,7 +156,7 @@ public class StoredProcedureContentModel
                 if (sq >= 0 && eq > sq) root = definition.Substring(sq + 1, eq - sq - 1);
             }
         }
-        var sets = returnsJson ? new[] { new ResultSet { ReturnsJson = true, ReturnsJsonArray = !noArray, ReturnsJsonWithoutArrayWrapper = noArray, JsonRootProperty = root } } : Array.Empty<ResultSet>();
+        var sets = returnsJson ? new[] { new ResultSet { ReturnsJson = true, ReturnsJsonArray = !noArray, JsonRootProperty = root } } : Array.Empty<ResultSet>();
         return new StoredProcedureContentModel
         {
             Definition = definition,
@@ -177,7 +177,7 @@ public class StoredProcedureContentModel
     {
         public bool ReturnsJson { get; init; }
         public bool ReturnsJsonArray { get; init; }
-        public bool ReturnsJsonWithoutArrayWrapper { get; init; }
+        // Removed redundant flag (WITHOUT ARRAY WRAPPER now implied by ReturnsJsonArray == false)
         public string JsonRootProperty { get; init; }
         public IReadOnlyList<ResultColumn> Columns { get; init; } = Array.Empty<ResultColumn>();
         public string ExecSourceSchemaName { get; init; }
@@ -192,7 +192,6 @@ public class StoredProcedureContentModel
     }
     public class ResultColumn
     {
-        public string JsonPath { get; set; }
         public string Name { get; set; }
         public ResultColumnExpressionKind? ExpressionKind { get; set; }
         public string SourceSchema { get; set; }
@@ -204,20 +203,24 @@ public class StoredProcedureContentModel
         public bool? IsNullable { get; set; }
         public bool? ForcedNullable { get; set; }
         public bool? IsNestedJson { get; set; }
-        public JsonResultModel JsonResult { get; set; }
+        // Flattened nested JSON: if IsNestedJson=true these flags/columns describe the nested JSON structure under this column
+        public bool? ReturnsJson { get; set; }
+        public bool? ReturnsJsonArray { get; set; }
+        // Removed redundant flag on column level
+        public string JsonRootProperty { get; set; }
+        public IReadOnlyList<ResultColumn> Columns { get; set; } = Array.Empty<ResultColumn>(); // nested JSON columns (renamed from JsonColumns in v7)
         // Zusätzliche Properties benötigt von anderen Komponenten
         public string UserTypeSchemaName { get; set; }
         public string UserTypeName { get; set; }
         public int? MaxLength { get; set; }
         public bool? IsAmbiguous { get; set; }
-    }
-    public class JsonResultModel
-    {
-        public bool ReturnsJson { get; set; }
-        public bool ReturnsJsonArray { get; set; }
-        public bool ReturnsJsonWithoutArrayWrapper { get; set; }
-        public string JsonRootProperty { get; set; }
-        public IReadOnlyList<ResultColumn> Columns { get; set; } = Array.Empty<ResultColumn>();
+        // AST-only function call metadata (no heuristics). Populated when ExpressionKind == FunctionCall or JsonQuery.
+        public string FunctionSchemaName { get; set; }
+        public string FunctionName { get; set; }
+        // Convenience flag set strictly by AST if the function is identity.RecordAsJson (schema-qualified) – no fallback guessing.
+        public bool? IsRecordAsJson { get; set; }
+        // Raw scalar expression text extracted from original definition (exact substring). Enables deterministic pattern matching.
+        public string RawExpression { get; set; }
     }
     public enum ResultColumnExpressionKind { ColumnRef, Cast, FunctionCall, JsonQuery, Computed, Unknown }
 
@@ -270,64 +273,125 @@ public class StoredProcedureContentModel
         }
         public override void ExplicitVisit(QuerySpecification node)
         {
-            // Scope isolation: reset alias/source tracking for each QuerySpecification to avoid bleed between statements / CTEs.
-            _tableAliases.Clear();
-            _tableSources.Clear();
-            base.ExplicitVisit(node); // collect NamedTableReference + joins
-            if (node.ForClause is not JsonForClause jsonClause) return;
-
-            // Collect outer join right-side aliases BEFORE analyzing select elements (if not captured already)
-            CollectOuterJoinRightAliases(node.FromClause?.TableReferences);
-
-            var builder = new JsonSetBuilder();
-            var options = jsonClause.Options ?? Array.Empty<JsonForClauseOption>();
-            if (options.Count == 0) builder.JsonWithArrayWrapper = true;
-            foreach (var opt in options)
+            try
             {
-                switch (opt.OptionKind)
+                // Save outer scope
+                var outerAliases = new Dictionary<string, (string Schema, string Table)>(_tableAliases, StringComparer.OrdinalIgnoreCase);
+                var outerSources = new HashSet<string>(_tableSources, StringComparer.OrdinalIgnoreCase);
+                // Create local scope
+                _tableAliases.Clear();
+                _tableSources.Clear();
+                if (node.FromClause?.TableReferences != null)
                 {
-                    case JsonForClauseOptions.WithoutArrayWrapper: builder.JsonWithoutArrayWrapper = true; break;
-                    case JsonForClauseOptions.Root: if (builder.JsonRootProperty == null && opt.Value is Literal lit) builder.JsonRootProperty = ExtractLiteralValue(lit); break;
-                    default: if (opt.OptionKind != JsonForClauseOptions.WithoutArrayWrapper) builder.JsonWithArrayWrapper = true; break;
+                    foreach (var tr in node.FromClause.TableReferences) PreCollectNamedTableReferences(tr);
                 }
-            }
-            if (!builder.JsonWithoutArrayWrapper) builder.JsonWithArrayWrapper = true;
-
-            foreach (var sce in node.SelectElements.OfType<SelectScalarExpression>())
-            {
-                var alias = sce.ColumnName?.Value;
-                if (string.IsNullOrWhiteSpace(alias))
+                // Traverse children (collect additional references, derived tables, etc.)
+                base.ExplicitVisit(node);
+                // Only process FOR JSON queries
+                if (node.ForClause is not JsonForClause jsonClause)
                 {
-                    if (sce.Expression is ColumnReferenceExpression implicitCr && implicitCr.MultiPartIdentifier?.Identifiers?.Count > 0)
-                        alias = implicitCr.MultiPartIdentifier.Identifiers[^1].Value;
-                    else if (sce.Expression is CastCall castCall && castCall.Parameter is ColumnReferenceExpression castCol && castCol.MultiPartIdentifier?.Identifiers?.Count > 0)
-                        alias = castCol.MultiPartIdentifier.Identifiers[^1].Value;
+                    // Restore outer scope before returning
+                    _tableAliases.Clear(); foreach (var kv in outerAliases) _tableAliases[kv.Key] = kv.Value;
+                    _tableSources.Clear(); foreach (var s in outerSources) _tableSources.Add(s);
+                    return;
                 }
-                if (string.IsNullOrWhiteSpace(alias)) continue;
-                var path = NormalizeJsonPath(alias);
-                var col = new ResultColumn { JsonPath = path, Name = SafePropertyName(path) };
-                var beforeBindings = new SourceBindingState();
-                AnalyzeScalarExpression(sce.Expression, col, beforeBindings);
-                col.ExpressionKind ??= ResultColumnExpressionKind.Unknown;
-                // Outer join heuristic: if bound alias belongs to right-side of LEFT OUTER JOIN mark forced nullable
-                if (!string.IsNullOrWhiteSpace(col.SourceAlias) && _outerJoinRightAliases.Contains(col.SourceAlias))
-                    col.ForcedNullable = true;
-                // Ambiguity: if multiple distinct source bindings encountered
-                if (beforeBindings.BindingCount > 1) col.IsAmbiguous = true;
-                if (!builder.Columns.Any(c => c.Name.Equals(col.Name, StringComparison.OrdinalIgnoreCase))) builder.Columns.Add(col);
+
+                // Collect outer join right-side aliases BEFORE analyzing select elements
+                CollectOuterJoinRightAliases(node.FromClause?.TableReferences);
+
+                var builder = new JsonSetBuilder();
+                var options = jsonClause.Options ?? Array.Empty<JsonForClauseOption>();
+                if (options.Count == 0) builder.JsonWithArrayWrapper = true; // default
+                foreach (var opt in options)
+                {
+                    switch (opt.OptionKind)
+                    {
+                        case JsonForClauseOptions.WithoutArrayWrapper: builder.JsonWithoutArrayWrapper = true; break;
+                        case JsonForClauseOptions.Root:
+                            if (builder.JsonRootProperty == null && opt.Value is Literal lit) builder.JsonRootProperty = ExtractLiteralValue(lit);
+                            break;
+                        default:
+                            if (opt.OptionKind != JsonForClauseOptions.WithoutArrayWrapper) builder.JsonWithArrayWrapper = true;
+                            break;
+                    }
+                }
+                if (!builder.JsonWithoutArrayWrapper) builder.JsonWithArrayWrapper = true;
+
+                foreach (var sce in node.SelectElements.OfType<SelectScalarExpression>())
+                {
+                    var alias = sce.ColumnName?.Value;
+                    if (string.IsNullOrWhiteSpace(alias))
+                    {
+                        if (sce.Expression is ColumnReferenceExpression implicitCr && implicitCr.MultiPartIdentifier?.Identifiers?.Count > 0)
+                            alias = implicitCr.MultiPartIdentifier.Identifiers[^1].Value;
+                        else if (sce.Expression is CastCall castCall && castCall.Parameter is ColumnReferenceExpression castCol && castCol.MultiPartIdentifier?.Identifiers?.Count > 0)
+                            alias = castCol.MultiPartIdentifier.Identifiers[^1].Value;
+                    }
+                    if (string.IsNullOrWhiteSpace(alias)) continue;
+                    var path = NormalizeJsonPath(alias);
+                    var col = new ResultColumn { Name = SanitizeAliasPreserveDots(path) };
+                    var beforeBindings = new SourceBindingState();
+                    AnalyzeScalarExpression(sce.Expression, col, beforeBindings);
+                    try
+                    {
+                        if (sce.StartOffset >= 0 && sce.FragmentLength > 0)
+                        {
+                            var end = Math.Min(_definition.Length, sce.StartOffset + sce.FragmentLength);
+                            col.RawExpression = _definition.Substring(sce.StartOffset, end - sce.StartOffset).Trim();
+                        }
+                    }
+                    catch { }
+                    col.ExpressionKind ??= ResultColumnExpressionKind.Unknown;
+                    if (!string.IsNullOrWhiteSpace(col.SourceAlias) && _outerJoinRightAliases.Contains(col.SourceAlias)) col.ForcedNullable = true;
+                    if (beforeBindings.BindingCount > 1) col.IsAmbiguous = true;
+                    if (!builder.Columns.Any(c => c.Name.Equals(col.Name, StringComparison.OrdinalIgnoreCase))) builder.Columns.Add(col);
+                }
+                if (node.SelectElements?.OfType<SelectStarExpression>().Any() == true) builder.HasSelectStar = true;
+                var isNested = _scalarSubqueryDepth > 0;
+                var resultSet = builder.ToResultSet();
+                if (isNested)
+                {
+                    if (!_analysis.NestedJsonSets.ContainsKey(node)) _analysis.NestedJsonSets[node] = resultSet;
+                }
+                else
+                {
+                    _analysis.JsonSets.Add(resultSet);
+                }
+                // Restore outer scope
+                _tableAliases.Clear(); foreach (var kv in outerAliases) _tableAliases[kv.Key] = kv.Value;
+                _tableSources.Clear(); foreach (var s in outerSources) _tableSources.Add(s);
             }
-            if (node.SelectElements?.OfType<SelectStarExpression>().Any() == true) builder.HasSelectStar = true;
-            var isNested = _scalarSubqueryDepth > 0; // Inside a scalar subquery context
-            var resultSet = builder.ToResultSet();
-            if (isNested)
+            catch { }
+        }
+        private void PreCollectNamedTableReferences(TableReference tr)
+        {
+            switch (tr)
             {
-                // Store for later attachment to the parent column; do NOT add to top-level JsonSets.
-                if (!_analysis.NestedJsonSets.ContainsKey(node))
-                    _analysis.NestedJsonSets[node] = resultSet;
-            }
-            else
-            {
-                _analysis.JsonSets.Add(resultSet);
+                case QualifiedJoin qj:
+                    PreCollectNamedTableReferences(qj.FirstTableReference);
+                    PreCollectNamedTableReferences(qj.SecondTableReference);
+                    break;
+                case NamedTableReference ntr:
+                    try
+                    {
+                        var schema = ntr.SchemaObject?.SchemaIdentifier?.Value ?? _analysis.DefaultSchema;
+                        var table = ntr.SchemaObject?.BaseIdentifier?.Value;
+                        if (!string.IsNullOrWhiteSpace(table))
+                        {
+                            var alias = ntr.Alias?.Value;
+                            var key = !string.IsNullOrWhiteSpace(alias) ? alias : table;
+                            if (!_tableAliases.ContainsKey(key))
+                                _tableAliases[key] = (schema, table);
+                            _tableSources.Add($"{schema}.{table}");
+                        }
+                    }
+                    catch { }
+                    break;
+                case QueryDerivedTable qdt:
+                    // Do not pre-walk derived table internals here (will be handled in its own ExplicitVisit)
+                    break;
+                default:
+                    break;
             }
         }
         public override void ExplicitVisit(NamedTableReference node)
@@ -434,6 +498,26 @@ public class StoredProcedureContentModel
                 case ColumnReferenceExpression cref:
                     target.ExpressionKind = ResultColumnExpressionKind.ColumnRef;
                     BindColumnReference(cref, target, state);
+                    try
+                    {
+                        var parts = cref.MultiPartIdentifier?.Identifiers?.Select(i => i.Value).ToList();
+                        if (parts != null && parts.Count >= 2)
+                        {
+                            // Exact schema + function name match (AST-only, no fuzzy heuristics)
+                            if (parts[^2].Equals("identity", StringComparison.OrdinalIgnoreCase) && parts[^1].Equals("RecordAsJson", StringComparison.OrdinalIgnoreCase))
+                            {
+                                target.FunctionSchemaName = parts[^2];
+                                target.FunctionName = parts[^1];
+                                target.IsRecordAsJson = true;
+                                // Column reference binding is not meaningful for a function pseudo-column; clear source binding
+                                target.SourceSchema = null;
+                                target.SourceTable = null;
+                                target.SourceColumn = null;
+                                target.SourceAlias = null;
+                            }
+                        }
+                    }
+                    catch { }
                     break;
                 case CastCall castCall:
                     target.ExpressionKind = ResultColumnExpressionKind.Cast;
@@ -460,7 +544,41 @@ public class StoredProcedureContentModel
                         target.ExpressionKind = ResultColumnExpressionKind.JsonQuery;
                     else
                         target.ExpressionKind = ResultColumnExpressionKind.FunctionCall;
-                    foreach (var p in fn.Parameters) AnalyzeScalarExpression(p, target, state);
+                    // Capture function schema + name if schema-qualified (CallTarget) – purely AST based
+                    try
+                    {
+                        // CallTarget variants: MultiPartIdentifierCallTarget for schema-qualified user functions
+                        if (fn.CallTarget is MultiPartIdentifierCallTarget mp && mp.MultiPartIdentifier?.Identifiers?.Count > 0)
+                        {
+                            var idents = mp.MultiPartIdentifier.Identifiers.Select(i => i.Value).ToList();
+                            if (idents.Count == 1)
+                            {
+                                target.FunctionName = idents[^1];
+                            }
+                            else if (idents.Count >= 2)
+                            {
+                                target.FunctionSchemaName = idents[^2];
+                                target.FunctionName = idents[^1];
+                            }
+                        }
+                        else if (!string.IsNullOrWhiteSpace(fnName))
+                        {
+                            target.FunctionName = fnName;
+                        }
+                        if (!string.IsNullOrWhiteSpace(target.FunctionSchemaName) && !string.IsNullOrWhiteSpace(target.FunctionName))
+                        {
+                            if (target.FunctionSchemaName.Equals("identity", StringComparison.OrdinalIgnoreCase) && target.FunctionName.Equals("RecordAsJson", StringComparison.OrdinalIgnoreCase))
+                            {
+                                target.IsRecordAsJson = true;
+                            }
+                        }
+                    }
+                    catch { }
+                    // For JSON_QUERY we intentionally do NOT traverse parameters for source binding (alias should represent JSON extraction, not raw column type)
+                    if (target.ExpressionKind != ResultColumnExpressionKind.JsonQuery)
+                    {
+                        foreach (var p in fn.Parameters) AnalyzeScalarExpression(p, target, state);
+                    }
                     break;
                 // JSON_QUERY appears as FunctionCall with name 'JSON_QUERY'; we already classify via FunctionCall. No dedicated node.
                 case BinaryExpression be:
@@ -499,14 +617,14 @@ public class StoredProcedureContentModel
                     if (ss.QueryExpression is QuerySpecification qs && _analysis.NestedJsonSets.TryGetValue(qs, out var nested))
                     {
                         target.IsNestedJson = true;
-                        target.JsonResult = new JsonResultModel
-                        {
-                            ReturnsJson = nested.ReturnsJson,
-                            ReturnsJsonArray = nested.ReturnsJsonArray,
-                            ReturnsJsonWithoutArrayWrapper = nested.ReturnsJsonWithoutArrayWrapper,
-                            JsonRootProperty = nested.JsonRootProperty,
-                            Columns = nested.Columns
-                        };
+                        target.ReturnsJson = true;
+                        target.ReturnsJsonArray = nested.ReturnsJsonArray;
+                        target.JsonRootProperty = nested.JsonRootProperty;
+                        target.Columns = nested.Columns;
+                        // Nested JSON container should not carry scalar SQL type metadata
+                        target.SqlTypeName = null;
+                        target.IsNullable = null;
+                        target.MaxLength = null;
                         // We still traverse the inner query for potential source bindings? Already done via visitor; skip here.
                     }
                     // No further traversal needed; inner QuerySpecification already visited by the main visitor.
@@ -643,6 +761,19 @@ public class StoredProcedureContentModel
             if (b.Length == 0) return null; if (!char.IsLetter(b[0]) && b[0] != '_') b.Insert(0, '_'); return b.ToString();
         }
         private static string ExtractLiteralValue(Literal lit) => lit switch { null => null, StringLiteral s => s.Value, _ => lit.Value };
+        private static string SanitizeAliasPreserveDots(string alias)
+        {
+            if (string.IsNullOrWhiteSpace(alias)) return null;
+            var b = new StringBuilder();
+            foreach (var ch in alias)
+            {
+                if (char.IsLetterOrDigit(ch) || ch == '_' || ch == '.') b.Append(ch);
+            }
+            if (b.Length == 0) return null;
+            // Ensure starts with letter or underscore for downstream code gen safety
+            if (!char.IsLetter(b[0]) && b[0] != '_') b.Insert(0, '_');
+            return b.ToString();
+        }
         private sealed class JsonSetBuilder
         {
             public bool JsonWithArrayWrapper { get; set; }
@@ -654,7 +785,7 @@ public class StoredProcedureContentModel
             {
                 ReturnsJson = true,
                 ReturnsJsonArray = JsonWithArrayWrapper && !JsonWithoutArrayWrapper,
-                ReturnsJsonWithoutArrayWrapper = JsonWithoutArrayWrapper,
+                // WITHOUT ARRAY WRAPPER implied by ReturnsJsonArray==false
                 JsonRootProperty = JsonRootProperty,
                 Columns = Columns.ToArray(),
                 HasSelectStar = HasSelectStar
@@ -736,6 +867,25 @@ public class StoredProcedureContentModel
                 case null: return;
                 case ColumnReferenceExpression cref:
                     BindColumnReferenceDerived(cref, target, state, localAliases, localTableSources);
+                    try
+                    {
+                        var parts = cref.MultiPartIdentifier?.Identifiers?.Select(i => i.Value).ToList();
+                        if (parts != null && parts.Count >= 2)
+                        {
+                            if (parts[^2].Equals("identity", StringComparison.OrdinalIgnoreCase) && parts[^1].Equals("RecordAsJson", StringComparison.OrdinalIgnoreCase))
+                            {
+                                target.FunctionSchemaName = parts[^2];
+                                target.FunctionName = parts[^1];
+                                target.IsRecordAsJson = true;
+                                target.SourceSchema = null;
+                                target.SourceTable = null;
+                                target.SourceColumn = null;
+                                target.SourceAlias = null;
+                            }
+                        }
+                    }
+                    catch { }
+                    // RawExpression population for derived expressions delegated to caller (not needed here)
                     break;
                 case CastCall castCall:
                     AnalyzeScalarExpressionDerived(castCall.Parameter, target, state, localAliases, localTableSources);
@@ -745,7 +895,39 @@ public class StoredProcedureContentModel
                     AnalyzeScalarExpressionDerived(convertCall.Style, target, state, localAliases, localTableSources);
                     break;
                 case FunctionCall fn:
-                    foreach (var p in fn.Parameters) AnalyzeScalarExpressionDerived(p, target, state, localAliases, localTableSources);
+                    var fnName2 = fn.FunctionName?.Value;
+                    if (string.IsNullOrWhiteSpace(fnName2) || !fnName2.Equals("JSON_QUERY", StringComparison.OrdinalIgnoreCase))
+                    {
+                        try
+                        {
+                            if (fn.CallTarget is MultiPartIdentifierCallTarget mp2 && mp2.MultiPartIdentifier?.Identifiers?.Count > 0)
+                            {
+                                var idents = mp2.MultiPartIdentifier.Identifiers.Select(i => i.Value).ToList();
+                                if (idents.Count == 1)
+                                {
+                                    target.FunctionName = idents[^1];
+                                }
+                                else if (idents.Count >= 2)
+                                {
+                                    target.FunctionSchemaName = idents[^2];
+                                    target.FunctionName = idents[^1];
+                                }
+                            }
+                            else if (!string.IsNullOrWhiteSpace(fnName2))
+                            {
+                                target.FunctionName = fnName2;
+                            }
+                            if (!string.IsNullOrWhiteSpace(target.FunctionSchemaName) && !string.IsNullOrWhiteSpace(target.FunctionName))
+                            {
+                                if (target.FunctionSchemaName.Equals("identity", StringComparison.OrdinalIgnoreCase) && target.FunctionName.Equals("RecordAsJson", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    target.IsRecordAsJson = true;
+                                }
+                            }
+                        }
+                        catch { }
+                        foreach (var p in fn.Parameters) AnalyzeScalarExpressionDerived(p, target, state, localAliases, localTableSources);
+                    }
                     break;
                 case BinaryExpression be:
                     AnalyzeScalarExpressionDerived(be.FirstExpression, target, state, localAliases, localTableSources);
@@ -851,41 +1033,10 @@ public class StoredProcedureContentModel
     private static IReadOnlyList<ResultSet> AttachExecSource(IReadOnlyList<ResultSet> sets, IReadOnlyList<ExecutedProcedureCall> execs,
         IReadOnlyList<string> rawExecCandidates, IReadOnlyDictionary<string, string> rawKinds, string defaultSchema)
     {
-        if (sets == null || sets.Count == 0) return sets ?? Array.Empty<ResultSet>();
-        ExecutedProcedureCall resolved = null;
-        if (execs != null && execs.Count == 1) resolved = execs[0];
-        else if ((execs == null || execs.Count == 0) && rawExecCandidates != null && rawExecCandidates.Count == 1)
-        {
-            var candidate = rawExecCandidates[0];
-            if (rawKinds != null && rawKinds.TryGetValue(candidate, out var kind) && string.Equals(kind, "static", StringComparison.OrdinalIgnoreCase))
-            {
-                var parts = candidate.Split('.', StringSplitOptions.RemoveEmptyEntries);
-                resolved = parts.Length switch
-                {
-                    1 => new ExecutedProcedureCall { Schema = defaultSchema, Name = parts[0] },
-                    >= 2 => new ExecutedProcedureCall { Schema = parts[0], Name = parts[1] },
-                    _ => null
-                };
-            }
-        }
-        if (resolved == null) return sets;
-        var augmented = new List<ResultSet>(sets.Count);
-        foreach (var s in sets)
-        {
-            if (!s.ReturnsJson) { augmented.Add(s); continue; }
-            augmented.Add(new ResultSet
-            {
-                ReturnsJson = s.ReturnsJson,
-                ReturnsJsonArray = s.ReturnsJsonArray,
-                ReturnsJsonWithoutArrayWrapper = s.ReturnsJsonWithoutArrayWrapper,
-                JsonRootProperty = s.JsonRootProperty,
-                Columns = s.Columns,
-                HasSelectStar = s.HasSelectStar,
-                ExecSourceSchemaName = resolved.Schema,
-                ExecSourceProcedureName = resolved.Name
-            });
-        }
-        return augmented;
+        // AST-only phase: Do not enrich local JSON result sets with ExecSource metadata.
+        // ExecSourceProcedureName should only be applied during higher-level normalization (append/forward) outside the parser.
+        // Therefore we return the sets unchanged, preserving pure local JSON sets without source attribution.
+        return sets ?? Array.Empty<ResultSet>();
     }
 }
 

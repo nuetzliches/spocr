@@ -238,8 +238,57 @@ public sealed class SchemaSnapshotFileLayoutService
                             }
                             else
                             {
-                                // Lokale oder forwarded echte Sets unverändert schreiben
-                                rs.WriteTo(writer);
+                                // Lokale oder forwarded echte Sets mit zusätzlicher Pruning-Logik schreiben
+                                writer.WriteStartObject();
+                                foreach (var rsProp in rs.EnumerateObject())
+                                {
+                                    // Prune HasSelectStar when false
+                                    if (rsProp.NameEquals("HasSelectStar") && rsProp.Value.ValueKind == JsonValueKind.False)
+                                        continue;
+                                    if (rsProp.NameEquals("Columns"))
+                                    {
+                                        if (rsProp.Value.ValueKind == JsonValueKind.Array)
+                                        {
+                                            int len = rsProp.Value.GetArrayLength();
+                                            if (len == 0) continue; // drop empty array
+                                            writer.WritePropertyName("Columns");
+                                            writer.WriteStartArray();
+                                            foreach (var col in rsProp.Value.EnumerateArray())
+                                            {
+                                                if (col.ValueKind != JsonValueKind.Object)
+                                                {
+                                                    col.WriteTo(writer); // unexpected kind, just write
+                                                    continue;
+                                                }
+                                                writer.WriteStartObject();
+                                                foreach (var colProp in col.EnumerateObject())
+                                                {
+                                                    // Drop IsNullable when false (default)
+                                                    if (colProp.NameEquals("IsNullable") && colProp.Value.ValueKind == JsonValueKind.False)
+                                                        continue;
+                                                    // Also drop empty Columns arrays (defensive) if reached here (should already be handled)
+                                                    if (colProp.NameEquals("Columns") && colProp.Value.ValueKind == JsonValueKind.Array && colProp.Value.GetArrayLength() == 0)
+                                                        continue;
+                                                    // Drop IsNestedJson when ReturnsJson true (redundant) already handled earlier in pipeline, but double-prune for safety
+                                                    if (colProp.NameEquals("IsNestedJson"))
+                                                    {
+                                                        // Need to look ahead if ReturnsJson property exists with true
+                                                        bool returnsJsonTrue = col.EnumerateObject().Any(p => p.NameEquals("ReturnsJson") && p.Value.ValueKind == JsonValueKind.True);
+                                                        if (returnsJsonTrue) continue;
+                                                    }
+                                                    writer.WritePropertyName(colProp.Name);
+                                                    colProp.Value.WriteTo(writer);
+                                                }
+                                                writer.WriteEndObject();
+                                            }
+                                            writer.WriteEndArray();
+                                        }
+                                        continue; // handled
+                                    }
+                                    writer.WritePropertyName(rsProp.Name);
+                                    rsProp.Value.WriteTo(writer);
+                                }
+                                writer.WriteEndObject();
                             }
                         }
                         writer.WriteEndArray();

@@ -72,10 +72,97 @@ public class SchemaSnapshotService : ISchemaSnapshotService
             var dir = EnsureDir();
             if (dir == null) return;
             var path = Path.Combine(dir, snapshot.Fingerprint + ".json");
-            var json = JsonSerializer.Serialize(snapshot, _jsonOptions);
+
+            SnapshotResultColumn ProcessColumn(SnapshotResultColumn c)
+            {
+                var clone = new SnapshotResultColumn
+                {
+                    Name = c.Name,
+                    SqlTypeName = c.SqlTypeName,
+                    IsNullable = c.IsNullable == false ? null : c.IsNullable,
+                    MaxLength = c.MaxLength,
+                    UserTypeSchemaName = c.UserTypeSchemaName,
+                    UserTypeName = c.UserTypeName,
+                    IsNestedJson = c.IsNestedJson == true ? true : null,
+                    ReturnsJson = c.ReturnsJson == true ? true : null,
+                    ReturnsJsonArray = c.ReturnsJsonArray == true ? true : null,
+                    JsonRootProperty = string.IsNullOrWhiteSpace(c.JsonRootProperty) ? null : c.JsonRootProperty,
+                };
+                if (c.Columns != null && c.Columns.Count > 0)
+                {
+                    var nested = c.Columns.Select(ProcessColumn).Where(n => n != null).ToList();
+                    clone.Columns = nested.Count > 0 ? nested : null; // nested JSON columns (column-level)
+                }
+                else clone.Columns = null; // omit empty
+                // Legacy fields removed (JsonPath/JsonResult) by not setting
+                return clone;
+            }
+
+            var prunedSnapshot = new SchemaSnapshot
+            {
+                SchemaVersion = snapshot.SchemaVersion,
+                Fingerprint = snapshot.Fingerprint,
+                Database = snapshot.Database,
+                Schemas = snapshot.Schemas,
+                UserDefinedTableTypes = snapshot.UserDefinedTableTypes,
+                Parser = snapshot.Parser,
+                Stats = snapshot.Stats,
+                Procedures = snapshot.Procedures?.Select(p => new SnapshotProcedure
+                {
+                    Schema = p.Schema,
+                    Name = p.Name,
+                    Sql = p.Sql,
+                    Inputs = p.Inputs,
+                    ResultSets = p.ResultSets?.Select(rs => new SnapshotResultSet
+                    {
+                        ReturnsJson = rs.ReturnsJson,
+                        ReturnsJsonArray = rs.ReturnsJsonArray,
+                        JsonRootProperty = string.IsNullOrWhiteSpace(rs.JsonRootProperty) ? null : rs.JsonRootProperty,
+                        ExecSourceSchemaName = rs.ExecSourceSchemaName,
+                        ExecSourceProcedureName = rs.ExecSourceProcedureName,
+                        HasSelectStar = rs.HasSelectStar == true ? true : null,
+                        Columns = rs.Columns?.Select(ProcessColumn).Where(c => c != null).ToList() ?? new List<SnapshotResultColumn>()
+                    }).Where(r => r != null).ToList() ?? new List<SnapshotResultSet>()
+                }).ToList() ?? new List<SnapshotProcedure>()
+            };
+
+            // Prune empty collections where appropriate
+            foreach (var proc in prunedSnapshot.Procedures)
+            {
+                if (proc.ResultSets != null)
+                {
+                    foreach (var rs in proc.ResultSets)
+                    {
+                        if (rs.Columns != null && rs.Columns.Count == 0) rs.Columns = null; // omit empty top-level columns
+                        if (rs.Columns != null)
+                        {
+                            foreach (var c in rs.Columns)
+                            {
+                                PruneNested(c);
+                            }
+                        }
+                        if (rs.HasSelectStar == false) rs.HasSelectStar = null; // prune false
+                    }
+                }
+            }
+
+            // Serialize
+            var json = JsonSerializer.Serialize(prunedSnapshot, _jsonOptions);
             File.WriteAllText(path, json);
         }
-        catch { }
+        catch { /* swallow snapshot write errors */ }
+    }
+
+    private static void PruneNested(SnapshotResultColumn column)
+    {
+        if (column.Columns != null && column.Columns.Count == 0) column.Columns = null;
+        if (column.Columns == null) return;
+        foreach (var child in column.Columns)
+        {
+            PruneNested(child);
+        }
+        // After recursion, if all children were pruned and list became empty -> null
+        if (column.Columns != null && column.Columns.Count == 0) column.Columns = null;
     }
 }
 
@@ -124,31 +211,36 @@ public class SnapshotResultSet
 {
     public bool ReturnsJson { get; set; }
     public bool ReturnsJsonArray { get; set; }
-    public bool ReturnsJsonWithoutArrayWrapper { get; set; }
     public string JsonRootProperty { get; set; }
     public List<SnapshotResultColumn> Columns { get; set; } = new();
     public string ExecSourceSchemaName { get; set; }
     public string ExecSourceProcedureName { get; set; }
-    public bool HasSelectStar { get; set; }
+    public bool? HasSelectStar { get; set; } // nullable to allow pruning when false
 }
 
 public class SnapshotResultColumn
 {
     public string Name { get; set; }
     public string SqlTypeName { get; set; }
-    public bool IsNullable { get; set; }
-    public int MaxLength { get; set; }
+    public bool? IsNullable { get; set; }
+    public int? MaxLength { get; set; }
     public string UserTypeSchemaName { get; set; }
     public string UserTypeName { get; set; }
-    public string JsonPath { get; set; }
-    public SnapshotNestedJson JsonResult { get; set; }
+    // Flattened nested JSON structure (v6): when IsNestedJson=true these flags describe the nested JSON under this column
+    public bool? IsNestedJson { get; set; }
+    public bool? ReturnsJson { get; set; }
+    public bool? ReturnsJsonArray { get; set; }
+    public string JsonRootProperty { get; set; }
+    public List<SnapshotResultColumn> Columns { get; set; } = new(); // renamed from JsonColumns in v7
+    // Legacy v5 fields kept for backward compatibility during load; will be pruned on save.
+    [Obsolete] public string JsonPath { get; set; }
+    [Obsolete] public SnapshotNestedJson JsonResult { get; set; }
 }
 
 public class SnapshotNestedJson
 {
     public bool ReturnsJson { get; set; }
     public bool ReturnsJsonArray { get; set; }
-    public bool ReturnsJsonWithoutArrayWrapper { get; set; }
     public string JsonRootProperty { get; set; }
     public List<SnapshotResultColumn> Columns { get; set; } = new();
 }

@@ -17,7 +17,7 @@ public readonly record struct {{ OutputTypeName }}(
 {{/if}}
 
 {{#if HasResultSets}}
-{{#each ResultSets}}public readonly record struct {{ TypeName }}(
+{{#each ResultSets}}{{ NestedRecordsBlock }}public readonly record struct {{ TypeName }}(
 {{ FieldsBlock }}
 );
 

@@ -12,6 +12,5 @@ public sealed record ResultSetDescriptor(
     string? ExecSourceSchemaName = null,
     string? ExecSourceProcedureName = null,
     bool ReturnsJson = false,
-    bool ReturnsJsonArray = false,
-    bool ReturnsJsonWithoutArrayWrapper = false
+    bool ReturnsJsonArray = false
 );

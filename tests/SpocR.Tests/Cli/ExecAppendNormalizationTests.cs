@@ -40,7 +40,6 @@ END";
                 {
                     ReturnsJson = rs.ReturnsJson,
                     ReturnsJsonArray = rs.ReturnsJsonArray,
-                    ReturnsJsonWithoutArrayWrapper = rs.ReturnsJsonWithoutArrayWrapper,
                     JsonRootProperty = rs.JsonRootProperty,
                     Columns = rs.Columns,
                     HasSelectStar = rs.HasSelectStar,

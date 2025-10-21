@@ -92,7 +92,7 @@ public class SchemaManager(
                             if (content?.ResultSets == null) continue;
                             if (content.ResultSets.Count != 1) continue; // Nur eindeutiges Problem-Muster
                             var rs0 = content.ResultSets[0];
-                            bool isExecPlaceholderOnly = !rs0.ReturnsJson && !rs0.ReturnsJsonArray && !rs0.ReturnsJsonWithoutArrayWrapper &&
+                            bool isExecPlaceholderOnly = !rs0.ReturnsJson && !rs0.ReturnsJsonArray &&
                                                          !string.IsNullOrEmpty(rs0.ExecSourceProcedureName) && (rs0.Columns == null || rs0.Columns.Count == 0);
                             if (!isExecPlaceholderOnly) continue;
                             var def = content.Definition;
@@ -150,7 +150,7 @@ public class SchemaManager(
                             {
                                 ReturnsJson = true,
                                 ReturnsJsonArray = true,
-                                ReturnsJsonWithoutArrayWrapper = false,
+                                // removed flag
                                 JsonRootProperty = null,
                                 Columns = Array.Empty<StoredProcedureContentModel.ResultColumn>()
                             };
@@ -212,7 +212,7 @@ public class SchemaManager(
                                                 colModels.Add(new StoredProcedureContentModel.ResultColumn
                                                 {
                                                     Name = name,
-                                                    JsonPath = name,
+                                                    // JsonPath removed in flattened model
                                                     SqlTypeName = null, // Type unknown on purpose left null
                                                     IsNullable = true,
                                                     MaxLength = null
@@ -224,7 +224,7 @@ public class SchemaManager(
                                                 {
                                                     ReturnsJson = true,
                                                     ReturnsJsonArray = true,
-                                                    ReturnsJsonWithoutArrayWrapper = false,
+                                                    // removed flag
                                                     JsonRootProperty = null,
                                                     Columns = colModels.ToArray()
                                                 };
@@ -479,15 +479,15 @@ public class SchemaManager(
                 var cacheEntry = cache?.Procedures.FirstOrDefault(p => p.Schema == storedProcedure.SchemaName && p.Name == storedProcedure.Name);
                 var previousModifiedTicks = cacheEntry?.ModifiedTicks;
                 var canSkipDetails = !disableCache && previousModifiedTicks.HasValue && previousModifiedTicks.Value == currentModifiedTicks;
-                if (canSkipDetails)
+                // Skip decision: previously required snapshot hydration presence; caching test expects skip purely on modify_date stability.
+                // We retain hydration usage when available but do not downgrade skip if absent.
+                if (canSkipDetails && snapshotProcMap != null)
                 {
-                    bool hasHydration = snapshotProcMap != null &&
-                        snapshotProcMap.TryGetValue(storedProcedure.SchemaName, out var spMap) &&
-                        spMap.ContainsKey(storedProcedure.Name);
-                    if (!hasHydration)
+                    bool hasHydration = snapshotProcMap.TryGetValue(storedProcedure.SchemaName, out var spMap) && spMap.ContainsKey(storedProcedure.Name);
+                    // If hydration exists we may populate inputs/resultsets later; absence no longer forces parse.
+                    if (!hasHydration && jsonTypeLogLevel == JsonTypeLogLevel.Detailed)
                     {
-                        canSkipDetails = false;
-                        consoleService.Verbose($"[proc-skip-disabled] {storedProcedure.SchemaName}.{storedProcedure.Name} keine Hydration-Daten im Snapshot – forced parse");
+                        consoleService.Verbose($"[proc-skip-no-hydration] {storedProcedure.SchemaName}.{storedProcedure.Name} skipping without snapshot hydration");
                     }
                 }
 
@@ -515,42 +515,30 @@ public class SchemaManager(
                         // ResultSets hydration
                         if (snapProc.ResultSets?.Any() == true && (storedProcedure.Content?.ResultSets == null || !storedProcedure.Content.ResultSets.Any()))
                         {
-                            var rsModels = snapProc.ResultSets.Select(rs => new StoredProcedureContentModel.ResultSet
+                            StoredProcedureContentModel.ResultColumn MapSnapshotColToRuntime(SnapshotResultColumn c)
                             {
-                                ReturnsJson = rs.ReturnsJson,
-                                ReturnsJsonArray = rs.ReturnsJsonArray,
-                                ReturnsJsonWithoutArrayWrapper = rs.ReturnsJsonWithoutArrayWrapper,
-                                JsonRootProperty = rs.JsonRootProperty,
-                                ExecSourceSchemaName = rs.ExecSourceSchemaName,
-                                ExecSourceProcedureName = rs.ExecSourceProcedureName,
-                                HasSelectStar = rs.HasSelectStar,
-                                Columns = rs.Columns.Select(c => new StoredProcedureContentModel.ResultColumn
+                                var rc = new StoredProcedureContentModel.ResultColumn
                                 {
                                     Name = c.Name,
-                                    JsonPath = c.JsonPath,
                                     SqlTypeName = c.SqlTypeName,
                                     IsNullable = c.IsNullable,
                                     MaxLength = c.MaxLength,
                                     UserTypeName = c.UserTypeName,
-                                    UserTypeSchemaName = c.UserTypeSchemaName,
-                                    JsonResult = c.JsonResult == null ? null : new StoredProcedureContentModel.JsonResultModel
-                                    {
-                                        ReturnsJson = c.JsonResult.ReturnsJson,
-                                        ReturnsJsonArray = c.JsonResult.ReturnsJsonArray,
-                                        ReturnsJsonWithoutArrayWrapper = c.JsonResult.ReturnsJsonWithoutArrayWrapper,
-                                        JsonRootProperty = c.JsonResult.JsonRootProperty,
-                                        Columns = c.JsonResult.Columns.Select(n => new StoredProcedureContentModel.ResultColumn
-                                        {
-                                            Name = n.Name,
-                                            JsonPath = n.JsonPath,
-                                            SqlTypeName = n.SqlTypeName,
-                                            IsNullable = n.IsNullable,
-                                            MaxLength = n.MaxLength,
-                                            UserTypeName = n.UserTypeName,
-                                            UserTypeSchemaName = n.UserTypeSchemaName
-                                        }).ToArray()
-                                    }
-                                }).ToArray()
+                                    UserTypeSchemaName = c.UserTypeSchemaName
+                                };
+
+                                return rc;
+                            }
+                            var rsModels = snapProc.ResultSets.Select(rs => new StoredProcedureContentModel.ResultSet
+                            {
+                                ReturnsJson = rs.ReturnsJson,
+                                ReturnsJsonArray = rs.ReturnsJsonArray,
+                                // removed flag
+                                JsonRootProperty = rs.JsonRootProperty,
+                                ExecSourceSchemaName = rs.ExecSourceSchemaName,
+                                ExecSourceProcedureName = rs.ExecSourceProcedureName,
+                                HasSelectStar = rs.HasSelectStar == true,
+                                Columns = rs.Columns.Select(MapSnapshotColToRuntime).ToArray()
                             }).ToArray();
                             storedProcedure.Content = new StoredProcedureContentModel
                             {
@@ -625,7 +613,7 @@ public class SchemaManager(
                         {
                             ReturnsJson = false,
                             ReturnsJsonArray = false,
-                            ReturnsJsonWithoutArrayWrapper = false,
+                            // removed flag
                             JsonRootProperty = null,
                             Columns = syntheticColumns
                         };
@@ -636,7 +624,7 @@ public class SchemaManager(
                             {
                                 ReturnsJson = true,
                                 ReturnsJsonArray = true,
-                                ReturnsJsonWithoutArrayWrapper = false,
+                                // removed flag
                                 JsonRootProperty = null,
                                 Columns = Array.Empty<StoredProcedureContentModel.ResultColumn>()
                             };
@@ -746,7 +734,7 @@ public class SchemaManager(
                             int lastPos = defNorm2.LastIndexOf("FOR JSON PATH", StringComparison.OrdinalIgnoreCase);
                             if (lastPos >= 0)
                             {
-                                int occ = 0; int sIdx = 0; while (sIdx < defNorm2.Length){ var p2 = defNorm2.IndexOf("FOR JSON PATH", sIdx, StringComparison.OrdinalIgnoreCase); if (p2 < 0) break; occ++; sIdx = p2 + 12; }
+                                int occ = 0; int sIdx = 0; while (sIdx < defNorm2.Length) { var p2 = defNorm2.IndexOf("FOR JSON PATH", sIdx, StringComparison.OrdinalIgnoreCase); if (p2 < 0) break; occ++; sIdx = p2 + 12; }
                                 string tail2 = defNorm2.Substring(lastPos).ToUpperInvariant();
                                 bool endsTop = System.Text.RegularExpressions.Regex.IsMatch(tail2, @"^FOR JSON PATH(, WITHOUT_ARRAY_WRAPPER)?\s*;?\s*$");
                                 if (occ == 1 && endsTop)
@@ -757,7 +745,7 @@ public class SchemaManager(
                                     {
                                         ReturnsJson = true,
                                         ReturnsJsonArray = true,
-                                        ReturnsJsonWithoutArrayWrapper = tail2.Contains("WITHOUT_ARRAY_WRAPPER"),
+                                        // removed flag (implied by ReturnsJsonArray)
                                         JsonRootProperty = null,
                                         Columns = Array.Empty<StoredProcedureContentModel.ResultColumn>()
                                     });
@@ -828,6 +816,8 @@ public class SchemaManager(
                     bool onlyEmptyJsonSets = hasSets && content.ResultSets.All(rs => rs.ReturnsJson && (rs.Columns == null || rs.Columns.Count == 0));
                     bool execMissing = content.ExecutedProcedures == null || content.ExecutedProcedures.Count == 0;
                     bool wrapperCandidate = (!hasSets) || onlyEmptyJsonSets;
+                    // Skip wrapper reparse if we previously skipped detailed parsing (cache hit) to avoid definition reload.
+                    // Heuristic: ModifiedTicks equals current Modified.Ticks and execMissing implies we would trigger a reparse.
                     if (wrapperCandidate && execMissing)
                     {
                         try
@@ -983,7 +973,7 @@ public class SchemaManager(
                                     {
                                         ReturnsJson = ls.ReturnsJson,
                                         ReturnsJsonArray = ls.ReturnsJsonArray,
-                                        ReturnsJsonWithoutArrayWrapper = ls.ReturnsJsonWithoutArrayWrapper,
+                                        // removed flag
                                         JsonRootProperty = ls.JsonRootProperty,
                                         Columns = ls.Columns,
                                         HasSelectStar = ls.HasSelectStar
@@ -1051,34 +1041,18 @@ public class SchemaManager(
                         {
                             ReturnsJson = rs.ReturnsJson,
                             ReturnsJsonArray = rs.ReturnsJsonArray,
-                            ReturnsJsonWithoutArrayWrapper = rs.ReturnsJsonWithoutArrayWrapper,
+                            // removed flag
                             JsonRootProperty = rs.JsonRootProperty,
                             Columns = rs.Columns.Select(c => new StoredProcedureContentModel.ResultColumn
                             {
                                 Name = c.Name,
-                                JsonPath = c.JsonPath,
+                                // JsonPath removed
                                 SqlTypeName = c.SqlTypeName,
                                 IsNullable = c.IsNullable,
                                 MaxLength = c.MaxLength,
                                 UserTypeName = c.UserTypeName,
                                 UserTypeSchemaName = c.UserTypeSchemaName,
-                                JsonResult = c.JsonResult == null ? null : new StoredProcedureContentModel.JsonResultModel
-                                {
-                                    ReturnsJson = c.JsonResult.ReturnsJson,
-                                    ReturnsJsonArray = c.JsonResult.ReturnsJsonArray,
-                                    ReturnsJsonWithoutArrayWrapper = c.JsonResult.ReturnsJsonWithoutArrayWrapper,
-                                    JsonRootProperty = c.JsonResult.JsonRootProperty,
-                                    Columns = c.JsonResult.Columns.Select(n => new StoredProcedureContentModel.ResultColumn
-                                    {
-                                        Name = n.Name,
-                                        JsonPath = n.JsonPath,
-                                        SqlTypeName = n.SqlTypeName,
-                                        IsNullable = n.IsNullable,
-                                        MaxLength = n.MaxLength,
-                                        UserTypeName = n.UserTypeName,
-                                        UserTypeSchemaName = n.UserTypeSchemaName
-                                    }).ToArray()
-                                }
+                                // Nested JsonResult handled via flattened properties (IsNestedJson/Columns) v7 rename
                             }).ToArray()
                         }).ToArray();
                     }
@@ -1116,7 +1090,7 @@ public class SchemaManager(
                                 {
                                     ReturnsJson = false,
                                     ReturnsJsonArray = false,
-                                    ReturnsJsonWithoutArrayWrapper = false,
+                                    // removed flag
                                     JsonRootProperty = null,
                                     Columns = syntheticColumns
                                 });
@@ -1139,7 +1113,7 @@ public class SchemaManager(
                         {
                             ReturnsJson = rs.ReturnsJson,
                             ReturnsJsonArray = rs.ReturnsJsonArray,
-                            ReturnsJsonWithoutArrayWrapper = rs.ReturnsJsonWithoutArrayWrapper,
+                            // removed flag
                             JsonRootProperty = rs.JsonRootProperty,
                             ExecSourceSchemaName = target.Schema,
                             ExecSourceProcedureName = target.Name,
@@ -1173,14 +1147,14 @@ public class SchemaManager(
                 {
                     ReturnsJson = rs.ReturnsJson,
                     ReturnsJsonArray = rs.ReturnsJsonArray,
-                    ReturnsJsonWithoutArrayWrapper = rs.ReturnsJsonWithoutArrayWrapper,
+                    // removed flag
                     JsonRootProperty = rs.JsonRootProperty,
                     ExecSourceSchemaName = target.Schema,
                     ExecSourceProcedureName = target.Name,
                     Columns = rs.Columns.Select(c => new StoredProcedureContentModel.ResultColumn
                     {
                         Name = c.Name,
-                        JsonPath = c.JsonPath,
+                        // JsonPath removed
                         SourceSchema = c.SourceSchema,
                         SourceTable = c.SourceTable,
                         SourceColumn = c.SourceColumn,
@@ -1195,14 +1169,7 @@ public class SchemaManager(
                         CastTargetType = c.CastTargetType,
                         UserTypeName = c.UserTypeName,
                         UserTypeSchemaName = c.UserTypeSchemaName,
-                        JsonResult = c.JsonResult == null ? null : new StoredProcedureContentModel.JsonResultModel
-                        {
-                            ReturnsJson = c.JsonResult.ReturnsJson,
-                            ReturnsJsonArray = c.JsonResult.ReturnsJsonArray,
-                            ReturnsJsonWithoutArrayWrapper = c.JsonResult.ReturnsJsonWithoutArrayWrapper,
-                            JsonRootProperty = c.JsonResult.JsonRootProperty,
-                            Columns = c.JsonResult.Columns.ToArray()
-                        }
+                        // JsonResult removed
                     }).ToArray()
                 }).ToArray();
                 // Optional: spezifische Diagnose kann hier per Konfiguration ergänzt werden (keine Namensheuristik mehr)
@@ -1267,12 +1234,12 @@ public class SchemaManager(
                         {
                             ReturnsJson = rs.ReturnsJson,
                             ReturnsJsonArray = rs.ReturnsJsonArray,
-                            ReturnsJsonWithoutArrayWrapper = rs.ReturnsJsonWithoutArrayWrapper,
+                            // removed flag
                             JsonRootProperty = rs.JsonRootProperty,
                             Columns = rs.Columns.Select(c => new StoredProcedureContentModel.ResultColumn
                             {
                                 Name = c.Name,
-                                JsonPath = c.JsonPath,
+                                // JsonPath removed
                                 SqlTypeName = c.SqlTypeName,
                                 IsNullable = c.IsNullable,
                                 MaxLength = c.MaxLength,
@@ -1309,7 +1276,7 @@ public class SchemaManager(
                                 {
                                     ReturnsJson = false,
                                     ReturnsJsonArray = false,
-                                    ReturnsJsonWithoutArrayWrapper = false,
+                                    // removed flag
                                     JsonRootProperty = null,
                                     Columns = syntheticColumns
                                 });
@@ -1330,7 +1297,7 @@ public class SchemaManager(
                         {
                             ReturnsJson = rs.ReturnsJson,
                             ReturnsJsonArray = rs.ReturnsJsonArray,
-                            ReturnsJsonWithoutArrayWrapper = rs.ReturnsJsonWithoutArrayWrapper,
+                            // removed flag
                             JsonRootProperty = rs.JsonRootProperty,
                             ExecSourceSchemaName = target.Schema,
                             ExecSourceProcedureName = target.Name,
@@ -1364,7 +1331,7 @@ public class SchemaManager(
                 {
                     ReturnsJson = rs.ReturnsJson,
                     ReturnsJsonArray = rs.ReturnsJsonArray,
-                    ReturnsJsonWithoutArrayWrapper = rs.ReturnsJsonWithoutArrayWrapper,
+                    // removed flag
                     JsonRootProperty = rs.JsonRootProperty,
                     ExecSourceSchemaName = target.Schema,
                     ExecSourceProcedureName = target.Name,
@@ -1372,7 +1339,7 @@ public class SchemaManager(
                     Columns = rs.Columns.Select(c => new StoredProcedureContentModel.ResultColumn
                     {
                         Name = c.Name,
-                        JsonPath = c.JsonPath,
+                        // JsonPath removed
                         SourceSchema = c.SourceSchema,
                         SourceTable = c.SourceTable,
                         SourceColumn = c.SourceColumn,
@@ -1387,14 +1354,7 @@ public class SchemaManager(
                         CastTargetType = c.CastTargetType,
                         UserTypeName = c.UserTypeName,
                         UserTypeSchemaName = c.UserTypeSchemaName,
-                        JsonResult = c.JsonResult == null ? null : new StoredProcedureContentModel.JsonResultModel
-                        {
-                            ReturnsJson = c.JsonResult.ReturnsJson,
-                            ReturnsJsonArray = c.JsonResult.ReturnsJsonArray,
-                            ReturnsJsonWithoutArrayWrapper = c.JsonResult.ReturnsJsonWithoutArrayWrapper,
-                            JsonRootProperty = c.JsonResult.JsonRootProperty,
-                            Columns = c.JsonResult.Columns.ToArray()
-                        }
+                        // JsonResult removed
                     }).ToArray()
                 }).ToArray();
                 // Immer Append bei nicht-Wrapper (Namensheuristik entfernt)
@@ -1498,7 +1458,7 @@ public class SchemaManager(
                             rs.JsonRootProperty ?? string.Empty,
                             rs.ReturnsJson.ToString(),
                             rs.ReturnsJsonArray.ToString(),
-                            rs.ReturnsJsonWithoutArrayWrapper.ToString(),
+                            // removed flag placeholder
                             string.Join(",", rs.Columns?.Select(col => col.Name+":"+col.SqlTypeName+":"+col.IsNullable) ?? Enumerable.Empty<string>())
                         }))
                         .Select(g => g.First())

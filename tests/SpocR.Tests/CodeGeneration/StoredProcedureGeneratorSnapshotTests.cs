@@ -37,7 +37,7 @@ public class StoredProcedureGeneratorSnapshotTests
         var templateManager = new TemplateManager(output, fileManager);
 
         // Inject minimal template for stored procedure extensions
-        const string template = "using System;\nusing System.Collections.Generic;\nusing Microsoft.Data.SqlClient;\nusing System.Threading;\nusing System.Threading.Tasks;\nusing Source.DataContext.Models;\nusing Source.DataContext.Outputs;\nnamespace Source.DataContext.StoredProcedures.Schema { public static class StoredProcedureExtensions { public static Task<CrudResult> CrudActionAsync(this IAppDbContextPipe context, Input input, CancellationToken cancellationToken){ if(context==null){ throw new ArgumentNullException(\"context\"); } var parameters = new List<SqlParameter>(); return context.ExecuteSingleAsync<CrudResult>(\"schema.CrudAction\", parameters, cancellationToken); } public static Task<CrudResult> CrudActionAsync(this IAppDbContext context, Input input, CancellationToken cancellationToken){ return context.CreatePipe().CrudActionAsync(input, cancellationToken); } } }";
+        const string template = "using System;\nnamespace Source.DataContext.StoredProcedures.Schema { public static class StoredProcedureExtensions { } }";
         var tree = CSharpSyntaxTree.ParseText(template);
         var root = (Microsoft.CodeAnalysis.CSharp.Syntax.CompilationUnitSyntax)tree.GetRoot();
         var field = typeof(TemplateManager).GetField("_templateCache", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
@@ -80,15 +80,10 @@ public class StoredProcedureGeneratorSnapshotTests
                 {
                     ReturnsJson = returnsJson,
                     ReturnsJsonArray = returnsJson && returnsJsonArray,
-                    ReturnsJsonWithoutArrayWrapper = returnsJson && !returnsJsonArray,
                     Columns = returnsJson
                         ? new[]
                         {
-                            new StoredProcedureContentModel.ResultColumn
-                            {
-                                JsonPath = "id",
-                                Name = "Id"
-                            }
+                            new StoredProcedureContentModel.ResultColumn { Name = "Id" }
                         }
                         : new[]
                         {

@@ -282,7 +282,6 @@ public class SpocrManager(
                                 modified = true;
                                 newCols.Add(new StoredProcedureContentModel.ResultColumn
                                 {
-                                    JsonPath = col.JsonPath,
                                     Name = col.Name,
                                     SourceSchema = col.SourceSchema,
                                     SourceTable = col.SourceTable,
@@ -298,7 +297,7 @@ public class SpocrManager(
                                 {
                                     ReturnsJson = set.ReturnsJson,
                                     ReturnsJsonArray = set.ReturnsJsonArray,
-                                    ReturnsJsonWithoutArrayWrapper = set.ReturnsJsonWithoutArrayWrapper,
+                                    // removed flag
                                     JsonRootProperty = set.JsonRootProperty,
                                     Columns = newCols.ToArray()
                                 });
@@ -343,6 +342,9 @@ public class SpocrManager(
                 }
 
                 // Build snapshot
+                // Stack used to build DotPath names during recursive mapping (initialized before mapping).
+                // Removed DotPath stacking: Name now strictly equals SQL alias as parsed (reverted per requirements)
+                var _columnNameStack = new Stack<string>(); // retained only for possible future diagnostics; not used for naming
                 var procedures = schemas.SelectMany(sc => sc.StoredProcedures ?? Enumerable.Empty<StoredProcedureModel>())
                     .Select(sp =>
                     {
@@ -352,7 +354,6 @@ public class SpocrManager(
                         var rsFiltered = rsRaw.Where(r =>
                             r.ReturnsJson ||
                             r.ReturnsJsonArray ||
-                            r.ReturnsJsonWithoutArrayWrapper ||
                             (r.Columns?.Count > 0) ||
                             !string.IsNullOrEmpty(r.ExecSourceProcedureName)
                         ).ToArray();
@@ -375,43 +376,54 @@ public class SpocrManager(
                             {
                                 ReturnsJson = rs.ReturnsJson,
                                 ReturnsJsonArray = rs.ReturnsJsonArray,
-                                ReturnsJsonWithoutArrayWrapper = rs.ReturnsJsonWithoutArrayWrapper,
                                 JsonRootProperty = rs.JsonRootProperty,
                                 ExecSourceSchemaName = rs.ExecSourceSchemaName,
                                 ExecSourceProcedureName = rs.ExecSourceProcedureName,
-                                HasSelectStar = rs.HasSelectStar,
-                                Columns = rs.Columns.Select(c => new SnapshotResultColumn
-                                {
-                                    Name = c.Name,
-                                    // New fallback: mark unresolved JSON column types as 'unknown' (no angle brackets to avoid parser/Enum issues).
-                                    // Generators will treat 'unknown' as NVARCHAR/string but emit a verbose notice; enrichment may replace before generation.
-                                    SqlTypeName = string.IsNullOrWhiteSpace(c.SqlTypeName) && rs.ReturnsJson ? "unknown" : c.SqlTypeName,
-                                    IsNullable = c.IsNullable ?? false,
-                                    MaxLength = c.MaxLength ?? 0,
-                                    UserTypeSchemaName = c.UserTypeSchemaName,
-                                    UserTypeName = c.UserTypeName,
-                                    JsonPath = c.JsonPath,
-                                    JsonResult = c.JsonResult == null ? null : new SnapshotNestedJson
-                                    {
-                                        ReturnsJson = c.JsonResult.ReturnsJson,
-                                        ReturnsJsonArray = c.JsonResult.ReturnsJsonArray,
-                                        ReturnsJsonWithoutArrayWrapper = c.JsonResult.ReturnsJsonWithoutArrayWrapper,
-                                        JsonRootProperty = c.JsonResult.JsonRootProperty,
-                                        Columns = c.JsonResult.Columns?.Select(n => new SnapshotResultColumn
-                                        {
-                                            Name = n.Name,
-                                            SqlTypeName = string.IsNullOrWhiteSpace(n.SqlTypeName) && c.JsonResult.ReturnsJson ? "unknown" : n.SqlTypeName,
-                                            IsNullable = n.IsNullable ?? false,
-                                            MaxLength = n.MaxLength ?? 0,
-                                            UserTypeSchemaName = n.UserTypeSchemaName,
-                                            UserTypeName = n.UserTypeName,
-                                            JsonPath = n.JsonPath
-                                        }).ToList() ?? new List<SnapshotResultColumn>()
-                                    }
-                                }).ToList()
+                                HasSelectStar = rs.HasSelectStar == true ? true : false, // will be pruned later if false
+                                Columns = rs.Columns.Select(c => MapSnapshotResultColumn(c, rs.ReturnsJson)).ToList()
                             }).ToList()
                         };
                     }).ToList();
+
+                // Local helper to map runtime ResultColumn (flattened JSON model) -> snapshot column recursively
+                SnapshotResultColumn MapSnapshotResultColumn(StoredProcedureContentModel.ResultColumn col, bool parentReturnsJson)
+                {
+                    // Build hierarchical DotPath name: propagate parent path via closure stack
+                    var snap = new SnapshotResultColumn
+                    {
+                        Name = col.Name, // alias from SQL (no synthetic path)
+                        SqlTypeName = string.IsNullOrWhiteSpace(col.SqlTypeName) && parentReturnsJson ? null : col.SqlTypeName,
+                        IsNullable = col.IsNullable,
+                        MaxLength = col.MaxLength,
+                        UserTypeSchemaName = col.UserTypeSchemaName,
+                        UserTypeName = col.UserTypeName,
+                        IsNestedJson = (col.IsNestedJson == true && col.ReturnsJson != true) ? true : null, // omit when ReturnsJson true (derivable)
+                        ReturnsJson = col.ReturnsJson,
+                        ReturnsJsonArray = col.ReturnsJsonArray,
+                        JsonRootProperty = col.JsonRootProperty
+                    };
+                    // Prune scalar fields when UDTT reference present
+                    if (!string.IsNullOrWhiteSpace(snap.UserTypeName))
+                    {
+                        snap.SqlTypeName = null;
+                        snap.IsNullable = null;
+                        snap.MaxLength = null;
+                    }
+                    // Prune IsNullable when false to reduce snapshot noise (absence implies false)
+                    if (snap.IsNullable == false) snap.IsNullable = null;
+                    if ((col.IsNestedJson == true || col.ReturnsJson == true) && col.Columns != null && col.Columns.Count > 0)
+                    {
+                        _columnNameStack.Push(col.Name);
+                        snap.Columns = col.Columns.Select(n => MapSnapshotResultColumn(n, col.ReturnsJson == true)).Where(c => c != null).ToList();
+                        _columnNameStack.Pop();
+                    }
+                    else
+                    {
+                        // Ensure we do not serialize empty array for scalar column
+                        snap.Columns = null;
+                    }
+                    return snap;
+                }
 
                 // (Reverted) Keine automatische Stub-Erzeugung für cross-schema EXEC Ziele – ursprüngliches Verhalten wiederhergestellt.
 
@@ -459,7 +471,7 @@ public class SpocrManager(
                 }
                 catch { }
 
-                var fingerprint = schemaSnapshotService.BuildFingerprint(serverName, databaseName, buildSchemas, procedures.Count, udtts.Count, parserVersion: 5);
+                var fingerprint = schemaSnapshotService.BuildFingerprint(serverName, databaseName, buildSchemas, procedures.Count, udtts.Count, parserVersion: 8);
                 var serverHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(serverName ?? "?"))).Substring(0, 16);
 
                 var snapshot = new SchemaSnapshot
@@ -469,7 +481,7 @@ public class SpocrManager(
                     Procedures = procedures,
                     Schemas = schemaSnapshots,
                     UserDefinedTableTypes = udtts,
-                    Parser = new SnapshotParserInfo { ToolVersion = config.TargetFramework, ResultSetParserVersion = 5 },
+                    Parser = new SnapshotParserInfo { ToolVersion = config.TargetFramework, ResultSetParserVersion = 8 },
                     Stats = new SnapshotStats
                     {
                         ProcedureTotal = procedures.Count,

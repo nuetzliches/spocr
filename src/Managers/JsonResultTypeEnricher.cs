@@ -50,114 +50,216 @@ public sealed class JsonResultTypeEnricher
         var loggedColumnResolutions = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         int loggedUpgrades = 0;
         int loggedNewConcrete = 0;
+
+        // Recursive processor for a single column (and its nested columns)
+        async Task<(StoredProcedureContentModel.ResultColumn Column, bool Modified)> ProcessColumnAsync(StoredProcedureContentModel.ResultColumn col, bool parentReturnsJson, StoredProcedureContentModel.ResultSet owningSet, System.Threading.CancellationToken token)
+        {
+            if (col == null) return (new StoredProcedureContentModel.ResultColumn(), false);
+            bool isJsonContext = parentReturnsJson || col.ReturnsJson == true; // treat nested container as JSON context for fallback typing
+            bool hasSourceBinding = !string.IsNullOrWhiteSpace(col.SourceSchema) && !string.IsNullOrWhiteSpace(col.SourceTable) && !string.IsNullOrWhiteSpace(col.SourceColumn);
+            if (hasSourceBinding) loggedColumnResolutions.Add($"__bind_only__{Guid.NewGuid():N}"); // binding progress
+            bool modifiedLocal = false;
+
+            // Removed UDTT 'record' mapping heuristic: Only AST-bound table metadata allowed. Leaving UserType* empty unless future AST capture implemented.
+            // JSON_QUERY heuristic
+            if (col.ExpressionKind == StoredProcedureContentModel.ResultColumnExpressionKind.JsonQuery && string.IsNullOrWhiteSpace(col.SqlTypeName))
+            {
+                col.SqlTypeName = "nvarchar(max)";
+                if (col.IsNullable == null) col.IsNullable = true;
+                modifiedLocal = true;
+                if (verbose && level == JsonTypeLogLevel.Detailed)
+                    _console.Verbose($"[json-type-jsonquery] {sp.SchemaName}.{sp.Name} {col.Name} -> nvarchar(max)");
+            }
+            // Forced nullable adjustment (outer join heuristic)
+            if (col.ForcedNullable == true && (col.IsNullable == false || col.IsNullable == null))
+            {
+                col.IsNullable = true; modifiedLocal = true;
+                if (verbose && level == JsonTypeLogLevel.Detailed)
+                    _console.Verbose($"[json-type-nullable-adjust] {sp.SchemaName}.{sp.Name} {col.Name} forced nullable (outer join)");
+            }
+            // CAST / CONVERT target typing
+            if (col.ExpressionKind == StoredProcedureContentModel.ResultColumnExpressionKind.Cast && string.IsNullOrWhiteSpace(col.SqlTypeName) && !string.IsNullOrWhiteSpace(col.CastTargetType))
+            {
+                col.SqlTypeName = col.CastTargetType; modifiedLocal = true;
+                if (verbose && level == JsonTypeLogLevel.Detailed)
+                    _console.Verbose($"[json-type-cast] {sp.SchemaName}.{sp.Name} {col.Name} -> {col.SqlTypeName}");
+            }
+
+            bool hadFallback = (string.Equals(col.SqlTypeName, "nvarchar(max)", StringComparison.OrdinalIgnoreCase) || string.Equals(col.SqlTypeName, "unknown", StringComparison.OrdinalIgnoreCase)) && isJsonContext;
+            bool hasConcrete = !string.IsNullOrWhiteSpace(col.SqlTypeName) && !hadFallback;
+            if (!hasConcrete && hasSourceBinding)
+            {
+                var tblKey = ($"{col.SourceSchema}.{col.SourceTable}");
+                if (!tableCache.TryGetValue(tblKey, out var tblColumns))
+                {
+                    try { tblColumns = await _db.TableColumnsListAsync(col.SourceSchema, col.SourceTable, token); }
+                    catch { tblColumns = new List<Column>(); }
+                    tableCache[tblKey] = tblColumns;
+                }
+                var match = tblColumns.FirstOrDefault(c => c.Name.Equals(col.SourceColumn, StringComparison.OrdinalIgnoreCase));
+                if (match != null)
+                {
+                    modifiedLocal = true;
+                    var logTag = hadFallback ? "[json-type-upgrade]" : "[json-type-table]";
+                    var logKey = $"{sp.SchemaName}.{sp.Name}|{col.Name}->{match.SqlTypeName}";
+                    if (verbose && level == JsonTypeLogLevel.Detailed && !loggedColumnResolutions.Contains(logKey))
+                    {
+                        loggedColumnResolutions.Add(logKey);
+                        if (hadFallback) loggedUpgrades++; else loggedNewConcrete++;
+                        _console.Verbose($"{logTag} {sp.SchemaName}.{sp.Name} {col.Name} -> {match.SqlTypeName}");
+                    }
+                    col = new StoredProcedureContentModel.ResultColumn
+                    {
+                        Name = col.Name,
+                        SourceSchema = col.SourceSchema,
+                        SourceTable = col.SourceTable,
+                        SourceColumn = col.SourceColumn,
+                        SqlTypeName = match.SqlTypeName,
+                        IsNullable = match.IsNullable,
+                        MaxLength = match.MaxLength,
+                        SourceAlias = col.SourceAlias,
+                        ExpressionKind = col.ExpressionKind,
+                        IsNestedJson = col.IsNestedJson,
+                        ReturnsJson = col.ReturnsJson,
+                        ReturnsJsonArray = col.ReturnsJsonArray,
+                        // removed flag
+                        JsonRootProperty = col.JsonRootProperty,
+                        Columns = col.Columns, // will be processed below if present
+                        ForcedNullable = col.ForcedNullable,
+                        IsAmbiguous = col.IsAmbiguous,
+                        UserTypeSchemaName = col.UserTypeSchemaName,
+                        UserTypeName = col.UserTypeName
+                    };
+                }
+                else if (verbose && level == JsonTypeLogLevel.Detailed)
+                {
+                    _console.Verbose($"[json-type-miss] {sp.SchemaName}.{sp.Name} {col.Name} source={col.SourceSchema}.{col.SourceTable}.{col.SourceColumn} no-column-match");
+                }
+            }
+            // Targeted fallback resolution for initiationId when binding failed but siblings hint at a single source table containing InitiationId
+            if (!hasConcrete && string.IsNullOrWhiteSpace(col.SqlTypeName) &&
+                string.Equals(col.Name, "initiationId", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    // Gather candidate tables from sibling columns in same owning set that are bound
+                    var siblingTables = owningSet?.Columns?
+                        .Where(c => c != null && !string.IsNullOrWhiteSpace(c.SourceSchema) && !string.IsNullOrWhiteSpace(c.SourceTable))
+                        .Select(c => new { Key = $"{c.SourceSchema}.{c.SourceTable}", c.SourceSchema, c.SourceTable })
+                        .GroupBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
+                        .Select(g => g.First())
+                        .Select(x => (Key: x.Key, Schema: x.SourceSchema, Table: x.SourceTable))
+                        .ToList() ?? new List<(string Key, string Schema, string Table)>();
+                    var initiationMatches = new List<(Column Col, string Schema, string Table)>();
+                    foreach (var entry in siblingTables)
+                    {
+                        var key = entry.Key; var schema = entry.Schema; var table = entry.Table;
+                        if (!tableCache.TryGetValue(key, out var cols))
+                        {
+                            try { cols = await _db.TableColumnsListAsync(schema, table, token); }
+                            catch { cols = new List<Column>(); }
+                            tableCache[key] = cols;
+                        }
+                        var idCol = cols.FirstOrDefault(c => c.Name.Equals("InitiationId", StringComparison.OrdinalIgnoreCase));
+                        if (idCol != null) initiationMatches.Add((idCol, schema, table));
+                    }
+                    // If exactly one table exposes InitiationId use that definition
+                    if (initiationMatches.Count == 1)
+                    {
+                        var match = initiationMatches[0];
+                        col = new StoredProcedureContentModel.ResultColumn
+                        {
+                            Name = col.Name,
+                            SourceSchema = match.Schema, // adopt source binding
+                            SourceTable = match.Table,
+                            SourceColumn = match.Col.Name,
+                            SqlTypeName = match.Col.SqlTypeName,
+                            IsNullable = match.Col.IsNullable,
+                            MaxLength = match.Col.MaxLength,
+                            SourceAlias = col.SourceAlias,
+                            ExpressionKind = col.ExpressionKind,
+                            IsNestedJson = col.IsNestedJson,
+                            ReturnsJson = col.ReturnsJson,
+                            ReturnsJsonArray = col.ReturnsJsonArray,
+                            // removed flag
+                            JsonRootProperty = col.JsonRootProperty,
+                            Columns = col.Columns,
+                            ForcedNullable = col.ForcedNullable,
+                            IsAmbiguous = col.IsAmbiguous,
+                            UserTypeSchemaName = col.UserTypeSchemaName,
+                            UserTypeName = col.UserTypeName
+                        };
+                        modifiedLocal = true; hasConcrete = true; hadFallback = false;
+                        if (verbose && level == JsonTypeLogLevel.Detailed)
+                        {
+                            _console.Verbose($"[json-type-initiation-fallback] {sp.SchemaName}.{sp.Name} {col.Name} -> {match.Col.SqlTypeName} ({match.Schema}.{match.Table})");
+                            loggedColumnResolutions.Add($"{sp.SchemaName}.{sp.Name}|{col.Name}->{match.Col.SqlTypeName}");
+                            loggedNewConcrete++; // treat as new concrete resolution
+                        }
+                    }
+                    else if (verbose && level == JsonTypeLogLevel.Detailed && initiationMatches.Count > 1)
+                    {
+                        _console.Verbose($"[json-type-initiation-fallback-skip] {sp.SchemaName}.{sp.Name} {col.Name} ambiguous tables count={initiationMatches.Count}");
+                    }
+                }
+                catch { /* swallow fallback errors */ }
+            }
+            // Removed dotted-name & synonym heuristic: rely solely on AST-bound SourceSchema/SourceTable/SourceColumn.
+            // If AST did not produce bindings, we leave SqlTypeName unresolved.
+
+            // Recurse into nested JSON columns
+            if ((col.IsNestedJson == true || col.ReturnsJson == true) && col.Columns != null && col.Columns.Count > 0)
+            {
+                var nestedModifiedAny = false;
+                var newNested = new List<StoredProcedureContentModel.ResultColumn>();
+                foreach (var nc in col.Columns)
+                {
+                    var processed = await ProcessColumnAsync(nc, col.ReturnsJson == true, owningSet, token);
+                    if (processed.Modified) nestedModifiedAny = true;
+                    newNested.Add(processed.Column);
+                }
+                if (nestedModifiedAny)
+                {
+                    // ensure we carry updated nested list
+                    col = new StoredProcedureContentModel.ResultColumn
+                    {
+                        Name = col.Name,
+                        SourceSchema = col.SourceSchema,
+                        SourceTable = col.SourceTable,
+                        SourceColumn = col.SourceColumn,
+                        SqlTypeName = col.SqlTypeName,
+                        IsNullable = col.IsNullable,
+                        MaxLength = col.MaxLength,
+                        SourceAlias = col.SourceAlias,
+                        ExpressionKind = col.ExpressionKind,
+                        IsNestedJson = col.IsNestedJson,
+                        ReturnsJson = col.ReturnsJson,
+                        ReturnsJsonArray = col.ReturnsJsonArray,
+                        // removed flag
+                        JsonRootProperty = col.JsonRootProperty,
+                        Columns = newNested,
+                        ForcedNullable = col.ForcedNullable,
+                        IsAmbiguous = col.IsAmbiguous,
+                        UserTypeSchemaName = col.UserTypeSchemaName,
+                        UserTypeName = col.UserTypeName
+                    };
+                    modifiedLocal = true;
+                }
+            }
+            return (col, modifiedLocal);
+        }
+
         foreach (var set in sets)
         {
             if (!set.ReturnsJson || set.Columns == null || set.Columns.Count == 0)
             { newSetsStage2.Add(set); continue; }
             var newCols = new List<StoredProcedureContentModel.ResultColumn>();
             var modifiedLocal = false;
-            int localResolvedBindings = 0; // count of columns having Source* even if no upgrade yet
             foreach (var col in set.Columns)
             {
-                bool hasSourceBinding = !string.IsNullOrWhiteSpace(col.SourceSchema) && !string.IsNullOrWhiteSpace(col.SourceTable) && !string.IsNullOrWhiteSpace(col.SourceColumn);
-                if (hasSourceBinding) localResolvedBindings++; // record source binding progress
-                // UDTT context mapping heuristic: map placeholder column 'record' to existing Context table-valued input
-                if (string.Equals(col.Name, "record", StringComparison.OrdinalIgnoreCase) &&
-                    (string.IsNullOrWhiteSpace(col.UserTypeName) && string.IsNullOrWhiteSpace(col.UserTypeSchemaName)))
-                {
-                    var contextInput = sp.Input?.FirstOrDefault(i => i.IsTableType == true &&
-                        string.Equals(i.TableTypeName, "Context", StringComparison.OrdinalIgnoreCase));
-                    if (contextInput != null)
-                    {
-                        col.UserTypeSchemaName = contextInput.TableTypeSchemaName ?? "core"; // default schema fallback
-                        col.UserTypeName = contextInput.TableTypeName;
-                        modifiedLocal = true;
-                        if (verbose && level == JsonTypeLogLevel.Detailed)
-                        {
-                            _console.Verbose($"[json-type-udtt-ref] {sp.SchemaName}.{sp.Name} {col.Name} -> {col.UserTypeSchemaName}.{col.UserTypeName}");
-                        }
-                    }
-                }
-                // v5: Apply JSON_QUERY default typing & join nullability adjustment before main resolution logic
-                if (col.ExpressionKind == StoredProcedureContentModel.ResultColumnExpressionKind.JsonQuery && string.IsNullOrWhiteSpace(col.SqlTypeName))
-                {
-                    col.SqlTypeName = "nvarchar(max)"; // JSON_QUERY always returns NVARCHAR(MAX)
-                    if (col.IsNullable == null) col.IsNullable = true; // JSON_QUERY may yield NULL
-                    modifiedLocal = true;
-                    if (verbose && level == JsonTypeLogLevel.Detailed)
-                    {
-                        _console.Verbose($"[json-type-jsonquery] {sp.SchemaName}.{sp.Name} {col.Name} -> nvarchar(max)");
-                    }
-                }
-                if (col.ForcedNullable == true && (col.IsNullable == false || col.IsNullable == null))
-                {
-                    col.IsNullable = true;
-                    modifiedLocal = true;
-                    if (verbose && level == JsonTypeLogLevel.Detailed)
-                    {
-                        _console.Verbose($"[json-type-nullable-adjust] {sp.SchemaName}.{sp.Name} {col.Name} forced nullable (outer join)");
-                    }
-                }
-                // v5: CAST/CONVERT heuristic – if we parsed a CastTargetType and still no concrete sql type
-                if (col.ExpressionKind == StoredProcedureContentModel.ResultColumnExpressionKind.Cast && string.IsNullOrWhiteSpace(col.SqlTypeName) && !string.IsNullOrWhiteSpace(col.CastTargetType))
-                {
-                    col.SqlTypeName = col.CastTargetType;
-                    // Nullability not changed; size already embedded if present
-                    modifiedLocal = true;
-                    if (verbose && level == JsonTypeLogLevel.Detailed)
-                    {
-                        _console.Verbose($"[json-type-cast] {sp.SchemaName}.{sp.Name} {col.Name} -> {col.SqlTypeName}");
-                    }
-                }
-                // Treat both legacy nvarchar(max) and new 'unknown' marker as fallback states
-                bool hadFallback = (string.Equals(col.SqlTypeName, "nvarchar(max)", StringComparison.OrdinalIgnoreCase) || string.Equals(col.SqlTypeName, "unknown", StringComparison.OrdinalIgnoreCase)) && set.ReturnsJson;
-                bool hasConcrete = !string.IsNullOrWhiteSpace(col.SqlTypeName) && !hadFallback;
-                if (hasConcrete) { newCols.Add(col); continue; }
-                if (hasSourceBinding)
-                {
-                    var tblKey = ($"{col.SourceSchema}.{col.SourceTable}");
-                    if (!tableCache.TryGetValue(tblKey, out var tblColumns))
-                    {
-                        try { tblColumns = await _db.TableColumnsListAsync(col.SourceSchema, col.SourceTable, ct); }
-                        catch { tblColumns = new List<Column>(); }
-                        tableCache[tblKey] = tblColumns;
-                    }
-                    var match = tblColumns.FirstOrDefault(c => c.Name.Equals(col.SourceColumn, StringComparison.OrdinalIgnoreCase));
-                    if (match != null)
-                    {
-                        modifiedLocal = true;
-                        var logTag = hadFallback ? "[json-type-upgrade]" : "[json-type-table]";
-                        var logKey = $"{sp.SchemaName}.{sp.Name}|{col.Name}->{match.SqlTypeName}";
-                        if (verbose && level == JsonTypeLogLevel.Detailed && !loggedColumnResolutions.Contains(logKey))
-                        {
-                            loggedColumnResolutions.Add(logKey);
-                            if (hadFallback) loggedUpgrades++; else loggedNewConcrete++;
-                            _console.Verbose($"{logTag} {sp.SchemaName}.{sp.Name} {col.Name} -> {match.SqlTypeName}");
-                        }
-                        newCols.Add(new StoredProcedureContentModel.ResultColumn
-                        {
-                            JsonPath = col.JsonPath,
-                            Name = col.Name,
-                            SourceSchema = col.SourceSchema,
-                            SourceTable = col.SourceTable,
-                            SourceColumn = col.SourceColumn,
-                            SqlTypeName = match.SqlTypeName,
-                            IsNullable = match.IsNullable,
-                            MaxLength = match.MaxLength,
-                            SourceAlias = col.SourceAlias,
-                            ExpressionKind = col.ExpressionKind,
-                            IsNestedJson = col.IsNestedJson,
-                            ForcedNullable = col.ForcedNullable,
-                            IsAmbiguous = col.IsAmbiguous
-                        });
-                        continue;
-                    }
-                    else if (verbose && level == JsonTypeLogLevel.Detailed)
-                    {
-                        _console.Verbose($"[json-type-miss] {sp.SchemaName}.{sp.Name} {col.Name} source={col.SourceSchema}.{col.SourceTable}.{col.SourceColumn} no-column-match");
-                    }
-                }
-                newCols.Add(col);
+                var processed = await ProcessColumnAsync(col, set.ReturnsJson, set, ct);
+                if (processed.Modified) modifiedLocal = true;
+                newCols.Add(processed.Column);
             }
             if (modifiedLocal)
             {
@@ -166,19 +268,12 @@ public sealed class JsonResultTypeEnricher
                 {
                     ReturnsJson = set.ReturnsJson,
                     ReturnsJsonArray = set.ReturnsJsonArray,
-                    ReturnsJsonWithoutArrayWrapper = set.ReturnsJsonWithoutArrayWrapper,
+                    // removed flag
                     JsonRootProperty = set.JsonRootProperty,
                     Columns = newCols.ToArray()
                 });
             }
             else { newSetsStage2.Add(set); }
-            // Accumulate binding-only progress (not counted previously). We treat these as 'resolved' even if still fallback typed.
-            if (localResolvedBindings > 0)
-            {
-                // Use synthetic logKey entries so run summary counts them as ResolvedColumns when no upgrades occurred.
-                // We don't want duplicate counting across sets; just add ephemeral entries.
-                for (int i = 0; i < localResolvedBindings; i++) loggedColumnResolutions.Add($"__bind_only__{Guid.NewGuid():N}");
-            }
         }
         if (anyModified)
         {

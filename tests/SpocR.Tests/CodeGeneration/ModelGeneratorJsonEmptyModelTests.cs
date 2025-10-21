@@ -28,7 +28,7 @@ public class ModelGeneratorJsonEmptyModelTests
         config.Project.Output.Namespace = "Test.App";
 
         var fileManager = new FileManager<ConfigurationModel>(spocr, "spocr.json", config);
-        fileManager.OverwriteWithConfig = config;
+        // ReturnsJsonWithoutArrayWrapper removed – not needed
         var output = new OutputService(fileManager, new TestConsoleService());
         var templateManager = new TemplateManager(output, fileManager);
 
@@ -56,7 +56,6 @@ public class ModelGeneratorJsonEmptyModelTests
                 {
                     ReturnsJson = true,
                     ReturnsJsonArray = true,
-                    ReturnsJsonWithoutArrayWrapper = false,
                     Columns = System.Array.Empty<StoredProcedureContentModel.ResultColumn>()
                 }
             }

@@ -4,6 +4,8 @@
 
 ## Goals
 
+Current Snapshot Parser Version: 8 (recursive JSON type enrichment + pruning IsNestedJson + HasSelectStar suppression)
+
 - Transition from legacy DataContext generator to SpocRVNext
 - Dual generation until v5.0
 - Remove legacy code in v5.0 following cutover plan
@@ -203,6 +205,214 @@ Notes:
 - Remove obsolete markers
 
 ## Decisions (Resolved Former Open Points)
+
+### Snapshot JSON Flattening (ResultSet Parser v6)
+
+Status: Introduced in vNext (ResultSetParserVersion = 6) – BREAKING for snapshot JSON shape.
+
+Change Summary:
+
+- Removed nested `JsonResult` object previously present inside each result column (v5 and earlier snapshot shape).
+- Promoted its properties to the column level with a consistent flattened naming scheme:
+  - `IsNestedJson` (nullable bool; only emitted when true)
+  - `ReturnsJson`, `ReturnsJsonArray`, `ReturnsJsonWithoutArrayWrapper` (nullable bool; only emitted when true)
+  - `JsonRootProperty` (string; omitted when null/empty)
+  - (v6) `JsonColumns` renamed to (v7) nested `Columns` (array of nested flattened columns; omitted when empty)
+- Removed legacy `JsonPath` emission (no longer produced; legacy readers still tolerate it if present in older snapshots).
+- Writer prunes null / default / empty JSON metadata to keep snapshots smaller & diff‑friendly.
+
+Reader Backward Compatibility:
+
+- Loader still maps older snapshots (v5) by translating the legacy `JsonResult` shape into flattened in‑memory structures.
+- Mixed presence (older `JsonResult` + new flattened flags) prefers the new flattened fields.
+
+Migration Impact:
+
+- Any tooling or scripts consuming `.spocr/schema/*.json` must update field access: replace `column.JsonResult.ReturnsJson*` with direct column‑level flags.
+- Diff noise expected once per snapshot regeneration; after first commit diffs stabilize (less churn due to pruning of defaults).
+- If your automation relied on `JsonPath`, switch to hierarchical traversal of nested `Columns`.
+
+Rationale:
+
+1. Simplifies internal model & external snapshot (one fewer nesting level).
+2. Reduces serialization size (omits redundant objects & default false flags).
+3. Aligns with runtime generator APIs already flattened earlier in the refactor.
+
+Action Items for Consumers:
+
+- Regenerate snapshots (run `spocr pull` / build) to produce v6 snapshot.
+- Update any custom schema processors to look for `IsNestedJson` / nested `Columns`.
+- Commit updated fingerprint files (fingerprint includes parser version so a new root snapshot file name is expected).
+
+Fallback / Rollback:
+
+- To temporarily continue using an older snapshot without regenerating, you can pin to an earlier tool version (< the commit introducing v6). Long term this is discouraged; backward loader allows reading old snapshots but new snapshots are always written in flattened form.
+
+Documentation:
+
+- CHANGELOG: Added under Changed section (flattened snapshot JSON structure; parser version bump to 6).
+- This migration guide section serves as the authoritative reference for the structural change.
+
+Example (Simplified):
+
+Before (v5):
+
+```json
+{
+  "Name": "Data",
+  "SqlTypeName": "nvarchar",
+  "JsonResult": {
+    "ReturnsJson": true,
+    "ReturnsJsonArray": false,
+    "JsonRootProperty": "root",
+    "Columns": [{ "Name": "Id", "SqlTypeName": "int" }]
+  }
+}
+```
+
+After (v6):
+
+```json
+{
+  "Name": "Data",
+  "SqlTypeName": "nvarchar",
+  "IsNestedJson": true,
+  "ReturnsJson": true,
+  "JsonRootProperty": "root",
+  "Columns": [{ "Name": "Id", "SqlTypeName": "int" }]
+}
+```
+
+Note: Fields with `false` / empty values are pruned (e.g. `ReturnsJsonArray` omitted when false).
+
+### Nested JSON Columns Rename (ResultSet Parser v7)
+
+Status: Introduced in v7 (ResultSetParserVersion = 7) – BREAKING rename if you previously consumed v6 snapshots.
+
+Change:
+
+- Property `JsonColumns` inside each result column (holding nested JSON child columns) renamed to `Columns`.
+- Rationale: Harmonize naming so nested JSON columns use the same property name as top-level result set columns, reducing concept count.
+- Since no external developers consumed the v6 shape (internal refactor), no backward compatibility shim retained; loader expects `Columns` for nested JSON from v7 onward.
+- Older v6 snapshots (with `JsonColumns`) must be regenerated; the loader does not alias `JsonColumns` to `Columns`.
+
+Parser / Fingerprint:
+
+- `ResultSetParserVersion` bumped to 7; fingerprint changes accordingly triggering a new snapshot file emission.
+
+Migration Steps:
+
+1. Regenerate schema snapshots (`spocr pull` / build) to produce v7 snapshot files.
+2. Commit updated `.spocr/schema` artifacts.
+3. Adjust any tooling referencing `JsonColumns` to use nested `Columns`.
+
+Example Delta (simplified nested column):
+
+Before (v6):
+
+```json
+{
+  "Name": "Orders",
+  "IsNestedJson": true,
+  "ReturnsJson": true,
+  "JsonColumns": [{ "Name": "OrderId", "SqlTypeName": "int" }]
+}
+```
+
+After (v7):
+
+```json
+{
+  "Name": "Orders",
+  "IsNestedJson": true,
+  "ReturnsJson": true,
+  "Columns": [{ "Name": "OrderId", "SqlTypeName": "int" }]
+}
+```
+
+No further structural differences; pruning behavior unchanged.
+
+### Recursive Nested JSON Type Enrichment & Pruning (ResultSet Parser v8)
+
+Status: Introduced in v8 (ResultSetParserVersion = 8) – structural & behavioral improvements.
+
+Changes:
+
+1. Recursive Type Enrichment
+
+- The JSON type enrichment stage now traverses nested `Columns` recursively.
+- Previously, only top-level JSON columns were upgraded from fallback (`nvarchar(max)` / `unknown`) to concrete SQL types using source bindings.
+- Nested columns (e.g. `sourceAccount.accountId`) now resolve their `SqlTypeName`, `IsNullable`, and `MaxLength` when source bindings exist.
+- Statistics counters include nested resolutions (run summary line).
+
+2. Pruning `IsNestedJson`
+
+- When a column also has `ReturnsJson=true`, `IsNestedJson` becomes redundant and is omitted (null). Consumers should treat any column with `ReturnsJson=true` as a JSON container regardless of `IsNestedJson` presence.
+
+3. Suppressing `HasSelectStar=false`
+
+- Snapshot now omits `HasSelectStar` entirely when false by emitting it as `null` (property is nullable). Only `true` values remain.
+- Rationale: Reduces diff noise and size; default false conveys little value.
+
+4. Parser Version Bump
+
+- Fingerprint includes parser version; all snapshot file names change (new hash). Commit regenerated `.spocr/schema/*.json` artifacts.
+
+5. Backward Compatibility
+
+- Loader tolerates older v7 snapshots; no special shim required for the new pruning semantics.
+- Tools expecting `IsNestedJson=true` must adjust logic: rely on `ReturnsJson` (or nested `Columns`) to identify JSON container columns.
+
+Migration Impact:
+
+- Regenerate snapshots (`spocr pull`) to pick up v8 improvements.
+- Update any custom processors that relied on `IsNestedJson` presence; treat absence as implicit when `ReturnsJson=true`.
+- Remove logic depending on `HasSelectStar=false`; check existence (or value true) only.
+
+Example Before (v7 nested column – fallback typing):
+
+```json
+{
+  "Name": "sourceAccount",
+  "IsNestedJson": true,
+  "ReturnsJson": true,
+  "Columns": [{ "Name": "accountId", "SqlTypeName": "unknown" }]
+}
+```
+
+After (v8):
+
+```json
+{
+  "Name": "sourceAccount",
+  "ReturnsJson": true,
+  "Columns": [
+    { "Name": "accountId", "SqlTypeName": "int", "IsNullable": false }
+  ]
+}
+```
+
+Notes:
+
+- `IsNestedJson` pruned (derivable via `ReturnsJson`).
+- Child `accountId` resolved from fallback to concrete type.
+- `HasSelectStar` omitted when false.
+
+Rationale:
+
+- Simplifies consumer traversal, reduces redundant boolean flags.
+- Provides richer typing for nested structures enabling stronger code generation (model properties get precise types earlier).
+
+Action Items:
+
+- Regenerate & commit snapshots.
+- Update any schema processors to remove reliance on `IsNestedJson=true` and adjust for missing `HasSelectStar` property when false.
+- Review generated models for improved typing (existing overrides may become unnecessary).
+
+Documentation:
+
+- CHANGELOG: Add under Changed (recursive enrichment) & Removed (redundant IsNestedJson emission, HasSelectStar=false emission).
+- This section is canonical reference for v8 snapshot semantics.
 
 ### Namespace Strategy
 

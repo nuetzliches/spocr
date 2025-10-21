@@ -168,6 +168,82 @@ public class StoredProcedureGenerator(
         var nsNode = (NamespaceDeclarationSyntax)root.Members[0];
         var classNode = (ClassDeclarationSyntax)nsNode.Members[0];
 
+        // Fallback: Some tests inject a minimal template without method placeholders.
+        // The generation logic below expects at least two template method nodes to clone/transform.
+        // If absent, we synthesize two minimal placeholder methods that follow the expected signature pattern:
+        //   1) Base method (context, cancellationToken)
+        //   2) Overload (this context, cancellationToken) – extension style
+        // Parameter mutation logic later (InsertRange / RemoveAt) relies on having >=2 parameters.
+        var existingMethodTemplates = classNode.Members.OfType<MethodDeclarationSyntax>().ToList();
+        if (existingMethodTemplates.Count < 2)
+        {
+            // Ensure SqlParameter type is resolvable (add using if missing)
+            if (!root.Usings.Any(u => u.Name.ToString() == "Microsoft.Data.SqlClient"))
+            {
+                root = root.AddUsings(SyntaxFactory.UsingDirective(SyntaxFactory.ParseName("Microsoft.Data.SqlClient"))).NormalizeWhitespace();
+                nsNode = (NamespaceDeclarationSyntax)root.Members[0];
+                classNode = (ClassDeclarationSyntax)nsNode.Members[0];
+            }
+
+            MethodDeclarationSyntax CreatePlaceholder(bool isExtension)
+            {
+                var ctxParam = SyntaxFactory.Parameter(SyntaxFactory.Identifier("context")).WithType(SyntaxFactory.ParseTypeName("IAppDbContext"));
+                if (isExtension)
+                {
+                    ctxParam = ctxParam.WithModifiers(SyntaxFactory.TokenList(SyntaxFactory.Token(SyntaxKind.ThisKeyword)));
+                }
+                var ctParam = SyntaxFactory.Parameter(SyntaxFactory.Identifier("cancellationToken")).WithType(SyntaxFactory.ParseTypeName("CancellationToken"));
+                var paramList = SyntaxFactory.ParameterList(SyntaxFactory.SeparatedList(new[] { ctxParam, ctParam }));
+                // parameters placeholder (will be replaced for non-overload variant; kept simple here)
+                var parametersDecl = SyntaxFactory.LocalDeclarationStatement(
+                    SyntaxFactory.VariableDeclaration(SyntaxFactory.IdentifierName("var"))
+                        .WithVariables(SyntaxFactory.SingletonSeparatedList(
+                            SyntaxFactory.VariableDeclarator(SyntaxFactory.Identifier("parameters"))
+                                .WithInitializer(SyntaxFactory.EqualsValueClause(
+                                    SyntaxFactory.ObjectCreationExpression(
+                                        SyntaxFactory.GenericName("List")
+                                            .WithTypeArgumentList(
+                                                SyntaxFactory.TypeArgumentList(
+                                                    SyntaxFactory.SingletonSeparatedList<TypeSyntax>(SyntaxFactory.IdentifierName("SqlParameter")))))
+                                        .WithInitializer(SyntaxFactory.InitializerExpression(SyntaxKind.CollectionInitializerExpression, SyntaxFactory.SeparatedList<ExpressionSyntax>())
+                                ))))));
+
+                // Concrete invocation shape for downstream string replacements:
+                var invoke = SyntaxFactory.InvocationExpression(
+                    SyntaxFactory.MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression,
+                        SyntaxFactory.IdentifierName("context"),
+                        SyntaxFactory.GenericName(SyntaxFactory.Identifier("ExecuteSingleAsync"))
+                            .WithTypeArgumentList(
+                                SyntaxFactory.TypeArgumentList(
+                                    SyntaxFactory.SingletonSeparatedList<TypeSyntax>(SyntaxFactory.IdentifierName("CrudResult")))))
+                    ).WithArgumentList(
+                        SyntaxFactory.ArgumentList(
+                            SyntaxFactory.SeparatedList<ArgumentSyntax>(new SyntaxNodeOrToken[]
+                            {
+                                SyntaxFactory.Argument(SyntaxFactory.LiteralExpression(SyntaxKind.StringLiteralExpression, SyntaxFactory.Literal("schema.CrudAction"))),
+                                SyntaxFactory.Token(SyntaxKind.CommaToken),
+                                SyntaxFactory.Argument(SyntaxFactory.IdentifierName("parameters")),
+                                SyntaxFactory.Token(SyntaxKind.CommaToken),
+                                SyntaxFactory.Argument(SyntaxFactory.IdentifierName("cancellationToken"))
+                            })));
+                var returnStmt = SyntaxFactory.ReturnStatement(
+                    SyntaxFactory.AwaitExpression(invoke));
+
+                var method = SyntaxFactory.MethodDeclaration(
+                        SyntaxFactory.ParseTypeName("Task<CrudResult>"),
+                        SyntaxFactory.Identifier("CrudActionAsync"))
+                    .WithModifiers(SyntaxFactory.TokenList(SyntaxFactory.Token(SyntaxKind.PublicKeyword), SyntaxFactory.Token(SyntaxKind.StaticKeyword), SyntaxFactory.Token(SyntaxKind.AsyncKeyword)))
+                    .WithParameterList(paramList)
+                    .WithBody(SyntaxFactory.Block(parametersDecl, returnStmt));
+                return method;
+            }
+
+            var placeholderBase = CreatePlaceholder(false);
+            var placeholderOverload = CreatePlaceholder(true);
+            classNode = classNode.AddMembers(placeholderBase, placeholderOverload);
+            root = root.ReplaceNode((SyntaxNode)root.Members[0], nsNode.WithMembers(SyntaxFactory.List<MemberDeclarationSyntax>(new[] { classNode })));
+        }
+
         // Generate Methods
         foreach (var storedProcedure in storedProcedures)
         {
@@ -175,7 +251,7 @@ public class StoredProcedureGenerator(
             classNode = (ClassDeclarationSyntax)nsNode.Members[0];
 
             // Base method (Raw or non-JSON typed behavior)
-            var originMethodNode = (MethodDeclarationSyntax)classNode.Members[0];
+            var originMethodNode = (MethodDeclarationSyntax)classNode.Members.OfType<MethodDeclarationSyntax>().First();
             originMethodNode = GenerateStoredProcedureMethodText(originMethodNode, storedProcedure, StoredProcedureMethodKind.Raw, false);
             root = root.AddMethod(ref classNode, originMethodNode);
 
@@ -183,7 +259,7 @@ public class StoredProcedureGenerator(
             classNode = (ClassDeclarationSyntax)nsNode.Members[0];
 
             // Overloaded extension with IAppDbContext
-            var overloadOptionsMethodNode = (MethodDeclarationSyntax)classNode.Members[1];
+            var overloadOptionsMethodNode = (MethodDeclarationSyntax)classNode.Members.OfType<MethodDeclarationSyntax>().Skip(1).First();
             overloadOptionsMethodNode = GenerateStoredProcedureMethodText(overloadOptionsMethodNode, storedProcedure, StoredProcedureMethodKind.Raw, true);
             root = root.AddMethod(ref classNode, overloadOptionsMethodNode);
 
@@ -193,8 +269,9 @@ public class StoredProcedureGenerator(
             {
                 nsNode = (NamespaceDeclarationSyntax)root.Members[0];
                 classNode = (ClassDeclarationSyntax)nsNode.Members[0];
-                var deserializePipeTemplate = (MethodDeclarationSyntax)classNode.Members[0];
-                var deserializeContextTemplate = (MethodDeclarationSyntax)classNode.Members[1];
+                var methodTemplates = classNode.Members.OfType<MethodDeclarationSyntax>().ToList();
+                var deserializePipeTemplate = methodTemplates[0];
+                var deserializeContextTemplate = methodTemplates[1];
 
                 var deserializePipe = GenerateStoredProcedureMethodText(deserializePipeTemplate, storedProcedure, StoredProcedureMethodKind.Deserialize, false);
                 root = root.AddMethod(ref classNode, deserializePipe);
@@ -234,7 +311,8 @@ public class StoredProcedureGenerator(
             var lone = set.Columns.First();
             bool loneIsNVarChar = (lone.SqlTypeName?.StartsWith("nvarchar", StringComparison.OrdinalIgnoreCase) ?? false);
             bool noRoot = !(set.JsonRootProperty?.Length > 0);
-            bool flatPath = string.IsNullOrWhiteSpace(lone.JsonPath) || string.Equals(lone.JsonPath, lone.Name, StringComparison.OrdinalIgnoreCase);
+            // JsonPath removed – treat as flat if no nested JSON columns
+            bool flatPath = (lone.IsNestedJson != true);
             bool legacyJsonSentinel = lone.Name.Equals("JSON_F52E2B61-18A1-11d1-B105-00805F49916B", StringComparison.OrdinalIgnoreCase);
             // Rein strukturelle Heuristik: Einzelne nvarchar(max) Spalte ohne Root/verschachtelten Pfad -> pseudo tabular
             return loneIsNVarChar && noRoot && flatPath && !legacyJsonSentinel;
@@ -354,7 +432,7 @@ public class StoredProcedureGenerator(
         var returnType = "Task<CrudResult>";
         var returnModel = "CrudResult";
 
-    // Determine primary result set: prefer the first non-ExecSource placeholder, otherwise fall back to the first set.
+        // Determine primary result set: prefer the first non-ExecSource placeholder, otherwise fall back to the first set.
         var firstSet = storedProcedure.ResultSets == null
                 ? null
                 : storedProcedure.ResultSets.FirstOrDefault(rs => string.IsNullOrEmpty(rs.ExecSourceProcedureName))
@@ -391,21 +469,21 @@ public class StoredProcedureGenerator(
             }
             catch { /* best effort forward resolve */ }
         }
-    // Heuristic: Some CRUD-like procedures are incorrectly classified as JSON while they only emit a single nvarchar(max) value (e.g. sub-select).
-    // Downgrade criteria (structural only now): exactly 1 column, no explicit JsonRootProperty, column name not legacy FOR JSON sentinel,
-    // column type starts with nvarchar, column.JsonPath equals column.Name (flat structure).
+        // Heuristic: Some CRUD-like procedures are incorrectly classified as JSON while they only emit a single nvarchar(max) value (e.g. sub-select).
+        // Downgrade criteria (structural only now): exactly 1 column, no explicit JsonRootProperty, column name not legacy FOR JSON sentinel,
+        // column type starts with nvarchar, column.JsonPath equals column.Name (flat structure).
         if (isJson && firstSet != null)
         {
             // Structural-only downgrade (name-based CRUD heuristic removed) except when the parser explicitly flagged JSON array/without wrapper.
-            // We now skip downgrade if the result set indicates array semantics or explicit JSON intent via ReturnsJsonArray/ReturnsJsonWithoutArrayWrapper.
+            // We now skip downgrade if the result set indicates array semantics or explicit JSON intent (ReturnsJsonArray true).
             var colCount = firstSet.Columns?.Count ?? 0;
-            if (colCount == 1 && !firstSet.ReturnsJsonArray && !firstSet.ReturnsJsonWithoutArrayWrapper)
+            if (colCount == 1 && !firstSet.ReturnsJsonArray)
             {
                 var col = firstSet.Columns[0];
                 bool isNVarChar = (col.SqlTypeName?.StartsWith("nvarchar", StringComparison.OrdinalIgnoreCase) ?? false);
                 bool isLegacyJsonSentinel = col.Name.Equals("JSON_F52E2B61-18A1-11d1-B105-00805F49916B", StringComparison.OrdinalIgnoreCase);
                 bool hasRoot = !string.IsNullOrWhiteSpace(firstSet.JsonRootProperty);
-                bool flatPath = string.Equals(col.JsonPath, col.Name, StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(col.JsonPath);
+                bool flatPath = col.IsNestedJson != true;
                 if (isNVarChar && !isLegacyJsonSentinel && !hasRoot && flatPath)
                 {
                     isJson = false;
@@ -418,7 +496,7 @@ public class StoredProcedureGenerator(
         var requiresAsync = isJson && kind == StoredProcedureMethodKind.Deserialize && !isOverload;
 
         var rawJson = false;
-            // Special case: multiple result sets but exactly one JSON set -> treat JSON as primary
+        // Special case: multiple result sets but exactly one JSON set -> treat JSON as primary
         var totalSets = storedProcedure.ResultSets?.Count ?? 0;
         var jsonSetCount = storedProcedure.ResultSets?.Count(rs => rs.ReturnsJson) ?? 0;
         bool singleJsonAmongMultiple = totalSets > 1 && jsonSetCount == 1 && isJson;

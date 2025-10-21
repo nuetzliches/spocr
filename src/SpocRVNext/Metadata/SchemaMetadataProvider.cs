@@ -285,14 +285,12 @@ namespace SpocR.SpocRVNext.Metadata
                         catch { /* best effort; leave null/defaults */ }
                         bool returnsJson = false;
                         bool returnsJsonArray = false;
-                        bool returnsJsonWithoutWrapper = false;
                         try
                         {
                             returnsJson = rse.GetPropertyOrDefaultBool("ReturnsJson");
                             returnsJsonArray = rse.GetPropertyOrDefaultBool("ReturnsJsonArray");
-                            returnsJsonWithoutWrapper = rse.GetPropertyOrDefaultBool("ReturnsJsonWithoutArrayWrapper");
                         }
-                        catch { }
+                        catch { /* best effort */ }
                         resultSetDescriptors.Add(new ResultSetDescriptor(
                             Index: idx,
                             Name: rsName,
@@ -303,8 +301,7 @@ namespace SpocR.SpocRVNext.Metadata
                             ExecSourceSchemaName: execSourceSchema,
                             ExecSourceProcedureName: execSourceProc,
                             ReturnsJson: returnsJson,
-                            ReturnsJsonArray: returnsJsonArray,
-                            ReturnsJsonWithoutArrayWrapper: returnsJsonWithoutWrapper
+                            ReturnsJsonArray: returnsJsonArray
                         ));
                         idx++;
                     }
@@ -319,7 +316,6 @@ namespace SpocR.SpocRVNext.Metadata
                     ResultSets: resultSetDescriptors
                 );
                 procList.Add(procDescriptor);
-
                 if (resultSetDescriptors.Count > 0)
                 {
                     var primary = resultSetDescriptors[0];

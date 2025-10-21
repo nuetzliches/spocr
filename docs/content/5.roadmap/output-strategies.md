@@ -26,7 +26,7 @@ aiTags: [roadmap, output, json, strategies, nested]
 ### 1. Inventory & Classification
 
 - `spocr.json`: new `output.jsonModels` section
-- Detection per Stored Procedure whether `ReturnsJson` and whether `JsonColumns` (via `StoredProcedureContentModel.JsonColumns`)
+- Detection per Stored Procedure whether `ReturnsJson` and whether nested JSON `Columns` (via `StoredProcedureContentModel.Columns` – renamed from JsonColumns in v7)
 - New flags in Definition.Model (`HasJsonPayload`, `JsonShape`)
 
 ### 2. Model Generation
@@ -55,10 +55,10 @@ Configuration example:
     "output": {
       "jsonModels": {
         "generateNestedModels": true,
-        "autoDeserialize": false
-      }
-    }
-  }
+        "autoDeserialize": false,
+      },
+    },
+  },
 }
 ```
 

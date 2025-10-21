@@ -53,7 +53,7 @@ public class ModelGenerator(
         var loneCol = singlePseudoColumn ? resultColumns[0] : null;
         bool loneIsNVarChar = loneCol != null && (loneCol.SqlTypeName?.StartsWith("nvarchar", System.StringComparison.OrdinalIgnoreCase) ?? false);
         bool noJsonRoot = !(currentSet?.JsonRootProperty?.Length > 0);
-        bool flatJsonPath = loneCol != null && (string.IsNullOrWhiteSpace(loneCol.JsonPath) || string.Equals(loneCol.JsonPath, loneCol.Name, System.StringComparison.OrdinalIgnoreCase));
+        bool flatJsonPath = loneCol != null && loneCol.IsNestedJson != true; // flattened model: treat as flat when not nested
         bool legacyJsonSentinel = loneCol != null && loneCol.Name.Equals("JSON_F52E2B61-18A1-11d1-B105-00805F49916B", System.StringComparison.OrdinalIgnoreCase);
         if (isCrudVerbName && singlePseudoColumn && loneIsNVarChar && noJsonRoot && flatJsonPath && !legacyJsonSentinel)
         {
@@ -94,34 +94,99 @@ public class ModelGenerator(
 
         if (hasResultColumns && !treatAsJson)
         {
+            // Dotted alias nesting (AST-only, no heuristics): build tree from segments (split on '.')
+            var dottedRoot = new System.Collections.Generic.Dictionary<string, System.Collections.Generic.List<StoredProcedureContentModel.ResultColumn>>(System.StringComparer.OrdinalIgnoreCase);
             foreach (var col in resultColumns)
             {
                 if (string.IsNullOrWhiteSpace(col.Name)) continue;
-                classNode = AddProperty(classNode, col.Name, InferType(col.SqlTypeName, col.IsNullable));
+                if (!col.Name.Contains('.'))
+                {
+                    // Simple property (no nesting)
+                    classNode = AddProperty(classNode, col.Name, InferType(col.SqlTypeName, col.IsNullable));
+                    continue;
+                }
+                var first = col.Name.Split('.', System.StringSplitOptions.RemoveEmptyEntries).First();
+                if (!dottedRoot.TryGetValue(first, out var list)) { list = new(); dottedRoot[first] = list; }
+                list.Add(col);
+            }
+            // Generate nested classes for each group
+            foreach (var kv in dottedRoot)
+            {
+                var groupName = kv.Key.FirstCharToUpper();
+                var cols = kv.Value;
+                // Build tree nodes
+                var nodeRoot = new JsonPathNode(kv.Key);
+                foreach (var c in cols)
+                {
+                    var segments = c.Name.Split('.', System.StringSplitOptions.RemoveEmptyEntries);
+                    JsonPathNode current = nodeRoot;
+                    for (int i = 1; i < segments.Length; i++)
+                    {
+                        var seg = segments[i];
+                        current = current.GetOrAdd(seg);
+                        if (i == segments.Length - 1)
+                        {
+                            current.Columns.Add(c);
+                        }
+                    }
+                }
+                // If only one leaf column directly under group -> flatten to property
+                bool directSingleLeaf = nodeRoot.Children.Count == 1 && nodeRoot.Children.Values.First().HasChildren == false && nodeRoot.Children.Values.First().Columns.Count == 1;
+                if (directSingleLeaf)
+                {
+                    var leaf = nodeRoot.Children.Values.First().Columns.First();
+                    classNode = AddProperty(classNode, kv.Key, InferType(leaf.SqlTypeName, leaf.IsNullable));
+                    continue;
+                }
+                // Generate nested class recursively
+                ClassDeclarationSyntax Build(JsonPathNode n)
+                {
+                    var clsName = n.Name.FirstCharToUpper();
+                    var cls = SyntaxFactory.ClassDeclaration(clsName).AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword));
+                    foreach (var child in n.Children.Values)
+                    {
+                        var childCls = Build(child);
+                        if (!cls.Members.OfType<ClassDeclarationSyntax>().Any(c => c.Identifier.Text == childCls.Identifier.Text))
+                            cls = cls.AddMembers(childCls);
+                    }
+                    foreach (var leafCol in n.Columns)
+                    {
+                        var propName = leafCol.Name.Split('.', System.StringSplitOptions.RemoveEmptyEntries).Last().FirstCharToUpper();
+                        if (!cls.Members.OfType<PropertyDeclarationSyntax>().Any(p => p.Identifier.Text == propName))
+                        {
+                            cls = AddProperty(cls, propName, InferType(leafCol.SqlTypeName, leafCol.IsNullable));
+                        }
+                    }
+                    return cls;
+                }
+                var topClass = Build(nodeRoot);
+                if (!classNode.Members.OfType<ClassDeclarationSyntax>().Any(c => c.Identifier.Text == topClass.Identifier.Text))
+                    classNode = classNode.AddMembers(topClass);
+                if (!classNode.Members.OfType<PropertyDeclarationSyntax>().Any(p => p.Identifier.Text == groupName))
+                    classNode = AddProperty(classNode, kv.Key, topClass.Identifier.Text);
             }
         }
         else if (treatAsJson && resultColumns.Any())
         {
-            // Build a tree structure from JsonPath segments so we can generate nested classes
+            // New flattened nested JSON approach: walk columns; nested columns (Columns) expand into nested classes (v7 rename)
             var rootNode = new JsonPathNode("__root__");
-            foreach (var col in resultColumns)
+            void AddFlat(StoredProcedureContentModel.ResultColumn col, JsonPathNode parent)
             {
-                var path = string.IsNullOrWhiteSpace(col.JsonPath) ? col.Name : col.JsonPath;
-                if (string.IsNullOrWhiteSpace(path)) continue;
-                var segments = path.Split('.', System.StringSplitOptions.RemoveEmptyEntries);
-                if (segments.Length == 0) continue;
-                var node = rootNode;
-                for (int i = 0; i < segments.Length; i++)
+                if (col.IsNestedJson == true && col.Columns != null && col.Columns.Count > 0)
                 {
-                    var seg = segments[i];
-                    var isLeaf = i == segments.Length - 1;
-                    node = node.GetOrAdd(seg);
-                    if (isLeaf)
+                    var node = parent.GetOrAdd(col.Name);
+                    foreach (var child in col.Columns)
                     {
-                        node.Columns.Add(col); // attach column at leaf
+                        AddFlat(child, node);
                     }
                 }
+                else
+                {
+                    var node = parent.GetOrAdd(col.Name);
+                    node.Columns.Add(col);
+                }
             }
+            foreach (var col in resultColumns) AddFlat(col, rootNode);
 
             // Generate nested classes recursively; collect top-level segment names for root properties.
             var generatedClasses = new System.Collections.Generic.Dictionary<string, ClassDeclarationSyntax>(System.StringComparer.OrdinalIgnoreCase);
@@ -182,11 +247,11 @@ public class ModelGenerator(
             }
 
             // Add nested classes + root properties with flattening rule:
-            // If a top-level segment has exactly one leaf column and no children AND that column's JsonPath has no dot => direct property (flatten)
+            // If a top-level segment has exactly one leaf column and no children => direct property (flatten)
             // Else generate nested class tree.
             foreach (var top in rootNode.Children.Values)
             {
-                var singleLeafNoChildren = !top.HasChildren && top.Columns.Count == 1 && !(top.Columns[0].JsonPath?.Contains('.') ?? false);
+                var singleLeafNoChildren = !top.HasChildren && top.Columns.Count == 1;
                 if (singleLeafNoChildren)
                 {
                     var col = top.Columns[0];
@@ -477,7 +542,7 @@ public class ModelGenerator(
         var loneCol2 = singlePseudoColumn2 ? currentSet.Columns[0] : null;
         bool loneIsNVarChar2 = loneCol2 != null && (loneCol2.SqlTypeName?.StartsWith("nvarchar", System.StringComparison.OrdinalIgnoreCase) ?? false);
         bool noJsonRoot2 = !(currentSet?.JsonRootProperty?.Length > 0);
-        bool flatJsonPath2 = loneCol2 != null && (string.IsNullOrWhiteSpace(loneCol2.JsonPath) || string.Equals(loneCol2.JsonPath, loneCol2.Name, System.StringComparison.OrdinalIgnoreCase));
+        bool flatJsonPath2 = loneCol2 != null && loneCol2.IsNestedJson != true;
         bool legacyJsonSentinel2 = loneCol2 != null && loneCol2.Name.Equals("JSON_F52E2B61-18A1-11d1-B105-00805F49916B", System.StringComparison.OrdinalIgnoreCase);
         if (isCrudVerbName2 && singlePseudoColumn2 && loneIsNVarChar2 && noJsonRoot2 && flatJsonPath2 && !legacyJsonSentinel2)
         {

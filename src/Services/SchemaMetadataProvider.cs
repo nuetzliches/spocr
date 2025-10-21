@@ -63,7 +63,7 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
         {
             throw new InvalidOperationException("No snapshot directory found (.spocr/schema). Run 'spocr pull' first.");
         }
-    // Expanded layout: index.json + subfolders. Prefer loading this format when present.
+        // Expanded layout: index.json + subfolders. Prefer loading this format when present.
         SchemaSnapshot snapshot = null;
         var indexPath = Path.Combine(schemaDir, "index.json");
         if (File.Exists(indexPath))
@@ -142,10 +142,10 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
                         SchemaName = p.Schema,
                         Name = p.Name,
                         // ModifiedTicks nicht mehr Teil des Snapshots: Fallback auf GeneratedUtc / DateTime.MinValue
-                            Modified = DateTime.MinValue
+                        Modified = DateTime.MinValue
                     })
                     {
-                            ModifiedTicks = null,
+                        ModifiedTicks = null,
                         Input = p.Inputs.Select(i => new StoredProcedureInputModel(new DataContext.Models.StoredProcedureInput
                         {
                             Name = i.Name,
@@ -194,16 +194,16 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
                 };
             }).ToList();
 
-    _schemas = schemas;
-    _lastLoadUtc = DateTime.UtcNow;
-    _fingerprint = snapshot?.Fingerprint;
-    try { _console.Verbose($"[snapshot-provider] loaded schemas={_schemas.Count} fingerprint={_fingerprint}"); } catch { }
-    // Reset ForceReload after first actual reload so subsequent GetSchemas() calls are fast.
-    if (SpocR.Utils.CacheControl.ForceReload)
-    {
-        SpocR.Utils.CacheControl.ForceReload = false;
-    }
-    // Diagnostics: identify JSON result sets without columns (RawJson fallback)
+        _schemas = schemas;
+        _lastLoadUtc = DateTime.UtcNow;
+        _fingerprint = snapshot?.Fingerprint;
+        try { _console.Verbose($"[snapshot-provider] loaded schemas={_schemas.Count} fingerprint={_fingerprint}"); } catch { }
+        // Reset ForceReload after first actual reload so subsequent GetSchemas() calls are fast.
+        if (SpocR.Utils.CacheControl.ForceReload)
+        {
+            SpocR.Utils.CacheControl.ForceReload = false;
+        }
+        // Diagnostics: identify JSON result sets without columns (RawJson fallback)
         try
         {
             foreach (var sc in _schemas)
@@ -220,11 +220,11 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
                             var colCount = rs.Columns?.Count ?? 0;
                             if (colCount == 0)
                             {
-                                _console.Verbose($"[snapshot-provider-json-empty] {sp.SchemaName}.{sp.Name} set#{i+1} JSON columns=0 (RawJson Fallback) root='{rs.JsonRootProperty ?? "<null>"}'");
+                                _console.Verbose($"[snapshot-provider-json-empty] {sp.SchemaName}.{sp.Name} set#{i + 1} JSON columns=0 (RawJson Fallback) root='{rs.JsonRootProperty ?? "<null>"}'");
                             }
                             else
                             {
-                                _console.Verbose($"[snapshot-provider-json] {sp.SchemaName}.{sp.Name} set#{i+1} JSON columns={colCount}");
+                                _console.Verbose($"[snapshot-provider-json] {sp.SchemaName}.{sp.Name} set#{i + 1} JSON columns={colCount}");
                             }
                         }
                     }
@@ -237,45 +237,46 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
 
     private static IReadOnlyList<StoredProcedureContentModel.ResultSet> PostProcessResultSets(SnapshotProcedure p)
     {
-        var sets = p.ResultSets.Select(rs => new StoredProcedureContentModel.ResultSet
+        StoredProcedureContentModel.ResultColumn MapSnapshotCol(SnapshotResultColumn c)
         {
-            ReturnsJson = rs.ReturnsJson,
-            ReturnsJsonArray = rs.ReturnsJsonArray,
-            ReturnsJsonWithoutArrayWrapper = rs.ReturnsJsonWithoutArrayWrapper,
-            JsonRootProperty = rs.JsonRootProperty,
-            ExecSourceSchemaName = rs.ExecSourceSchemaName,
-            ExecSourceProcedureName = rs.ExecSourceProcedureName,
-            HasSelectStar = rs.HasSelectStar,
-            Columns = rs.Columns.Select(c => new StoredProcedureContentModel.ResultColumn
+            // Prefer flattened v6 fields
+            bool hasFlattened = c.IsNestedJson == true || c.ReturnsJson == true || (c.Columns != null && c.Columns.Count > 0);
+#pragma warning disable CS0612
+            var rc = new StoredProcedureContentModel.ResultColumn
             {
-                JsonPath = c.JsonPath,
                 Name = c.Name,
                 SqlTypeName = c.SqlTypeName,
                 IsNullable = c.IsNullable,
                 MaxLength = c.MaxLength,
                 UserTypeSchemaName = c.UserTypeSchemaName,
                 UserTypeName = c.UserTypeName,
-                JsonResult = c.JsonResult == null ? null : new StoredProcedureContentModel.JsonResultModel
-                {
-                    ReturnsJson = c.JsonResult.ReturnsJson,
-                    ReturnsJsonArray = c.JsonResult.ReturnsJsonArray,
-                    ReturnsJsonWithoutArrayWrapper = c.JsonResult.ReturnsJsonWithoutArrayWrapper,
-                    JsonRootProperty = c.JsonResult.JsonRootProperty,
-                    Columns = c.JsonResult.Columns?.Select(n => new StoredProcedureContentModel.ResultColumn
-                    {
-                        JsonPath = n.JsonPath,
-                        Name = n.Name,
-                        SqlTypeName = n.SqlTypeName,
-                        IsNullable = n.IsNullable,
-                        MaxLength = n.MaxLength,
-                        UserTypeSchemaName = n.UserTypeSchemaName,
-                        UserTypeName = n.UserTypeName
-                    }).ToArray() ?? Array.Empty<StoredProcedureContentModel.ResultColumn>()
-                }
-            }).ToArray()
+                IsNestedJson = hasFlattened ? c.IsNestedJson : (c.JsonResult != null ? true : null),
+                ReturnsJson = hasFlattened ? c.ReturnsJson : c.JsonResult?.ReturnsJson,
+                ReturnsJsonArray = hasFlattened ? c.ReturnsJsonArray : c.JsonResult?.ReturnsJsonArray,
+                JsonRootProperty = hasFlattened ? c.JsonRootProperty : c.JsonResult?.JsonRootProperty
+            };
+            var nestedSource = hasFlattened ? c.Columns : c.JsonResult?.Columns;
+#pragma warning restore CS0612
+            if (nestedSource != null && nestedSource.Count > 0)
+            {
+                rc.Columns = nestedSource.Select(MapSnapshotCol).ToArray();
+            }
+            else rc.Columns = Array.Empty<StoredProcedureContentModel.ResultColumn>();
+            return rc;
+        }
+        var sets = p.ResultSets.Select(rs => new StoredProcedureContentModel.ResultSet
+        {
+            ReturnsJson = rs.ReturnsJson,
+            ReturnsJsonArray = rs.ReturnsJsonArray,
+            // removed flag
+            JsonRootProperty = rs.JsonRootProperty,
+            ExecSourceSchemaName = rs.ExecSourceSchemaName,
+            ExecSourceProcedureName = rs.ExecSourceProcedureName,
+            HasSelectStar = rs.HasSelectStar == true,
+            Columns = rs.Columns.Select(MapSnapshotCol).ToArray()
         }).ToList();
 
-                // Placeholder sets (forwarding references) are never filtered now because they are required to resolve the target model.
+        // Placeholder sets (forwarding references) are never filtered now because they are required to resolve the target model.
 
         // Heuristic: single result set and a single legacy FOR JSON column -> mark as JSON
         if (sets.Count == 1)
@@ -291,7 +292,7 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
                     {
                         ReturnsJson = true,
                         ReturnsJsonArray = true, // conservative: FOR JSON PATH without WITHOUT_ARRAY_WRAPPER -> array
-                        ReturnsJsonWithoutArrayWrapper = false,
+                        // removed flag
                         JsonRootProperty = null,
                         Columns = Array.Empty<StoredProcedureContentModel.ResultColumn>() // structure unknown
                     };

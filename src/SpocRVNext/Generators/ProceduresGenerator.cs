@@ -216,27 +216,27 @@ public sealed class ProceduresGenerator
         string header = string.Empty;
         if (_loader != null && _loader.TryLoad("_Header", out var headerTpl)) header = headerTpl.TrimEnd() + Environment.NewLine;
         // Emit ExecutionSupport once (if template present and file missing or stale)
-            if (_loader != null && _loader.TryLoad("ExecutionSupport", out var execTpl))
+        if (_loader != null && _loader.TryLoad("ExecutionSupport", out var execTpl))
+        {
+            var execPath = Path.Combine(baseOutputDir, "ExecutionSupport.cs");
+            bool write = !File.Exists(execPath);
+            if (!write)
             {
-                var execPath = Path.Combine(baseOutputDir, "ExecutionSupport.cs");
-                bool write = !File.Exists(execPath);
-                if (!write)
+                try
                 {
-                    try
-                    {
-                        var existing = File.ReadAllText(execPath);
-                        // Rewrite wenn Namespace falsch ODER TvpHelper fehlt ODER ReaderUtil fehlt (Template aktualisiert)
-                        if (!existing.Contains($"namespace {ns};") || !existing.Contains("TvpHelper") || !existing.Contains("ReaderUtil")) write = true;
-                    }
-                    catch { write = true; }
+                    var existing = File.ReadAllText(execPath);
+                    // Rewrite wenn Namespace falsch ODER TvpHelper fehlt ODER ReaderUtil fehlt (Template aktualisiert)
+                    if (!existing.Contains($"namespace {ns};") || !existing.Contains("TvpHelper") || !existing.Contains("ReaderUtil")) write = true;
                 }
-                if (write)
-                {
-                    var execModel = new { Namespace = ns, HEADER = header };
-                    var code = _renderer.Render(execTpl, execModel);
-                    File.WriteAllText(execPath, code);
-                }
+                catch { write = true; }
             }
+            if (write)
+            {
+                var execModel = new { Namespace = ns, HEADER = header };
+                var code = _renderer.Render(execTpl, execModel);
+                File.WriteAllText(execPath, code);
+            }
+        }
         // StoredProcedure template no longer used after consolidation
         var written = 0;
         string? unifiedTemplateRaw = null;
@@ -335,13 +335,15 @@ public sealed class ProceduresGenerator
                     if (isGeneric)
                     {
                         var genericBase = rsIdx == 0 ? "ResultSet" : "ResultSet" + rsIdx.ToString();
-                        rsType = SanitizeType(procPart, genericBase);
+                        // Keep full NamePolicy.ResultSet naming (including 'Result' suffix) for external tests expecting it.
+                        rsType = NamePolicy.ResultSet(procPart, genericBase);
                     }
                     else
                     {
                         var baseCustom = rs.Name;
-                        var chosen = rsIdx == 0 ? baseCustom : baseCustom + rsIdx.ToString();
-                        rsType = SanitizeType(procPart, chosen);
+                        // Use raw rs.Name for all custom sets (no positional numeric suffix) to keep stable deterministic naming.
+                        var chosen = baseCustom;
+                        rsType = NamePolicy.ResultSet(procPart, chosen);
                     }
                     // Alias-basierte Property-Namen zuerst bestimmen (für JSON-Fallback erforderlich)
                     var usedNames = new HashSet<string>(StringComparer.Ordinal);
@@ -364,22 +366,22 @@ public sealed class ProceduresGenerator
                     var allMissingCondition = rs.Fields.Count > 0 ? string.Join(" && ", rs.Fields.Select((f, i) => $"o{i} < 0")) : "false"; // nur für Nicht-JSON Sets relevant
                     // ReturnsJson Flag aus Snapshot nutzen (ResultSet Modell besitzt Properties)
                     var isJson = rs.ReturnsJson;
-                        var isJsonArray = rs.ReturnsJsonArray;
-                        string jsonFallback = string.Empty;
-                        if (isJson)
+                    var isJsonArray = rs.ReturnsJsonArray;
+                    string jsonFallback = string.Empty;
+                    if (isJson)
+                    {
+                        // Vereinfachte direkte Deserialisierung: SQL liefert genau eine Zeile mit einer NVARCHAR(MAX) JSON-Spalte.
+                        // Keine Schleife, kein Fallback. Flags steuern Array vs Single.
+                        var optionsLiteral = "JsonSupport.Options";
+                        if (isJsonArray)
                         {
-                            // Vereinfachte direkte Deserialisierung: SQL liefert genau eine Zeile mit einer NVARCHAR(MAX) JSON-Spalte.
-                            // Keine Schleife, kein Fallback. Flags steuern Array vs Single.
-                            var optionsLiteral = "JsonSupport.Options";
-                            if (isJsonArray)
-                            {
-                                jsonFallback = $"{{ if (await r.ReadAsync(ct).ConfigureAwait(false) && !r.IsDBNull(0)) {{ var __raw = r.GetString(0); try {{ var __list = System.Text.Json.JsonSerializer.Deserialize<System.Collections.Generic.List<{rsType}>>(__raw, {optionsLiteral}); if (__list != null) foreach (var __e in __list) list.Add(__e); }} catch {{ }} }} }}";
-                            }
-                            else
-                            {
-                                jsonFallback = $"{{ if (await r.ReadAsync(ct).ConfigureAwait(false) && !r.IsDBNull(0)) {{ var __raw = r.GetString(0); try {{ var __single = System.Text.Json.JsonSerializer.Deserialize<{rsType}>(__raw, {optionsLiteral}); if (__single != null) list.Add(__single); }} catch {{ }} }} }}";
-                            }
+                            jsonFallback = $"{{ if (await r.ReadAsync(ct).ConfigureAwait(false) && !r.IsDBNull(0)) {{ var __raw = r.GetString(0); try {{ var __list = System.Text.Json.JsonSerializer.Deserialize<System.Collections.Generic.List<{rsType}>>(__raw, {optionsLiteral}); if (__list != null) foreach (var __e in __list) list.Add(__e); }} catch {{ }} }} }}";
                         }
+                        else
+                        {
+                            jsonFallback = $"{{ if (await r.ReadAsync(ct).ConfigureAwait(false) && !r.IsDBNull(0)) {{ var __raw = r.GetString(0); try {{ var __single = System.Text.Json.JsonSerializer.Deserialize<{rsType}>(__raw, {optionsLiteral}); if (__single != null) list.Add(__single); }} catch {{ }} }} }}";
+                        }
+                    }
                     string ordinalDecls;
                     if (isJson)
                     {
@@ -413,6 +415,136 @@ public sealed class ProceduresGenerator
                         var whileLoop = $"while (await r.ReadAsync(ct).ConfigureAwait(false)) {{ list.Add(new {rsType}({fieldExprs})); }}";
                         bodyBlock = $"var list = new System.Collections.Generic.List<object>(); {ordinalDecls} {whileLoop} return list;";
                     }
+                    // Nested JSON sub-struct generation (always active for JSON sets with underscore groups)
+                    string nestedRecordsBlock = string.Empty;
+                    if (isJson && rs.Fields.Any(f => f.Name.Contains('_')))
+                    {
+                        // Build hierarchical tree
+                        var rootLeafFields = new List<FieldDescriptor>();
+                        var groupOrder = new List<string>();
+                        var groups = new Dictionary<string, List<FieldDescriptor>>(StringComparer.OrdinalIgnoreCase);
+                        foreach (var f in rs.Fields)
+                        {
+                            var parts = f.Name.Split('_');
+                            if (parts.Length == 1)
+                            {
+                                rootLeafFields.Add(f);
+                                continue;
+                            }
+                            var key = parts[0];
+                            if (!groups.ContainsKey(key))
+                            {
+                                groups[key] = new List<FieldDescriptor>();
+                                groupOrder.Add(key);
+                            }
+                            groups[key].Add(f);
+                        }
+
+                        string Pascal(string raw)
+                        {
+                            if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
+                            var segs = raw.Split(new[] { '-', '_' }, StringSplitOptions.RemoveEmptyEntries);
+                            var b = new System.Text.StringBuilder();
+                            foreach (var seg in segs)
+                            {
+                                var clean = new string(seg.Where(char.IsLetterOrDigit).ToArray());
+                                if (clean.Length == 0) continue;
+                                b.Append(char.ToUpperInvariant(clean[0]) + (clean.Length > 1 ? clean.Substring(1) : string.Empty));
+                            }
+                            var res = b.ToString();
+                            if (res.Length == 0) res = "Segment";
+                            if (char.IsDigit(res[0])) res = "N" + res;
+                            return res;
+                        }
+
+                        string BuildNestedTypeName(string root, string segment) => (root.EndsWith("Result", StringComparison.Ordinal) ? root[..^"Result".Length] : root) + Pascal(segment) + "Result";
+
+                        // Recursively build nested types for groups (supports deeper levels e.g. sourceAccount_type_code)
+                        var builtTypes = new List<(string TypeName, string Code)>();
+
+                        List<(string TypeName, string Code)> BuildGroup(string rootTypeName, string groupName, List<FieldDescriptor> fields)
+                        {
+                            // Partition fields into direct leaves (parts length ==2) and deeper
+                            var leaves = new List<FieldDescriptor>();
+                            var subGroups = new Dictionary<string, List<FieldDescriptor>>(StringComparer.OrdinalIgnoreCase);
+                            foreach (var f in fields)
+                            {
+                                var parts = f.Name.Split('_');
+                                if (parts.Length == 2)
+                                {
+                                    leaves.Add(new FieldDescriptor(parts[1], parts[1], f.ClrType, f.IsNullable, f.SqlTypeName, f.MaxLength, f.Documentation, f.Attributes));
+                                }
+                                else if (parts.Length > 2)
+                                {
+                                    var sub = parts[1];
+                                    var remainder = string.Join('_', parts.Skip(1));
+                                    // Reconstruct descriptor with trimmed name
+                                    var f2 = new FieldDescriptor(remainder, remainder, f.ClrType, f.IsNullable, f.SqlTypeName, f.MaxLength, f.Documentation, f.Attributes);
+                                    if (!subGroups.ContainsKey(sub)) subGroups[sub] = new List<FieldDescriptor>();
+                                    subGroups[sub].Add(f2);
+                                }
+                            }
+                            var typeName = BuildNestedTypeName(rootTypeName, groupName);
+                            var paramLines = new List<string>();
+                            paramLines.AddRange(leaves.Select((lf, idx) => $"    {lf.ClrType} {lf.PropertyName}{(idx == leaves.Count && subGroups.Count == 0 ? string.Empty : ",")}"));
+                            // Add sub-group properties (types) preserving first appearance order
+                            int sgIndex = 0;
+                            foreach (var sg in subGroups)
+                            {
+                                var nestedList = BuildGroup(typeName, sg.Key, sg.Value); // recursion
+                                builtTypes.AddRange(nestedList);
+                                var nestedTypeName = BuildNestedTypeName(typeName, sg.Key);
+                                var line = $"    {nestedTypeName} {sg.Key}{(sgIndex == subGroups.Count - 1 ? string.Empty : ",")}";
+                                paramLines.Add(line);
+                                sgIndex++;
+                            }
+                            var code = $"public readonly record struct {typeName}(\n" + string.Join("\n", paramLines) + "\n);\n";
+                            return new List<(string TypeName, string Code)> { (typeName, code) };
+                        }
+
+                        foreach (var g in groupOrder)
+                        {
+                            var nestedList = BuildGroup(rsType, g, groups[g]);
+                            builtTypes.AddRange(nestedList);
+                        }
+                        nestedRecordsBlock = string.Join("\n", builtTypes.Select(t => t.Code));
+
+                        // Rebuild fieldsBlock for root: root leaves + group properties
+                        var rootParams = new List<string>();
+                        // Root leaf fields
+                        for (int i = 0; i < rootLeafFields.Count; i++)
+                        {
+                            var lf = rootLeafFields[i];
+                            var comma = (i == rootLeafFields.Count - 1 && groupOrder.Count == 0) ? string.Empty : ",";
+                            rootParams.Add($"    {lf.ClrType} {lf.PropertyName}{comma}");
+                        }
+                        // Group properties
+                        for (int i = 0; i < groupOrder.Count; i++)
+                        {
+                            var g = groupOrder[i];
+                            var nestedTypeName = BuildNestedTypeName(rsType, g);
+                            var comma = i == groupOrder.Count - 1 ? string.Empty : ",";
+                            rootParams.Add($"    {nestedTypeName} {g}{comma}");
+                        }
+                        var rootFieldsBlock = string.Join(Environment.NewLine, rootParams);
+                        rsMeta.Add(new
+                        {
+                            Name = rs.Name,
+                            TypeName = rsType,
+                            PropName = propName,
+                            OrdinalDecls = ordinalDecls,
+                            FieldExprs = fieldExprs,
+                            Index = rsIdx,
+                            AggregateAssignment = initializerExpr,
+                            FieldsBlock = rootFieldsBlock,
+                            ReturnsJson = isJson,
+                            ReturnsJsonArray = isJsonArray,
+                            BodyBlock = bodyBlock,
+                            NestedRecordsBlock = nestedRecordsBlock
+                        });
+                        rsIdx++;
+                        continue; // skip flat record path
+                    }
                     var fieldsBlock = string.Join(Environment.NewLine, rs.Fields.Select((f, i) => $"    {f.ClrType} {aliasProps[i]}{(i == rs.Fields.Count - 1 ? string.Empty : ",")}"));
                     rsMeta.Add(new
                     {
@@ -426,7 +558,8 @@ public sealed class ProceduresGenerator
                         FieldsBlock = fieldsBlock,
                         ReturnsJson = isJson,
                         ReturnsJsonArray = isJsonArray,
-                        BodyBlock = bodyBlock
+                        BodyBlock = bodyBlock,
+                        NestedRecordsBlock = nestedRecordsBlock
                     });
                     rsIdx++;
                 }
@@ -650,11 +783,8 @@ public sealed class ProceduresGenerator
     // Build a result set record type name without the trailing 'Result' suffix.
     private static string SanitizeType(string procPart, string baseName)
     {
-        // Reuse NamePolicy.ResultSet to leverage sanitization, then strip trailing 'Result'
-        var full = NamePolicy.ResultSet(procPart, baseName);
-        if (full.EndsWith("Result", StringComparison.Ordinal))
-            return full.Substring(0, full.Length - "Result".Length);
-        return full;
+        // Use full ResultSet naming (includes 'Result' suffix) to align with existing tests expecting this suffix.
+        return NamePolicy.ResultSet(procPart, baseName);
     }
 
     private static string AliasToIdentifier(string alias)

@@ -54,23 +54,9 @@ public class StoredProcedureGeneratorJsonTests
     private static (Definition.Schema schema, Definition.StoredProcedure sp, SchemaModel schemaModel, StoredProcedureModel spModel) CreateStoredProcedure(string name, bool returnsJson, bool returnsJsonArray)
     {
         var resultColumns = returnsJson
-            ? new[]
-            {
-                new StoredProcedureContentModel.ResultColumn
-                {
-                    JsonPath = "id",
-                    Name = "Id"
-                }
-            }
-            : new[]
-            {
-                new StoredProcedureContentModel.ResultColumn
-                {
-                    Name = "UserName",
-                    SqlTypeName = "nvarchar",
-                    IsNullable = false
-                }
-            };
+            ? new[] { new StoredProcedureContentModel.ResultColumn { Name = "Id" } }
+            : new[] { new StoredProcedureContentModel.ResultColumn { Name = "UserName", SqlTypeName = "nvarchar", IsNullable = false } };
+        ;
 
         var content = new StoredProcedureContentModel
         {
@@ -80,7 +66,6 @@ public class StoredProcedureGeneratorJsonTests
                 {
                     ReturnsJson = returnsJson,
                     ReturnsJsonArray = returnsJson && returnsJsonArray,
-                    ReturnsJsonWithoutArrayWrapper = returnsJson && !returnsJsonArray,
                     Columns = resultColumns
                 }
             }
