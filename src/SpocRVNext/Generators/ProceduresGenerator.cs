@@ -265,6 +265,8 @@ public sealed class ProceduresGenerator
             var unifiedResultTypeName = ToPascalCase(procPart) + "Aggregate";
             var inputTypeName = NamePolicy.Input(procPart);
             var outputTypeName = NamePolicy.Output(procPart);
+            // JSON Typkorrektur-Tracking für diese Prozedur (außerhalb des Template-Blocks, damit nachher verfügbar)
+            var jsonTypeCorrections = new List<string>();
 
             // Cross-Schema EXEC Forwarding stub:
             // ProcedureDescriptor currently lacks raw SQL text; forwarding requires SQL to detect EXEC-only wrappers.
@@ -327,8 +329,29 @@ public sealed class ProceduresGenerator
                 // Structured metadata for template-driven record generation
                 var rsMeta = new List<object>();
                 int rsIdx = 0;
+                // jsonTypeCorrections bereits oben initialisiert
                 foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
                 {
+                    // JSON Typ-Korrektur: Wenn ReturnsJson aktiv ist, Feldliste mit SQL->CLR Mapping neu ableiten.
+                    IReadOnlyList<FieldDescriptor> effectiveFields = rs.Fields;
+                    if (rs.ReturnsJson && rs.Fields.Count > 0)
+                    {
+                        var remapped = new List<FieldDescriptor>(rs.Fields.Count);
+                        foreach (var f in rs.Fields)
+                        {
+                            var mapped = MapJsonSqlToClr(f.SqlTypeName, f.IsNullable);
+                            if (!string.Equals(mapped, f.ClrType, StringComparison.Ordinal))
+                            {
+                                remapped.Add(new FieldDescriptor(f.Name, f.PropertyName, mapped, f.IsNullable, f.SqlTypeName, f.MaxLength, f.Documentation, f.Attributes));
+                                jsonTypeCorrections.Add($"{proc.OperationName}:{rs.Name}.{f.PropertyName} {f.ClrType}->{mapped}");
+                            }
+                            else
+                            {
+                                remapped.Add(f);
+                            }
+                        }
+                        effectiveFields = remapped;
+                    }
                     // Überarbeitetes Typ-Namensschema:
                     // Index 0 (erster Satz): <Proc>Result
                     // Generische weitere Sätze: <Proc>Result{Index}
@@ -352,7 +375,7 @@ public sealed class ProceduresGenerator
                     // Alias-basierte Property-Namen zuerst bestimmen (für JSON-Fallback erforderlich)
                     var usedNames = new HashSet<string>(StringComparer.Ordinal);
                     var aliasProps = new List<string>();
-                    foreach (var f in rs.Fields)
+                    foreach (var f in effectiveFields)
                     {
                         var candidate = AliasToIdentifier(f.Name);
                         if (!usedNames.Add(candidate))
@@ -363,7 +386,7 @@ public sealed class ProceduresGenerator
                         }
                         aliasProps.Add(candidate);
                     }
-                    var ordinalAssignments = rs.Fields.Select((f, idx) => $"int o{idx}=ReaderUtil.TryGetOrdinal(r, \"{f.Name}\");").ToList();
+                    var ordinalAssignments = effectiveFields.Select((f, idx) => $"int o{idx}=ReaderUtil.TryGetOrdinal(r, \"{f.Name}\");").ToList();
                     // Nur noch optionaler First-Row Dump (Spalten-Missing- & Column-Dump Instrumentierung entfernt)
                     var firstRowDump = "if (System.Environment.GetEnvironmentVariable(\"SPOCR_DUMP_FIRST_ROW\") == \"1\") ReaderUtil.DumpFirstRow(r);";
                     // JSON Aggregator Fallback (FOR JSON PATH) falls alle Ordinals < 0 und trotzdem Feld-Metadata vorhanden
@@ -396,7 +419,7 @@ public sealed class ProceduresGenerator
                     {
                         ordinalDecls = string.Join(" ", ordinalAssignments) + " " + firstRowDump; // klassisches Mapping mit gecachten Ordinals
                     }
-                    var fieldExprs = string.Join(", ", rs.Fields.Select((f, idx) => MaterializeFieldExpressionCached(f, idx)));
+                    var fieldExprs = string.Join(", ", effectiveFields.Select((f, idx) => MaterializeFieldExpressionCached(f, idx)));
                     // Property Namen bleiben analog: Result, Result1, Result2 ...
                     string propName = rsIdx == 0 ? "Result" : "Result" + rsIdx.ToString();
                     var initializerExpr = $"rs.Length > {rsIdx} && rs[{rsIdx}] is object[] rows{rsIdx} ? Array.ConvertAll(rows{rsIdx}, o => ({rsType})o).ToList() : (rs.Length > {rsIdx} && rs[{rsIdx}] is System.Collections.Generic.List<object> list{rsIdx} ? Array.ConvertAll(list{rsIdx}.ToArray(), o => ({rsType})o).ToList() : Array.Empty<{rsType}>())";
@@ -413,13 +436,13 @@ public sealed class ProceduresGenerator
                     }
                     // Nested JSON sub-struct generation (always active for JSON sets with underscore groups)
                     string nestedRecordsBlock = string.Empty;
-                    if (isJson && rs.Fields.Any(f => f.Name.Contains('.') || f.Name.Contains('_')))
+                    if (isJson && effectiveFields.Any(f => f.Name.Contains('.') || f.Name.Contains('_')))
                     {
                         // Build hierarchical tree
                         var rootLeafFields = new List<FieldDescriptor>();
                         var groupOrder = new List<string>();
                         var groups = new Dictionary<string, List<FieldDescriptor>>(StringComparer.OrdinalIgnoreCase);
-                        foreach (var f in rs.Fields)
+                        foreach (var f in effectiveFields)
                         {
                             var parts = f.Name.Contains('.') ? f.Name.Split('.') : f.Name.Split('_');
                             if (parts.Length == 1)
@@ -483,7 +506,8 @@ public sealed class ProceduresGenerator
                             var typeName = BuildNestedTypeName(rootTypeName, groupName);
                             var paramLines = new List<string>();
                             // Kommas nur setzen, wenn entweder weitere Leaf-Parameter folgen oder Subgroups existieren
-                            paramLines.AddRange(leaves.Select((lf, idx) => {
+                            paramLines.AddRange(leaves.Select((lf, idx) =>
+                            {
                                 bool isLastLeaf = idx == leaves.Count - 1;
                                 var needsComma = !isLastLeaf || subGroups.Count > 0;
                                 return $"    {lf.ClrType} {lf.PropertyName}{(needsComma ? "," : string.Empty)}";
@@ -546,7 +570,7 @@ public sealed class ProceduresGenerator
                         rsIdx++;
                         continue; // skip flat record path
                     }
-                    var fieldsBlock = string.Join(Environment.NewLine, rs.Fields.Select((f, i) => $"    {f.ClrType} {aliasProps[i]}{(i == rs.Fields.Count - 1 ? string.Empty : ",")}"));
+                    var fieldsBlock = string.Join(Environment.NewLine, effectiveFields.Select((f, i) => $"    {f.ClrType} {aliasProps[i]}{(i == effectiveFields.Count - 1 ? string.Empty : ",")}"));
                     rsMeta.Add(new
                     {
                         Name = rs.Name,
@@ -637,8 +661,50 @@ public sealed class ProceduresGenerator
             finalCode = NormalizeWhitespace(finalCode);
             File.WriteAllText(Path.Combine(schemaDir, procPart + ".cs"), finalCode);
             written++;
+
+            // Aggregierte Warnung für JSON Typkorrekturen (max. einmal pro Prozedur ausgeben, gekürzt)
+            if (jsonTypeCorrections.Count > 0)
+            {
+                try
+                {
+                    var sample = string.Join(", ", jsonTypeCorrections.Take(5));
+                    Console.Out.WriteLine($"[spocr vNext] JsonTypeMapping: {jsonTypeCorrections.Count} field(s) corrected for {proc.OperationName}. Examples: {sample}{(jsonTypeCorrections.Count > 5 ? ", ..." : string.Empty)}");
+                }
+                catch { /* ignore */ }
+            }
         }
         return written;
+    }
+
+    // Mapping speziell für JSON ResultSets (ähnlich MapSqlToClr, aber isoliert damit spätere Erweiterungen möglich sind)
+    private static string MapJsonSqlToClr(string? sqlTypeName, bool nullable)
+    {
+        if (string.IsNullOrWhiteSpace(sqlTypeName)) return nullable ? "string?" : "string";
+        var t = sqlTypeName.ToLowerInvariant();
+        // Entferne Länge/Precision Angaben (z.B. decimal(18,2))
+        var parenIdx = t.IndexOf('(');
+        if (parenIdx >= 0) t = t.Substring(0, parenIdx);
+        string core = t switch
+        {
+            "int" => "int",
+            "bigint" => "long",
+            "smallint" => "short",
+            "tinyint" => "byte",
+            "bit" => "bool",
+            "decimal" or "numeric" or "money" or "smallmoney" => "decimal",
+            "float" => "double",
+            "real" => "float",
+            "date" or "datetime" or "datetime2" or "smalldatetime" => "DateTime",
+            "datetimeoffset" => "DateTimeOffset",
+            "time" => "TimeSpan",
+            "uniqueidentifier" => "Guid",
+            "varbinary" or "binary" or "image" or "rowversion" or "timestamp" => "byte[]",
+            // JSON Properties können trotzdem nvarchar sein → string
+            _ => "string"
+        };
+        if (core != "string" && core != "byte[]" && nullable) core += "?";
+        // Für byte[] Nullable nicht unterscheiden (leeres Array statt null) – Designentscheidung
+        return core;
     }
 
     private static string MapDbType(string sqlType)
