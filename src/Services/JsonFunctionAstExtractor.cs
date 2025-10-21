@@ -6,153 +6,86 @@ using Microsoft.SqlServer.TransactSql.ScriptDom;
 
 namespace SpocR.Services;
 
-/// <summary>
-/// Parses T-SQL function definitions using ScriptDom to extract JSON return metadata and column projections.
-/// First iteration: focuses on SELECT ... FOR JSON blocks inside scalar functions.
-/// </summary>
+// Finale saubere Implementierung
 public sealed class JsonFunctionAstExtractor
 {
-    private sealed class InMemoryStringReader : TextReader
+    private sealed class FastReader : TextReader
+    { private readonly string _t; private int _p; public FastReader(string t)=>_t=t??string.Empty; public override int Read(char[] b,int i,int c){ if(_p>=_t.Length) return 0; int k=Math.Min(c,_t.Length-_p); _t.CopyTo(_p,b,i,k); _p+=k; return k;} public override int Read()=> _p>=_t.Length? -1 : _t[_p++]; }
+    private sealed class QsCollectorVisitor : TSqlFragmentVisitor
+    { private readonly Action<QuerySpecification> _on; public QsCollectorVisitor(Action<QuerySpecification> on)=>_on=on; public override void Visit(TSqlFragment f){ if (f is QuerySpecification qs) _on(qs); base.Visit(f);} }
+
+    public JsonFunctionAstResult Parse(string sql)
     {
-        private readonly string _text; private int _pos;
-        public InMemoryStringReader(string text) { _text = text ?? string.Empty; }
-        public override int Read(char[] buffer, int index, int count) {
-            if (_pos >= _text.Length) return 0;
-            int toCopy = Math.Min(count, _text.Length - _pos);
-            _text.CopyTo(_pos, buffer, index, toCopy); _pos += toCopy; return toCopy;
-        }
-        public override int Peek() => _pos >= _text.Length ? -1 : _text[_pos];
-        public override int Read() => _pos >= _text.Length ? -1 : _text[_pos++];
-    }
-
-    public JsonFunctionAstResult Parse(string definition)
-    {
-        var res = new JsonFunctionAstResult();
-        if (string.IsNullOrWhiteSpace(definition)) return res;
-        TSqlParser parser = new TSql160Parser(initialQuotedIdentifiers: false);
-        IList<ParseError> errors;
-        using var reader = new InMemoryStringReader(definition);
-        var fragment = parser.Parse(reader, out errors);
-        if (errors != null && errors.Count > 0)
+        var res = new JsonFunctionAstResult(); if (string.IsNullOrWhiteSpace(sql)) return res;
+        var parser = new TSql160Parser(false); using var reader = new FastReader(sql); var fragment = parser.Parse(reader, out var errs); if (errs?.Count>0) res.Errors.AddRange(errs.Select(e=>e.Message));
+        var specs = new List<QuerySpecification>(); fragment.Accept(new QsCollectorVisitor(q => specs.Add(q)));
+        var jsonSpecs = specs.Where(q => GetForJsonClause(q) != null).ToList(); if (jsonSpecs.Count == 0) return res;
+        QuerySpecification? root = jsonSpecs.FirstOrDefault(q => RootFragmentHasWithoutArrayWrapper(sql, q));
+        root ??= jsonSpecs.OrderByDescending(q => q.SelectElements.OfType<SelectScalarExpression>().Count(se => se.Expression is not ScalarSubquery)).First();
+        var forClause = GetForJsonClause(root)!; res.ReturnsJson = true; res.JsonRoot = GetRootName(forClause);
+        bool withoutViaProperty = GetWithoutArrayWrapper(forClause);
+        bool withoutViaRaw = RootFragmentHasWithoutArrayWrapper(sql, root);
+        res.ReturnsJsonArray = !(withoutViaProperty || withoutViaRaw);
+        foreach (var se in root.SelectElements.OfType<SelectScalarExpression>())
         {
-            res.Errors = errors.Select(e => e.Message).ToList();
-            // Best-effort continue; JSON detection may still succeed.
+            var alias = se.ColumnName?.Value ?? InferAlias(se.Expression);
+            res.Columns.Add(BuildColumn(se.Expression, alias, 0));
         }
-
-        // Find top-level SELECT statements with FOR JSON clause (reflection-based to avoid version mismatches)
-        var selects = new List<SelectStatement>();
-        fragment.Accept(new CollectSelectVisitor(selects));
-        foreach (var stmt in selects)
-        {
-            var querySpec = stmt.QueryExpression as QuerySpecification;
-            if (querySpec == null) continue;
-            // Try property ForClause
-            var fcProp = querySpec.GetType().GetProperty("ForClause");
-            object fcVal = null;
-            if (fcProp != null) fcVal = fcProp.GetValue(querySpec);
-            if (fcVal == null || fcVal.GetType().Name != "ForJsonClause") continue;
-            res.ReturnsJson = true;
-            // WithoutArrayWrapper via reflection
-            var withoutArrProp = fcVal.GetType().GetProperty("WithoutArrayWrapper");
-            if (withoutArrProp != null)
-            {
-                var wv = withoutArrProp.GetValue(fcVal) as bool?;
-                res.ReturnsJsonArray = !(wv ?? false);
-            }
-            else res.ReturnsJsonArray = true;
-            var rootNameProp = fcVal.GetType().GetProperty("RootName");
-            if (rootNameProp != null)
-            {
-                var rootId = rootNameProp.GetValue(fcVal);
-                if (rootId != null)
-                {
-                    var valProp = rootId.GetType().GetProperty("Value");
-                    if (valProp != null)
-                    {
-                        res.JsonRoot = valProp.GetValue(rootId) as string;
-                    }
-                }
-            }
-
-            // Projection Columns
-            foreach (var selectElement in querySpec.SelectElements)
-            {
-                if (selectElement is SelectScalarExpression scalar)
-                {
-                    var alias = scalar.ColumnName?.Value ?? InferAliasFromExpression(scalar.Expression);
-                    bool nested = ContainsNestedForJsonText(scalar.Expression);
-                    var col = new JsonFunctionAstColumn
-                    {
-                        Name = alias,
-                        IsNestedJson = nested,
-                        ReturnsJson = nested,
-                        ReturnsJsonArray = null // nested array detection later
-                    };
-                    res.Columns.Add(col);
-                }
-            }
-            // Only first FOR JSON SELECT considered for now
-            break;
-        }
+        if (sql.IndexOf("WITHOUT_ARRAY_WRAPPER", StringComparison.OrdinalIgnoreCase) >= 0 && res.ReturnsJsonArray)
+            res.ReturnsJsonArray = false;
         return res;
     }
 
-    private static string InferAliasFromExpression(ScalarExpression expr)
+    private JsonFunctionAstColumn BuildColumn(ScalarExpression expr, string alias, int depth)
     {
-        if (expr is ColumnReferenceExpression colRef)
+        if (depth > 20) return new JsonFunctionAstColumn { Name = alias }; // Sicherheitsgrenze
+        if (expr is ScalarSubquery ss && ss.QueryExpression is QuerySpecification qs)
         {
-            var last = colRef.MultiPartIdentifier?.Identifiers?.LastOrDefault();
-            return last?.Value ?? "col";
+            var fc = GetForJsonClause(qs);
+            if (fc != null)
+            {
+                var col = new JsonFunctionAstColumn { Name = alias, IsNestedJson = true, ReturnsJson = true, ReturnsJsonArray = !GetWithoutArrayWrapper(fc) };
+                foreach (var inner in qs.SelectElements.OfType<SelectScalarExpression>())
+                {
+                    var a = inner.ColumnName?.Value ?? InferAlias(inner.Expression);
+                    col.Children.Add(BuildColumn(inner.Expression, a, depth + 1));
+                }
+                return col;
+            }
         }
-        if (expr is FunctionCall fn)
+        if (expr is FunctionCall fcCall && fcCall.FunctionName?.Value?.Equals("JSON_QUERY", StringComparison.OrdinalIgnoreCase) == true)
         {
-            return fn.FunctionName.Value;
+            return new JsonFunctionAstColumn { Name = alias, IsNestedJson = true, ReturnsJson = true };
         }
-        return "col";
+        return new JsonFunctionAstColumn { Name = alias };
     }
 
-    private static bool ContainsNestedForJsonText(ScalarExpression expr)
+    private string InferAlias(ScalarExpression expr) => expr switch
     {
-        // Fallback heuristic: walk identifiers & function calls to find nested SELECT FOR JSON textual fragments.
-        // ScriptDom doesn't easily provide reconstructed text; attempt via fragment script generation could be added later.
-        var found = false;
-        expr.Accept(new GenericVisitor(f =>
+        ColumnReferenceExpression cr => cr.MultiPartIdentifier?.Identifiers?.LastOrDefault()?.Value ?? "col",
+        FunctionCall f => f.FunctionName?.Value ?? "col",
+        ScalarSubquery => "col",
+        _ => "col"
+    };
+
+    private object? GetForJsonClause(QuerySpecification qs) => qs?.GetType().GetProperty("ForClause")?.GetValue(qs);
+    private bool GetWithoutArrayWrapper(object forJsonClause)
+    { var p = forJsonClause.GetType().GetProperty("WithoutArrayWrapper"); if (p == null) return false; var v = p.GetValue(forJsonClause); return v is bool b && b; }
+    private string? GetRootName(object forJsonClause)
+    { var p = forJsonClause.GetType().GetProperty("RootName"); if (p == null) return null; var v = p.GetValue(forJsonClause); if (v == null) return null; var vp = v.GetType().GetProperty("Value"); return vp?.GetValue(v) as string; }
+    private bool RootFragmentHasWithoutArrayWrapper(string sql, QuerySpecification root)
+    {
+        if (root.StartOffset >= 0 && root.FragmentLength > 0 && root.StartOffset + root.FragmentLength <= sql.Length)
         {
-            var typeName = f.GetType().Name;
-            if (typeName.Contains("Json") || typeName.Contains("ForJson")) found = true;
-        }));
-        return found;
-    }
-
-    private sealed class CollectSelectVisitor : TSqlFragmentVisitor
-    {
-        private readonly List<SelectStatement> _target;
-        public CollectSelectVisitor(List<SelectStatement> target) { _target = target; }
-        public override void Visit(SelectStatement node) => _target.Add(node);
-    }
-
-    private sealed class GenericVisitor : TSqlFragmentVisitor
-    {
-        private readonly Action<TSqlFragment> _on;
-        public GenericVisitor(Action<TSqlFragment> on) { _on = on; }
-        public override void Visit(TSqlFragment node) { _on(node); base.Visit(node); }
+            var frag = sql.Substring(root.StartOffset, root.FragmentLength);
+            return frag.IndexOf("WITHOUT_ARRAY_WRAPPER", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+        return sql.IndexOf("WITHOUT_ARRAY_WRAPPER", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 }
 
 public sealed class JsonFunctionAstResult
-{
-    public bool ReturnsJson { get; set; }
-    public bool ReturnsJsonArray { get; set; }
-    public string JsonRoot { get; set; }
-    public List<JsonFunctionAstColumn> Columns { get; } = new();
-    public List<string> Errors { get; set; } = new();
-}
+{ public bool ReturnsJson { get; set; } public bool ReturnsJsonArray { get; set; } public string? JsonRoot { get; set; } public List<JsonFunctionAstColumn> Columns { get; } = new(); public List<string> Errors { get; } = new(); }
 
 public sealed class JsonFunctionAstColumn
-{
-    public string Name { get; set; }
-    public bool IsNestedJson { get; set; }
-    public bool ReturnsJson { get; set; }
-    public bool? ReturnsJsonArray { get; set; }
-    public List<JsonFunctionAstColumn> Children { get; } = new();
-}
+{ public string Name { get; set; } = string.Empty; public bool IsNestedJson { get; set; } public bool ReturnsJson { get; set; } public bool? ReturnsJsonArray { get; set; } public List<JsonFunctionAstColumn> Children { get; } = new(); }

@@ -38,15 +38,17 @@ public class StoredProcedureContentModel
         if (string.IsNullOrWhiteSpace(definition))
             return new StoredProcedureContentModel { Definition = definition };
 
+        // Normalisierung mehrfacher Semikolons (Parser Toleranz für ";;")
+        var normalizedDefinition = System.Text.RegularExpressions.Regex.Replace(definition, @";{2,}", ";");
         TSqlFragment fragment;
         IList<ParseError> parseErrors;
-        using (var reader = new StringReader(definition))
+        using (var reader = new StringReader(normalizedDefinition))
             fragment = Parser.Parse(reader, out parseErrors);
 
-        if (parseErrors?.Count > 0 || fragment == null)
+        // Anpassung: Verwende AST auch bei ParseErrors sofern Fragment vorhanden (tolerant gegenüber geringfügigen Syntax-Issues wie doppelten Semikolons).
+        if (fragment == null)
         {
             var fb = Fallback(definition);
-            // Fallback liefert bereits Flags; ergänze Fehlerinfos manuell.
             return new StoredProcedureContentModel
             {
                 Definition = fb.Definition,
@@ -64,16 +66,16 @@ public class StoredProcedureContentModel
             };
         }
 
-        var analysis = new Analysis(string.IsNullOrWhiteSpace(defaultSchema) ? "dbo" : defaultSchema);
-        fragment.Accept(new Visitor(definition, analysis));
+    var analysis = new Analysis(string.IsNullOrWhiteSpace(defaultSchema) ? "dbo" : defaultSchema);
+    fragment.Accept(new Visitor(normalizedDefinition, analysis));
 
         // Build statements list
-        var statements = analysis.StatementTexts.Any() ? analysis.StatementTexts.ToArray() : new[] { definition.Trim() };
+    var statements = analysis.StatementTexts.Any() ? analysis.StatementTexts.ToArray() : new[] { normalizedDefinition.Trim() };
 
         // Exec forwarding logic
         var execsRaw = analysis.ExecutedProcedures.Select(e => new ExecutedProcedureCall { Schema = e.Schema, Name = e.Name, IsCaptured = false }).ToList();
         var captured = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var line in definition.Split('\n'))
+    foreach (var line in normalizedDefinition.Split('\n'))
         {
             var originalLine = line;
             var commentIndex = originalLine.IndexOf("--", StringComparison.Ordinal);
@@ -95,11 +97,11 @@ public class StoredProcedureContentModel
         }
         var execs = execsRaw.Where(e => !e.IsCaptured).ToArray();
 
-        var containsExec = definition.IndexOf("EXEC", StringComparison.OrdinalIgnoreCase) >= 0;
+    var containsExec = normalizedDefinition.IndexOf("EXEC", StringComparison.OrdinalIgnoreCase) >= 0;
         var rawExec = new List<string>(); var rawKinds = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (containsExec)
         {
-            foreach (var line in definition.Split('\n'))
+            foreach (var line in normalizedDefinition.Split('\n'))
             {
                 if (rawExec.Count >= 5) break;
                 var originalLine = line;
@@ -115,6 +117,25 @@ public class StoredProcedureContentModel
             }
         }
 
+        // Fallback-Schicht bei ParseErrors ohne erkannte JSON Sets: heuristische Erkennung nur wenn AST keine Sets brachte.
+        if ((parseErrors?.Count ?? 0) > 0 && (analysis.JsonSets == null || analysis.JsonSets.Count == 0))
+        {
+            bool hasForJson = normalizedDefinition.IndexOf("FOR JSON PATH", StringComparison.OrdinalIgnoreCase) >= 0;
+            if (hasForJson)
+            {
+                bool withoutArray = normalizedDefinition.IndexOf("WITHOUT_ARRAY_WRAPPER", StringComparison.OrdinalIgnoreCase) >= 0;
+                string root = null;
+                var mRoot = System.Text.RegularExpressions.Regex.Match(normalizedDefinition, @"ROOT\s*\(\s*'([^']+)'\s*\)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                if (mRoot.Success) root = mRoot.Groups[1].Value;
+                analysis.JsonSets.Add(new ResultSet
+                {
+                    ReturnsJson = true,
+                    ReturnsJsonArray = !withoutArray,
+                    JsonRootProperty = root,
+                    Columns = Array.Empty<ResultColumn>()
+                });
+            }
+        }
         var resultSets = AttachExecSource(analysis.JsonSets, execs, rawExec, rawKinds, analysis.DefaultSchema);
 
         return new StoredProcedureContentModel
@@ -326,6 +347,38 @@ public class StoredProcedureContentModel
                             alias = implicitCr.MultiPartIdentifier.Identifiers[^1].Value;
                         else if (sce.Expression is CastCall castCall && castCall.Parameter is ColumnReferenceExpression castCol && castCol.MultiPartIdentifier?.Identifiers?.Count > 0)
                             alias = castCol.MultiPartIdentifier.Identifiers[^1].Value;
+                    }
+                    // Zusätzliche Alias-Erkennung für FOR JSON Pfad-Syntax inkl. Fälle, in denen ScriptDom das AS 'alias' außerhalb des Fragmentes schneidet.
+                    if (string.IsNullOrWhiteSpace(alias) && sce.StartOffset >= 0 && sce.FragmentLength > 0)
+                    {
+                        try
+                        {
+                            var endExpr = Math.Min(_definition.Length, sce.StartOffset + sce.FragmentLength);
+                            var exprSegment = _definition.Substring(sce.StartOffset, endExpr - sce.StartOffset);
+                            // Primär: AS 'alias' im Ausdruckssegment
+                            var m = System.Text.RegularExpressions.Regex.Match(exprSegment, @"AS\s+'([^']+)'", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                            if (!m.Success)
+                            {
+                                // Fallback: Einzelnes quoted literal (manche Alias-Stile ohne explizites AS)
+                                m = System.Text.RegularExpressions.Regex.Match(exprSegment, @"'([^']+)'", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                            }
+                            if (!m.Success)
+                            {
+                                // Forward-Scan bis FOR JSON oder nächstes SELECT/ FROM / GROUP BY zur Begrenzung
+                                int boundary = _definition.IndexOf("FOR JSON", endExpr, StringComparison.OrdinalIgnoreCase);
+                                if (boundary < 0) boundary = _definition.Length;
+                                int scanEnd = Math.Min(_definition.Length, endExpr + 300);
+                                if (boundary > endExpr && boundary < scanEnd) scanEnd = boundary;
+                                var forward = _definition.Substring(endExpr, scanEnd - endExpr);
+                                m = System.Text.RegularExpressions.Regex.Match(forward, @"AS\s+'([^']+)'", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                                if (!m.Success)
+                                {
+                                    m = System.Text.RegularExpressions.Regex.Match(forward, @"'([^']+)'", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                                }
+                            }
+                            if (m.Success) alias = m.Groups[1].Value;
+                        }
+                        catch { }
                     }
                     if (string.IsNullOrWhiteSpace(alias)) continue;
                     var path = NormalizeJsonPath(alias);

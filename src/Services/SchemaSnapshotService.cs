@@ -73,6 +73,9 @@ public class SchemaSnapshotService : ISchemaSnapshotService
             if (dir == null) return;
             var path = Path.Combine(dir, snapshot.Fingerprint + ".json");
 
+            // Entfernt: synthetisches JSON ResultSet basierend auf String-Heuristik.
+            // Begründung: Erkennung soll ausschließlich über AST / vorgelagerte Parser-Phase laufen.
+
             SnapshotResultColumn ProcessColumn(SnapshotResultColumn c)
             {
                 var clone = new SnapshotResultColumn

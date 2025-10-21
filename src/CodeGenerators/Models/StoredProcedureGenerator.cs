@@ -597,7 +597,8 @@ public class StoredProcedureGenerator(
                 var firstCol = firstSet?.Columns?.FirstOrDefault();
                 if (firstCol != null && !string.IsNullOrWhiteSpace(firstCol.SqlTypeName))
                 {
-                    returnModel = ParseTypeFromSqlDbTypeName(firstCol.SqlTypeName, firstCol.IsNullable ?? true).ToString();
+                    // Fallback: fehlendes IsNullable (wegen Pruning bei false) => non-nullable
+                    returnModel = ParseTypeFromSqlDbTypeName(firstCol.SqlTypeName, firstCol.IsNullable ?? false).ToString();
                 }
                 else
                 {

@@ -188,13 +188,14 @@ namespace SpocR.SpocRVNext.Metadata
                         var clean = raw.TrimStart('@');
                         var sqlType = ip.GetPropertyOrDefault("SqlTypeName") ?? string.Empty;
                         var maxLen = ip.GetPropertyOrDefaultInt("MaxLength");
-                        var isNullable = ip.GetPropertyOrDefaultBool("IsNullable");
+                        var isNullable = ip.GetPropertyOrDefaultBoolStrict("IsNullable");
                         var isOutput = ip.GetPropertyOrDefaultBool("IsOutput");
                         bool isTableType = ip.GetPropertyOrDefaultBool("IsTableType");
                         var ttSchema = ip.GetPropertyOrDefault("TableTypeSchema");
                         var ttName = ip.GetPropertyOrDefault("TableTypeName");
                         FieldDescriptor fd;
-                        if (isTableType && !string.IsNullOrWhiteSpace(ttName))
+                        // Treat parameter as table type if either explicit flag set OR TableTypeName provided
+                        if ((isTableType || !string.IsNullOrWhiteSpace(ttName)) && !string.IsNullOrWhiteSpace(ttName))
                         {
                             // Direkte UDTT-Zuordnung: CLR-Typ = Pascal(TableTypeName) (kein Renaming, nur Sonderzeichen bereinigen)
                             var pascal = NamePolicy.Sanitize(ttName!);
@@ -220,7 +221,7 @@ namespace SpocR.SpocRVNext.Metadata
                         if (outputParams.Any(o => o.Name.Equals(clean, StringComparison.OrdinalIgnoreCase))) continue;
                         var sqlType = opEl.GetPropertyOrDefault("SqlTypeName") ?? string.Empty;
                         var maxLen = opEl.GetPropertyOrDefaultInt("MaxLength");
-                        var isNullable = opEl.GetPropertyOrDefaultBool("IsNullable");
+                        var isNullable = opEl.GetPropertyOrDefaultBoolStrict("IsNullable");
                         var clr = MapSqlToClr(sqlType, isNullable);
                         var fd = new FieldDescriptor(clean, NamePolicy.Sanitize(clean), clr, isNullable, sqlType, maxLen);
                         outputParams.Add(fd);
@@ -244,7 +245,7 @@ namespace SpocR.SpocRVNext.Metadata
                                 if (string.IsNullOrWhiteSpace(colName)) continue;
                                 var sqlType = c.GetPropertyOrDefault("SqlTypeName") ?? string.Empty;
                                 var maxLen = c.GetPropertyOrDefaultInt("MaxLength");
-                                var isNullable = c.GetPropertyOrDefaultBool("IsNullable");
+                                var isNullable = c.GetPropertyOrDefaultBoolStrict("IsNullable");
                                 var clr = MapSqlToClr(sqlType, isNullable);
                                 columns.Add(new FieldDescriptor(colName, NamePolicy.Sanitize(colName), clr, isNullable, sqlType, maxLen));
                             }
@@ -412,7 +413,7 @@ namespace SpocR.SpocRVNext.Metadata
                                                 var sqlType = pe.GetPropertyOrDefault("SqlTypeName") ?? pe.GetPropertyOrDefault("SqlType") ?? string.Empty;
                                                 var maxLenVal = pe.GetPropertyOrDefaultInt("MaxLength");
                                                 int maxLen = maxLenVal ?? 0;
-                                                bool isNullable = pe.GetPropertyOrDefaultBool("IsNullable");
+                                                bool isNullable = pe.GetPropertyOrDefaultBoolStrict("IsNullable");
                                                 bool isOutput = pe.GetPropertyOrDefaultBool("IsOutput");
                                                 var clr = SqlClrTypeMapper.Map(sqlType, isNullable);
                                                 paramDescriptors.Add(new FunctionParameterDescriptor(clean, sqlType, clr, isNullable, maxLen <= 0 ? null : maxLen, isOutput));
@@ -427,7 +428,7 @@ namespace SpocR.SpocRVNext.Metadata
                                                 var colName = ce.GetPropertyOrDefault("Name") ?? string.Empty;
                                                 if (string.IsNullOrWhiteSpace(colName)) continue;
                                                 var sqlType = ce.GetPropertyOrDefault("SqlTypeName") ?? ce.GetPropertyOrDefault("SqlType") ?? string.Empty;
-                                                bool isNullable = ce.GetPropertyOrDefaultBool("IsNullable");
+                                                bool isNullable = ce.GetPropertyOrDefaultBoolStrict("IsNullable");
                                                 var maxLenVal = ce.GetPropertyOrDefaultInt("MaxLength");
                                                 int maxLen = maxLenVal ?? 0;
                                                 var clr = SqlClrTypeMapper.Map(sqlType, isNullable);
@@ -489,6 +490,29 @@ namespace SpocR.SpocRVNext.Metadata
             };
             if (core != "string" && core != "byte[]" && nullable) core += "?";
             return core;
+        }
+    }
+
+    internal static class SchemaMetadataProviderJsonExtensions
+    {
+        public static bool GetPropertyOrDefaultBoolStrict(this JsonElement el, string name)
+        {
+            if (!el.TryGetProperty(name, out var v)) return false; // fehlend => false (NOT NULL default)
+            if (v.ValueKind == JsonValueKind.True) return true;
+            if (v.ValueKind == JsonValueKind.False) return false;
+            if (v.ValueKind == JsonValueKind.String)
+            {
+                var s = v.GetString();
+                if (string.Equals(s, "true", StringComparison.OrdinalIgnoreCase)) return true;
+                if (string.Equals(s, "false", StringComparison.OrdinalIgnoreCase)) return false;
+                return false;
+            }
+            if (v.ValueKind == JsonValueKind.Number)
+            {
+                if (v.TryGetInt32(out var i)) return i != 0;
+                return false;
+            }
+            return false;
         }
     }
 }

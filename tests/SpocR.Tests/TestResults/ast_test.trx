@@ -1,0 +1,57 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="d7f3e837-e70b-40bd-a6d2-094db9d8a2cf" name="sgies@WOODY 2025-10-21 16:23:02" runUser="WOODY\sgies" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2025-10-21T16:23:02.6201339+02:00" queuing="2025-10-21T16:23:02.6201341+02:00" start="2025-10-21T16:23:02.0343403+02:00" finish="2025-10-21T16:23:02.6346505+02:00" />
+  <TestSettings name="default" id="89844049-2899-4775-8fa6-d7ed3e186e4c">
+    <Deployment runDeploymentRoot="sgies_WOODY_2025-10-21_16_23_02" />
+  </TestSettings>
+  <Results>
+    <UnitTestResult executionId="a3b34339-70b0-471e-8325-d51406150a2d" testId="8391dc21-5f23-6ab1-605d-c765aab8f25f" testName="SpocR.Tests.Cli.StatusFindAsJsonAstTests.StatusFindAsJson_FunctionSelect_ForJsonColumnsExtracted" computerName="WOODY" duration="00:00:00.0589617" startTime="2025-10-21T16:23:02.4773977+02:00" endTime="2025-10-21T16:23:02.5452414+02:00" testType="13cdc9d9-ddb5-4fa4-a97d-d965ccfc6d4b" outcome="Failed" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" relativeResultsDirectory="a3b34339-70b0-471e-8325-d51406150a2d">
+      <Output>
+        <ErrorInfo>
+          <Message>Assert.Contains() Failure: Item not found in collection&#xD;
+Collection: ["statusActionId", "record.rowVersion", "status.statusId", "status.isHidden", "action.actionId", ···]&#xD;
+Not found:  "statusId"</Message>
+          <StackTrace>   at SpocR.Tests.Cli.StatusFindAsJsonAstTests.StatusFindAsJson_FunctionSelect_ForJsonColumnsExtracted() in C:\Projekte\GitHub\spocr\tests\SpocR.Tests\Cli\StatusFindAsJsonAstTests.cs:line 114&#xD;
+   at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)&#xD;
+   at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)</StackTrace>
+        </ErrorInfo>
+      </Output>
+    </UnitTestResult>
+  </Results>
+  <TestDefinitions>
+    <UnitTest name="SpocR.Tests.Cli.StatusFindAsJsonAstTests.StatusFindAsJson_FunctionSelect_ForJsonColumnsExtracted" storage="c:\projekte\github\spocr\tests\spocr.tests\bin\debug\net8.0\spocr.tests.dll" id="8391dc21-5f23-6ab1-605d-c765aab8f25f">
+      <Execution id="a3b34339-70b0-471e-8325-d51406150a2d" />
+      <TestMethod codeBase="C:\Projekte\GitHub\spocr\tests\SpocR.Tests\bin\Debug\net8.0\SpocR.Tests.dll" adapterTypeName="executor://xunit/VsTestRunner3/netcore/" className="SpocR.Tests.Cli.StatusFindAsJsonAstTests" name="StatusFindAsJson_FunctionSelect_ForJsonColumnsExtracted" />
+    </UnitTest>
+  </TestDefinitions>
+  <TestEntries>
+    <TestEntry testId="8391dc21-5f23-6ab1-605d-c765aab8f25f" executionId="a3b34339-70b0-471e-8325-d51406150a2d" testListId="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+  </TestEntries>
+  <TestLists>
+    <TestList name="Ergebnisse nicht in einer Liste" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="Alle geladenen Ergebnisse" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Failed">
+    <Counters total="1" executed="1" passed="0" failed="1" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.00] xUnit.net VSTest Adapter v3.1.5+1b188a7b0a (64-bit .NET 8.0.21)&#xD;
+[xUnit.net 00:00:00.12]   Discovering: SpocR.Tests&#xD;
+[xUnit.net 00:00:00.16]   Discovered:  SpocR.Tests&#xD;
+[xUnit.net 00:00:00.17]   Starting:    SpocR.Tests&#xD;
+[xUnit.net 00:00:00.25]       Assert.Contains() Failure: Item not found in collection&#xD;
+[xUnit.net 00:00:00.25]       Collection: ["statusActionId", "record.rowVersion", "status.statusId", "status.isHidden", "action.actionId", ···]&#xD;
+[xUnit.net 00:00:00.25]       Not found:  "statusId"&#xD;
+[xUnit.net 00:00:00.25]       Stack Trace:&#xD;
+[xUnit.net 00:00:00.25]         C:\Projekte\GitHub\spocr\tests\SpocR.Tests\Cli\StatusFindAsJsonAstTests.cs(114,0): at SpocR.Tests.Cli.StatusFindAsJsonAstTests.StatusFindAsJson_FunctionSelect_ForJsonColumnsExtracted()&#xD;
+[xUnit.net 00:00:00.25]            at System.RuntimeMethodHandle.InvokeMethod(Object target, Void** arguments, Signature sig, Boolean isConstructor)&#xD;
+[xUnit.net 00:00:00.25]            at System.Reflection.MethodBaseInvoker.InvokeWithNoArgs(Object obj, BindingFlags invokeAttr)&#xD;
+[xUnit.net 00:00:00.26]   Finished:    SpocR.Tests&#xD;
+</StdOut>
+    </Output>
+    <RunInfos>
+      <RunInfo computerName="WOODY" outcome="Error" timestamp="2025-10-21T16:23:02.5466836+02:00">
+        <Text>[xUnit.net 00:00:00.25]     SpocR.Tests.Cli.StatusFindAsJsonAstTests.StatusFindAsJson_FunctionSelect_ForJsonColumnsExtracted [FAIL]</Text>
+      </RunInfo>
+    </RunInfos>
+  </ResultSummary>
+</TestRun>

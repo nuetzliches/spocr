@@ -758,3 +758,5 @@ Status-Legende: [>] deferred (v5 Ziel) – Querverweis auf README / Roadmap Absc
       Wenn das ein Überbleibsel unserer fixes ist, bitte entfernen.
 - [ ] Der Deserializer für JSON Prozeduren soll als Default die Options aus den SpocrDbContextOptions verwenden (diese müssen als Default gesetzt sein).
 - [ ] Die Snapshots StoredProcedures.Inputs und Functions.Parameters sollen eine gemeinsame Modelbasis haben und `IsOutput` gilt nur für SPs. Für `false` Values (z.B.: IsNullable, IsOutput, HasDefaultValue oder auch MaxLength=0) ausgeblendet werden. 
+- [ ] `IsTableType` soll immer aus `"TableType*"` abgeleitet werden. Keine eigene Property mehr (oder nur noch einen computed getter)
+- [ ] Aus Kommentaren, Code und Tests jene SQL-Typen,-Schema usw. durch solche ersetzen, die in samples/mssql existieren.

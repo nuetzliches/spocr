@@ -261,7 +261,8 @@ public sealed class ProceduresGenerator
             var schemaDir = Path.Combine(baseOutputDir, schemaPascal);
             Directory.CreateDirectory(schemaDir);
             var procedureTypeName = NamePolicy.Procedure(procPart);
-            var unifiedResultTypeName = NamePolicy.Result(procPart); // <Proc>Result
+            // Aggregat-Typ: rein <Proc>Aggregate (ohne zusätzliches 'Result')
+            var unifiedResultTypeName = ToPascalCase(procPart) + "Aggregate";
             var inputTypeName = NamePolicy.Input(procPart);
             var outputTypeName = NamePolicy.Output(procPart);
 
@@ -328,23 +329,26 @@ public sealed class ProceduresGenerator
                 int rsIdx = 0;
                 foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
                 {
-                    // Type naming rule (0-based): first result set gets unsuffixed <Proc>Result; subsequent sets append numeric index.
+                    // Überarbeitetes Typ-Namensschema:
+                    // Index 0 (erster Satz): <Proc>Result
+                    // Generische weitere Sätze: <Proc>Result{Index}
+                    // Explizite Namen (nicht 'ResultSet*'): <Proc><CustomNamePascal>Result
                     string rsType;
-                    // Determine a clean base set name (generic vs custom)
                     bool isGeneric = rs.Name.StartsWith("ResultSet", StringComparison.OrdinalIgnoreCase);
-                    if (isGeneric)
+                    if (rsIdx == 0)
                     {
-                        var genericBase = rsIdx == 0 ? "ResultSet" : "ResultSet" + rsIdx.ToString();
-                        // Keep full NamePolicy.ResultSet naming (including 'Result' suffix) for external tests expecting it.
-                        rsType = NamePolicy.ResultSet(procPart, genericBase);
+                        rsType = ToPascalCase(procPart) + "Result";
+                    }
+                    else if (isGeneric)
+                    {
+                        rsType = ToPascalCase(procPart) + "Result" + rsIdx.ToString();
                     }
                     else
                     {
-                        var baseCustom = rs.Name;
-                        // Use raw rs.Name for all custom sets (no positional numeric suffix) to keep stable deterministic naming.
-                        var chosen = baseCustom;
-                        rsType = NamePolicy.ResultSet(procPart, chosen);
+                        // Benutzerdefinierter ResultSet Name
+                        rsType = ToPascalCase(procPart) + ToPascalCase(rs.Name) + "Result";
                     }
+                    // Suffix-Korrektur entfällt im neuen Schema
                     // Alias-basierte Property-Namen zuerst bestimmen (für JSON-Fallback erforderlich)
                     var usedNames = new HashSet<string>(StringComparer.Ordinal);
                     var aliasProps = new List<string>();
@@ -393,16 +397,8 @@ public sealed class ProceduresGenerator
                         ordinalDecls = string.Join(" ", ordinalAssignments) + " " + firstRowDump; // klassisches Mapping mit gecachten Ordinals
                     }
                     var fieldExprs = string.Join(", ", rs.Fields.Select((f, idx) => MaterializeFieldExpressionCached(f, idx)));
-                    // Property naming rule: first result set => "Result" (no index). Subsequent => Result1, Result2, ... (index-1)
-                    string propName;
-                    if (rsIdx == 0)
-                    {
-                        propName = "Result";
-                    }
-                    else
-                    {
-                        propName = "Result" + rsIdx.ToString();
-                    }
+                    // Property Namen bleiben analog: Result, Result1, Result2 ...
+                    string propName = rsIdx == 0 ? "Result" : "Result" + rsIdx.ToString();
                     var initializerExpr = $"rs.Length > {rsIdx} && rs[{rsIdx}] is object[] rows{rsIdx} ? Array.ConvertAll(rows{rsIdx}, o => ({rsType})o).ToList() : (rs.Length > {rsIdx} && rs[{rsIdx}] is System.Collections.Generic.List<object> list{rsIdx} ? Array.ConvertAll(list{rsIdx}.ToArray(), o => ({rsType})o).ToList() : Array.Empty<{rsType}>())";
                     // BodyBlock ersetzt Template-If-Verwendung; enthält vollständigen Lambda-Inhalt.
                     string bodyBlock;
@@ -758,11 +754,79 @@ public sealed class ProceduresGenerator
     private static string ToPascalCase(string input)
     {
         if (string.IsNullOrWhiteSpace(input)) return string.Empty;
-        var parts = input.Split(new[] { '-', '_', ' ', '.', '/', '\\' }, StringSplitOptions.RemoveEmptyEntries)
+        // 1. Zerlege anhand üblicher Trenner
+        var rawParts = input.Split(new[] { '-', '_', ' ', '.', '/', '\\' }, StringSplitOptions.RemoveEmptyEntries)
             .Select(p => p.Trim())
             .Where(p => p.Length > 0)
-            .Select(p => char.ToUpperInvariant(p[0]) + (p.Length > 1 ? p.Substring(1).ToLowerInvariant() : string.Empty));
-        var candidate = string.Concat(parts);
+            .ToList();
+        if (rawParts.Count == 0) return string.Empty;
+
+        // 2. Heuristik: Erhalte vorhandene Großbuchstaben-Sequenzen (CamelCase Fragmente) innerhalb eines Segments.
+        //    Beispiel: "WorkflowListAsJson" bleibt unverändert; "workflowListAsJSON" -> "WorkflowListAsJSON" (JSON bleibt groß wenn >=2 kapitalisierte Folgezeichen).
+        string NormalizeSegment(string seg)
+        {
+            if (seg.Length == 0) return seg;
+            // Wenn komplett klein -> klassisch kapitalisieren
+            if (seg.All(ch => char.IsLetter(ch) ? char.IsLower(ch) : true))
+            {
+                return char.ToUpperInvariant(seg[0]) + (seg.Length > 1 ? seg.Substring(1) : string.Empty);
+            }
+            // Wenn komplett groß (<= 4 Zeichen) -> als Akronym übernehmen (z.B. API, SQL, JSON)
+            if (seg.All(ch => !char.IsLetter(ch) || char.IsUpper(ch)))
+            {
+                if (seg.Length <= 4) return seg.ToUpperInvariant();
+                // längere komplett große Segmente: nur erste Groß, Rest klein (z.B. WORKFLOW -> Workflow)
+                return char.ToUpperInvariant(seg[0]) + seg.Substring(1).ToLowerInvariant();
+            }
+            // Gemischtes Muster: wir wollen vorhandene Großbuchstaben erhalten, aber sicherstellen dass erste groß ist.
+            // Splitte an Übergängen von Klein->Groß um interne Tokens sichtbar zu machen, recombine dann mit korrekter Großschreibung.
+            var sb = new System.Text.StringBuilder();
+            var token = new System.Text.StringBuilder();
+            void FlushToken()
+            {
+                if (token.Length == 0) return;
+                var t = token.ToString();
+                if (t.Length <= 4 && t.All(ch => char.IsUpper(ch)))
+                {
+                    // Akronym beibehalten
+                    sb.Append(t.ToUpperInvariant());
+                }
+                else
+                {
+                    sb.Append(char.ToUpperInvariant(t[0]) + (t.Length > 1 ? t.Substring(1) : string.Empty));
+                }
+                token.Clear();
+            }
+            for (int i = 0; i < seg.Length; i++)
+            {
+                var ch = seg[i];
+                if (!char.IsLetterOrDigit(ch)) { FlushToken(); continue; }
+                if (token.Length > 0)
+                {
+                    var prev = token[token.Length - 1];
+                    // Übergang: vorher Klein, jetzt Groß => neues Token (CamelCase Grenze)
+                    if (char.IsLetter(prev) && char.IsLower(prev) && char.IsLetter(ch) && char.IsUpper(ch))
+                    {
+                        FlushToken();
+                    }
+                    // Übergang: mehrere Großbuchstaben gefolgt von Klein -> trenne vor Klein außer wenn nur ein Groß bisher
+                    else if (token.Length >= 2 && token.ToString().All(cc => char.IsUpper(cc)) && char.IsLetter(ch) && char.IsLower(ch))
+                    {
+                        // Akronym abgeschlossen
+                        FlushToken();
+                    }
+                }
+                token.Append(ch);
+            }
+            FlushToken();
+            var result = sb.ToString();
+            if (result.Length == 0)
+                result = char.ToUpperInvariant(seg[0]) + (seg.Length > 1 ? seg.Substring(1).ToLowerInvariant() : string.Empty);
+            return result;
+        }
+
+        var normalizedParts = rawParts.Select(NormalizeSegment).ToList();
+        var candidate = string.Concat(normalizedParts);
         candidate = new string(candidate.Where(ch => char.IsLetterOrDigit(ch) || ch == '_').ToArray());
         if (string.IsNullOrEmpty(candidate)) candidate = "Schema";
         if (char.IsDigit(candidate[0])) candidate = "N" + candidate;

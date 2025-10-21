@@ -91,17 +91,29 @@ public sealed class FunctionSnapshotCollector
                             if (!string.IsNullOrWhiteSpace(ast.JsonRoot)) fnModel.JsonRootProperty = ast.JsonRoot;
                             if (ast.Columns.Count > 0)
                             {
-                                cols = ast.Columns.Select(c => new SnapshotFunctionColumn
+                                SnapshotFunctionColumn Map(JsonFunctionAstColumn c)
                                 {
-                                    Name = c.Name,
-                                    SqlTypeName = c.IsNestedJson ? "json" : "nvarchar(max)",
-                                    IsNullable = true,
-                                    MaxLength = c.IsNestedJson ? -1 : -1,
-                                    IsNestedJson = c.IsNestedJson ? true : null,
-                                    ReturnsJson = c.ReturnsJson ? true : null,
-                                    ReturnsJsonArray = c.ReturnsJsonArray,
-                                    Columns = new List<SnapshotFunctionColumn>()
-                                }).ToList();
+                                    var mapped = new SnapshotFunctionColumn
+                                    {
+                                        Name = c.Name,
+                                        SqlTypeName = c.IsNestedJson ? "json" : "nvarchar(max)",
+                                        IsNullable = true,
+                                        MaxLength = -1,
+                                        IsNestedJson = c.IsNestedJson ? true : null,
+                                        ReturnsJson = c.ReturnsJson ? true : null,
+                                        ReturnsJsonArray = c.ReturnsJsonArray,
+                                        Columns = new List<SnapshotFunctionColumn>()
+                                    };
+                                    if (c.Children != null && c.Children.Count > 0)
+                                    {
+                                        foreach (var child in c.Children)
+                                        {
+                                            mapped.Columns.Add(Map(child));
+                                        }
+                                    }
+                                    return mapped;
+                                }
+                                cols = ast.Columns.Select(Map).ToList();
                             }
                         }
                     }
