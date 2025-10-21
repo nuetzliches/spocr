@@ -85,7 +85,7 @@ public sealed class JsonResultTypeEnricher
                     _console.Verbose($"[json-type-cast] {sp.SchemaName}.{sp.Name} {col.Name} -> {col.SqlTypeName}");
             }
 
-            bool hadFallback = (string.Equals(col.SqlTypeName, "nvarchar(max)", StringComparison.OrdinalIgnoreCase) || string.Equals(col.SqlTypeName, "unknown", StringComparison.OrdinalIgnoreCase)) && isJsonContext;
+            bool hadFallback = (string.Equals(col.SqlTypeName, "nvarchar(max)", StringComparison.OrdinalIgnoreCase) || string.Equals(col.SqlTypeName, "unknown", StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(col.SqlTypeName)) && isJsonContext;
             bool hasConcrete = !string.IsNullOrWhiteSpace(col.SqlTypeName) && !hadFallback;
             if (!hasConcrete && hasSourceBinding)
             {
@@ -204,8 +204,28 @@ public sealed class JsonResultTypeEnricher
                 }
                 catch { /* swallow fallback errors */ }
             }
-            // Removed dotted-name & synonym heuristic: rely solely on AST-bound SourceSchema/SourceTable/SourceColumn.
-            // If AST did not produce bindings, we leave SqlTypeName unresolved.
+            // Gemeinsame Heuristik anwenden falls weiterhin kein konkreter Typ bestimmt (kein Binding oder Binding ohne Treffer)
+            if (!hasConcrete)
+            {
+                // Adapter für Inferenz (nutzt Name + ExpressionKind -> SourceSql aktuell nicht verfügbar im Enricher)
+                var pseudo = new JsonFunctionAstColumn
+                {
+                    Name = col.Name,
+                    IsNestedJson = col.IsNestedJson == true,
+                    ReturnsJson = col.ReturnsJson == true,
+                    ReturnsJsonArray = col.ReturnsJsonArray
+                };
+                var (infType, infLen, infNullable) = SqlTypeInference.Infer(pseudo);
+                if (string.IsNullOrWhiteSpace(col.SqlTypeName) || hadFallback)
+                {
+                    col.SqlTypeName = infType;
+                    if (col.IsNullable == null) col.IsNullable = infNullable;
+                    if (col.MaxLength == 0 || col.MaxLength == null) col.MaxLength = infLen != 0 ? infLen : null;
+                    modifiedLocal = true;
+                    if (verbose && level == JsonTypeLogLevel.Detailed)
+                        _console.Verbose($"[json-type-heuristic] {sp.SchemaName}.{sp.Name} {col.Name} -> {col.SqlTypeName}");
+                }
+            }
 
             // Recurse into nested JSON columns
             if ((col.IsNestedJson == true || col.ReturnsJson == true) && col.Columns != null && col.Columns.Count > 0)

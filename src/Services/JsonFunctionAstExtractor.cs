@@ -39,12 +39,27 @@ public sealed class JsonFunctionAstExtractor
     private JsonFunctionAstColumn BuildColumn(ScalarExpression expr, string alias, int depth)
     {
         if (depth > 20) return new JsonFunctionAstColumn { Name = alias }; // Sicherheitsgrenze
+
+        JsonFunctionAstColumn Make(string name, bool nested=false, bool returnsJson=false, bool? returnsJsonArray=null)
+        {
+            var col = new JsonFunctionAstColumn
+            {
+                Name = name,
+                IsNestedJson = nested,
+                ReturnsJson = returnsJson,
+                ReturnsJsonArray = returnsJsonArray,
+                SourceSql = ExtractFragment(expr)
+            };
+            foreach (var p in ExtractParts(expr)) col.Parts.Add(p);
+            return col;
+        }
+
         if (expr is ScalarSubquery ss && ss.QueryExpression is QuerySpecification qs)
         {
             var fc = GetForJsonClause(qs);
             if (fc != null)
             {
-                var col = new JsonFunctionAstColumn { Name = alias, IsNestedJson = true, ReturnsJson = true, ReturnsJsonArray = !GetWithoutArrayWrapper(fc) };
+                var col = Make(alias, nested:true, returnsJson:true, returnsJsonArray: !GetWithoutArrayWrapper(fc));
                 foreach (var inner in qs.SelectElements.OfType<SelectScalarExpression>())
                 {
                     var a = inner.ColumnName?.Value ?? InferAlias(inner.Expression);
@@ -55,10 +70,36 @@ public sealed class JsonFunctionAstExtractor
         }
         if (expr is FunctionCall fcCall && fcCall.FunctionName?.Value?.Equals("JSON_QUERY", StringComparison.OrdinalIgnoreCase) == true)
         {
-            return new JsonFunctionAstColumn { Name = alias, IsNestedJson = true, ReturnsJson = true };
+            return Make(alias, nested:true, returnsJson:true);
         }
-        return new JsonFunctionAstColumn { Name = alias };
+        return Make(alias);
     }
+
+    private string? ExtractFragment(TSqlFragment frag)
+    {
+        if (frag.StartOffset >= 0 && frag.FragmentLength > 0 && _currentSql != null && frag.StartOffset + frag.FragmentLength <= _currentSql.Length)
+        {
+            return _currentSql.Substring(frag.StartOffset, frag.FragmentLength);
+        }
+        return null;
+    }
+
+    private List<string> ExtractParts(ScalarExpression expr)
+    {
+        var parts = new List<string>();
+        if (expr is ColumnReferenceExpression cr && cr.MultiPartIdentifier != null)
+        {
+            parts.AddRange(cr.MultiPartIdentifier.Identifiers.Select(i => i.Value));
+        }
+        else if (expr is FunctionCall fc)
+        {
+            parts.Add(fc.FunctionName.Value);
+        }
+        return parts;
+    }
+
+    private string? _currentSql;
+
 
     private string InferAlias(ScalarExpression expr) => expr switch
     {
@@ -88,4 +129,13 @@ public sealed class JsonFunctionAstResult
 { public bool ReturnsJson { get; set; } public bool ReturnsJsonArray { get; set; } public string? JsonRoot { get; set; } public List<JsonFunctionAstColumn> Columns { get; } = new(); public List<string> Errors { get; } = new(); }
 
 public sealed class JsonFunctionAstColumn
-{ public string Name { get; set; } = string.Empty; public bool IsNestedJson { get; set; } public bool ReturnsJson { get; set; } public bool? ReturnsJsonArray { get; set; } public List<JsonFunctionAstColumn> Children { get; } = new(); }
+{
+    public string Name { get; set; } = string.Empty;
+    public bool IsNestedJson { get; set; }
+    public bool ReturnsJson { get; set; }
+    public bool? ReturnsJsonArray { get; set; }
+    public List<JsonFunctionAstColumn> Children { get; } = new();
+    // Zusätzliche Metadaten zur besseren Auflösung
+    public string? SourceSql { get; set; }
+    public List<string> Parts { get; } = new();
+}
