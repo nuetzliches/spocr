@@ -333,53 +333,96 @@ Streaming & Invocation (vNext API / Verschoben zu v5)
 
       TODO entfernt: Performance Messung (nicht mehr erforderlich)
 
-### Funktionen & TVFs Snapshot / Mapping (Neu 2025-10-21)
+### Funktionen & TVFs Snapshot / Mapping (Aktualisiert 2025-10-21)
 
-Ziel: Funktionen (Scalar & Table-Valued) analog zu TableTypes unabhängig von BuildSchemas Allow-List persistent erfassen (für Analyse, zukünftige Invocation, Typableitung) und erste Generator-Artefakte bereitstellen. Keine Heuristik – rein aus sys.objects / sys.parameters / sys.types / Definition (OBJECT_DEFINITION). Basis für Entfernung `IsRecordAsJson` sobald Rückgabe-/Row-Typen korrekt.
+Ziel (Phase 1 IST-Zustand): Minimaler Snapshot für Scalar & Table-Valued Functions zur Analyse (künftige Invocation / Dependency Graph), unabhängig von BuildSchemas Allow-List. KEINE Speicherung von Definition, Hash oder ModifiedDate mehr – bewusst schlank für deterministische Diffs.
 
-- [ ] Snapshot: Erfasse Scalar Functions (object types: FN) inkl. SchemaName, FunctionName, Definition Hash, ModifiedDate, Return SqlType
-- [ ] Snapshot: Erfasse Inline & Multi-Statement Table-Valued Functions (object types: IF, TF) inkl. Rowdefinition (Columns + SqlType + IsNullable)
-- [ ] Snapshot Format Erweiterung: Abschnitt `functions` mit Feldern: schemaName, functionName, isTableValued, returnSqlType (scalar), columns[] (tvf), parameters[] (name, sqlType, maxLength, isOutput, isNullable, ordinal), definition (string, optional truncated >N chars), modifiedDateUtc
-- [ ] Snapshot: Unabhängig von `SPOCR_BUILD_SCHEMAS` → Funktionen anderer Schemas werden trotzdem aufgenommen (wie UDTTs) – Filter nur für Generierung nicht für Persistenz
-- [ ] Metadata Provider: Neue Deskriptoren `FunctionDescriptor`, `FunctionParameterDescriptor`, `TableValuedFunctionColumnDescriptor`
-- [ ] Typableitung: SQL → CLR (scalar) (int, bigint, decimal(p,s), bit, nvarchar, uniqueidentifier, datetime2, date, time, varbinary, float, money)
-- [ ] Typableitung: TVF Row → Record Struct (Namensstrategie ähnlich ResultSetNameResolver; Konflikte numerisch suffixen)
-- [ ] Generator: Scalar Function Extension Methoden (Sync/Async): `Task<TReturn> <FunctionName>Async(<params>, CancellationToken ct = default)` (ADO.NET `ExecuteScalarAsync`)
-- [ ] Generator: TVF Invocation Helper: `IAsyncEnumerable<RowRecord> <FunctionName>StreamAsync(...)` + `Task<List<RowRecord>> <FunctionName>Async(...)`
-- [ ] Generator: Nullability korrekt (optionale Parameters & nullable return types falls erlaubt)
-- [ ] Entferne Property `IsRecordAsJson` nachdem JSON `record` Felder typisiert (Abhängigkeit: JSON Typableitung Tasks weiter oben abgeschlossen)
-- [ ] Tests: Snapshot Pull enthält Function-Einträge (Scalar + TVF Beispiel aus Sample DB) – deterministische Reihenfolge (SchemaName + FunctionName ASC)
-- [ ] Tests: Generator erzeugt erwartete Methoden-Signaturen für Beispiel-Funktion (Parameter Mapping, Rückgabe-Typ)
-- [ ] Tests: TVF Row Mapping (Mehrere Spalten, korrekt typisierte Record Struct, Streaming Enumeration)
-- [ ] Tests: Collision Handling bei zwei TVFs mit gleicher Basis (Suffix korrekt)
-- [ ] Tests: Nullable Parameter / Default-Werte Szenario (Parameter mit Default in SQL → Aufruf ohne Argument möglich)
-- [ ] Docs: Abschnitt "Funktionen & TVFs" (Erfassung, Nutzung, Limitierungen v4.5 Bridge) – Hinweis: Invocation optional / Preview
-- [ ] Docs: Beispielcode Scalar Function & TVF Streaming
-- [ ] CHANGELOG: Added – Function & TVF snapshot capture (Preview) (nur ein Eintrag, detaillierte Nutzung später)
-- [ ] Logging: Pull Prozess gibt Anzahl erkannter Functions (`[snapshot-functions] count=<n>`) aus
-- [ ] CLI Hilfe: `spocr pull` Hinweis auf Function/TVF Erfassung (Preview Flag falls deaktivierbar) – Entscheidung ob Flag nötig (vermutlich Always-On)
-- [ ] Performance: Einmaliger Collect Query vs. pro Funktion (Batch Query mit JOINs) – dokumentieren
-- [ ] Optional (DEFERRED): Rückgabe komplexer TableTypes aus Funktionen (falls vorkommend) – Analyse ob notwendig
-- [>] Optional (DEFERRED): Analyzer Warnung bei ungenutzter generierter Function Methode
+Persistierte Felder je Funktion (aktuell):
+- schema, name
+- isTableValued
+- returnSqlType (leer für TVF)
+- returnMaxLength (nur wenn >0, nur scalar)
+- returnIsNullable (nur wenn true, nur scalar)
+- parameters[] (vereinheitlicht mit StoredProcedure Inputs Modell; Rückgabe-Pseudo-Parameter wird extrahiert und NICHT als Parameter gespeichert)
+- columns[] (nur TVF, leer wird entfernt)
+- returnsJson / returnsJsonArray / jsonRootProperty (FOR JSON Heuristik via Regex; nur gesetzt wenn erkannt)
+- isEncrypted (nur true → verschlüsselte Funktion ohne Definition)
 
-Open Design Fragen:
+Umgesetzte Punkte:
+- [x] Batch Collect Queries (functions, params, tvf_cols) – 1 Roundtrip
+- [x] Rückgabe-Pseudo-Parameter Erkennung (leerer Name) für Scalar Functions → ReturnSqlType + Length/Nullable gefüllt
+- [x] TVF Columns Erfassung inkl. Kollisions-Suffix (Name, Name1, Name2 …)
+- [x] Entfernte persistente Felder: definition, definitionHash, modifiedDateUtc (nicht mehr im Modell)
+- [x] IsEncrypted nur setzen wenn Definition fehlt (ansonsten weggelassen)
+- [x] Parameter-Modell vereinheitlicht mit StoredProcedure Inputs (IsOutput immer false bei Functions)
+- [x] Leere Columns Arrays entfernt (Scalar + TVF ohne Rows)
+- [x] FOR JSON Erkennung (returnsJson / returnsJsonArray / jsonRootProperty) per Regex (ROOT Alias & WITHOUT_ARRAY_WRAPPER berücksichtigt)
+- [x] FunctionsVersion Kennzeichnung (snapshot.FunctionsVersion = 1)
+- [x] Sortierung deterministisch (Schema + Name ASC)
 
-1. Werden gefilterte Schemas (Allow-List) für Functions komplett ignoriert? Aktuell: Aufnahme ja, Generation nein → akzeptiert? (Dokumentieren)
-2. Parameter Default-Werte: Snapshot speichert `hasDefaultValue` Flag + optional Roh-Definition extrahieren? (P2 – falls einfach)
-3. TVF Rowdefinition Ermittlung: Parsing aus OBJECT_DEFINITION vs. sys.columns (präferiert: sys.columns für zurückgegebenes Table Objekt)
-4. Namenskonflikte zwischen Procedures und Functions: Unterschiedliche Namespaces ausreichend? (Präfix SchemaPascalCase + FunctionName) – Overload vermeiden.
+Nicht (mehr) Bestandteil Phase 1 (entfernt / verworfen):
+- Definition / Hash / Truncation (>4000) – entfällt zugunsten Minimalität
+- ModifiedDateUtc – nicht benötigt für Generator
+- Return Type Parsing via `RETURNS <type>` Regex – Rückgabetyp wird direkt aus Pseudo-Parameter entnommen
+- Parameter Default-Werte / hasDefaultValue Flag – DEFERRED (später für Overloads)
+- CLR Typ Mapping & Codegen für Functions – DEFERRED (Generator noch nicht aktiv für Functions)
+- Encrypted Definition Volltext Speicherung – entfällt (Flag reicht)
 
-Hinweis: Erstes Ziel ist reine Snapshot Persistenz + minimaler Generator Prototype (Scalar Function). TVF Generation kann folgen, falls Rowdefinition ohne komplexes Parsing verfügbar.
+Neu geplante Erweiterungen (Phase 2):
+- [ ] Dependencies Erfassen (Function → Function Referenzen) via `sys.sql_expression_dependencies` (nur FN/IF/TF) → neues Feld `dependencies[]` (Canonical: schema.functionName)
+- [ ] Zyklus-Erkennung / Markierung (optional: `[fn-dependency-cycle]` Log falls self-referencing oder Ring entdeckt)
+- [ ] Descriptor Angleichen (`FunctionDescriptor`) an schlankes Snapshot-Modell (Definition-Felder optional/entfernt)
+- [ ] Dokumentation Abschnitt "Funktionen & TVFs" mit aktualisiertem Feldschema + Dependency Graph Hinweis
+- [ ] CHANGELOG Eintrag „Preview: Function Snapshot (minimal)“
 
-Abhängigkeiten / depends: [E014] (Erweiterte Generatoren), [E007] (Heuristik-Abbau – keine Alias-Heuristik für Functions), JSON Typableitung Tasks (für Entfernung `IsRecordAsJson`).
+Deferred Items (später/v5):
+- [>] Generator: Scalar Function Async Methoden (ExecuteScalar) + Nullability Mapping
+- [>] Generator: TVF Streaming (`IAsyncEnumerable<RowRecord>`) + Materialize Helper
+- [>] CLR Typ Mapping Utility + Tests (SQL → C#) für Functions
+- [>] Default Parameter Handling & optionale Argumente
+- [>] Analyzer Warnung bei ungenutzten Function Methoden
 
-Risiken & Edge Cases:
+Risiken & Hinweise:
+- Verschlüsselte Funktionen: Nur Flag `isEncrypted=true`, keine weitere Metadatenableitung möglich.
+- TVF komplexe Expressions: sys.columns liefert generierte Namen – akzeptiert; keine heuristische Umbenennung.
+- FOR JSON Regex kann False Positives erzeugen bei kommentierten Codeblöcken – später Kommentar-Stripping (DEFERRED).
+- FOR JSON Parser Limitierungen (aktueller Stand vNext Regex-Heuristik):
+      - Kein vollständiges SQL AST: Es wird die erste/letzte Fundstelle `FOR JSON` mit vorausgehendem `SELECT` erfasst; komplexe CTE-Ketten oder mehrere SELECTs vor RETURN können zu Fehlzuordnungen führen.
+      - Keine explizite RETURN Statement Analyse: Wir suchen nur das Muster `SELECT ... FROM ... FOR JSON`; wenn das finale RETURN auf eine Variable verweist (z.B. `RETURN @payload`) wird die SELECT-Liste nicht erkannt.
+      - Kommentarinhalte (`-- inline`, `/* block */`) werden nicht entfernt → "FOR JSON" in Kommentaren kann fälschlich erkannt werden (False Positive Risiko).
+      - Nested Subqueries: Verschachtelte `(SELECT ... FOR JSON ...)` innerhalb der SELECT-Liste werden als JSON verschachtelte Property (`SqlTypeName = json`) markiert, aber weitere innere Properties werden nicht rekursiv extrahiert.
+      - Aliaserkennung eingeschränkt auf Muster `alias = expr` oder `expr AS alias`; komplexe Ausdrücke ohne Alias fallen auf heuristische Ableitung (letzter Identifier nach Punkt oder letztes Token) zurück.
+      - Typableitung minimal: Nur CAST/CONVERT Zieltypen werden übernommen; JSON_VALUE / JSON_QUERY erhalten `nvarchar(max)`; sonst Default `nvarchar(max)`.
+      - Keine Präzisions-/Skalenanalyse für decimal/numeric außerhalb eines direkten CAST/CONVERT.
+      - Duplikate in der SELECT-Liste werden im Snapshot durch Suffixe (`id`, `id1`, `id2` ...) aufgelöst; die Heuristik entscheidet rein nach bereits gesehenen Namen.
+      - Kein Entfernen von TOP-Level Klammerausdrücken, dadurch können leading `(` im Alias-Fallback verbleiben (geringe Auswirkung, später säubern).
+      - Performance: Ein einzelner Regex mit `Singleline` über die gesamte Funktionsdefinition; bei sehr großen Definitionen > (mehrere 100 KB) potenziell langsam – aktuell akzeptiert (Functions selten so groß).
+      - Erweiterungen (geplant): Kommentar-Stripping, bessere Auswahl des RETURN-nahen SELECT, robustere Tokenisierung, optionales Deaktivieren bei `SPOCR_STRICT_FUNCTION_JSON=1`.
 
-- Verschlüsselte Funktionen (Encryption) → OBJECT_DEFINITION liefert NULL: Snapshot soll `definition` leer lassen + Flag `isEncrypted` (optional später)
-- Schema Rename vs. Function Snapshot Inkonsistenz (Low Risk) – Kein automatischer Cleanup v4.5
-- TVF mit CROSS APPLY / komplexen Expressions im SELECT: sys.columns liefert generierte Namen – akzeptiert als Row-Felder.
+Open Design Fragen (aktualisiert):
+1. Dependencies nur Funktionen oder auch Prozeduren einbeziehen? (Aktuell Fokus: reine Function→Function Kanten)
+2. Nullability von ReturnTyp: Aktuell nur true gesetzt; sollen wir false ebenfalls persistieren (Konsistenz)? → Entscheidung offen.
+3. Sollen ignorierte Schemas auch für Dependencies berücksichtigt werden? (Vorschlag: Ja, wie bei Capture.)
+4. Stored Procedures als Dependency: Nicht erforderlich – Funktionen können keine Stored Procedures direkt ausführen (EXEC in Function nicht erlaubt) → aus Scope gestrichen.
 
-Tracking: Items oben werden wie andere Checklist Tasks mit Status-Markern gepflegt.
+Tracking: Erweiterungen oben als einzelne Checklist Tasks gepflegt.
+
+### Views Snapshot / Mapping (Preview Planung – Deferred v5.0)
+
+Ziel v5: Analoge Erfassung von Views (Schema, Name, Spalten, zugrundeliegende Basis-Tabellen/Objekt-Referenzen) zur Unterstützung besserer Typableitung / Impact-Analysen.
+
+Geplanter Minimalumfang:
+- [>] Snapshot Felder: schema, name, columns[] (Name, SqlTypeName, IsNullable, MaxLength), isIndexed? (optional), isMaterialized? (nur wenn unterstützt)
+- [>] Dependencies: Liste referenzierter Basis-Objekte (Tabellen, andere Views, Funktionen) via sys.sql_expression_dependencies
+- [>] Keine Persistenz vollständiger Definition (wie bei Functions) – evtl. Option `SPOCR_INCLUDE_VIEW_DEFINITION` (DEFERRED)
+- [>] Generator Vorbereitung: Spätere Unterstützung für strongly typed View Queries (SELECT * FROM View) – aktuelles Scope nur Analyse
+
+Open Punkte (v5 Entscheidung):
+- View Column Name Normalisierung notwendig oder 1:1 Übernahme? (Präferenz: 1:1)
+- Umgang mit Schemas außerhalb Allow-List: Gleiches Modell wie Functions (immer aufnehmen, Generation optional)
+- Performance Auswirkungen bei sehr vielen Views – ggf. separate CLI Flag `--include-views` (Opt-In)
+
+Begründung für Deferral: Kein unmittelbarer Nutzen für v4.5 Bridge; Fokus aktuell auf Procedures, TableTypes, Functions & JSON Typisierung.
 
 ### Migration / Breaking Changes (Update 2025-10-15)
 
@@ -714,3 +757,4 @@ Status-Legende: [>] deferred (v5 Ziel) – Querverweis auf README / Roadmap Absc
 - [ ] SPOCR_JSON_SPLIT_NESTED (bzw. SplitNestedJsonSets) ist wozu erforderlich?
       Wenn das ein Überbleibsel unserer fixes ist, bitte entfernen.
 - [ ] Der Deserializer für JSON Prozeduren soll als Default die Options aus den SpocrDbContextOptions verwenden (diese müssen als Default gesetzt sein).
+- [ ] Die Snapshots StoredProcedures.Inputs und Functions.Parameters sollen eine gemeinsame Modelbasis haben und `IsOutput` gilt nur für SPs. Für `false` Values (z.B.: IsNullable, IsOutput, HasDefaultValue oder auch MaxLength=0) ausgeblendet werden. 

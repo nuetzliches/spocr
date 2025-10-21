@@ -491,6 +491,18 @@ public class SpocrManager(
                     }
                 };
 
+                // Collect functions (preview) before writing expanded snapshot
+                try
+                {
+                    var fnCollector = new FunctionSnapshotCollector(dbContext, expandedSnapshotService, consoleService);
+                    await fnCollector.CollectAsync(snapshot);
+                    consoleService.Verbose($"[fn-summary] functions={snapshot.Functions.Count}");
+                }
+                catch (Exception fex)
+                {
+                    consoleService.Warn($"[fn-collect-failed] {fex.Message}");
+                }
+
                 // Monolithic legacy snapshot save removed (architecture refactor)
                 // schemaSnapshotService.Save(snapshot); // disabled
                 try

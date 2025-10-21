@@ -176,6 +176,9 @@ public class SchemaSnapshot
     public List<SnapshotProcedure> Procedures { get; set; } = new();
     public List<SnapshotSchema> Schemas { get; set; } = new();
     public List<SnapshotUdtt> UserDefinedTableTypes { get; set; } = new();
+    // Preview: Functions (scalar + TVF) captured independently of schema allow-list.
+    public int? FunctionsVersion { get; set; } // set to 1 when functions populated
+    public List<SnapshotFunction> Functions { get; set; } = new();
     public SnapshotParserInfo Parser { get; set; }
     public SnapshotStats Stats { get; set; }
 }
@@ -261,6 +264,44 @@ public class SnapshotUdtt
 }
 
 public class SnapshotUdttColumn
+{
+    public string Name { get; set; }
+    public string SqlTypeName { get; set; }
+    public bool IsNullable { get; set; }
+    public int MaxLength { get; set; }
+}
+
+public class SnapshotFunction
+{
+    public string Schema { get; set; }
+    public string Name { get; set; }
+    public bool IsTableValued { get; set; }
+    public string ReturnSqlType { get; set; } // empty for TVF
+    public int? ReturnMaxLength { get; set; } // nur für skalare Funktionen
+    public bool? ReturnIsNullable { get; set; } // nur für skalare Funktionen
+    public List<SnapshotFunctionParameter> Parameters { get; set; } = new();
+    public List<SnapshotFunctionColumn> Columns { get; set; } = new(); // TVF row columns (empty for scalar)
+    public bool? ReturnsJson { get; set; } // heuristisch aus Definition abgeleitet (FOR JSON)
+    public bool? ReturnsJsonArray { get; set; } // true wenn FOR JSON ohne WITHOUT_ARRAY_WRAPPER
+    public string JsonRootProperty { get; set; } // optional aus Pfad ableitbar (zukünftige AST-Analyse)
+    public bool? IsEncrypted { get; set; } // nur schreiben wenn true
+    public List<string> Dependencies { get; set; } = new(); // Liste anderer Funktionen (schema.name) von denen diese Funktion direkt abhängt
+}
+
+public class SnapshotFunctionParameter
+{
+    public string Name { get; set; }
+    public bool IsTableType { get; set; }
+    public string TableTypeSchema { get; set; }
+    public string TableTypeName { get; set; }
+    public bool IsOutput { get; set; }
+    public string SqlTypeName { get; set; }
+    public bool IsNullable { get; set; }
+    public int MaxLength { get; set; }
+    // Hinweis: Default-Wert Information wird vorerst nicht persistiert zur Vereinheitlichung mit StoredProcedure Inputs.
+}
+
+public class SnapshotFunctionColumn
 {
     public string Name { get; set; }
     public string SqlTypeName { get; set; }

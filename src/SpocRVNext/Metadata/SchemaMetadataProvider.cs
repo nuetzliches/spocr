@@ -21,6 +21,7 @@ namespace SpocR.SpocRVNext.Metadata
         IReadOnlyList<OutputDescriptor> GetOutputs();
         IReadOnlyList<ResultSetDescriptor> GetResultSets();
         IReadOnlyList<ResultDescriptor> GetResults();
+        IReadOnlyList<FunctionDescriptor> GetFunctions();
     }
 
     public sealed class SchemaMetadataProvider : ISchemaMetadataProvider
@@ -32,6 +33,7 @@ namespace SpocR.SpocRVNext.Metadata
         private List<OutputDescriptor> _outputs = new();
         private List<ResultSetDescriptor> _resultSets = new();
         private List<ResultDescriptor> _results = new();
+    private List<FunctionDescriptor> _functions = new();
 
         public SchemaMetadataProvider(string? projectRoot = null)
         {
@@ -43,6 +45,7 @@ namespace SpocR.SpocRVNext.Metadata
         public IReadOnlyList<OutputDescriptor> GetOutputs() { EnsureLoaded(); return _outputs; }
         public IReadOnlyList<ResultSetDescriptor> GetResultSets() { EnsureLoaded(); return _resultSets; }
         public IReadOnlyList<ResultDescriptor> GetResults() { EnsureLoaded(); return _results; }
+    public IReadOnlyList<FunctionDescriptor> GetFunctions() { EnsureLoaded(); return _functions; }
 
         private void EnsureLoaded()
         {
@@ -159,6 +162,7 @@ namespace SpocR.SpocRVNext.Metadata
             var outputList = new List<OutputDescriptor>();
             var rsList = new List<ResultSetDescriptor>();
             var resultDescriptors = new List<ResultDescriptor>();
+            var functionDescriptors = new List<FunctionDescriptor>();
 
             foreach (var p in procsEl.EnumerateArray())
             {
@@ -334,6 +338,130 @@ namespace SpocR.SpocRVNext.Metadata
             _outputs = outputList.OrderBy(o => o.OperationName).ToList();
             _resultSets = rsList.OrderBy(r => r.Name).ToList();
             _results = resultDescriptors.OrderBy(r => r.OperationName).ToList();
+
+            // Functions (expanded snapshot only)
+            try
+            {
+                if (expanded)
+                {
+                    // Load functions directory entries from index.json? index.json holds FunctionsVersion + Function file hashes
+                    var fnSchemaDir = Path.Combine(_projectRoot, ".spocr", "schema");
+                    var fnIndexPath = Path.Combine(fnSchemaDir, "index.json");
+                    if (File.Exists(fnIndexPath))
+                    {
+                        using var idxFs = File.OpenRead(fnIndexPath);
+                        using var idxDoc = JsonDocument.Parse(idxFs);
+                        if (idxDoc.RootElement.TryGetProperty("FunctionsVersion", out var fv) && fv.ValueKind != JsonValueKind.Null)
+                        {
+                            // Enumerate function file entries
+                            if (idxDoc.RootElement.TryGetProperty("Functions", out var fnsEl) && fnsEl.ValueKind == JsonValueKind.Array)
+                            {
+                                var fnEntries = fnsEl.EnumerateArray().Select(e => new
+                                {
+                                    File = e.GetPropertyOrDefault("File"),
+                                    Name = e.GetPropertyOrDefault("Name"),
+                                    Schema = e.GetPropertyOrDefault("Schema")
+                                }).Where(x => !string.IsNullOrWhiteSpace(x.File)).ToList();
+                                foreach (var entry in fnEntries)
+                                {
+                                    var path = Path.Combine(fnSchemaDir, "functions", entry.File!);
+                                    if (!File.Exists(path)) continue;
+                                    try
+                                    {
+                                        using var ffs = File.OpenRead(path);
+                                        using var fdoc = JsonDocument.Parse(ffs);
+                                        var root = fdoc.RootElement;
+                                        var schema = root.GetPropertyOrDefault("Schema") ?? entry.Schema ?? "dbo";
+                                        var name = root.GetPropertyOrDefault("Name") ?? entry.Name ?? string.Empty;
+                                        if (string.IsNullOrWhiteSpace(name)) continue;
+                                        bool isTableValued = root.GetPropertyOrDefaultBool("IsTableValued");
+                                        var returnSql = root.GetPropertyOrDefault("ReturnSqlType");
+                                        var returnMaxLenVal = root.GetPropertyOrDefaultInt("ReturnMaxLength");
+                                        int? returnMaxLen = returnMaxLenVal > 0 ? returnMaxLenVal : null;
+                                        bool? returnIsNullable = null;
+                                        if (root.TryGetProperty("ReturnIsNullable", out var rin) && rin.ValueKind != JsonValueKind.Null)
+                                        {
+                                            if (rin.ValueKind == JsonValueKind.True) returnIsNullable = true; else if (rin.ValueKind == JsonValueKind.False) returnIsNullable = false; // speichern nur falls vorhanden
+                                        }
+                                        bool returnsJson = root.GetPropertyOrDefaultBool("ReturnsJson");
+                                        bool returnsJsonArray = root.GetPropertyOrDefaultBool("ReturnsJsonArray");
+                                        var jsonRoot = root.GetPropertyOrDefault("JsonRootProperty");
+                                        bool encrypted = root.GetPropertyOrDefaultBool("IsEncrypted");
+                                        // Dependencies
+                                        var dependencies = new List<string>();
+                                        if (root.TryGetProperty("Dependencies", out var depsEl) && depsEl.ValueKind == JsonValueKind.Array)
+                                        {
+                                            foreach (var de in depsEl.EnumerateArray())
+                                            {
+                                                if (de.ValueKind == JsonValueKind.String)
+                                                {
+                                                    var dep = de.GetString();
+                                                    if (!string.IsNullOrWhiteSpace(dep)) dependencies.Add(dep!);
+                                                }
+                                            }
+                                        }
+                                        // Parameters
+                                        var paramDescriptors = new List<FunctionParameterDescriptor>();
+                                        if (root.TryGetProperty("Parameters", out var paramsEl) && paramsEl.ValueKind == JsonValueKind.Array)
+                                        {
+                                            foreach (var pe in paramsEl.EnumerateArray())
+                                            {
+                                                var raw = pe.GetPropertyOrDefault("Name") ?? string.Empty;
+                                                if (string.IsNullOrWhiteSpace(raw)) continue;
+                                                var clean = raw.TrimStart('@');
+                                                var sqlType = pe.GetPropertyOrDefault("SqlTypeName") ?? pe.GetPropertyOrDefault("SqlType") ?? string.Empty;
+                                                var maxLenVal = pe.GetPropertyOrDefaultInt("MaxLength");
+                                                int maxLen = maxLenVal ?? 0;
+                                                bool isNullable = pe.GetPropertyOrDefaultBool("IsNullable");
+                                                bool isOutput = pe.GetPropertyOrDefaultBool("IsOutput");
+                                                var clr = SqlClrTypeMapper.Map(sqlType, isNullable);
+                                                paramDescriptors.Add(new FunctionParameterDescriptor(clean, sqlType, clr, isNullable, maxLen <= 0 ? null : maxLen, isOutput));
+                                            }
+                                        }
+                                        // Columns (TVF)
+                                        var colDescriptors = new List<TableValuedFunctionColumnDescriptor>();
+                                        if (isTableValued && root.TryGetProperty("Columns", out var colsEl) && colsEl.ValueKind == JsonValueKind.Array)
+                                        {
+                                            foreach (var ce in colsEl.EnumerateArray())
+                                            {
+                                                var colName = ce.GetPropertyOrDefault("Name") ?? string.Empty;
+                                                if (string.IsNullOrWhiteSpace(colName)) continue;
+                                                var sqlType = ce.GetPropertyOrDefault("SqlTypeName") ?? ce.GetPropertyOrDefault("SqlType") ?? string.Empty;
+                                                bool isNullable = ce.GetPropertyOrDefaultBool("IsNullable");
+                                                var maxLenVal = ce.GetPropertyOrDefaultInt("MaxLength");
+                                                int maxLen = maxLenVal ?? 0;
+                                                var clr = SqlClrTypeMapper.Map(sqlType, isNullable);
+                                                colDescriptors.Add(new TableValuedFunctionColumnDescriptor(colName, sqlType, clr, isNullable, maxLen <= 0 ? null : maxLen));
+                                            }
+                                        }
+                                        functionDescriptors.Add(new FunctionDescriptor(
+                                            SchemaName: schema,
+                                            FunctionName: name,
+                                            IsTableValued: isTableValued,
+                                            ReturnSqlType: string.IsNullOrWhiteSpace(returnSql) ? null : returnSql,
+                                            ReturnMaxLength: returnMaxLen,
+                                            ReturnIsNullable: returnIsNullable,
+                                            ReturnsJson: returnsJson,
+                                            ReturnsJsonArray: returnsJsonArray,
+                                            JsonRootProperty: string.IsNullOrWhiteSpace(jsonRoot) ? null : jsonRoot,
+                                            IsEncrypted: encrypted,
+                                            Dependencies: dependencies,
+                                            Parameters: paramDescriptors,
+                                            Columns: colDescriptors
+                                        ));
+                                    }
+                                    catch (Exception fx) { SchemaMetadataProviderLogHelper.TryLog($"[spocr vNext] Warning: failed to parse function file {path}: {fx.Message}"); }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                SchemaMetadataProviderLogHelper.TryLog($"[spocr vNext] Warning: function descriptors load failed: {ex.Message}");
+            }
+            _functions = functionDescriptors.OrderBy(f => f.SchemaName).ThenBy(f => f.FunctionName).ToList();
             if (_procedures.Count == 0)
             {
                 SchemaMetadataProviderLogHelper.TryLog("[spocr vNext] Warning: 0 procedures parsed from snapshot (expanded/legacy)");

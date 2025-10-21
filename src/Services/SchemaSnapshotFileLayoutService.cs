@@ -29,6 +29,7 @@ public sealed class SchemaSnapshotFileLayoutService
         Directory.CreateDirectory(baseDir);
         Directory.CreateDirectory(Path.Combine(baseDir, "procedures"));
         Directory.CreateDirectory(Path.Combine(baseDir, "tabletypes"));
+        Directory.CreateDirectory(Path.Combine(baseDir, "functions"));
         return baseDir;
     }
 
@@ -133,6 +134,48 @@ public sealed class SchemaSnapshotFileLayoutService
             try { File.Delete(orphan); } catch { }
         }
 
+        // Functions (preview)
+        var fnDir = Path.Combine(baseDir, "functions");
+        var existingFnFiles = Directory.GetFiles(fnDir, "*.json", SearchOption.TopDirectoryOnly)
+            .ToDictionary(f => Path.GetFileName(f), f => f, StringComparer.OrdinalIgnoreCase);
+        var fnHashes = new List<FileHashEntry>();
+        foreach (var fn in snapshot.Functions ?? Enumerable.Empty<SnapshotFunction>())
+        {
+            var fileName = $"{SpocR.SpocRVNext.Utils.NameSanitizer.SanitizeForFile(fn.Schema)}.{SpocR.SpocRVNext.Utils.NameSanitizer.SanitizeForFile(fn.Name)}.json";
+            var path = Path.Combine(fnDir, fileName);
+                // Prune: leere Columns Liste bei nicht-TVF oder leerer TVF -> null (nicht schreiben)
+                if (fn.Columns != null && fn.Columns.Count == 0) fn.Columns = null;
+                var json = JsonSerializer.Serialize(fn, _jsonOptions);
+            var newHash = HashUtils.Sha256Hex(json).Substring(0, 16);
+            bool needsWrite = true;
+            if (existingFnFiles.TryGetValue(fileName, out var existingPath))
+            {
+                try
+                {
+                    var existingJson = File.ReadAllText(existingPath);
+                    var existingHash = HashUtils.Sha256Hex(existingJson).Substring(0, 16);
+                    if (existingHash == newHash) needsWrite = false;
+                }
+                catch { }
+            }
+            if (needsWrite)
+            {
+                File.WriteAllText(path, json);
+            }
+            fnHashes.Add(new FileHashEntry
+            {
+                Name = fn.Name,
+                Schema = fn.Schema,
+                File = fileName,
+                Hash = newHash
+            });
+            existingFnFiles.Remove(fileName);
+        }
+        foreach (var orphan in existingFnFiles.Values)
+        {
+            try { File.Delete(orphan); } catch { }
+        }
+
         // Write index.json only when content changed – no GeneratedUtc to ensure deterministic diffs
         // Deterministic ordering to avoid diff noise
         procHashes = procHashes
@@ -143,6 +186,10 @@ public sealed class SchemaSnapshotFileLayoutService
             .OrderBy(p => p.Schema, StringComparer.OrdinalIgnoreCase)
             .ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
+        var fnHashesOrdered = fnHashes
+            .OrderBy(f => f.Schema, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         var index = new ExpandedSnapshotIndex
         {
@@ -151,7 +198,9 @@ public sealed class SchemaSnapshotFileLayoutService
             Parser = snapshot.Parser,
             Stats = snapshot.Stats,
             Procedures = procHashes,
-            TableTypes = ttHashes
+            TableTypes = ttHashes,
+            FunctionsVersion = snapshot.FunctionsVersion,
+            Functions = fnHashesOrdered
         };
         var indexPath = Path.Combine(baseDir, "index.json");
         var indexJson = JsonSerializer.Serialize(index, _jsonOptions);
@@ -172,6 +221,7 @@ public sealed class SchemaSnapshotFileLayoutService
         {
             File.WriteAllText(indexPath, indexJson);
         }
+        try { Console.Out.WriteLine($"[snapshot-functions] count={fnHashes.Count}"); } catch { }
     }
 
     // Angepasst: Erhalte JSON-Flags & Columns auch bei forwardeten ResultSets (nur minimale Normalisierung möglich)
@@ -352,6 +402,22 @@ public sealed class SchemaSnapshotFileLayoutService
             }
             catch { }
         }
+        // Load functions preview
+        if (index.FunctionsVersion.HasValue)
+        {
+            snapshot.FunctionsVersion = index.FunctionsVersion;
+            foreach (var f in index.Functions ?? Enumerable.Empty<FileHashEntry>())
+            {
+                var path = Path.Combine(baseDir, "functions", f.File);
+                if (!File.Exists(path)) continue;
+                try
+                {
+                    var fn = JsonSerializer.Deserialize<SnapshotFunction>(File.ReadAllText(path), _jsonOptions);
+                    if (fn != null) snapshot.Functions.Add(fn);
+                }
+                catch { }
+            }
+        }
         // Schemas ableiten: Union aus allen Procedure- und UDTT-Schemata.
         try
         {
@@ -385,6 +451,8 @@ public sealed class SchemaSnapshotFileLayoutService
         public SnapshotStats Stats { get; set; }
         public List<FileHashEntry> Procedures { get; set; } = new();
         public List<FileHashEntry> TableTypes { get; set; } = new();
+        public int? FunctionsVersion { get; set; }
+        public List<FileHashEntry> Functions { get; set; } = new();
     }
 
     public sealed class FileHashEntry
