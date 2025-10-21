@@ -357,39 +357,7 @@ public class StoredProcedureContentModel
                         else if (sce.Expression is CastCall castCall && castCall.Parameter is ColumnReferenceExpression castCol && castCol.MultiPartIdentifier?.Identifiers?.Count > 0)
                             alias = castCol.MultiPartIdentifier.Identifiers[^1].Value;
                     }
-                    // Zusätzliche Alias-Erkennung für FOR JSON Pfad-Syntax inkl. Fälle, in denen ScriptDom das AS 'alias' außerhalb des Fragmentes schneidet.
-                    if (string.IsNullOrWhiteSpace(alias) && sce.StartOffset >= 0 && sce.FragmentLength > 0)
-                    {
-                        try
-                        {
-                            var endExpr = Math.Min(_definition.Length, sce.StartOffset + sce.FragmentLength);
-                            var exprSegment = _definition.Substring(sce.StartOffset, endExpr - sce.StartOffset);
-                            // Primär: AS 'alias' im Ausdruckssegment
-                            var m = System.Text.RegularExpressions.Regex.Match(exprSegment, @"AS\s+'([^']+)'", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                            if (!m.Success)
-                            {
-                                // Fallback: Einzelnes quoted literal (manche Alias-Stile ohne explizites AS)
-                                m = System.Text.RegularExpressions.Regex.Match(exprSegment, @"'([^']+)'", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                            }
-                            if (!m.Success)
-                            {
-                                // Forward-Scan bis FOR JSON oder nächstes SELECT/ FROM / GROUP BY zur Begrenzung
-                                int boundary = _definition.IndexOf("FOR JSON", endExpr, StringComparison.OrdinalIgnoreCase);
-                                if (boundary < 0) boundary = _definition.Length;
-                                int scanEnd = Math.Min(_definition.Length, endExpr + 300);
-                                if (boundary > endExpr && boundary < scanEnd) scanEnd = boundary;
-                                var forward = _definition.Substring(endExpr, scanEnd - endExpr);
-                                m = System.Text.RegularExpressions.Regex.Match(forward, @"AS\s+'([^']+)'", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                                if (!m.Success)
-                                {
-                                    m = System.Text.RegularExpressions.Regex.Match(forward, @"'([^']+)'", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                                }
-                            }
-                            if (m.Success) alias = m.Groups[1].Value;
-                        }
-                        catch { }
-                    }
-                    if (string.IsNullOrWhiteSpace(alias)) continue;
+                    if (string.IsNullOrWhiteSpace(alias)) continue; // AST-only policy: keine Text-/Regex-Heuristiken
                     var path = NormalizeJsonPath(alias);
                     var col = new ResultColumn { Name = SanitizeAliasPreserveDots(path) };
                     var beforeBindings = new SourceBindingState();
