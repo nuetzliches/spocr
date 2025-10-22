@@ -60,8 +60,7 @@ public sealed class FunctionSnapshotCollector
                     _console.Verbose($"[fn-encrypted] {schema}.{name}");
                 }
 
-                // JSON Flags werden primär über AST bestimmt; Regex-Erkennung nur als Fallback falls AST kein FOR JSON erkennt.
-                bool? returnsJson = null; // nur gesetzt falls Regex-Fallback greift (für Logging Quelle)
+                // JSON Flags jetzt ausschließlich über AST bestimmt (Regex-Fallback entfernt).
 
                 // ReturnSqlType zunächst leer; wird später aus erstem Parameter (Rückgabe-Parameter) rekonstruiert oder via DECLARE/RETURNS Parsing
                 var fnModel = new SnapshotFunction
@@ -76,7 +75,7 @@ public sealed class FunctionSnapshotCollector
                     IsEncrypted = encrypted ? true : null
                 };
 
-                // JSON Columns für skalare Funktionen: immer AST versuchen, erst danach Regex-Fallback
+                // JSON Columns für skalare Funktionen: ausschließlich AST (JsonFunctionAstExtractor)
                 if (!isTableValued && !encrypted && !string.IsNullOrWhiteSpace(definition))
                 {
                     List<SnapshotFunctionColumn> cols = null;
@@ -122,36 +121,7 @@ public sealed class FunctionSnapshotCollector
                     {
                         _console.Verbose($"[fn-ast-error] {schema}.{name} {astEx.Message}");
                     }
-                    if (cols == null)
-                    {
-                        try
-                        {
-                            // Regex-Fallback nur wenn AST nichts ergab
-                            var pattern = @"FOR\s+JSON\s+(PATH|AUTO)?(?<rest>[^;]*)";
-                            var match = System.Text.RegularExpressions.Regex.Match(definition, pattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                            if (match.Success)
-                            {
-                                fnModel.ReturnsJson = true;
-                                var rest = match.Groups["rest"].Value;
-                                if (!string.IsNullOrEmpty(rest))
-                                {
-                                    if (System.Text.RegularExpressions.Regex.IsMatch(rest, @"WITHOUT\s+ARRAY\s+WRAPPER", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
-                                    {
-                                        fnModel.ReturnsJsonArray = false;
-                                    }
-                                    else fnModel.ReturnsJsonArray = true;
-                                    var rootMatch = System.Text.RegularExpressions.Regex.Match(rest, @"ROOT\s*\(\s*'([^']+)'\s*\)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-                                    if (rootMatch.Success) fnModel.JsonRootProperty = rootMatch.Groups[1].Value;
-                                }
-                                var inferred = InferJsonColumns(definition, schema, name);
-                                cols = inferred;
-                            }
-                        }
-                        catch (Exception fallbackEx)
-                        {
-                            _console.Verbose($"[fn-json-fallback-error] {schema}.{name} {fallbackEx.Message}");
-                        }
-                    }
+                    // Kein Regex-Fallback mehr – bleibt null wenn AST keine JSON Struktur liefert.
                     if (cols != null && cols.Count > 0)
                     {
                         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -171,7 +141,7 @@ public sealed class FunctionSnapshotCollector
                             finalList.Add(col);
                         }
                         fnModel.Columns = finalList;
-                        _console.Verbose($"[fn-json-cols] {schema}.{name} count={finalList.Count} source={(fnModel.ReturnsJsonArray!=null && returnsJson==null ? "ast" : (returnsJson==true?"regex":"ast"))}");
+                        _console.Verbose($"[fn-json-cols] {schema}.{name} count={finalList.Count} source=ast");
                     }
                     else
                     {
@@ -307,178 +277,5 @@ public sealed class FunctionSnapshotCollector
         }
     }
 
-    /// <summary>
-    /// Heuristische Extraktion der SELECT-Liste für RETURN (SELECT ... FOR JSON ...) einer skalaren JSON Funktion.
-    /// Liefert SnapshotFunctionColumn Einträge mit groben Typ-Angaben (json / nvarchar(max) / cast-Zieltyp / convert-Zieltyp).
-    /// Grenzen: Keine vollständige SQL AST, verschachtelte Subqueries können die Regex brechen; bei Fehlschlag wird leere Liste zurückgegeben.
-    /// </summary>
-    private static List<SnapshotFunctionColumn> InferJsonColumns(string definition, string schema, string name)
-    {
-        // Rekursive, heuristische Analyse von SELECT Listen für FOR JSON Konstrukte.
-        var result = new List<SnapshotFunctionColumn>();
-        if (string.IsNullOrWhiteSpace(definition)) return result;
-        try
-        {
-            var match = Regex.Match(definition, @"SELECT\s+(?<select>.+?)\s+FROM\s+.+?FOR\s+JSON", RegexOptions.IgnoreCase | RegexOptions.Singleline);
-            if (!match.Success) return result;
-            var selectList = match.Groups["select"].Value;
-            if (string.IsNullOrWhiteSpace(selectList)) return result;
-
-            var segments = SplitTopLevel(selectList);
-            foreach (var rawSegment in segments)
-            {
-                var seg = rawSegment.Trim();
-                if (string.IsNullOrWhiteSpace(seg)) continue;
-
-                var col = ParseSegmentToColumn(seg, depth:0);
-                if (col != null) result.Add(col);
-            }
-        }
-        catch { }
-        return result;
-    }
-
-    private static SnapshotFunctionColumn ParseSegmentToColumn(string segment, int depth)
-    {
-        if (depth > 3) return null; // Tiefe begrenzen
-        string seg = segment.Trim();
-        string alias = null;
-        string expression = seg;
-        var assignMatch = Regex.Match(seg, @"^(?<alias>\[[^]]+\]|'[A-Za-z0-9_.]+'|[A-Za-z0-9_]+)\s*=\s*(?<expr>.+)$", RegexOptions.IgnoreCase | RegexOptions.Singleline);
-        if (assignMatch.Success)
-        {
-            alias = StripBrackets(assignMatch.Groups["alias"].Value.Trim('\''));
-            expression = assignMatch.Groups["expr"].Value;
-        }
-        else
-        {
-            var asMatch = Regex.Match(seg, @"^(?<expr>.+?)\s+AS\s+(?<alias>\[[^]]+\]|'[A-Za-z0-9_.]+'|[A-Za-z0-9_]+)$", RegexOptions.IgnoreCase | RegexOptions.Singleline);
-            if (asMatch.Success)
-            {
-                alias = StripBrackets(asMatch.Groups["alias"].Value.Trim('\''));
-                expression = asMatch.Groups["expr"].Value;
-            }
-            else
-            {
-                var implicitQuoted = Regex.Match(seg, @"^(?<expr>.+?)\s+'(?<alias>[A-Za-z0-9_.]+)'$", RegexOptions.IgnoreCase | RegexOptions.Singleline);
-                if (implicitQuoted.Success)
-                {
-                    alias = implicitQuoted.Groups["alias"].Value;
-                    expression = implicitQuoted.Groups["expr"].Value;
-                }
-            }
-        }
-        if (alias == null)
-        {
-            var cleaned = Regex.Replace(expression, @"^(CAST|CONVERT)\s*\(", "", RegexOptions.IgnoreCase).Trim();
-            var dotIdx = cleaned.LastIndexOf('.');
-            if (dotIdx >= 0 && dotIdx < cleaned.Length - 1)
-            {
-                alias = StripBrackets(cleaned.Substring(dotIdx + 1).Trim());
-            }
-            else
-            {
-                alias = StripBrackets(cleaned.Split(new[] { ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).LastOrDefault() ?? "col");
-            }
-        }
-        alias = alias?.Trim();
-        if (string.IsNullOrWhiteSpace(alias)) alias = "col" + depth.ToString();
-
-        // Nested JSON erkennen
-        bool hasNestedSelectJson = Regex.IsMatch(expression, @"SELECT.+FOR\s+JSON", RegexOptions.IgnoreCase | RegexOptions.Singleline);
-        bool hasJsonQuery = Regex.IsMatch(expression, @"JSON_QUERY\s*\(", RegexOptions.IgnoreCase);
-        bool isNested = hasNestedSelectJson || hasJsonQuery;
-
-        string sqlType = null; int maxLen = 0; bool isNullable = true;
-        if (isNested)
-        {
-            sqlType = "json"; maxLen = -1;
-        }
-        else
-        {
-            var castType = Regex.Match(expression, @"CAST\s*\(.+?\s+AS\s+(?<type>[A-Za-z0-9_]+(\(max\)|\(\d+\))?)\)", RegexOptions.IgnoreCase | RegexOptions.Singleline);
-            if (castType.Success) sqlType = castType.Groups["type"].Value; else {
-                var convType = Regex.Match(expression, @"CONVERT\s*\(\s*(?<type>[A-Za-z0-9_]+(\(max\)|\(\d+\))?)\s*,", RegexOptions.IgnoreCase);
-                if (convType.Success) sqlType = convType.Groups["type"].Value;
-            }
-            if (sqlType == null)
-            {
-                if (Regex.IsMatch(expression, @"JSON_VALUE", RegexOptions.IgnoreCase)) sqlType = "nvarchar(max)"; else sqlType = "nvarchar(max)";
-            }
-            maxLen = sqlType.Contains("(max)", StringComparison.OrdinalIgnoreCase) || sqlType.EndsWith("max", StringComparison.OrdinalIgnoreCase) ? -1 : ExtractLength(sqlType);
-        }
-
-        var col = new SnapshotFunctionColumn
-        {
-            Name = alias,
-            SqlTypeName = sqlType,
-            IsNullable = isNullable,
-            MaxLength = maxLen,
-            IsNestedJson = isNested ? true : null,
-            ReturnsJson = isNested ? true : null,
-            ReturnsJsonArray = isNested && !Regex.IsMatch(expression, @"WITHOUT\s+ARRAY\s+WRAPPER", RegexOptions.IgnoreCase) ? true : (isNested ? (bool?)false : null)
-        };
-
-        // Rekursion: falls verschachteltes SELECT vorhanden, versuche innere SELECT Liste zu extrahieren
-        if (hasNestedSelectJson)
-        {
-            var innerMatch = Regex.Match(expression, @"SELECT\s+(?<select>.+?)\s+FROM\s+.+?FOR\s+JSON", RegexOptions.IgnoreCase | RegexOptions.Singleline);
-            if (innerMatch.Success)
-            {
-                var innerSelect = innerMatch.Groups["select"].Value;
-                var innerSegments = SplitTopLevel(innerSelect);
-                foreach (var rawInner in innerSegments)
-                {
-                    var innerSeg = rawInner.Trim(); if (string.IsNullOrWhiteSpace(innerSeg)) continue;
-                    var child = ParseSegmentToColumn(innerSeg, depth + 1);
-                    if (child != null) col.Columns.Add(child);
-                }
-                if (col.Columns.Count == 0) col.Columns = new List<SnapshotFunctionColumn>(); // leer -> später gepruned
-            }
-        }
-        return col;
-    }
-
-    private static List<string> SplitTopLevel(string selectList)
-    {
-        var list = new List<string>();
-        if (string.IsNullOrWhiteSpace(selectList)) return list;
-        int depth = 0;
-        int start = 0;
-        for (int i = 0; i < selectList.Length; i++)
-        {
-            char c = selectList[i];
-            if (c == '(') depth++;
-            else if (c == ')') depth = Math.Max(0, depth - 1);
-            else if (c == ',' && depth == 0)
-            {
-                list.Add(selectList.Substring(start, i - start));
-                start = i + 1;
-            }
-        }
-        if (start < selectList.Length)
-        {
-            list.Add(selectList.Substring(start));
-        }
-        return list;
-    }
-
-    private static string StripBrackets(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value)) return value;
-        value = value.Trim();
-        if (value.StartsWith("[") && value.EndsWith("]") && value.Length > 2)
-        {
-            return value.Substring(1, value.Length - 2);
-        }
-        return value;
-    }
-
-    private static int ExtractLength(string sqlType)
-    {
-        if (string.IsNullOrWhiteSpace(sqlType)) return 0;
-        var m = Regex.Match(sqlType, @"\((?<len>\d+)\)");
-        if (m.Success && int.TryParse(m.Groups["len"].Value, out var len)) return len;
-        return 0;
-    }
+    // Hinweis: Alle regex-basierten JSON Rückfall-Heuristiken entfernt (InferJsonColumns & verwandte Methoden).
 }

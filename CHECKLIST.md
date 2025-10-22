@@ -621,10 +621,20 @@ Status-Legende: [>] deferred (v5 Ziel) – Querverweis auf README / Roadmap Absc
 - [x] Sicherstellen, dass die .spocr/schema/tabletypes bereits die korrekten UDT-Typen beinhalten, Properties ergänzen, wenn nötig. (Alias/BaseSqlTypeName, Precision/Scale, Identity & Pruning aktiv)
 - [x] `types` müssen zuerst abgerufen werden, damit andere Objekte darauf referenzieren können, bzw. ihre finalen Typen bestimmen können. (Ordering Guard + frühe Function-Sammlung angepasst)
 - [~] AST Parsing für vnext Output sauber implementieren und Heuristiken zu Typen-Auflösung entfernen. (Snapshot Basis & Normalisierung vorhanden; Parser-Heuristik Ablösung noch offen)
-
-Hinzugefügt (2025-10-22):
 - [x] Functions werden jetzt VOR Tables/Views gesammelt (frühe Signaturen für künftige Dependency-Graphen), Ordering Kommentar aktualisiert.
 - [x] Unbenutzte Guard-Variable bereinigt (phaseFunctionsDone in früherer Variante entfernt; neue Sequenz konsolidiert).
+- [ ]`ActionListAsJsonResult` besitzt groß geschriebene Properties, werden die Namen nicht aus den Aliasen abgeleitet (soll der Quelle entsprechen, keine Modifikation)?
+  Zudem wird wohl noch Heuristik existieren `EndsWith("Id")` oder ähnliches. Das muss alles in der AST Pipeline durch die tatsächlichen DataTypes ersetzt werden (Ähnliche Ableitungen ebenfalls ersetzen).
+  Quelle: C:\Projekte\GitHub\AdvoNeo_soapNEO\AdvoNeo\AdvoNeo.SqlDb\StoredProcedures\workflow\ActionListAsJson.sql
+  Ergebnis: C:\Projekte\GitHub\spocr\debug\SpocR\Workflow\ActionListAsJson.cs
+- [ ] Hier wird noch der dot-name in z.B. `sourceAccount_accountId` gemapped, das muss ein sub-struct `sourceAccount` mit einer `accountId` Property werden (warum funktioniert das nur teilweise - es muss eine gemeinsame Codebasis vorhanden sein).
+      C:\Projekte\GitHub\spocr\debug\SpocR\Soap\PaymentInitiationFindAsJson.cs
+- [ ] Legacy Output soll keine JSON-Models erzeugen, SP-Extensions ohne JSON-Model (using auch beachten / entfernen).
+- [!] Rebuild: dotnet run --project src/SpocR.csproj -- rebuild -p C:\Projekte\GitHub\spocr\debug
+- [~] StoredProcedure Regex Audit abgeschlossen (Regex-Fallbacks entfernt), offene Spezialfälle: WITHOUT_ARRAY_WRAPPER Erkennung & identity.RecordAsJson Flag (Tests rot)
+- [ ] Fix fehlende JSON Sets Spezialfälle (StoredProcedure AST)  
+       sub: - [ ] WITHOUT_ARRAY_WRAPPER setzt ReturnsJsonArray=false (Regression nach Heuristik-Entfernung) - [ ] identity.RecordAsJson (schema-qualifizierter Funktionsaufruf) wieder als IsRecordAsJson markieren
+- [ ] Env Fallback Flag Planung (`SPOCR_JSON_REGEX_FALLBACK`): Entscheidung treffen (derzeit nicht implementiert zugunsten deterministischem AST)
 
 ### 1. JSON Deserialisierung Tests abschließen
 
