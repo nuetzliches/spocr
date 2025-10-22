@@ -1,0 +1,31 @@
+{
+  "Schema": "samples",
+  "Name": "UserContactSync",
+  "Inputs": [
+    {
+      "Name": "Contacts",
+      "TableTypeSchema": "samples",
+      "TableTypeName": "UserContactTableType"
+    }
+  ],
+  "ResultSets": [
+    {
+      "ReturnsJson": false,
+      "ReturnsJsonArray": false,
+      "Columns": [
+        {
+          "Name": "UpdatedContacts",
+          "SqlTypeName": "int",
+          "IsNullable": true,
+          "MaxLength": 4
+        },
+        {
+          "Name": "MissingContacts",
+          "SqlTypeName": "int",
+          "IsNullable": true,
+          "MaxLength": 4
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "Schema": "samples",
+  "Name": "OrderListAsJson",
+  "Inputs": [],
+  "ResultSets": [
+    {
+      "ReturnsJson": true,
+      "ReturnsJsonArray": true,
+      "JsonRootProperty": "OrderSummaries",
+      "Columns": [
+        {
+          "Name": "UserId",
+          "SqlTypeName": "int",
+          "MaxLength": 4
+        },
+        {
+          "Name": "DisplayName",
+          "SqlTypeName": "nvarchar",
+          "MaxLength": 128
+        },
+        {
+          "Name": "Email",
+          "SqlTypeName": "nvarchar",
+          "MaxLength": 256
+        },
+        {
+          "Name": "OrderId"
+        },
+        {
+          "Name": "TotalAmount"
+        },
+        {
+          "Name": "PlacedAt"
+        },
+        {
+          "Name": "Notes"
+        }
+      ]
+    }
+  ]
+}

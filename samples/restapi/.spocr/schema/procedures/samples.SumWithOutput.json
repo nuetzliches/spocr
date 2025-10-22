@@ -1,0 +1,46 @@
+{
+  "Schema": "samples",
+  "Name": "SumWithOutput",
+  "Inputs": [
+    {
+      "Name": "A",
+      "SqlTypeName": "int",
+      "IsNullable": true,
+      "MaxLength": 4
+    },
+    {
+      "Name": "B",
+      "SqlTypeName": "int",
+      "IsNullable": true,
+      "MaxLength": 4
+    },
+    {
+      "Name": "Sum",
+      "IsOutput": true,
+      "SqlTypeName": "int",
+      "IsNullable": true,
+      "MaxLength": 4
+    },
+    {
+      "Name": "Success",
+      "IsOutput": true,
+      "SqlTypeName": "bit",
+      "IsNullable": true,
+      "MaxLength": 1
+    }
+  ],
+  "ResultSets": [
+    {
+      "ReturnsJson": false,
+      "ReturnsJsonArray": false,
+      "Columns": [
+        {
+          "Name": "Result",
+          "SqlTypeName": "int",
+          "IsNullable": true,
+          "MaxLength": 4
+        }
+      ]
+    }
+  ]
+}

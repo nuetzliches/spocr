@@ -1,0 +1,18 @@
+namespace RestApi.SpocR;
+
+using System.Text.Json;
+
+public sealed class SpocRDbContextOptions
+{
+    public string? ConnectionString { get; set; }
+    /// <summary>Optional logical name (IConfiguration.GetConnectionString) – defaults to "DefaultConnection".</summary>
+    public string? ConnectionStringName { get; set; }
+    /// <summary>Command execution timeout in seconds; null or &lt;= 0 falls back to default (30).</summary>
+    public int? CommandTimeout { get; set; }
+    /// <summary>Max retry attempts for transient open failures (SqlException); null/0 disables retry.</summary>
+    public int? MaxOpenRetries { get; set; }
+    /// <summary>Delay in milliseconds between retries (linear backoff). Default 200ms if retries enabled.</summary>
+    public int? RetryDelayMs { get; set; }
+    public JsonSerializerOptions? JsonSerializerOptions { get; set; }
+    public bool EnableDiagnostics { get; set; } = true;
+}

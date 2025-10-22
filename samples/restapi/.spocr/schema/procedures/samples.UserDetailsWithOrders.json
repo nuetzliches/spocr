@@ -1,0 +1,46 @@
+{
+  "Schema": "samples",
+  "Name": "UserDetailsWithOrders",
+  "Inputs": [
+    {
+      "Name": "UserId",
+      "SqlTypeName": "int",
+      "IsNullable": true,
+      "MaxLength": 4
+    }
+  ],
+  "ResultSets": [
+    {
+      "ReturnsJson": false,
+      "ReturnsJsonArray": false,
+      "Columns": [
+        {
+          "Name": "UserId",
+          "SqlTypeName": "int",
+          "MaxLength": 4
+        },
+        {
+          "Name": "DisplayName",
+          "SqlTypeName": "nvarchar(128)",
+          "MaxLength": 128
+        },
+        {
+          "Name": "Email",
+          "SqlTypeName": "nvarchar(256)",
+          "MaxLength": 256
+        },
+        {
+          "Name": "CreatedAt",
+          "SqlTypeName": "datetime2(7)",
+          "MaxLength": 8
+        },
+        {
+          "Name": "Bio",
+          "SqlTypeName": "nvarchar(512)",
+          "IsNullable": true,
+          "MaxLength": 512
+        }
+      ]
+    }
+  ]
+}

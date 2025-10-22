@@ -1,0 +1,38 @@
+using System;
+using System.Collections.Generic;
+using Microsoft.Data.SqlClient;
+using System.Threading;
+using System.Threading.Tasks;
+using RestApi.DataContext.Models;
+using RestApi.DataContext.Outputs;
+using RestApi.DataContext.Models.Samples;
+using RestApi.DataContext.Inputs.Samples;
+using RestApi.DataContext.Outputs.Samples;
+
+namespace RestApi.DataContext.StoredProcedures.Samples
+{
+    public static class SumWithOutputExtensions
+    {
+        public static Task<int?> SumWithOutputAsync(this IAppDbContextPipe context, SumWithOutputInput input, CancellationToken cancellationToken)
+        {
+            if (context == null)
+            {
+                throw new ArgumentNullException(nameof(context));
+            }
+
+            var parameters = new List<SqlParameter>
+            {
+                AppDbContext.GetParameter("A", input.A, false, 4),
+                AppDbContext.GetParameter("B", input.B, false, 4),
+                AppDbContext.GetParameter("Sum", input.Sum, true, 4),
+                AppDbContext.GetParameter("Success", input.Success, true, 1)
+            };
+            return context.ExecuteScalarAsync<int?>("[samples].[SumWithOutput]", parameters, cancellationToken);
+        }
+
+        public static Task<int?> SumWithOutputAsync(this IAppDbContext context, SumWithOutputInput input, CancellationToken cancellationToken)
+        {
+            return context.CreatePipe().SumWithOutputAsync(input, cancellationToken);
+        }
+    }
+}
