@@ -83,9 +83,13 @@ public class SchemaSnapshotService : ISchemaSnapshotService
                     Name = c.Name,
                     SqlTypeName = c.SqlTypeName,
                     IsNullable = c.IsNullable == false ? null : c.IsNullable,
-                    MaxLength = c.MaxLength,
+                    MaxLength = (c.MaxLength.HasValue && c.MaxLength.Value == 0) ? null : c.MaxLength,
                     UserTypeSchemaName = c.UserTypeSchemaName,
                     UserTypeName = c.UserTypeName,
+                    BaseSqlTypeName = (!string.IsNullOrWhiteSpace(c.BaseSqlTypeName) && !string.Equals(c.BaseSqlTypeName, c.SqlTypeName, StringComparison.OrdinalIgnoreCase)) ? c.BaseSqlTypeName : null,
+                    Precision = (c.Precision.HasValue && c.Precision.Value > 0) ? c.Precision : null,
+                    Scale = (c.Scale.HasValue && c.Scale.Value > 0) ? c.Scale : null,
+                    IsIdentity = c.IsIdentity == true ? true : null,
                     IsNestedJson = c.IsNestedJson == true ? true : null,
                     ReturnsJson = c.ReturnsJson == true ? true : null,
                     ReturnsJsonArray = c.ReturnsJsonArray == true ? true : null,
@@ -107,7 +111,28 @@ public class SchemaSnapshotService : ISchemaSnapshotService
                 Fingerprint = snapshot.Fingerprint,
                 Database = snapshot.Database,
                 Schemas = snapshot.Schemas,
-                UserDefinedTableTypes = snapshot.UserDefinedTableTypes,
+                // UDTT Hash ins Cache verlagert: Hash nicht persistieren, Spalten prunen
+                UserDefinedTableTypes = snapshot.UserDefinedTableTypes?.Select(u => new SnapshotUdtt
+                {
+                    Schema = u.Schema,
+                    Name = u.Name,
+                    UserTypeId = u.UserTypeId,
+                    Columns = u.Columns?.Select(c => new SnapshotUdttColumn
+                    {
+                        Name = c.Name,
+                        SqlTypeName = c.SqlTypeName,
+                        IsNullable = c.IsNullable == true ? true : null,
+                        MaxLength = (c.MaxLength.HasValue && c.MaxLength.Value > 0) ? c.MaxLength : null,
+                        UserTypeSchemaName = c.UserTypeSchemaName,
+                        UserTypeName = c.UserTypeName,
+                        BaseSqlTypeName = (!string.IsNullOrWhiteSpace(c.BaseSqlTypeName) && !string.Equals(c.BaseSqlTypeName, c.SqlTypeName, StringComparison.OrdinalIgnoreCase)) ? c.BaseSqlTypeName : null,
+                        Precision = (c.Precision.HasValue && c.Precision.Value > 0) ? c.Precision : null,
+                        Scale = (c.Scale.HasValue && c.Scale.Value > 0) ? c.Scale : null
+                    }).ToList() ?? new List<SnapshotUdttColumn>()
+                }).ToList() ?? new List<SnapshotUdtt>(),
+                Tables = snapshot.Tables,
+                Views = snapshot.Views,
+                UserDefinedTypes = snapshot.UserDefinedTypes,
                 Parser = snapshot.Parser,
                 Stats = snapshot.Stats,
                 Procedures = snapshot.Procedures?.Select(p => new SnapshotProcedure
@@ -179,6 +204,13 @@ public class SchemaSnapshot
     public List<SnapshotProcedure> Procedures { get; set; } = new();
     public List<SnapshotSchema> Schemas { get; set; } = new();
     public List<SnapshotUdtt> UserDefinedTableTypes { get; set; } = new();
+    // Neuer leichtgewichtiger Basis-Snapshot für Tabellen (nur Schema, Name, Columns) – dient AST Typauflösung
+    public List<SnapshotTable> Tables { get; set; } = new();
+    // Views analog Tabellen (aktuell ohne Dependencies; Erweiterung v5 geplant)
+    public List<SnapshotView> Views { get; set; } = new();
+    // User Defined Scalar Types (keine Table Types) – notwendig vor Tabellen/Views zum Auflösen von Alias-Typen
+    // Umbenennung: 'UserDefinedTypes' für Klarheit gegenüber TableTypes
+    public List<SnapshotUserDefinedType> UserDefinedTypes { get; set; } = new();
     // Preview: Functions (scalar + TVF) captured independently of schema allow-list.
     public int? FunctionsVersion { get; set; } // set to 1 when functions populated
     public List<SnapshotFunction> Functions { get; set; } = new();
@@ -232,6 +264,13 @@ public class SnapshotResultColumn
     public int? MaxLength { get; set; }
     public string UserTypeSchemaName { get; set; }
     public string UserTypeName { get; set; }
+    // Basis-SQL Typ bei Alias / UDT (z.B. Alias 'MyCustomerId' -> int). Wird gepruned wenn identisch zu SqlTypeName.
+    public string BaseSqlTypeName { get; set; }
+    // Präzision & Scale für decimal/numeric (oder time/datetime2 falls benötigt). 0/Null wird gepruned.
+    public int? Precision { get; set; }
+    public int? Scale { get; set; }
+    // Identity-Marker (nur true persistieren). Für Tabellen/Views/SP Outputs relevant, bei Prozedur-ResultSets optional falls aus DMV erkannt.
+    public bool? IsIdentity { get; set; }
     // Flattened nested JSON structure (v6): when IsNestedJson=true these flags describe the nested JSON under this column
     public bool? IsNestedJson { get; set; }
     public bool? ReturnsJson { get; set; }
@@ -270,8 +309,13 @@ public class SnapshotUdttColumn
 {
     public string Name { get; set; }
     public string SqlTypeName { get; set; }
-    public bool IsNullable { get; set; }
-    public int MaxLength { get; set; }
+    public bool? IsNullable { get; set; }
+    public int? MaxLength { get; set; }
+    public string UserTypeSchemaName { get; set; }
+    public string UserTypeName { get; set; }
+    public string BaseSqlTypeName { get; set; }
+    public int? Precision { get; set; }
+    public int? Scale { get; set; }
 }
 
 public class SnapshotFunction
@@ -310,12 +354,69 @@ public class SnapshotFunctionColumn
     public string SqlTypeName { get; set; }
     public bool? IsNullable { get; set; }
     public int? MaxLength { get; set; }
+    public string BaseSqlTypeName { get; set; }
+    public int? Precision { get; set; }
+    public int? Scale { get; set; }
+    public bool? IsIdentity { get; set; }
     // Nested JSON Unterstützung (analog ResultSet Columns, aber leichtgewichtig)
     public bool? IsNestedJson { get; set; } // true wenn Unterstruktur (Objekt/Array) enthalten ist
     public bool? ReturnsJson { get; set; } // Kennzeichnet JSON Subselect
     public bool? ReturnsJsonArray { get; set; } // true wenn Subselect ein Array zurück gibt
     public string JsonRootProperty { get; set; } // Root('x') oder impliziter Alias
     public List<SnapshotFunctionColumn> Columns { get; set; } = new(); // rekursive Verschachtelung
+}
+
+// --- Neue Basis-Snapshot Modelle (Prio 1) ---
+public class SnapshotTable
+{
+    public string Schema { get; set; }
+    public string Name { get; set; }
+    public List<SnapshotTableColumn> Columns { get; set; } = new();
+}
+
+public class SnapshotTableColumn
+{
+    public string Name { get; set; }
+    public string SqlTypeName { get; set; }
+    public bool? IsNullable { get; set; } // false wird gepruned bei Persistierung (Analog zu anderen Modellen – Implementierung folgt im Writer)
+    public int? MaxLength { get; set; } // null wenn 0 oder nicht zutreffend
+    public bool? IsIdentity { get; set; } // nur true persistieren
+    public string UserTypeSchemaName { get; set; } // gesetzt bei UDT
+    public string UserTypeName { get; set; } // gesetzt bei UDT
+    public string BaseSqlTypeName { get; set; }
+    public int? Precision { get; set; }
+    public int? Scale { get; set; }
+}
+
+public class SnapshotView
+{
+    public string Schema { get; set; }
+    public string Name { get; set; }
+    public List<SnapshotViewColumn> Columns { get; set; } = new();
+}
+
+public class SnapshotViewColumn
+{
+    public string Name { get; set; }
+    public string SqlTypeName { get; set; }
+    public bool? IsNullable { get; set; }
+    public int? MaxLength { get; set; }
+    public string UserTypeSchemaName { get; set; }
+    public string UserTypeName { get; set; }
+    public string BaseSqlTypeName { get; set; }
+    public int? Precision { get; set; }
+    public int? Scale { get; set; }
+}
+
+public class SnapshotUserDefinedType
+{
+    public string Schema { get; set; } // sys / dbo / benutzerdefiniert
+    public string Name { get; set; }
+    public string BaseSqlTypeName { get; set; } // z.B. nvarchar, int, decimal
+    public int? MaxLength { get; set; } // für (n)varchar, varbinary
+    public int? Precision { get; set; } // für decimal/num
+    public int? Scale { get; set; } // für decimal/num
+    public bool? IsNullable { get; set; } // falls ermittelbar (scalar UDTs oft nicht nullable direkt)
 }
 
 public class SnapshotParserInfo
@@ -330,4 +431,8 @@ public class SnapshotStats
     public int ProcedureSkipped { get; set; }
     public int ProcedureLoaded { get; set; }
     public int UdttTotal { get; set; }
+    // Erweiterung (Prio 1): Basis-Zählwerte für neue Snapshot Artefakte
+    public int TableTotal { get; set; }
+    public int ViewTotal { get; set; }
+    public int UserDefinedTypeTotal { get; set; }
 }

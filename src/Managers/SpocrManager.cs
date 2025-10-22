@@ -23,6 +23,19 @@ using SpocR.SpocRVNext.Generators; // vNext TableTypesGenerator
 
 namespace SpocR.Managers;
 
+// Hilfs-Zeilenmodelle für generisches Mapping von Tabellen- und View-Namen
+internal class TableNameRow
+{
+    public string schema_name { get; set; }
+    public string table_name { get; set; }
+}
+
+internal class ViewNameRow
+{
+    public string schema_name { get; set; }
+    public string view_name { get; set; }
+}
+
 public class SpocrManager(
     SpocrService service,
     OutputService output,
@@ -448,11 +461,142 @@ public class SpocrManager(
                     {
                         Name = c.Name,
                         SqlTypeName = c.SqlTypeName,
-                        IsNullable = c.IsNullable,
-                        MaxLength = c.MaxLength
+                        IsNullable = c.IsNullable ? true : null,
+                        MaxLength = c.MaxLength > 0 ? c.MaxLength : null,
+                        UserTypeSchemaName = string.IsNullOrWhiteSpace(c.UserTypeName) ? null : c.UserTypeSchemaName,
+                        UserTypeName = string.IsNullOrWhiteSpace(c.UserTypeName) ? null : c.UserTypeName,
+                        BaseSqlTypeName = (!string.IsNullOrWhiteSpace(c.BaseSqlTypeName) && !string.Equals(c.BaseSqlTypeName, c.SqlTypeName, StringComparison.OrdinalIgnoreCase)) ? c.BaseSqlTypeName : null,
+                        Precision = (c.Precision.HasValue && c.Precision.Value > 0) ? c.Precision : null,
+                        Scale = (c.Scale.HasValue && c.Scale.Value > 0) ? c.Scale : null
                     }).ToList(),
                     Hash = HashUdtt(u.Schema, u.Name, u.Columns)
                 }).ToList();
+
+                // --- Neue Artefakte: User Defined Scalar Types, Functions, Tabellen & Views ---
+                // ORDERING CONTRACT (aktualisiert / Guarded):
+                //   (A) UserDefinedTypes (scalar aliases)
+                //   (B) Functions (scalar + TVF Signaturen)
+                //   (C) Tables
+                //   (D) Views
+                //   (E) TableTypes (wurden bereits davor geladen – UDTT Metadaten verfügbar)
+                //   (F) Procedures (abschließende Enrichment Phase)
+                // Begründung:
+                //   * Alias Typen zuerst für konsistente BaseSqlTypeName Pruning Regeln.
+                //   * Functions früh falls spätere Dependency/Impact Analysen von Views oder zukünftiger AST benötigt werden.
+                //   * sys.columns liefert für Views bereits fertige Typen – Reihenfolge zu Functions hat keinen Einfluss auf Typauflösung.
+                //   * Procedures zuletzt, da JSON Enrichment alle vorherigen Metadaten (UDTT, Functions, UDTs) nutzen kann.
+                bool phaseUserTypesDone = false, phaseFunctionsDone = false, phaseTablesDone = false, phaseViewsDone = false, phaseProceduresDone = procedures.Count > 0;
+                List<SnapshotFunction> snapshotEarlyFunctions = null;
+
+                var userDefinedTypeRows = await dbContext.UserDefinedScalarTypesAsync(System.Threading.CancellationToken.None);
+                var userDefinedTypes = userDefinedTypeRows.Select(r => new SnapshotUserDefinedType
+                {
+                    Schema = r.schema_name,
+                    Name = r.user_type_name,
+                    BaseSqlTypeName = r.base_type_name,
+                    MaxLength = r.max_length > 0 ? r.max_length : null,
+                    Precision = r.precision > 0 ? r.precision : null,
+                    Scale = r.scale > 0 ? r.scale : null,
+                    IsNullable = null // Skalar UDT Nullability nicht separat ableitbar hier
+                }).ToList();
+                phaseUserTypesDone = true;
+
+                // Frühe Function-Sammlung (vor Tabellen/Views) für zukünftige Abhängigkeitsgraphen
+                try
+                {
+                    var fnCollectorEarly = new FunctionSnapshotCollector(dbContext, expandedSnapshotService, consoleService);
+                    var tempSnap = new SchemaSnapshot { Functions = new List<SnapshotFunction>() };
+                    await fnCollectorEarly.CollectAsync(tempSnap);
+                    snapshotEarlyFunctions = tempSnap.Functions ?? new List<SnapshotFunction>();
+                    phaseFunctionsDone = true; // selbst wenn Liste leer ist -> Sequenz eingehalten
+                    consoleService.Verbose($"[fn-early-summary] functions={snapshotEarlyFunctions.Count}");
+                }
+                catch (Exception fnEarlyEx)
+                {
+                    consoleService.Warn($"[fn-early-collect-failed] {fnEarlyEx.Message}");
+                }
+
+                // Helper für Spalten-Pruning (Tabellen & Views)
+                SnapshotTableColumn MapTableColumn(Column c) => new SnapshotTableColumn
+                {
+                    Name = c.Name,
+                    SqlTypeName = c.SqlTypeName,
+                    IsNullable = c.IsNullable ? true : null, // false wird gepruned
+                    MaxLength = c.MaxLength > 0 ? c.MaxLength : null,
+                    IsIdentity = (c.IsIdentityRaw.HasValue && c.IsIdentityRaw.Value == 1) ? true : null,
+                    UserTypeSchemaName = string.IsNullOrWhiteSpace(c.UserTypeName) ? null : c.UserTypeSchemaName,
+                    UserTypeName = string.IsNullOrWhiteSpace(c.UserTypeName) ? null : c.UserTypeName,
+                    BaseSqlTypeName = (!string.IsNullOrWhiteSpace(c.BaseSqlTypeName) && !string.Equals(c.BaseSqlTypeName, c.SqlTypeName, StringComparison.OrdinalIgnoreCase)) ? c.BaseSqlTypeName : null,
+                    Precision = (c.Precision.HasValue && c.Precision.Value > 0) ? c.Precision : null,
+                    Scale = (c.Scale.HasValue && c.Scale.Value > 0) ? c.Scale : null
+                };
+
+                SnapshotViewColumn MapViewColumn(Column c) => new SnapshotViewColumn
+                {
+                    Name = c.Name,
+                    SqlTypeName = c.SqlTypeName,
+                    IsNullable = c.IsNullable ? true : null,
+                    MaxLength = c.MaxLength > 0 ? c.MaxLength : null,
+                    UserTypeSchemaName = string.IsNullOrWhiteSpace(c.UserTypeName) ? null : c.UserTypeSchemaName,
+                    UserTypeName = string.IsNullOrWhiteSpace(c.UserTypeName) ? null : c.UserTypeName,
+                    BaseSqlTypeName = (!string.IsNullOrWhiteSpace(c.BaseSqlTypeName) && !string.Equals(c.BaseSqlTypeName, c.SqlTypeName, StringComparison.OrdinalIgnoreCase)) ? c.BaseSqlTypeName : null,
+                    Precision = (c.Precision.HasValue && c.Precision.Value > 0) ? c.Precision : null,
+                    Scale = (c.Scale.HasValue && c.Scale.Value > 0) ? c.Scale : null
+                };
+
+                // 2) Tabellen je Build-Schema
+                var tables = new List<SnapshotTable>();
+                if (buildSchemas.Count > 0)
+                {
+                    var schemaLiteral = string.Join(',', buildSchemas.Select(s => $"'{s}'"));
+                    const string tableSql = @"SELECT s.name AS schema_name, t.name AS table_name
+                                              FROM sys.tables AS t
+                                              INNER JOIN sys.schemas AS s ON s.schema_id = t.schema_id
+                                              WHERE s.name IN ({0})
+                                              ORDER BY s.name, t.name"; // {0} wird unten ersetzt
+                    var formattedTableSql = string.Format(tableSql, schemaLiteral);
+                    var tableRows = await dbContext.ListAsync<TableNameRow>(formattedTableSql, new List<Microsoft.Data.SqlClient.SqlParameter>(), System.Threading.CancellationToken.None);
+                    foreach (var row in tableRows)
+                    {
+                        var cols = await dbContext.TableColumnsListAsync(row.schema_name, row.table_name, System.Threading.CancellationToken.None);
+                        tables.Add(new SnapshotTable
+                        {
+                            Schema = row.schema_name,
+                            Name = row.table_name,
+                            Columns = cols.Select(MapTableColumn).ToList()
+                        });
+                    }
+                }
+                phaseTablesDone = true;
+                if (!phaseUserTypesDone) consoleService.Warn("[ordering-guard] Tables loaded before UserDefinedTypes – potential alias resolution issues.");
+                if (!phaseFunctionsDone) consoleService.Warn("[ordering-guard] Tables loaded before Functions – mögliche fehlende Funktions-Metadaten für spätere Analysen.");
+
+                // 3) Views je Build-Schema
+                var views = new List<SnapshotView>();
+                if (buildSchemas.Count > 0)
+                {
+                    var schemaLiteral = string.Join(',', buildSchemas.Select(s => $"'{s}'"));
+                    const string viewSql = @"SELECT s.name AS schema_name, v.name AS view_name
+                                             FROM sys.views AS v
+                                             INNER JOIN sys.schemas AS s ON s.schema_id = v.schema_id
+                                             WHERE s.name IN ({0})
+                                             ORDER BY s.name, v.name"; // {0} wird unten ersetzt
+                    var formattedViewSql = string.Format(viewSql, schemaLiteral);
+                    var viewRows = await dbContext.ListAsync<ViewNameRow>(formattedViewSql, new List<Microsoft.Data.SqlClient.SqlParameter>(), System.Threading.CancellationToken.None);
+                    foreach (var row in viewRows)
+                    {
+                        var cols = await dbContext.ViewColumnsListAsync(row.schema_name, row.view_name, System.Threading.CancellationToken.None);
+                        views.Add(new SnapshotView
+                        {
+                            Schema = row.schema_name,
+                            Name = row.view_name,
+                            Columns = cols.Select(MapViewColumn).ToList()
+                        });
+                    }
+                }
+                phaseViewsDone = true;
+                if (!phaseTablesDone) consoleService.Warn("[ordering-guard] Views loaded before Tables – unexpected sequence.");
+                if (!phaseFunctionsDone) consoleService.Warn("[ordering-guard] Views loaded before Functions – unexpected sequence.");
 
                 // TableType refs per schema
                 var schemaSnapshots = schemas.Select(sc => new SnapshotSchema
@@ -481,27 +625,28 @@ public class SpocrManager(
                     Procedures = procedures,
                     Schemas = schemaSnapshots,
                     UserDefinedTableTypes = udtts,
+                    Tables = tables,
+                    Views = views,
+                    UserDefinedTypes = userDefinedTypes,
+                    Functions = (snapshotEarlyFunctions ?? new List<SnapshotFunction>())
+                        .OrderBy(f => f.Schema, StringComparer.OrdinalIgnoreCase)
+                        .ThenBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
+                        .ToList(),
+                    FunctionsVersion = (snapshotEarlyFunctions != null && snapshotEarlyFunctions.Count > 0) ? 2 : null,
                     Parser = new SnapshotParserInfo { ToolVersion = config.TargetFramework, ResultSetParserVersion = 8 },
                     Stats = new SnapshotStats
                     {
                         ProcedureTotal = procedures.Count,
                         ProcedureLoaded = procedures.Count(p => p.ResultSets != null && p.ResultSets.Count > 0),
                         ProcedureSkipped = procedures.Count(p => p.ResultSets == null || p.ResultSets.Count == 0),
-                        UdttTotal = udtts.Count
+                        UdttTotal = udtts.Count,
+                        TableTotal = tables.Count,
+                        ViewTotal = views.Count,
+                        UserDefinedTypeTotal = userDefinedTypes.Count
                     }
                 };
 
-                // Collect functions (preview) before writing expanded snapshot
-                try
-                {
-                    var fnCollector = new FunctionSnapshotCollector(dbContext, expandedSnapshotService, consoleService);
-                    await fnCollector.CollectAsync(snapshot);
-                    consoleService.Verbose($"[fn-summary] functions={snapshot.Functions.Count}");
-                }
-                catch (Exception fex)
-                {
-                    consoleService.Warn($"[fn-collect-failed] {fex.Message}");
-                }
+                // Spätere Function-Sammlung entfällt – bereits in früher Phase erledigt (siehe fn-early-summary Log)
 
                 // Monolithic legacy snapshot save removed (architecture refactor)
                 // schemaSnapshotService.Save(snapshot); // disabled
@@ -515,7 +660,29 @@ public class SpocrManager(
                 {
                     consoleService.Warn($"[snapshot-expanded-error] {fx.Message}");
                 }
-                consoleService.Verbose($"[snapshot] saved (expanded only) fingerprint={fingerprint} procs={procedures.Count} udtts={udtts.Count}");
+                    consoleService.Verbose($"[snapshot] saved (expanded only) fingerprint={fingerprint} procs={procedures.Count} fns={(snapshot.Functions?.Count ?? 0)} udtts={udtts.Count} tables={tables.Count} views={views.Count} udts={userDefinedTypes.Count}");
+                    // Hash pro UDTT jetzt im Cache statt im Snapshot: separate Cache-Datei erzeugen
+                    try
+                    {
+                        var working = Utils.DirectoryUtils.GetWorkingDirectory();
+                        if (!string.IsNullOrWhiteSpace(working))
+                        {
+                            var cacheDir = System.IO.Path.Combine(working, ".spocr", "cache");
+                            System.IO.Directory.CreateDirectory(cacheDir);
+                            var cachePath = System.IO.Path.Combine(cacheDir, "tabletype-hashes.json");
+                            var cacheDoc = new {
+                                version = 1,
+                                items = udtts.Select(u => new { name = $"{u.Schema}.{u.Name}", hash = u.Hash }).OrderBy(x => x.name).ToList()
+                            };
+                            var jsonCache = System.Text.Json.JsonSerializer.Serialize(cacheDoc, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                            System.IO.File.WriteAllText(cachePath, jsonCache);
+                            consoleService.Verbose($"[cache] tabletype-hashes written count={udtts.Count}");
+                        }
+                    }
+                    catch (Exception cex)
+                    {
+                        consoleService.Warn($"[cache-write-failed] {cex.Message}");
+                    }
                 // Informational migration note (legacy schema node removed)
                 consoleService.Verbose("[migration] Legacy 'schema' node removed; snapshot + IgnoredSchemas are now authoritative.");
                 // Always show run-level JSON enrichment summary (even if zero) unless logging is Off

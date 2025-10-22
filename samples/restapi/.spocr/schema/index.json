@@ -9,7 +9,10 @@
     "ProcedureTotal": 10,
     "ProcedureSkipped": 0,
     "ProcedureLoaded": 10,
-    "UdttTotal": 3
+    "UdttTotal": 3,
+    "TableTotal": 2,
+    "ViewTotal": 0,
+    "UserDefinedTypeTotal": 6
   },
   "Procedures": [
     {
@@ -78,20 +81,73 @@
       "Schema": "samples",
       "Name": "OrderImportTableType",
       "File": "samples.OrderImportTableType.json",
-      "Hash": "0A087A9C1D4536EF"
+      "Hash": "2D548AD89EB14FEF"
     },
     {
       "Schema": "samples",
       "Name": "UserContactTableType",
       "File": "samples.UserContactTableType.json",
-      "Hash": "4B4092F302EDF99B"
+      "Hash": "3DDC665CD6F09CFD"
     },
     {
       "Schema": "samples",
       "Name": "UserIdListTableType",
       "File": "samples.UserIdListTableType.json",
-      "Hash": "DBAD0CC5C2F36234"
+      "Hash": "84F54F60DAFE2F67"
     }
   ],
-  "Functions": []
+  "Functions": [],
+  "UserDefinedTypes": [
+    {
+      "Schema": "samples",
+      "Name": "DisplayNameType",
+      "File": "samples.DisplayNameType.json",
+      "Hash": "965DACEBD6811C4E"
+    },
+    {
+      "Schema": "samples",
+      "Name": "EmailAddressType",
+      "File": "samples.EmailAddressType.json",
+      "Hash": "72C1CA8EAE59F842"
+    },
+    {
+      "Schema": "samples",
+      "Name": "MoneyAmountType",
+      "File": "samples.MoneyAmountType.json",
+      "Hash": "32BAB33EC71A740B"
+    },
+    {
+      "Schema": "samples",
+      "Name": "OrderNoteType",
+      "File": "samples.OrderNoteType.json",
+      "Hash": "2EEB57CE844C4079"
+    },
+    {
+      "Schema": "samples",
+      "Name": "UserBioType",
+      "File": "samples.UserBioType.json",
+      "Hash": "DB35BB85E565F3F5"
+    },
+    {
+      "Schema": "samples",
+      "Name": "UtcDateTimeType",
+      "File": "samples.UtcDateTimeType.json",
+      "Hash": "65AEB166FF8C7F5E"
+    }
+  ],
+  "Tables": [
+    {
+      "Schema": "samples",
+      "Name": "Orders",
+      "File": "samples.Orders.json",
+      "Hash": "10983EEE4CE06492"
+    },
+    {
+      "Schema": "samples",
+      "Name": "Users",
+      "File": "samples.Users.json",
+      "Hash": "2B29F24033F872E0"
+    }
+  ],
+  "Views": []
 }

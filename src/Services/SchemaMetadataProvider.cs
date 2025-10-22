@@ -175,15 +175,25 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
                         {
                             Name = c.Name,
                             SqlTypeName = c.SqlTypeName,
-                            IsNullable = c.IsNullable,
-                            MaxLength = c.MaxLength
+                            IsNullable = c.IsNullable ?? false,
+                            MaxLength = c.MaxLength ?? 0,
+                            UserTypeName = c.UserTypeName,
+                            UserTypeSchemaName = c.UserTypeSchemaName,
+                            BaseSqlTypeName = c.BaseSqlTypeName,
+                            Precision = c.Precision,
+                            Scale = c.Scale
                         }).ToList()
                     }, u.Columns.Select(c => new DataContext.Models.Column
                     {
                         Name = c.Name,
                         SqlTypeName = c.SqlTypeName,
-                        IsNullable = c.IsNullable,
-                        MaxLength = c.MaxLength
+                        IsNullable = c.IsNullable ?? false,
+                        MaxLength = c.MaxLength ?? 0,
+                        UserTypeName = c.UserTypeName,
+                        UserTypeSchemaName = c.UserTypeSchemaName,
+                        BaseSqlTypeName = c.BaseSqlTypeName,
+                        Precision = c.Precision,
+                        Scale = c.Scale
                     }).ToList())).ToList();
                 return new SchemaModel
                 {

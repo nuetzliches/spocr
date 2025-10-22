@@ -30,6 +30,10 @@ public sealed class SchemaSnapshotFileLayoutService
         Directory.CreateDirectory(Path.Combine(baseDir, "procedures"));
         Directory.CreateDirectory(Path.Combine(baseDir, "tabletypes"));
         Directory.CreateDirectory(Path.Combine(baseDir, "functions"));
+        // Neue Verzeichnisse (Prio 1): types, tables, views
+        Directory.CreateDirectory(Path.Combine(baseDir, "types"));
+        Directory.CreateDirectory(Path.Combine(baseDir, "tables"));
+        Directory.CreateDirectory(Path.Combine(baseDir, "views"));
         return baseDir;
     }
 
@@ -103,7 +107,26 @@ public sealed class SchemaSnapshotFileLayoutService
         {
             var fileName = $"{SpocR.SpocRVNext.Utils.NameSanitizer.SanitizeForFile(udtt.Schema)}.{SpocR.SpocRVNext.Utils.NameSanitizer.SanitizeForFile(udtt.Name)}.json";
             var path = Path.Combine(ttDir, fileName);
-            var json = JsonSerializer.Serialize(udtt, _jsonOptions);
+            // Hash im Snapshot entfernen – nur fachliche Struktur persistieren
+            var cleanUdtt = new SnapshotUdtt
+            {
+                Schema = udtt.Schema,
+                Name = udtt.Name,
+                UserTypeId = udtt.UserTypeId,
+                Columns = (udtt.Columns ?? new List<SnapshotUdttColumn>()).Select(c => new SnapshotUdttColumn
+                {
+                    Name = c.Name,
+                    SqlTypeName = c.SqlTypeName,
+                    IsNullable = c.IsNullable == true ? true : null,
+                    MaxLength = (c.MaxLength.HasValue && c.MaxLength.Value > 0) ? c.MaxLength : null,
+                    UserTypeSchemaName = c.UserTypeSchemaName,
+                    UserTypeName = c.UserTypeName,
+                    BaseSqlTypeName = (!string.IsNullOrWhiteSpace(c.BaseSqlTypeName) && !string.Equals(c.BaseSqlTypeName, c.SqlTypeName, StringComparison.OrdinalIgnoreCase)) ? c.BaseSqlTypeName : null,
+                    Precision = (c.Precision.HasValue && c.Precision.Value > 0) ? c.Precision : null,
+                    Scale = (c.Scale.HasValue && c.Scale.Value > 0) ? c.Scale : null
+                }).ToList()
+            };
+            var json = JsonSerializer.Serialize(cleanUdtt, _jsonOptions);
             var newHash = HashUtils.Sha256Hex(json).Substring(0, 16);
             bool needsWrite = true;
             if (existingTtFiles.TryGetValue(fileName, out var existingPath))
@@ -230,6 +253,65 @@ public sealed class SchemaSnapshotFileLayoutService
             .ThenBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+        // Build hashes for new artefact types (scalar UDTs, tables, views)
+        var typesDir = Path.Combine(baseDir, "types");
+        var tablesDir = Path.Combine(baseDir, "tables");
+        var viewsDir = Path.Combine(baseDir, "views");
+        Directory.CreateDirectory(typesDir);
+        Directory.CreateDirectory(tablesDir);
+        Directory.CreateDirectory(viewsDir);
+
+        var typeHashes = new List<FileHashEntry>();
+        foreach (var udt in snapshot.UserDefinedTypes ?? Enumerable.Empty<SnapshotUserDefinedType>())
+        {
+            var fileName = $"{SpocR.SpocRVNext.Utils.NameSanitizer.SanitizeForFile(udt.Schema)}.{SpocR.SpocRVNext.Utils.NameSanitizer.SanitizeForFile(udt.Name)}.json";
+            var path = Path.Combine(typesDir, fileName);
+            var json = JsonSerializer.Serialize(udt, _jsonOptions);
+            var newHash = HashUtils.Sha256Hex(json).Substring(0,16);
+            File.WriteAllText(path, json); // keine Delta-Optimierung nötig (klein)
+            typeHashes.Add(new FileHashEntry { Schema = udt.Schema, Name = udt.Name, File = fileName, Hash = newHash });
+        }
+
+        var tableHashes = new List<FileHashEntry>();
+        foreach (var tbl in snapshot.Tables ?? Enumerable.Empty<SnapshotTable>())
+        {
+            var fileName = $"{SpocR.SpocRVNext.Utils.NameSanitizer.SanitizeForFile(tbl.Schema)}.{SpocR.SpocRVNext.Utils.NameSanitizer.SanitizeForFile(tbl.Name)}.json";
+            var path = Path.Combine(tablesDir, fileName);
+            // Spalten-Pruning analog Procedure Columns: false/null Werte entfernen
+            foreach (var c in tbl.Columns ?? new List<SnapshotTableColumn>())
+            {
+                if (c.IsNullable == false) c.IsNullable = null;
+                if (c.IsIdentity == false) c.IsIdentity = null;
+                if (c.MaxLength.HasValue && c.MaxLength.Value == 0) c.MaxLength = null;
+                if (!string.IsNullOrWhiteSpace(c.BaseSqlTypeName) && string.Equals(c.BaseSqlTypeName, c.SqlTypeName, StringComparison.OrdinalIgnoreCase)) c.BaseSqlTypeName = null;
+                if (c.Precision.HasValue && c.Precision.Value == 0) c.Precision = null;
+                if (c.Scale.HasValue && c.Scale.Value == 0) c.Scale = null;
+            }
+            var json = JsonSerializer.Serialize(tbl, _jsonOptions);
+            var newHash = HashUtils.Sha256Hex(json).Substring(0,16);
+            File.WriteAllText(path, json);
+            tableHashes.Add(new FileHashEntry { Schema = tbl.Schema, Name = tbl.Name, File = fileName, Hash = newHash });
+        }
+
+        var viewHashes = new List<FileHashEntry>();
+        foreach (var vw in snapshot.Views ?? Enumerable.Empty<SnapshotView>())
+        {
+            var fileName = $"{SpocR.SpocRVNext.Utils.NameSanitizer.SanitizeForFile(vw.Schema)}.{SpocR.SpocRVNext.Utils.NameSanitizer.SanitizeForFile(vw.Name)}.json";
+            var path = Path.Combine(viewsDir, fileName);
+            foreach (var c in vw.Columns ?? new List<SnapshotViewColumn>())
+            {
+                if (c.IsNullable == false) c.IsNullable = null;
+                if (c.MaxLength.HasValue && c.MaxLength.Value == 0) c.MaxLength = null;
+                if (!string.IsNullOrWhiteSpace(c.BaseSqlTypeName) && string.Equals(c.BaseSqlTypeName, c.SqlTypeName, StringComparison.OrdinalIgnoreCase)) c.BaseSqlTypeName = null;
+                if (c.Precision.HasValue && c.Precision.Value == 0) c.Precision = null;
+                if (c.Scale.HasValue && c.Scale.Value == 0) c.Scale = null;
+            }
+            var json = JsonSerializer.Serialize(vw, _jsonOptions);
+            var newHash = HashUtils.Sha256Hex(json).Substring(0,16);
+            File.WriteAllText(path, json);
+            viewHashes.Add(new FileHashEntry { Schema = vw.Schema, Name = vw.Name, File = fileName, Hash = newHash });
+        }
+
         var index = new ExpandedSnapshotIndex
         {
             SchemaVersion = snapshot.SchemaVersion,
@@ -239,7 +321,10 @@ public sealed class SchemaSnapshotFileLayoutService
             Procedures = procHashes,
             TableTypes = ttHashes,
             FunctionsVersion = snapshot.FunctionsVersion,
-            Functions = fnHashesOrdered
+            Functions = fnHashesOrdered,
+            UserDefinedTypes = typeHashes.OrderBy(h => h.Schema).ThenBy(h => h.Name).ToList(),
+            Tables = tableHashes.OrderBy(h => h.Schema).ThenBy(h => h.Name).ToList(),
+            Views = viewHashes.OrderBy(h => h.Schema).ThenBy(h => h.Name).ToList()
         };
         var indexPath = Path.Combine(baseDir, "index.json");
         var indexJson = JsonSerializer.Serialize(index, _jsonOptions);
@@ -492,6 +577,11 @@ public sealed class SchemaSnapshotFileLayoutService
         public List<FileHashEntry> TableTypes { get; set; } = new();
         public int? FunctionsVersion { get; set; }
         public List<FileHashEntry> Functions { get; set; } = new();
+        // Neue Kategorien (optional / leer für Kompatibilität mit älteren index.json Versionen)
+    // Umbenennung: UserDefinedTypes statt Types (alias scalar UDTs)
+    public List<FileHashEntry> UserDefinedTypes { get; set; } = new();
+        public List<FileHashEntry> Tables { get; set; } = new();
+        public List<FileHashEntry> Views { get; set; } = new();
     }
 
     public sealed class FileHashEntry

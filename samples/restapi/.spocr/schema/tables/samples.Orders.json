@@ -1,12 +1,17 @@
 {
   "Schema": "samples",
-  "Name": "OrderImportTableType",
-  "UserTypeId": 264,
+  "Name": "Orders",
   "Columns": [
+    {
+      "Name": "OrderId",
+      "SqlTypeName": "int",
+      "MaxLength": 4,
+      "IsIdentity": true,
+      "Precision": 10
+    },
     {
       "Name": "UserId",
       "SqlTypeName": "int",
-      "IsNullable": true,
       "MaxLength": 4,
       "Precision": 10
     },
@@ -27,6 +32,14 @@
       "UserTypeName": "UtcDateTimeType",
       "Precision": 27,
       "Scale": 7
+    },
+    {
+      "Name": "Notes",
+      "SqlTypeName": "nvarchar",
+      "IsNullable": true,
+      "MaxLength": 1024,
+      "UserTypeSchemaName": "samples",
+      "UserTypeName": "OrderNoteType"
     }
   ]
 }

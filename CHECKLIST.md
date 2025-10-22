@@ -561,6 +561,7 @@ Hinweis: Einige Punkte überschneiden sich mit bereits vorhandenen Deferred v5 I
 - [ ] SPOCR_ENFORCE_TABLETYPE_BUILDER migrieren zu SPOCR_SUPPRESS_WARNINGS
 - [ ] Keine Regex Fallbacks für AST-Parsing, alle Stellen durch pure AST-Navigation ersetzen
 - [ ] Keine JSON Models in legacy und keine SP Extension mit Model (using auf model entfernen)
+- [?] -q|--quiet gibt noch logs aus, bzw. müsste hier --json nicht --quit forcen (Regeln neu bestimmen)?
 
 ## Deferred v5 Items (Consolidated)
 
@@ -616,9 +617,14 @@ Status-Legende: [>] deferred (v5 Ziel) – Querverweis auf README / Roadmap Absc
 
 ### Prio 1
 
-- [ ] Wir benötigen noch .spocr/schema/[tables|views|types] um beim AST Parsing die Typen auflösen zu können.
-- [ ] Sicherstellen, dass die .spocr/schema/tabletypes bereits die korrekten UDT-Typen beinhalten, Properties ergänzen, wenn nötig.
-- [ ] `types` müssen zuerst abgerufen werden, damit andere Objekte darauf referenzieren können, bzw. ihre finalen Typen bestimmen können.
+- [x] Wir benötigen noch .spocr/schema/[tables|views|types] um beim AST Parsing die Typen auflösen zu können. (Implementiert: Verzeichnisse + Writer + Tests)
+- [x] Sicherstellen, dass die .spocr/schema/tabletypes bereits die korrekten UDT-Typen beinhalten, Properties ergänzen, wenn nötig. (Alias/BaseSqlTypeName, Precision/Scale, Identity & Pruning aktiv)
+- [x] `types` müssen zuerst abgerufen werden, damit andere Objekte darauf referenzieren können, bzw. ihre finalen Typen bestimmen können. (Ordering Guard + frühe Function-Sammlung angepasst)
+- [~] AST Parsing für vnext Output sauber implementieren und Heuristiken zu Typen-Auflösung entfernen. (Snapshot Basis & Normalisierung vorhanden; Parser-Heuristik Ablösung noch offen)
+
+Hinzugefügt (2025-10-22):
+- [x] Functions werden jetzt VOR Tables/Views gesammelt (frühe Signaturen für künftige Dependency-Graphen), Ordering Kommentar aktualisiert.
+- [x] Unbenutzte Guard-Variable bereinigt (phaseFunctionsDone in früherer Variante entfernt; neue Sequenz konsolidiert).
 
 ### 1. JSON Deserialisierung Tests abschließen
 

@@ -7,8 +7,8 @@
       "Name": "UserId",
       "SqlTypeName": "int",
       "IsNullable": true,
-      "MaxLength": 4
+      "MaxLength": 4,
+      "Precision": 10
     }
-  ],
-  "Hash": "9DF845D5C4D2444D"
+  ]
 }

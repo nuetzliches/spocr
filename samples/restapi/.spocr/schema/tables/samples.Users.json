@@ -1,13 +1,12 @@
 {
   "Schema": "samples",
-  "Name": "UserContactTableType",
-  "UserTypeId": 263,
+  "Name": "Users",
   "Columns": [
     {
       "Name": "UserId",
       "SqlTypeName": "int",
-      "IsNullable": true,
       "MaxLength": 4,
+      "IsIdentity": true,
       "Precision": 10
     },
     {
@@ -23,6 +22,23 @@
       "MaxLength": 128,
       "UserTypeSchemaName": "samples",
       "UserTypeName": "DisplayNameType"
+    },
+    {
+      "Name": "CreatedAt",
+      "SqlTypeName": "datetime2",
+      "MaxLength": 8,
+      "UserTypeSchemaName": "samples",
+      "UserTypeName": "UtcDateTimeType",
+      "Precision": 27,
+      "Scale": 7
+    },
+    {
+      "Name": "Bio",
+      "SqlTypeName": "nvarchar",
+      "IsNullable": true,
+      "MaxLength": 512,
+      "UserTypeSchemaName": "samples",
+      "UserTypeName": "UserBioType"
     }
   ]
 }

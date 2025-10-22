@@ -1,0 +1,6 @@
+{
+  "Schema": "samples",
+  "Name": "OrderNoteType",
+  "BaseSqlTypeName": "nvarchar",
+  "MaxLength": 1024
+}
