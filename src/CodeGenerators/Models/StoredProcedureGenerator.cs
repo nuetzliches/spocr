@@ -62,8 +62,9 @@ public class StoredProcedureGenerator(
         }
 
         // Determine if any stored procedure in this group actually produces a model (skip pure scalar non-JSON procs)
-        var genMode = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant() ?? "dual";
-        bool legacyRawJsonOnly = genMode != "next"; // in dual/legacy modes suppress JSON model generation
+    // Unabhängig vom Modus: JSON Procs erzeugen ausschließlich Raw Methoden (Task<string>), niemals typed Models oder Deserialize Methoden.
+    var genMode = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant() ?? "dual"; // read but no behavioral effect for JSON typing
+    bool legacyRawJsonOnly = true; // force raw-only for JSON always
         bool NeedsModel(Definition.StoredProcedure sp)
         {
             if (sp.ResultSets == null || sp.ResultSets.Count == 0) return false;
@@ -245,6 +246,23 @@ public class StoredProcedureGenerator(
         // Generate Methods
         foreach (var storedProcedure in storedProcedures)
         {
+            // Reine Wrapper (nur ExecSource Placeholder) überspringen – kein eigener Output.
+            if (storedProcedure.IsPureWrapper)
+            {
+                consoleService.Verbose($"[spgen-skip-wrapper] {schema.Name}.{storedProcedure.Name} pure wrapper skipped (no direct output).");
+                continue;
+            }
+
+            // Sonderfall: ExecSource Placeholder (Forwarding Referenz) kann an beliebiger Position stehen – nicht nur als erstes Set.
+            // Wir generieren für den gesamten StoredProcedure-Namen nur Raw Methoden; Deserialize Varianten entfallen sobald irgendein ExecSource Placeholder existiert.
+            var execPlaceholderSet = storedProcedure.ResultSets?.FirstOrDefault(rs => rs.Columns != null && rs.Columns.Count == 0 && !string.IsNullOrEmpty(rs.ExecSourceProcedureName));
+            bool hasExecSourcePlaceholder = execPlaceholderSet != null;
+            bool isExecSourcePlaceholder = hasExecSourcePlaceholder && !execPlaceholderSet.ReturnsJson && !execPlaceholderSet.ReturnsJsonArray;
+            bool isExecSourceJsonPlaceholder = hasExecSourcePlaceholder && execPlaceholderSet.ReturnsJson; // JSON Forwarding
+            if (hasExecSourcePlaceholder)
+            {
+                consoleService.Verbose($"[spgen-wrapper-ref] {schema.Name}.{storedProcedure.Name} reference placeholder detected (json={execPlaceholderSet.ReturnsJson}). Raw only.");
+            }
             nsNode = (NamespaceDeclarationSyntax)root.Members[0];
             classNode = (ClassDeclarationSyntax)nsNode.Members[0];
 
@@ -261,24 +279,13 @@ public class StoredProcedureGenerator(
             overloadOptionsMethodNode = GenerateStoredProcedureMethodText(overloadOptionsMethodNode, storedProcedure, StoredProcedureMethodKind.Raw, true);
             root = root.AddMethod(ref classNode, overloadOptionsMethodNode);
 
-            // Add Deserialize variants for JSON returning procedures (suppressed in legacy/dual)
+            // Add Deserialize variants für JSON nur wenn kein ExecSource Placeholder (direkte Erzeugung) und vNext Modus aktiv.
+            // Primäres direktes JSON Set bestimmen: erstes ResultSet ohne ExecSource ProcedureName mit ReturnsJson=true.
             var firstSet = storedProcedure.ResultSets?.FirstOrDefault();
-            if ((firstSet?.ReturnsJson ?? false) && !legacyRawJsonOnly)
-            {
-                nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-                classNode = (ClassDeclarationSyntax)nsNode.Members[0];
-                var methodTemplates = classNode.Members.OfType<MethodDeclarationSyntax>().ToList();
-                var deserializePipeTemplate = methodTemplates[0];
-                var deserializeContextTemplate = methodTemplates[1];
-
-                var deserializePipe = GenerateStoredProcedureMethodText(deserializePipeTemplate, storedProcedure, StoredProcedureMethodKind.Deserialize, false);
-                root = root.AddMethod(ref classNode, deserializePipe);
-
-                nsNode = (NamespaceDeclarationSyntax)root.Members[0];
-                classNode = (ClassDeclarationSyntax)nsNode.Members[0];
-                var deserializeContext = GenerateStoredProcedureMethodText(deserializeContextTemplate, storedProcedure, StoredProcedureMethodKind.Deserialize, true);
-                root = root.AddMethod(ref classNode, deserializeContext);
-            }
+            var primaryDirectJson = storedProcedure.ResultSets?.FirstOrDefault(rs => string.IsNullOrEmpty(rs.ExecSourceProcedureName) && rs.ReturnsJson);
+            // Deserialize erlauben, wenn ein direktes JSON Set existiert (unabhängig von anderen ExecSource Platzhaltern) und nicht im Legacy/Dual Modus.
+            // ExecSource JSON Platzhalter (Forwarding) selbst erzeugt keine Deserialize Methoden.
+            // JSON Deserialize Varianten niemals erzeugen
         }
 
         // Remove template Method
@@ -297,7 +304,7 @@ public class StoredProcedureGenerator(
     }
 #pragma warning restore CS0618
 
-    private enum StoredProcedureMethodKind { Raw, Deserialize }
+    private enum StoredProcedureMethodKind { Raw }
 
     private MethodDeclarationSyntax GenerateStoredProcedureMethodText(MethodDeclarationSyntax methodNode, Definition.StoredProcedure storedProcedure, StoredProcedureMethodKind kind, bool isOverload)
     {
@@ -317,16 +324,7 @@ public class StoredProcedureGenerator(
         }
         // Method name
         var baseName = $"{storedProcedure.Name}Async";
-        if (kind == StoredProcedureMethodKind.Deserialize)
-        {
-            var desired = $"{storedProcedure.Name}DeserializeAsync";
-            // basic collision safeguard
-            if (methodNode.Identifier.Text.Equals(desired, StringComparison.OrdinalIgnoreCase))
-            {
-                desired = $"{storedProcedure.Name}ToModelAsync";
-            }
-            baseName = desired;
-        }
+        // Deserialize Variante wurde vollständig entfernt (keine Umbenennung auf *DeserializeAsync)
         var methodIdentifier = SyntaxFactory.ParseToken(baseName);
         methodNode = methodNode.WithIdentifier(methodIdentifier);
 
@@ -438,10 +436,11 @@ public class StoredProcedureGenerator(
                 ? null
                 : storedProcedure.ResultSets.FirstOrDefault(rs => string.IsNullOrEmpty(rs.ExecSourceProcedureName))
                     ?? storedProcedure.ResultSets.FirstOrDefault();
-    var genModeLocal = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant() ?? "dual";
-    bool legacyRawOnly = genModeLocal != "next"; // treat JSON sets as raw-only outside vNext
-    var isJson = firstSet?.ReturnsJson ?? false;
-    var isJsonArray = isJson && (firstSet?.ReturnsJsonArray ?? false);
+        var genModeLocal = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant() ?? "dual";
+        // Nur echter 'legacy' Modus unterdrückt JSON Deserialization; 'dual' und 'next' erzeugen Deserialize Methoden.
+        bool legacyRawOnly = genModeLocal == "legacy"; // treat JSON sets as raw-only only in legacy mode
+        var isJson = firstSet?.ReturnsJson ?? false;
+        var isJsonArray = isJson && (firstSet?.ReturnsJsonArray ?? false);
         // Forwarding Referenz-only: genau ein Set, kein JSON, Columns leer, ExecSource gesetzt -> Ziel auflösen für Modellwahl
         bool isReferenceOnlyForward = false;
         string forwardSchema = null; string forwardProc = null;
@@ -495,8 +494,8 @@ public class StoredProcedureGenerator(
             }
         }
 
-        // Only the pipe variant of a JSON Deserialize method performs the awaited deserialization; the context overload delegates.
-    var requiresAsync = isJson && kind == StoredProcedureMethodKind.Deserialize && !isOverload && !legacyRawOnly;
+    // Deserialize Pfad entfernt -> requiresAsync immer false
+    var requiresAsync = false;
 
         var rawJson = false;
         // Special case: multiple result sets but exactly one JSON set -> treat JSON as primary
@@ -521,61 +520,7 @@ public class StoredProcedureGenerator(
                 .Replace("ExecuteSingleAsync<CrudResult>", "ReadJsonAsync")
                 .Replace("ExecuteListAsync<CrudResult>", "ReadJsonAsync");
         }
-    else if (isJson && kind == StoredProcedureMethodKind.Deserialize && !legacyRawOnly)
-        {
-            returnModel = storedProcedure.Name;
-            if (isJsonArray)
-            {
-                var hasOutputs = storedProcedure.HasOutputs();
-                var wrapperType = hasOutputs ? $"JsonOutputOptions<List<{returnModel}>>" : $"List<{returnModel}>";
-                returnType = hasOutputs ? $"Task<JsonOutputOptions<List<{returnModel}>>>" : $"Task<List<{returnModel}>>";
-                if (isOverload)
-                {
-                    var call = $"context.CreatePipe().{storedProcedure.Name}DeserializeAsync({(storedProcedure.HasInputs() ? "input, " : string.Empty)}cancellationToken)";
-                    returnExpression = call;
-                }
-                else
-                {
-                    var inner = $"await context.ReadJsonDeserializeAsync<List<{returnModel}>>(\"{storedProcedure.SqlObjectName}\", parameters, cancellationToken)";
-                    if (hasOutputs)
-                    {
-                        // Build Output wrapper from parameters (expected OUTPUT params already present)
-                        // Reuse ExecuteAsync signature logic? We construct Output manually via parameter extensions.
-                        // Using parameters.ToOutput<Output>() to get base Output then wrap.
-                        if (!methodNode.Modifiers.Any(m => m.IsKind(SyntaxKind.AsyncKeyword)))
-                        {
-                            methodNode = methodNode.WithModifiers(methodNode.Modifiers.Add(SyntaxFactory.Token(SyntaxKind.AsyncKeyword)));
-                        }
-                        inner = $"new JsonOutputOptions<List<{returnModel}>>(parameters.ToOutput<Output>(), {inner})";
-                    }
-                    returnExpression = inner;
-                }
-            }
-            else
-            {
-                var hasOutputs = storedProcedure.HasOutputs();
-                var wrapperType = hasOutputs ? $"JsonOutputOptions<{returnModel}>" : returnModel;
-                returnType = hasOutputs ? $"Task<JsonOutputOptions<{returnModel}>>" : $"Task<{returnModel}>";
-                if (isOverload)
-                {
-                    var call = $"context.CreatePipe().{storedProcedure.Name}DeserializeAsync({(storedProcedure.HasInputs() ? "input, " : string.Empty)}cancellationToken)";
-                    returnExpression = call;
-                }
-                else
-                {
-                    var inner = $"await context.ReadJsonDeserializeAsync<{returnModel}>(\"{storedProcedure.SqlObjectName}\", parameters, cancellationToken)";
-                    if (hasOutputs)
-                    {
-                        if (!methodNode.Modifiers.Any(m => m.IsKind(SyntaxKind.AsyncKeyword)))
-                        {
-                            methodNode = methodNode.WithModifiers(methodNode.Modifiers.Add(SyntaxFactory.Token(SyntaxKind.AsyncKeyword)));
-                        }
-                        inner = $"new JsonOutputOptions<{returnModel}>(parameters.ToOutput<Output>(), {inner})";
-                    }
-                    returnExpression = inner;
-                }
-            }
-        }
+        // Deserialize Pfad vollständig entfernt (niemals typed JSON Rückgaben)
         else if (!rawJson)
         {
             // Consolidated non-JSON, non-raw cases (scalar, output-based, tabular) for deterministic replacement
@@ -724,15 +669,7 @@ public class StoredProcedureGenerator(
             if (kind == StoredProcedureMethodKind.Raw)
             {
                 xmlSummary =
-                    $"/// <summary>Executes stored procedure '{storedProcedure.SqlObjectName}' and returns the raw JSON string.</summary>\r\n" +
-                    $"/// <remarks>Use <see cref=\"{storedProcedure.Name}DeserializeAsync\"/> to obtain a typed {(isJsonArray ? "list" : "model")}.</remarks>\r\n";
-            }
-            else if (kind == StoredProcedureMethodKind.Deserialize)
-            {
-                var target = isJsonArray ? $"List<{storedProcedure.Name}>" : storedProcedure.Name;
-                xmlSummary =
-                    $"/// <summary>Executes stored procedure '{storedProcedure.SqlObjectName}' and deserializes the JSON response into {target}.</summary>\r\n" +
-                    $"/// <remarks>Underlying raw JSON method: <see cref=\"{storedProcedure.Name}Async\"/>.</remarks>\r\n";
+                    $"/// <summary>Executes stored procedure '{storedProcedure.SqlObjectName}' and returns the raw JSON string.</summary>\r\n";
             }
 
             if (!string.IsNullOrWhiteSpace(xmlSummary))

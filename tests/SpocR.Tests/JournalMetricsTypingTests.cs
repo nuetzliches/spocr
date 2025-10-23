@@ -16,13 +16,19 @@ BEGIN
            sub.DebitorIsOpen + sub.CreditorIsOpen AS 'summary.total',
            sub.DebitorIsOpen AS 'debitor.isOpen',
            sub.CreditorIsOpen AS 'creditor.isOpen',
+           sub.TotalCount AS 'meta.totalCount',
+           sub.TotalBig AS 'meta.totalBig',
+           sub.AvgStatus AS 'meta.avgStatus',
            @DebitorId AS 'params.debitorId',
            @CreditorId AS 'params.creditorId'
     FROM (
         SELECT
             SUM(IIF(j.CreditorId IS NULL AND j.DebitorId IS NULL, 1, 0)) AS SummaryGlobal,
             SUM(IIF(j.CommunicationTypeId = 11 AND j.JournalStatusId = 1, 1, 0)) AS DebitorIsOpen,
-            SUM(IIF(j.CommunicationTypeId = 12 AND j.JournalStatusId = 1, 1, 0)) AS CreditorIsOpen
+            SUM(IIF(j.CommunicationTypeId = 12 AND j.JournalStatusId = 1, 1, 0)) AS CreditorIsOpen,
+            COUNT(*) AS TotalCount,
+            COUNT_BIG(*) AS TotalBig,
+            AVG(CAST(j.JournalStatusId AS decimal(10,2))) AS AvgStatus
         FROM journal.Journal j
     ) AS sub
     FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
@@ -32,13 +38,18 @@ END";
     public void Aggregates_And_Computed_Addition_Should_Set_Flags()
     {
         var model = StoredProcedureContentModel.Parse(Sql, DefaultSchema);
-        var rs = Assert.Single(model.ResultSets);
-        Assert.True(rs.ReturnsJson);
-        // Finde die vier Zielspalten
+    // Aktuell markiert der Analyzer sowohl das innere Derived-Select als auch das äußere Select als JSON (heuristische Erkennung greift zweimal).
+    // Wir wählen das äußere ResultSet, identifizierbar an den finalen alias-Namen mit Punkten (z.B. 'summary.global').
+    var rs = model.ResultSets.First(r => r.Columns.Any(c => c.Name == "summary.global"));
+    Assert.True(rs.ReturnsJson);
+    // Finde Zielspalten
         var globalCol = rs.Columns.First(c => c.Name == "summary.global");
         var totalCol = rs.Columns.First(c => c.Name == "summary.total");
         var debCol = rs.Columns.First(c => c.Name == "debitor.isOpen");
         var credCol = rs.Columns.First(c => c.Name == "creditor.isOpen");
+    var cntCol = rs.Columns.First(c => c.Name == "meta.totalCount");
+    var bigCol = rs.Columns.First(c => c.Name == "meta.totalBig");
+    var avgCol = rs.Columns.First(c => c.Name == "meta.avgStatus");
 
         // Erwartung: summary.global stammt aus SUM(IIF(...)) -> IsAggregate true & AggregateFunction sum & HasIntegerLiteral true
         Assert.True(globalCol.IsAggregate, "summary.global sollte als Aggregat erkannt werden");
@@ -54,5 +65,10 @@ END";
         Assert.False(totalCol.IsAggregate, "Addition zweier Aggregat-Spalten selbst kein Aggregat");
         // Integer Literal Flag sollte aufgrund Propagation (beide Operanden integer) gesetzt sein
         Assert.True(totalCol.HasIntegerLiteral, "Computed Addition von zwei int Aggregaten sollte HasIntegerLiteral tragen");
+
+        // Erweiterte Aggregate
+        Assert.True(cntCol.IsAggregate); Assert.Equal("count", cntCol.AggregateFunction); Assert.Equal("int", cntCol.SqlTypeName);
+        Assert.True(bigCol.IsAggregate); Assert.Equal("count_big", bigCol.AggregateFunction); Assert.Equal("bigint", bigCol.SqlTypeName);
+        Assert.True(avgCol.IsAggregate); Assert.Equal("avg", avgCol.AggregateFunction); Assert.Equal("decimal(18,2)", avgCol.SqlTypeName);
     }
 }

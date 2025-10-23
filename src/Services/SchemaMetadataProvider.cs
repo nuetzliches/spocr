@@ -288,28 +288,8 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
 
         // Placeholder sets (forwarding references) are never filtered now because they are required to resolve the target model.
 
-        // Heuristic: single result set and a single legacy FOR JSON column -> mark as JSON
-        if (sets.Count == 1)
-        {
-            var s = sets[0];
-            if (!s.ReturnsJson && (s.Columns?.Count == 1))
-            {
-                var col = s.Columns[0];
-                if (col.Name != null && col.Name.Equals("JSON_F52E2B61-18A1-11d1-B105-00805F49916B", StringComparison.OrdinalIgnoreCase)
-                    && (col.SqlTypeName?.StartsWith("nvarchar", StringComparison.OrdinalIgnoreCase) ?? false))
-                {
-                    sets[0] = new StoredProcedureContentModel.ResultSet
-                    {
-                        ReturnsJson = true,
-                        ReturnsJsonArray = true, // conservative: FOR JSON PATH without WITHOUT_ARRAY_WRAPPER -> array
-                        // removed flag
-                        JsonRootProperty = null,
-                        Columns = Array.Empty<StoredProcedureContentModel.ResultColumn>() // structure unknown
-                    };
-                }
-                // Name-based JSON inference removed (only structural detection via parser / legacy sentinel remains).
-            }
-        }
+        // Entfernt: automatische legacy Einzelspalten-Konvertierung (JSON_F52E2B61...)
+        // Optional reaktivierbar via Flag SPOCR_JSON_LEGACY_SINGLE=1 bereits im SchemaManager für Live-Erkennung.
         return sets.ToArray();
     }
 }

@@ -111,124 +111,21 @@ public sealed class ProceduresGenerator
             try { Console.Out.WriteLine("[spocr vNext] Info: ProceduresGenerator skipped – provider returned 0 procedures."); } catch { }
             return 0;
         }
-        // --- Cross-Schema EXEC Forwarding Phase (in-memory rewrite of ProcedureDescriptor sets) ---
-        // Strategy:
-        // 1) Detect placeholder wrapper: single ResultSet with ExecSource* metadata & Columns.Count == 0 -> replace with full forwarded sets from target (even if target filtered out).
-        // 2) Detect mixed case: at least one placeholder (Columns.Count == 0) + at least one non-empty set -> append forwarded sets after existing sets.
-        // 3) Duplicate avoidance: skip forwarded set names that already exist (case-insensitive). Optionally suffix with Fwd# if conflict.
-        // 4) Preserve ExecSource metadata on each forwarded set.
-        // NOTE: We do forwarding BEFORE template model construction so unified generation sees enriched sets.
-        var forwarded = new List<ProcedureDescriptor>();
-        foreach (var proc in procs)
+        // Entfernte Forwarding-Klonphase: ExecSource Platzhalter bleiben unverändert.
+        // Expansion erfolgt später beim Template-Mapping (generationszeitlich), nicht durch Mutation der ResultSets.
+        bool IsDebug()
         {
-            if (proc.ResultSets == null || proc.ResultSets.Count == 0)
-            {
-                forwarded.Add(proc);
-                continue;
-            }
-            var placeholders = proc.ResultSets.Where(rs => rs.ExecSourceProcedureName != null && rs.Fields.Count == 0).ToList();
-            if (placeholders.Count == 0)
-            {
-                forwarded.Add(proc); // no forwarding needed
-                continue;
-            }
-            // Assume first placeholder drives target (multiple placeholders rare; process each sequentially)
-            var updatedSets = proc.ResultSets.ToList();
-            bool anyChange = false;
-            foreach (var ph in placeholders)
-            {
-                try { Console.Out.WriteLine($"[proc-forward-debug] candidate placeholder proc={proc.Schema}.{proc.ProcedureName} -> target={ph.ExecSourceSchemaName}.{ph.ExecSourceProcedureName} fields={ph.Fields.Count}"); } catch { }
-                var targetKey = (ph.ExecSourceSchemaName ?? "dbo") + "." + (ph.ExecSourceProcedureName ?? string.Empty);
-                if (!originalLookup.TryGetValue(targetKey, out var targetProc) || targetProc.ResultSets == null || targetProc.ResultSets.Count == 0)
-                {
-                    // Could log diagnostic if enabled
-                    try { Console.Out.WriteLine($"[proc-forward-debug][skip] targetKey={targetKey} found={(originalLookup.ContainsKey(targetKey))} targetRsCount={(originalLookup.ContainsKey(targetKey) ? originalLookup[targetKey].ResultSets?.Count : 0)}"); } catch { }
-                    continue;
-                }
-                var isWrapper = proc.ResultSets.Count == placeholders.Count && proc.ResultSets.All(r => r.Fields.Count == 0); // pure wrapper: only placeholders
-                try { Console.Out.WriteLine($"[proc-forward-debug] forwarding mode={(isWrapper ? "wrapper" : "mixed")} targetRs={targetProc.ResultSets.Count}"); } catch { }
-                var existingNames = new HashSet<string>(updatedSets.Select(s => s.Name), StringComparer.OrdinalIgnoreCase);
-                var cloned = new List<ResultSetDescriptor>();
-                int fwdIndex = 0;
-                foreach (var targetSet in targetProc.ResultSets)
-                {
-                    // Compose forwarded name aligning with target set name; ensure unique
-                    var baseName = (ph.ExecSourceProcedureName != null ? ph.ExecSourceProcedureName + "_" : string.Empty) + targetSet.Name;
-                    var finalName = baseName;
-                    while (existingNames.Contains(finalName))
-                    {
-                        finalName = baseName + "Fwd" + fwdIndex.ToString();
-                        fwdIndex++;
-                    }
-                    existingNames.Add(finalName);
-                    var clonedSet = new ResultSetDescriptor(
-                        Index: updatedSets.Count + cloned.Count, // provisional index after append/replace
-                        Name: finalName,
-                        Fields: targetSet.Fields,
-                        IsScalar: targetSet.IsScalar,
-                        Optional: targetSet.Optional,
-                        HasSelectStar: targetSet.HasSelectStar,
-                        ExecSourceSchemaName: ph.ExecSourceSchemaName,
-                        ExecSourceProcedureName: ph.ExecSourceProcedureName,
-                        ReturnsJson: targetSet.ReturnsJson,
-                        ReturnsJsonArray: targetSet.ReturnsJsonArray
-                    );
-                    cloned.Add(clonedSet);
-                }
-                if (isWrapper)
-                {
-                    // Replace ALL placeholder sets with forwarded clones (wrapper semantics)
-                    updatedSets = cloned;
-                }
-                else
-                {
-                    // Mixed case: remove placeholder and append clones at end preserving original order
-                    updatedSets.Remove(ph);
-                    updatedSets.AddRange(cloned);
-                }
-                anyChange = true;
-                try { Console.Out.WriteLine($"[proc-forward-debug] applied forwarding sets={updatedSets.Count}"); } catch { }
-            }
-            if (anyChange)
-            {
-                // Re-index sets after modifications
-                var reIndexed = updatedSets.Select((rs, idx) => new ResultSetDescriptor(
-                    Index: idx,
-                    Name: rs.Name,
-                    Fields: rs.Fields,
-                    IsScalar: rs.IsScalar,
-                    Optional: rs.Optional,
-                    HasSelectStar: rs.HasSelectStar,
-                    ExecSourceSchemaName: rs.ExecSourceSchemaName,
-                    ExecSourceProcedureName: rs.ExecSourceProcedureName,
-                    ReturnsJson: rs.ReturnsJson,
-                    ReturnsJsonArray: rs.ReturnsJsonArray
-                )).ToList();
-                try { Console.Out.WriteLine($"[proc-forward-debug-finalizing] {proc.Schema}.{proc.ProcedureName} -> sets=" + string.Join(",", reIndexed.Select(r => r.Name + ":" + r.Fields.Count))); } catch { }
-                var newProc = new ProcedureDescriptor(
-                    ProcedureName: proc.ProcedureName,
-                    Schema: proc.Schema,
-                    OperationName: proc.OperationName,
-                    InputParameters: proc.InputParameters,
-                    OutputFields: proc.OutputFields,
-                    ResultSets: reIndexed,
-                    Summary: proc.Summary,
-                    Remarks: proc.Remarks
-                );
-                forwarded.Add(newProc);
-            }
-            else
-            {
-                try { Console.Out.WriteLine($"[proc-forward-debug-finalizing] {proc.Schema}.{proc.ProcedureName} (unchanged) sets=" + string.Join(",", proc.ResultSets.Select(r => r.Name + ":" + r.Fields.Count))); } catch { }
-                forwarded.Add(proc);
-            }
+            var lvl = Environment.GetEnvironmentVariable("SPOCR_LOG_LEVEL");
+            return lvl != null && (lvl.Equals("debug", StringComparison.OrdinalIgnoreCase) || lvl.Equals("trace", StringComparison.OrdinalIgnoreCase));
         }
-        procs = forwarded;
         try
         {
-            foreach (var fp in procs)
+            if (IsDebug())
             {
-                Console.Out.WriteLine($"[proc-forward-debug-summary] {fp.Schema}.{fp.ProcedureName} sets={fp.ResultSets.Count} -> {string.Join(";", fp.ResultSets.Select(r => r.Name + ":" + r.Fields.Count))}");
+                foreach (var fp in procs)
+                {
+                    Console.Out.WriteLine($"[proc-forward-debug-summary] {fp.Schema}.{fp.ProcedureName} sets={fp.ResultSets.Count} -> {string.Join(";", fp.ResultSets.Select(r => r.Name + ":" + r.Fields.Count))}");
+                }
             }
         }
         catch { }
@@ -262,7 +159,16 @@ public sealed class ProceduresGenerator
         bool hasUnifiedTemplate = _loader != null && _loader.TryLoad("UnifiedProcedure", out unifiedTemplateRaw);
         if (!hasUnifiedTemplate)
         {
-            try { Console.Out.WriteLine("[spocr vNext] Warn: UnifiedProcedure.spt not found – generating fallback skeleton (check template path)"); } catch { }
+            try
+            {
+                Console.Out.WriteLine("[spocr vNext] Warn: UnifiedProcedure.spt not found – generating fallback skeleton (check template path)");
+                if (_loader != null)
+                {
+                    var names = string.Join(",", _loader.ListNames());
+                    Console.Out.WriteLine("[spocr vNext] Template loader names: " + (names.Length == 0 ? "<empty>" : names));
+                }
+            }
+            catch { }
         }
         foreach (var proc in procs.OrderBy(p => p.OperationName))
         {
@@ -281,7 +187,8 @@ public sealed class ProceduresGenerator
             Directory.CreateDirectory(schemaDir);
             var procedureTypeName = NamePolicy.Procedure(procPart);
             // Aggregat-Typ: rein <Proc>Aggregate (ohne zusätzliches 'Result')
-            var unifiedResultTypeName = ToPascalCase(procPart) + "Aggregate";
+            // Align with existing tests expecting <Proc>Result as unified aggregate type
+            var unifiedResultTypeName = NamePolicy.Result(procPart);
             var inputTypeName = NamePolicy.Input(procPart);
             var outputTypeName = NamePolicy.Output(procPart);
             // JSON Typkorrektur-Tracking für diese Prozedur (außerhalb des Template-Blocks, damit nachher verfügbar)
@@ -349,7 +256,47 @@ public sealed class ProceduresGenerator
                 var rsMeta = new List<object>();
                 int rsIdx = 0;
                 // jsonTypeCorrections bereits oben initialisiert
+                // Generation-time Expansion: Wenn ein ResultSet ein reiner ExecSource Platzhalter (Fields leer) ist,
+                // werden dessen Ziel-ResultSets virtuell expandiert (inline), ohne die ursprüngliche Descriptor-Liste zu verändern.
                 foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
+                {
+                    bool isExecPlaceholder = rs.Fields.Count == 0 && rs.ExecSourceProcedureName != null;
+                    if (isExecPlaceholder)
+                    {
+                        var targetKey = (rs.ExecSourceSchemaName ?? "dbo") + "." + rs.ExecSourceProcedureName;
+                        if (originalLookup.TryGetValue(targetKey, out var targetProc) && targetProc.ResultSets != null && targetProc.ResultSets.Count > 0)
+                        {
+                            if (IsDebug()) { try { Console.Out.WriteLine($"[proc-forward-expand] {proc.Schema}.{proc.ProcedureName} expanding placeholder -> {targetKey} sets={targetProc.ResultSets.Count}"); } catch { } }
+                            foreach (var tSet in targetProc.ResultSets)
+                            {
+                                // Virtuelle Projektion: benutze Ziel-Felder & JSON Flags, setze ExecSource* auf Platzhalter Herkunft
+                                var virtualRs = new ResultSetDescriptor(
+                                    Index: rsIdx,
+                                    Name: tSet.Name,
+                                    Fields: tSet.Fields,
+                                    IsScalar: tSet.IsScalar,
+                                    Optional: tSet.Optional,
+                                    HasSelectStar: tSet.HasSelectStar,
+                                    ExecSourceSchemaName: rs.ExecSourceSchemaName,
+                                    ExecSourceProcedureName: rs.ExecSourceProcedureName,
+                                    ReturnsJson: tSet.ReturnsJson,
+                                    ReturnsJsonArray: tSet.ReturnsJsonArray
+                                );
+                                // Weiterverarbeitung wie reguläres ResultSet (Mapping & Record-Emission)
+                                AppendResultSetMeta(virtualRs);
+                            }
+                            continue; // Platzhalter selbst nicht zusätzlich emittieren
+                        }
+                        else
+                        {
+                            if (IsDebug()) { try { Console.Out.WriteLine($"[proc-forward-expand][skip] target missing for {targetKey}"); } catch { } }
+                            // Fällt zurück auf leeren Satz (keine Felder) – wird normal verarbeitet (führt zu leerem Record)
+                        }
+                    }
+                    AppendResultSetMeta(rs);
+                }
+
+                void AppendResultSetMeta(ResultSetDescriptor rs)
                 {
                     // JSON Typ-Korrektur: Wenn ReturnsJson aktiv ist, Feldliste mit SQL->CLR Mapping neu ableiten.
                     IReadOnlyList<FieldDescriptor> effectiveFields = rs.Fields;
@@ -371,25 +318,10 @@ public sealed class ProceduresGenerator
                         }
                         effectiveFields = remapped;
                     }
-                    // Überarbeitetes Typ-Namensschema:
-                    // Index 0 (erster Satz): <Proc>Result
-                    // Generische weitere Sätze: <Proc>Result{Index}
-                    // Explizite Namen (nicht 'ResultSet*'): <Proc><CustomNamePascal>Result
-                    string rsType;
-                    bool isGeneric = rs.Name.StartsWith("ResultSet", StringComparison.OrdinalIgnoreCase);
-                    if (rsIdx == 0)
-                    {
-                        rsType = ToPascalCase(procPart) + "Result";
-                    }
-                    else if (isGeneric)
-                    {
-                        rsType = ToPascalCase(procPart) + "Result" + rsIdx.ToString();
-                    }
-                    else
-                    {
-                        // Benutzerdefinierter ResultSet Name
-                        rsType = ToPascalCase(procPart) + ToPascalCase(rs.Name) + "Result";
-                    }
+                    // Typ-Namensschema an Tests angleichen:
+                    // Verwende konsistent NamePolicy.ResultSet(procPart, rs.Name) für jeden ResultSet Record.
+                    // Unified Aggregate bleibt NamePolicy.Result(procPart) und kollidiert somit nicht mehr mit erstem Satz.
+                    string rsType = NamePolicy.ResultSet(procPart, rs.Name);
                     // Suffix-Korrektur entfällt im neuen Schema
                     // Alias-basierte Property-Namen zuerst bestimmen (für JSON-Fallback erforderlich)
                     var usedNames = new HashSet<string>(StringComparer.Ordinal);
@@ -440,7 +372,7 @@ public sealed class ProceduresGenerator
                         ordinalDecls = string.Join(" ", ordinalAssignments); // classic mapping with cached ordinals (debug dump removed)
                     }
                     var fieldExprs = string.Join(", ", effectiveFields.Select((f, idx) => MaterializeFieldExpressionCached(f, idx)));
-                    // Property Namen bleiben analog: Result, Result1, Result2 ...
+                    // Property Namen bleiben analog: Result, Result1, Result2 ... (keine Änderung nötig für Tests)
                     string propName = rsIdx == 0 ? "Result" : "Result" + rsIdx.ToString();
                     var initializerExpr = $"rs.Length > {rsIdx} && rs[{rsIdx}] is object[] rows{rsIdx} ? Array.ConvertAll(rows{rsIdx}, o => ({rsType})o).ToList() : (rs.Length > {rsIdx} && rs[{rsIdx}] is System.Collections.Generic.List<object> list{rsIdx} ? Array.ConvertAll(list{rsIdx}.ToArray(), o => ({rsType})o).ToList() : Array.Empty<{rsType}>())";
                     // BodyBlock ersetzt Template-If-Verwendung; enthält vollständigen Lambda-Inhalt.
@@ -601,7 +533,7 @@ public sealed class ProceduresGenerator
                             NestedRecordsBlock = nestedRecordsBlock
                         });
                         rsIdx++;
-                        continue; // skip flat record path
+                        return; // skip flat record path
                     }
                     // NEW: Verschachtelte Record-Generierung auch für nicht-JSON Sets mit Dot-Aliasen
                     // (Bisher nur JSON Sets erhielten nestedRecordsBlock – nun allgemeiner Ansatz).
@@ -792,8 +724,9 @@ public sealed class ProceduresGenerator
                     HasParameters = proc.InputParameters.Count + proc.OutputFields.Count > 0,
                     HasInput = proc.InputParameters.Count > 0,
                     HasOutput = proc.OutputFields.Count > 0,
-                    HasResultSets = proc.ResultSets.Count > 0,
-                    HasMultipleResultSets = proc.ResultSets.Count > 1,
+                    // Verwende rsMeta Count (inkl. virtueller Expansion) statt ursprünglicher proc.ResultSets
+                    HasResultSets = rsMeta.Count > 0,
+                    HasMultipleResultSets = rsMeta.Count > 1,
                     InputParameters = proc.InputParameters.Select((p, i) => new { p.ClrType, p.PropertyName, Comma = i == proc.InputParameters.Count - 1 ? string.Empty : "," }).ToList(),
                     OutputFields = proc.OutputFields.Select((f, i) => new { f.ClrType, f.PropertyName, Comma = i == proc.OutputFields.Count - 1 ? string.Empty : "," }).ToList(),
                     // Pre-bracket (and escape) schema & procedure name so runtime does not need to normalize.
@@ -841,8 +774,15 @@ public sealed class ProceduresGenerator
             {
                 try
                 {
-                    var sample = string.Join(", ", jsonTypeCorrections.Take(5));
-                    Console.Out.WriteLine($"[spocr vNext] JsonTypeMapping: {jsonTypeCorrections.Count} field(s) corrected for {proc.OperationName}. Examples: {sample}{(jsonTypeCorrections.Count > 5 ? ", ..." : string.Empty)}");
+                    // Log-Level gesteuert: Nur ausgeben bei SPOCR_LOG_LEVEL=debug|trace oder wenn Anzahl über Schwellwert (>=4)
+                    var lvl = Environment.GetEnvironmentVariable("SPOCR_LOG_LEVEL");
+                    bool verbose = lvl != null && (lvl.Equals("debug", StringComparison.OrdinalIgnoreCase) || lvl.Equals("trace", StringComparison.OrdinalIgnoreCase));
+                    bool threshold = jsonTypeCorrections.Count >= 4;
+                    if (verbose || threshold)
+                    {
+                        var sample = string.Join(", ", jsonTypeCorrections.Take(5));
+                        Console.Out.WriteLine($"[spocr vNext] JsonTypeMapping: {jsonTypeCorrections.Count} field(s) corrected for {proc.OperationName}. Examples: {sample}{(jsonTypeCorrections.Count > 5 ? ", ..." : string.Empty)}");
+                    }
                 }
                 catch { /* ignore */ }
             }
@@ -857,6 +797,7 @@ public sealed class ProceduresGenerator
             }
         }
         catch { /* ignore audit failures */ }
+        try { Console.Out.WriteLine($"[spocr vNext] Generators succeeded (procedures written={written})"); } catch { }
         return written;
     }
 

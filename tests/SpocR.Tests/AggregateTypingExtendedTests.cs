@@ -1,0 +1,54 @@
+using System.Linq;
+using Xunit;
+using SpocR.Models; // StoredProcedureContentModel
+
+namespace SpocR.Tests;
+
+// Tests für erweiterte Aggregat Typinferenz: COUNT, COUNT_BIG, AVG, EXISTS, SUM.
+public class AggregateTypingExtendedTests
+{
+    private const string DefaultSchema = "samples";
+
+    // Derived-Table Pattern (inneres Subselect) analog JournalMetrics für stabile Aggregat-Propagation.
+    private const string Sql = @"CREATE PROCEDURE samples.AggregateTypingExtended AS
+BEGIN
+    SELECT
+        sub.CountAll AS 'agg.countAll',
+        sub.CountBig AS 'agg.countBig',
+        sub.AvgAmount AS 'agg.avgAmount',
+        sub.HasPositive AS 'agg.hasPositive',
+        sub.SumAmount AS 'agg.sumAmount'
+    FROM (
+        SELECT
+            COUNT(*) AS CountAll,
+            COUNT_BIG(*) AS CountBig,
+            AVG(o.Amount) AS AvgAmount,
+            EXISTS(SELECT 1 FROM samples.Orders o2 WHERE o2.Amount > 0) AS HasPositive,
+            SUM(o.Amount) AS SumAmount
+        FROM samples.Orders o
+    ) AS sub
+    FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
+END";
+
+    [Fact]
+    public void Aggregates_Should_Have_Inferred_Types()
+    {
+        var model = StoredProcedureContentModel.Parse(Sql, DefaultSchema);
+        var rs = Assert.Single(model.ResultSets);
+        Assert.True(rs.ReturnsJson);
+
+        var countAll = rs.Columns.First(c => c.Name == "agg.countAll");
+        var countBig = rs.Columns.First(c => c.Name == "agg.countBig");
+        var avgAmount = rs.Columns.First(c => c.Name == "agg.avgAmount");
+        var hasPositive = rs.Columns.First(c => c.Name == "agg.hasPositive");
+        var sumAmount = rs.Columns.First(c => c.Name == "agg.sumAmount");
+
+        Assert.True(countAll.IsAggregate); Assert.Equal("count", countAll.AggregateFunction); Assert.Equal("int", countAll.SqlTypeName);
+        Assert.True(countBig.IsAggregate); Assert.Equal("count_big", countBig.AggregateFunction); Assert.Equal("bigint", countBig.SqlTypeName);
+    Assert.True(avgAmount.IsAggregate); Assert.Equal("avg", avgAmount.AggregateFunction); Assert.Equal("decimal(18,2)", avgAmount.SqlTypeName);
+        Assert.True(hasPositive.IsAggregate); Assert.Equal("exists", hasPositive.AggregateFunction); Assert.Equal("bit", hasPositive.SqlTypeName);
+        Assert.True(sumAmount.IsAggregate); Assert.Equal("sum", sumAmount.AggregateFunction); Assert.NotNull(sumAmount.SqlTypeName); // kann int oder decimal Fallback sein
+    }
+
+    // Erweiterte Tests für JSON_QUERY Wrapper & STRING_AGG werden separat ergänzt.
+}

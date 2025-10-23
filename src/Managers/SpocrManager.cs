@@ -919,6 +919,29 @@ public class SpocrManager(
                 {
                     var summaryLine = $"[json-type-run-summary] procedures={procedures.Count(p => p.ResultSets.Any(rs => rs.Columns.Any()))} resolvedColumns={enrichmentStats.ResolvedColumns} new={enrichmentStats.NewConcrete} upgrades={enrichmentStats.Upgrades}";
                     if (options.Verbose) consoleService.Verbose(summaryLine); else consoleService.Output(summaryLine);
+                    // Detail: Per-Prozedur Zusammenfassung nur bei Debug/Trace Level oder explizitem Flag SPOCR_JSON_PROC_SUMMARY=true
+                    try
+                    {
+                        var lvl = Environment.GetEnvironmentVariable("SPOCR_LOG_LEVEL")?.Trim().ToLowerInvariant();
+                        var flag = Environment.GetEnvironmentVariable("SPOCR_JSON_PROC_SUMMARY")?.Trim().ToLowerInvariant();
+                        bool showDetails = (lvl is "debug" or "trace") || (flag is "1" or "true" or "yes");
+                        if (showDetails)
+                        {
+                            foreach (var proc in procedures.Where(p => p.ResultSets != null && p.ResultSets.Any()))
+                            {
+                                int rsCount = proc.ResultSets.Count;
+                                int jsonSets = proc.ResultSets.Count(r => r.ReturnsJson);
+                                int totalCols = proc.ResultSets.Sum(r => r.Columns?.Count ?? 0);
+                                // Aggregat-Erkennung in SnapshotResultColumn nicht vorhanden -> Platzhalter (0)
+                                int aggCols = 0;
+                                var schemaName = proc.Schema ?? "dbo";
+                                // Wichtig: bisher Verbose() -> erforderte --verbose Flag und ignorierte SPOCR_LOG_LEVEL/SPOCR_JSON_PROC_SUMMARY.
+                                // Auf Output() umgestellt, damit Detailausgabe allein über showDetails (debug/trace Level oder Flag) gesteuert wird.
+                                consoleService.Output($"[json-type-proc-summary] {schemaName}.{proc.Name} sets={rsCount} jsonSets={jsonSets} cols={totalCols} aggCols={aggCols}");
+                            }
+                        }
+                    }
+                    catch { }
                 }
             }
             catch (Exception sx)

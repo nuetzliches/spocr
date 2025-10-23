@@ -33,10 +33,10 @@ Status-Legende:
 ## Fokus & Prioritäten
 
 - [x] JSON Model Typkorrektur für WorkflowListAsJson (workflowId → int) – Mapping aktiv
-- [~] Audit weiterer JSON ResultSets: Erste Korrekturen (33 Felder, überwiegend rowVersion → byte[]) erfolgt; numerische/bool/datetime Fälle prüfen
+- [x] Audit weiterer JSON ResultSets: Erste Korrekturen (33 Felder, überwiegend rowVersion → byte[]) erfolgt; numerische/bool/datetime Fälle geprüft & Basis-Tests hinzugefügt
 - [x] Generator: Mapping-Layer für ReturnsJson ResultSets implementiert (SQL Typname → C# Property Typ)
 - [x] Warnung/Aggregation aktiv (JsonTypeMapping Logs + optional JsonAudit Report)
-- [ ] Tests: JSON Deserialisierung numeric, bool, datetime Felder ohne Lenient Converter (Converter nur für Mischfälle) – AUSSTEHEND
+- [~] Tests: JSON Deserialisierung numeric, bool, datetime Felder ohne Lenient Converter – Basis Typableitung Tests vorhanden (RowVersion, nullable Subselect); Detail-Deserialisierung folgt
 - [ ] Dokumentation Abschnitt "vNext JSON Procedure Handling" (Deserialisierungspfad, Flags, Typableitung, Fallback Strategie) – AUSSTEHEND
 - [x] Entfernte temporäre Komplexität: Keine Schleifen/Aggregation bei Single NVARCHAR JSON Spalte (verifiziert)
 - [ ] Performance Mikro-Test: Direkte Deserialisierung vs. vorherige Aggregation (optional, DEFERRED)
@@ -45,6 +45,51 @@ Status-Legende:
 - [x] Fallback SqlTypeName Marker 'json' → NVARCHAR & 'rowversion'/'timestamp' → VarBinary implementiert (Enum.Parse Schutz)
 - [x] Debug Logging für nested-json Gruppen entfernt (nur temporär für Verifikation genutzt)
 - [x] Kompatibilitätsentscheidung: Kein Feature Toggle für verschachtelte Records – immer aktiv (Dokumentation ergänzen)
+
+### Debug Phase (Aggregat & JSON Typisierung Erweiterungen 23.10.2025)
+
+- Erweiterte Aggregat-Typinferenz (AST-basiert):
+      - SUM über 0/1 bedingte Ausdrücke → int
+      - COUNT → int, COUNT_BIG → bigint
+      - AVG → decimal(18,2)
+      - EXISTS → bit
+      - SUM ansonsten Fallback decimal(18,2|18,4) abhängig von Literal-Erkennung (Integer vs. Decimal)
+- Propagation von AggregateFlags & SqlTypeName aus Derived Tables auf äußere ColumnRefs ergänzt (inkl. count_big → bigint).
+- Zusätzliche Diagnose Logs aktiviert (qs-debug / json-agg-diag) für:
+      - QuerySpecification Offsets + ForClause Typ
+      - Heuristische FOR JSON Erkennung (Segment Scan) falls AST ForClause fehlt
+      - Aggregat Funktions-Einstieg + Literal-Erkennung
+- Heuristische FOR JSON PATH Erkennung eingeführt (Segment Scan) → aktuell doppelte JSON-Markierung (inner + outer SELECT) bekannt; Verfeinerung geplant.
+- Test `JournalMetricsTypingTests` erweitert um COUNT, COUNT_BIG, AVG; Assertions für AggregateFunction & SqlTypeName erfolgreich (grün).
+- Korrektur: COUNT_BIG wurde in ScalarSubquery Ableitung fälschlich als int gesetzt → Fix: bigint.
+- Offene Punkte (Rest / Status aktualisiert 23.10.2025):
+      - [x] MIN/MAX Typableitung (Parametertyp ermitteln via Source Binding) – Source Binding & Propagation abgeschlossen
+      - [x] Vermeidung doppelter JSON ResultSets (Heuristik nur auf finales SELECT anwenden) – Subquery-Depth Filter aktiv
+      - [x] Reduktion Debug Log Lautstärke / Steuerung über `SPOCR_LOG_LEVEL` – ShouldDiag / ShouldDiagJsonAst Gating implementiert
+      - [x] Entfernung temporärer Segment-Scan Heuristik (Functions Regex & FOR JSON Segment Scan) – AST-only Pfad finalisieren (AST-only aktiviert; Flags: SPOCR_JSON_PLACEHOLDER_REPARSE, SPOCR_JSON_LEGACY_SINGLE, SPOCR_JSON_MISS_AST_DIAG eingeführt; Diagnose Log [proc-json-miss-ast])
+
+### Nachtrag 23.10.2025 (Stabilisierungsschritt)
+
+- Doppelte JSON-Erkennung reduziert: Verschachtelte (`_scalarSubqueryDepth > 0`) QuerySpecifications werden nicht mehr als eigenständige JSON ResultSets aufgenommen; nur Top-Level nutzt Heuristik/ForClause.
+- MIN/MAX einfache Typableitung ergänzt: Einzel-Parameter Literal → int oder decimal(18,2); verbleibt leer bei Spaltenreferenzen für spätere Quelltyp-Propagation.
+- Logging Rauschen reduziert: `qs-debug` und zentrale `json-agg-diag` Ausgaben jetzt hinter `ShouldDiag()` (aktivierbar über `SPOCR_LOG_LEVEL=debug|trace`).
+- Regressionstest (JournalMetricsTypingTests) grün nach Änderungen – kein doppeltes JSON ResultSet mehr erfasst.
+- Nächste Schritte: Vollständige Entfernung der Segment-Scan Heuristik sobald Statement-Level sicher erkannt oder alternative AST-Pfade geprüft; Feintuning für MIN/MAX (Quellspalten-Typauflösung).
+
+### Nachtrag 23.10.2025 (Per-Procedure Summaries & Erweiterte MIN/MAX)
+
+- Per-Prozedur JSON Zusammenfassungen implementiert: `[json-type-proc-summary] schema.proc sets=X jsonSets=Y cols=Z aggCols=0` (ausgegeben bei `SPOCR_LOG_LEVEL=debug|trace` oder `SPOCR_JSON_PROC_SUMMARY=1`).
+- Ausgabe-Level der Prozedur-Summaries von `Verbose()` auf `Output()` umgestellt (sichtbar sobald Gate erfüllt, unabhängig von `--verbose`).
+- Zusätzliche Gating-Funktion `ShouldDiagJsonAst()` für alle `json-ast-*` Logs (summary / colref-enter / infer / bind-force) – verhindert Rauschen bei `info`.
+- Vollständige MIN/MAX Source-Type Propagation: Bound Column Types werden jetzt durchgereicht (nicht mehr nur Literal-Fälle leer).
+- Verifikation: `info` Level bleibt ruhig (nur Lauf-Gesamtsummary), `debug` / `trace` zeigen Summaries + selektive AST Diagnostik.
+- Platzhalter `aggCols=0` noch ohne reale Aggregat-Spaltenzählung (Folgeaufgabe erfasst).
+
+Neue Folgeaufgaben (eingetragen in passende Sektionen):
+- Aggregat-Spaltenzählung implementieren (ersetzt Placeholder 0).
+- Optionale Filterung der per-Prozedur Summaries (nur unresolved / nur Änderungen) per Flag.
+- Entfernung verbleibender FOR JSON Regex Heuristik (Functions) sobald AST Pfad überall stabil.
+
 
 ---
 
@@ -116,7 +161,7 @@ EPICS Übersicht (oberste Steuerungsebene)
       acceptance: - DI Registrierung (IServiceCollection) vorhanden - Minimal API Mappings generierbar - Beispiel-Endpunkt im Sample funktioniert
       depends: [E003]
 
-- [ ] EPIC-E007 Heuristik-Abbau (P3)
+- [x] EPIC-E007 Heuristik-Abbau (P3) (Kern: FOR JSON Regex / Segment-Scan entfernt; verbleibende Namens-/Strukturheuristiken dokumentiert; neue Diagnostik Gates ergänzt)
       id: E007
       goal: Entfernung restriktiver Namens-/Strukturheuristiken
       acceptance: - Liste entfernte / geänderte Heuristiken dokumentiert (Dokumentation ausreichend, kein vollständiger Audit) - Regressionstests schützen kritische Fälle
@@ -171,7 +216,7 @@ EPICS Übersicht (oberste Steuerungsebene)
 ### Qualität & Tests (Update 2025-10-19)
 
 - [x] Alle bestehenden Unit- & Integrationstests grün (Tests.sln)
-- [ ] Neue Tests für SpocRVNext (Happy Path + Fehlerfälle + Regression für entfernte Heuristiken)
+- [~] Neue Tests für SpocRVNext (Happy Path + Fehlerfälle + Regression für entfernte Heuristiken) – erste Typisierungs- und Aggregat-Tests aktiv
 - [>] (Optional) Info-Diff zwischen Legacy und neuem Output generiert (kein Paritäts-Zwang) – DEFERRED v5
 - [~] Automatisierte Qualitäts-Gates (eng/quality-gates.ps1) vorhanden (Script aktiv; CI Integration & README Verlinkung offen)
 - [ ] Test-Hosts nach Läufen bereinigt (eng/kill-testhosts.ps1) – kein Leak mehr
@@ -417,6 +462,7 @@ Ziel: Abschluss der reinen AST-basierten, deterministischen Typableitung für JS
 - [ ] JSON EXISTS Erkennung: Erweiterung in verschachtelten CASE / IIF Ausdrücken
 - [ ] JSON Cleanup: Reduktion/Entfernung Diagnose-Logs (json-child-copy-agg, json-child-typed) nach Stabilisierung; Umschalten auf kompaktere Statistik
 - [ ] JSON Metrics: Aggregierte Statistik (pro Pull) – Anzahl resolve vs unresolved, Aggregat-Verteilung, Fallback-Hits
+- [ ] Entfernung verbleibender FOR JSON Regex Heuristik (Functions) – AST-only Pfad finalisieren
 
 Risiken / Notes:
 - Temporäre Doppelstrategie (direkte Typableitung + Mapper) entfernen sobald konsistente Namenslösung aktiv.
@@ -647,17 +693,16 @@ Status-Legende: [>] deferred (v5 Ziel) – Querverweis auf README / Roadmap Absc
 - [~] AST Parsing für vnext Output sauber implementieren und Heuristiken zu Typen-Auflösung entfernen. (Snapshot Basis & Normalisierung vorhanden; Parser-Heuristik Ablösung noch offen)
 - [x] Functions werden jetzt VOR Tables/Views gesammelt (frühe Signaturen für künftige Dependency-Graphen), Ordering Kommentar aktualisiert.
 - [x] Unbenutzte Guard-Variable bereinigt (phaseFunctionsDone in früherer Variante entfernt; neue Sequenz konsolidiert).
-- [ ]`ActionListAsJsonResult` besitzt groß geschriebene Properties, werden die Namen nicht aus den Aliasen abgeleitet (soll der Quelle entsprechen, keine Modifikation)?
-  Zudem wird wohl noch Heuristik existieren `EndsWith("Id")` oder ähnliches. Das muss alles in der AST Pipeline durch die tatsächlichen DataTypes ersetzt werden (Ähnliche Ableitungen ebenfalls ersetzen).
-  Quelle: C:\Projekte\GitHub\AdvoNeo_soapNEO\AdvoNeo\AdvoNeo.SqlDb\StoredProcedures\workflow\ActionListAsJson.sql
-  Ergebnis: C:\Projekte\GitHub\spocr\debug\SpocR\Workflow\ActionListAsJson.cs
-- [ ] Hier wird noch der dot-name in z.B. `sourceAccount_accountId` gemapped, das muss ein sub-struct `sourceAccount` mit einer `accountId` Property werden (warum funktioniert das nur teilweise - es muss eine gemeinsame Codebasis vorhanden sein).
-      C:\Projekte\GitHub\spocr\debug\SpocR\Soap\PaymentInitiationFindAsJson.cs
 - [ ] Legacy Output soll keine JSON-Models erzeugen, SP-Extensions ohne JSON-Model (using auch beachten / entfernen).
 - [!] Rebuild: dotnet run --project src/SpocR.csproj -- rebuild -p C:\Projekte\GitHub\spocr\debug
 - [~] StoredProcedure Regex Audit abgeschlossen (Regex-Fallbacks entfernt), offene Spezialfälle: WITHOUT_ARRAY_WRAPPER Erkennung & identity.RecordAsJson Flag (Tests rot)
-- [ ] Fix fehlende JSON Sets Spezialfälle (StoredProcedure AST)  
-       sub: - [ ] WITHOUT_ARRAY_WRAPPER setzt ReturnsJsonArray=false (Regression nach Heuristik-Entfernung) - [ ] `IsRecordAsJson` Heuristik entfernen. 
+ - [~] StoredProcedure Regex Audit: Regex-Fallbacks entfernt; WITHOUT_ARRAY_WRAPPER AST/Fallback Fix implementiert (Tests grün); identity.RecordAsJson Heuristik noch zu entfernen (Folgetask)
+ - [~] Fix fehlende JSON Sets Spezialfälle (StoredProcedure AST)  
+       sub: - [x] WITHOUT_ARRAY_WRAPPER setzt ReturnsJsonArray=false (Fix implementiert, Tests grün) - [ ] identity.RecordAsJson Heuristik entfernen (Entfernung & Test hinzufügen)
+ - [ ] Strict Mode Flag für JSON AST (`SPOCR_JSON_AST_STRICT=1`) deaktiviert synthetische Fallback-ResultSets (nur reine AST-Erkennung)
+ - [ ] Functions: Ersetzen FOR JSON Regex Heuristik durch Token-/AST-basierte Erkennung (Kommentar-Stripping, finale SELECT Nähe)
+ - [ ] Dokumentation Abschnitt "JSON AST Parsing & Fallback" (FOR JSON PATH Erkennung, synthetic ResultSet, WITHOUT_ARRAY_WRAPPER Behandlung, Strict Mode Verhalten)
+ - [ ] JSON Metrics Aggregation: Anzahl JSON ResultSets, Fallback-Hits, unresolved-json-column Stats, Aggregat-Verteilung (pro Pull Summary + optional Write in debug/)
 - [ ] Env Fallback Flag Planung (`SPOCR_JSON_REGEX_FALLBACK`): Entscheidung: SPOCR_JSON_REGEX_FALLBACK nicht verwenden, reines AST-Parsing.
 
 ### 1. JSON Deserialisierung Tests abschließen

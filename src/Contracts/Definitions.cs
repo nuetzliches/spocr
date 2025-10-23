@@ -74,6 +74,21 @@ public static class Definition
         public IReadOnlyList<StoredProcedureContentModel.ResultSet> ResultSets => storedProcedure.ResultSets;
 
         public IEnumerable<StoredProcedureInputModel> Input => storedProcedure.Input ?? [];
+
+        // Pure Wrapper Erkennung: exakt ein ResultSet, das ausschließlich ExecSource Metadata trägt und keine eigenen Columns oder JSON Kennzeichnung
+        public bool IsPureWrapper
+        {
+            get
+            {
+                var sets = storedProcedure.ResultSets;
+                if (sets == null || sets.Count != 1) return false;
+                var rs = sets[0];
+                bool hasExec = !string.IsNullOrEmpty(rs.ExecSourceProcedureName);
+                bool noCols = rs.Columns == null || rs.Columns.Count == 0;
+                bool notJson = !rs.ReturnsJson && !rs.ReturnsJsonArray;
+                return hasExec && noCols && notJson;
+            }
+        }
     }
 
     public class TableType(TableTypeModel tableType, Schema schema)

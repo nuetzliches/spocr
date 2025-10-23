@@ -90,7 +90,7 @@ public class StoredProcedureGeneratorJsonTests
     }
 
     [Fact]
-    public async Task Generates_Raw_And_Deserialize_For_Json_Array()
+    public async Task Generates_Raw_Only_For_Json_Array()
     {
         var config = new SpocrService().GetDefaultConfiguration(appNamespace: "Test.App");
         config.Project.Output.Namespace = "Test.App";
@@ -103,13 +103,12 @@ public class StoredProcedureGeneratorJsonTests
         var code = source.ToString();
 
         code.ShouldContain("Task<string> UserListAsJsonAsync");
-        code.ShouldContain("Task<List<UserListAsJson>> UserListAsJsonDeserializeAsync");
-        // Accept current helper-based deserialization pattern
-        code.ShouldContain("ReadJsonDeserializeAsync<List<UserListAsJson>>");
+        code.ShouldNotContain("UserListAsJsonDeserializeAsync");
+        code.ShouldNotContain("ReadJsonDeserializeAsync<List<UserListAsJson>>");
     }
 
     [Fact]
-    public async Task Generates_Raw_And_Deserialize_For_Json_Single()
+    public async Task Generates_Raw_Only_For_Json_Single()
     {
         var config = new SpocrService().GetDefaultConfiguration(appNamespace: "Test.App");
         config.Project.Output.Namespace = "Test.App";
@@ -122,8 +121,8 @@ public class StoredProcedureGeneratorJsonTests
         var code = source.ToString();
 
         code.ShouldContain("Task<string> UserFindAsJsonAsync");
-        code.ShouldContain("Task<UserFindAsJson> UserFindAsJsonDeserializeAsync");
-        code.ShouldContain("ReadJsonDeserializeAsync<UserFindAsJson>");
+        code.ShouldNotContain("UserFindAsJsonDeserializeAsync");
+        code.ShouldNotContain("ReadJsonDeserializeAsync<UserFindAsJson>");
     }
 
     [Fact]
@@ -142,6 +141,7 @@ public class StoredProcedureGeneratorJsonTests
         code.ShouldContain("UserListAsync");
         code.ShouldNotContain("UserListDeserializeAsync");
     }
+
 
     private class TestConsoleService : SpocR.Services.IConsoleService
     {
