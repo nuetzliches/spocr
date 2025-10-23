@@ -355,10 +355,57 @@ public class SpocrManager(
                 }
 
                 // Build snapshot
+                // Dedupe-Strukturen für JSON Typing Logs (verhindert mehrfaches Rauschen gleicher Spalte)
+                var jsonTypingLogSeen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 // Stack used to build DotPath names during recursive mapping (initialized before mapping).
                 // Removed DotPath stacking: Name now strictly equals SQL alias as parsed (reverted per requirements)
                 var _columnNameStack = new Stack<string>(); // retained only for possible future diagnostics; not used for naming
                 // Local helper to map runtime ResultColumn (flattened JSON model) -> snapshot column recursively
+                // Rein strukturelle Typinferenz aus RawExpression (Aggregat-/CASE Muster) – keine Namensheuristiken.
+                string InferSqlTypeFromRawExpression(string raw, bool hasIntLit, bool hasDecLit)
+                {
+                    if (string.IsNullOrWhiteSpace(raw)) return null;
+                    // Normalisieren für Pattern Checks
+                    var lower = raw.ToLowerInvariant();
+                    // Entferne überflüssige Whitespaces für kompakte Contains-Prüfungen
+                    lower = System.Text.RegularExpressions.Regex.Replace(lower, "\n+", " ");
+                    // Aggregat-Erkennung
+                    bool hasSum = lower.Contains("sum(");
+                    bool hasCountBig = lower.Contains("count_big(");
+                    bool hasCount = lower.Contains("count(") && !hasCountBig; // count_big schon abgedeckt
+                    bool hasAvg = lower.Contains("avg(");
+                    bool hasExists = lower.Contains("exists(");
+                    bool hasIif = lower.Contains("iif(");
+                    // CASE 1/0 Pattern (rein boolesch)
+                    bool caseZeroOne = lower.StartsWith("case") &&
+                        ((lower.Contains(" then 1") && lower.Contains(" else 0")) || (lower.Contains(" then 0") && lower.Contains(" else 1")));
+
+                    if (hasCountBig) return "bigint";
+                    if (hasCount) return "int";
+                    if (hasAvg) return "decimal(18,2)";
+                    if (hasExists) return "bit"; // EXISTS(SELECT ...) boolescher Ausdruck
+                    if (hasIif)
+                    {
+                        // IIF(...,1,0) oder IIF(...,0,1) -> bit (rein boolesch)
+                        if (System.Text.RegularExpressions.Regex.IsMatch(lower, @"iif\s*\([^,]+,\s*1\s*,\s*0\s*\)")
+                            || System.Text.RegularExpressions.Regex.IsMatch(lower, @"iif\s*\([^,]+,\s*0\s*,\s*1\s*\)"))
+                        {
+                            return "bit";
+                        }
+                    }
+                    if (hasSum)
+                    {
+                        // SUM über reinem 0/1 Muster (IIF / CASE) → int
+                        if ((lower.Contains("iif(") && lower.Contains(",1,0")) || (lower.Contains(" then 1") && lower.Contains(" else 0"))) return "int";
+                        if (hasDecLit) return "decimal(18,2)";
+                        if (hasIntLit) return "int";
+                        // Konservativer Default für SUM ohne Literale (häufig monetär)
+                        return "decimal(18,2)";
+                    }
+                    if (caseZeroOne) return "bit"; // reine boolesche Ableitung
+                    return null; // kein Muster erkannt → offen lassen
+                }
+
                 SnapshotResultColumn MapSnapshotResultColumn(StoredProcedureContentModel.ResultColumn col, bool parentReturnsJson, StoredProcedureModel spCtx)
                 {
                     var snap = new SnapshotResultColumn
@@ -451,6 +498,74 @@ public class SpocrManager(
                             }
                         }
                     }
+
+                    // NEU: Aggregat-Typableitung auch für expandierte Kindspalten (unabhängig von parentReturnsJson), falls noch kein Typ gesetzt
+                    if (string.IsNullOrWhiteSpace(snap.SqlTypeName) && col.IsAggregate == true && !string.IsNullOrWhiteSpace(col.AggregateFunction))
+                    {
+                        var ag = col.AggregateFunction.ToLowerInvariant();
+                        switch (ag)
+                        {
+                            case "count":
+                                snap.SqlTypeName = "int"; break;
+                            case "count_big":
+                                snap.SqlTypeName = "bigint"; break;
+                            case "sum":
+                                if (col.HasDecimalLiteral) snap.SqlTypeName = "decimal(18,2)"; else if (col.HasIntegerLiteral) snap.SqlTypeName = "int"; else snap.SqlTypeName = "decimal(18,2)"; break;
+                            case "avg":
+                                snap.SqlTypeName = "decimal(18,2)"; break;
+                            case "exists":
+                                snap.SqlTypeName = "bit"; break;
+                            case "min":
+                            case "max":
+                                // Offen lassen – ohne Quelltyp nicht deterministisch
+                                break;
+                        }
+                        if (options.Verbose && snap.SqlTypeName != null)
+                        {
+                            consoleService.Verbose($"[json-agg-diag] aggregate-child-resolved name={snap.Name} aggFn={ag} sqlType={snap.SqlTypeName}");
+                        }
+                    }
+                    // NEU: Computed-Ausdruck ohne Aggregatfunktion aber ausschließlich Integer-Kontext (z.B. SUM(...) + SUM(...))
+                    // Beide Operanden waren Aggregat-Spalten mit HasIntegerLiteral propagiert -> resultierende BinaryExpression bekommt HasIntegerLiteral=true, HasDecimalLiteral=false.
+                    // Wir inferieren daraus int, sofern kein Decimal-Literal Flag gesetzt wurde.
+                    if (string.IsNullOrWhiteSpace(snap.SqlTypeName)
+                        && col.IsAggregate != true
+                        && col.ExpressionKind == StoredProcedureContentModel.ResultColumnExpressionKind.Computed
+                        && col.HasIntegerLiteral
+                        && !col.HasDecimalLiteral)
+                    {
+                        snap.SqlTypeName = "int";
+                        if (options.Verbose)
+                        {
+                            consoleService.Verbose($"[json-agg-diag] computed-inferred-int name={snap.Name} hasIntLit={col.HasIntegerLiteral} hasDecLit={col.HasDecimalLiteral}");
+                        }
+                    }
+                    // Falls ein Computed-Ausdruck Dezimal-Literale enthält (z.B. SUM(...) * 1.0) → decimal(18,2)
+                    if (string.IsNullOrWhiteSpace(snap.SqlTypeName)
+                        && col.IsAggregate != true
+                        && col.ExpressionKind == StoredProcedureContentModel.ResultColumnExpressionKind.Computed
+                        && col.HasDecimalLiteral)
+                    {
+                        snap.SqlTypeName = "decimal(18,2)";
+                        if (options.Verbose)
+                        {
+                            consoleService.Verbose($"[json-agg-diag] computed-inferred-decimal name={snap.Name} hasIntLit={col.HasIntegerLiteral} hasDecLit={col.HasDecimalLiteral}");
+                        }
+                    }
+                    // Zusätzliche strukturelle Ableitung auf Basis des RawExpression-Inhalts (nur wenn bisher kein Typ ermittelt wurde)
+                    if (string.IsNullOrWhiteSpace(snap.SqlTypeName) && parentReturnsJson && !string.IsNullOrWhiteSpace(col.RawExpression))
+                    {
+                        var inferredRaw = InferSqlTypeFromRawExpression(col.RawExpression, col.HasIntegerLiteral, col.HasDecimalLiteral);
+                        if (!string.IsNullOrWhiteSpace(inferredRaw))
+                        {
+                            snap.SqlTypeName = inferredRaw;
+                            if (options.Verbose)
+                            {
+                                var trimmed = col.RawExpression.Length > 120 ? col.RawExpression.Substring(0, 117) + "..." : col.RawExpression;
+                                consoleService.Verbose($"[json-agg-diag] rawexpr-infer name={snap.Name} type={snap.SqlTypeName} raw='{trimmed.Replace("\n", " ")}'");
+                            }
+                        }
+                    }
                     // StoredProcedureModel verwendet Property 'Input' (List<StoredProcedureInputModel>). Zugriff ohne Methodengruppe Absicherung.
                     var spInputs = spCtx.Input?.ToList();
                     if (snap.SqlTypeName == null && parentReturnsJson && !string.IsNullOrWhiteSpace(snap.Name) && spInputs != null && spInputs.Count() > 0)
@@ -469,15 +584,21 @@ public class SpocrManager(
                     }
                     if (options.Verbose && parentReturnsJson && snap.SqlTypeName == null)
                     {
-                        // Rauschreduktion: Wenn diese Spalte selbst ein JSON-Container mit bereits expandierten Kindspalten ist,
-                        // kein 'unresolved-json-column' mehr loggen, sondern kompaktes Container-Log.
-                        if ((col.ReturnsJson == true || col.IsNestedJson == true) && col.Columns != null && col.Columns.Count > 0)
+                        // Key = Proc + Column + Tag
+                        string procKey = spCtx?.SchemaName + "." + spCtx?.Name;
+                        bool isContainer = (col.ReturnsJson == true || col.IsNestedJson == true) && col.Columns != null && col.Columns.Count > 0;
+                        string tag = isContainer ? "json-container" : "unresolved-json-column";
+                        string key = procKey + "|" + snap.Name + "|" + tag;
+                        if (jsonTypingLogSeen.Add(key))
                         {
-                            consoleService.Verbose($"[json-agg-diag] json-container name={snap.Name} childCount={col.Columns.Count}");
-                        }
-                        else
-                        {
-                            consoleService.Verbose($"[json-agg-diag] unresolved-json-column name={snap.Name} exprKind={col.ExpressionKind} fn={col.FunctionName} aggFn={col.AggregateFunction} isAgg={col.IsAggregate} hasIntLit={col.HasIntegerLiteral} hasDecLit={col.HasDecimalLiteral}");
+                            if (isContainer)
+                            {
+                                consoleService.Verbose($"[json-agg-diag] json-container name={snap.Name} childCount={col.Columns.Count}");
+                            }
+                            else
+                            {
+                                consoleService.Verbose($"[json-agg-diag] unresolved-json-column name={snap.Name} exprKind={col.ExpressionKind} fn={col.FunctionName} aggFn={col.AggregateFunction} isAgg={col.IsAggregate} hasIntLit={col.HasIntegerLiteral} hasDecLit={col.HasDecimalLiteral}");
+                            }
                         }
                     }
                     if (!string.IsNullOrWhiteSpace(snap.UserTypeName))

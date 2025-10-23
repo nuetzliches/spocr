@@ -77,11 +77,10 @@ public sealed class JsonFunctionAstExtractor
 
     private string? ExtractFragment(TSqlFragment frag)
     {
-        if (frag.StartOffset >= 0 && frag.FragmentLength > 0 && _currentSql != null && frag.StartOffset + frag.FragmentLength <= _currentSql.Length)
-        {
-            return _currentSql.Substring(frag.StartOffset, frag.FragmentLength);
-        }
-        return null;
+        // Ursprünglich wurde hier ein Ausschnitt aus der ursprünglichen SQL über ein internes Feld _currentSql extrahiert.
+        // Das Feld wurde entfernt (war ungenutzt / nicht gesetzt). Für zukünftige Nutzung könnte man das SQL
+        // als Parameter durchreichen. Aktuell geben wir keinen Ausschnitt zurück, um Warnungen zu vermeiden.
+        return null; // bewusst deaktiviert
     }
 
     private List<string> ExtractParts(ScalarExpression expr)
@@ -97,9 +96,6 @@ public sealed class JsonFunctionAstExtractor
         }
         return parts;
     }
-
-    private string? _currentSql;
-
 
     private string InferAlias(ScalarExpression expr) => expr switch
     {

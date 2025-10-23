@@ -399,6 +399,30 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 - [x] Sample führt grundlegende DB Operationen erfolgreich aus (CRUD Smoke Test) – Roundtrip & Ping stabil (Timeout/Ping Fix abgeschlossen 18.10.2025)
       note: Optional: zusätzlicher CreateUser Roundtrip + README Beispiel ergänzen
 - [~] Automatisierter Mini-Test (skriptgesteuert) prüft Generierung & Start der Web API (smoke-test.ps1 vorhanden, CI Integration fehlt)
+
+---
+
+### JSON Typisierung – Folgearbeiten (vNext)
+
+Ziel: Abschluss der reinen AST-basierten, deterministischen Typableitung für JSON ResultSets; Entfernung temporärer Übergangslogik (Option D) und weitere Rauschreduktion.
+
+- [ ] JSON Aggregates: Konsolidierte Namensstrategie (Präfix behalten oder Mapping-Fallback implementieren) – Entscheidung dokumentieren
+- [ ] JSON Aggregates: Entfernung der direkten Sofort-Typableitung (Option D) nach Abschluss Namensstrategie (Refactor → alleinige Typableitung im Snapshot Mapper)
+- [ ] JSON ColumnRef Binding: Tabellen-/Alias-Lookup erweitern (Schema.Table.Column → Quelltyp) zur Reduktion von unresolved-json-column
+- [ ] JSON Unknown Fallback Heuristiken: id → int | is*/has* → bit | *Amount/*Sum → decimal(18,2) | *Count → int (nur anwenden wenn keine andere Ableitung greift)
+- [ ] JSON Noise Reduktion II: De-Duplizierung identischer unresolved-json-column Logs (HashSet oder counting, optional max N pro Prozedur)
+- [ ] JSON UDF Wrapper Expansion: Nutzung fn-json-cols für JSON_QUERY(Schema.Function(...)) Einzel-Wrapper → Child Columns synthetisieren
+- [ ] JSON CASE Bool Flag: Eigenes Flag (IsCase01Bool) setzen statt Pattern-Matching im RawExpression
+- [ ] JSON SUM Präzision: Optional Promotion auf decimal(18,4)/(28,6) basierend auf Quellspalten (Konfigurierbar) – DEFERRED falls keine Monetär-Anforderung
+- [ ] JSON EXISTS Erkennung: Erweiterung in verschachtelten CASE / IIF Ausdrücken
+- [ ] JSON Cleanup: Reduktion/Entfernung Diagnose-Logs (json-child-copy-agg, json-child-typed) nach Stabilisierung; Umschalten auf kompaktere Statistik
+- [ ] JSON Metrics: Aggregierte Statistik (pro Pull) – Anzahl resolve vs unresolved, Aggregat-Verteilung, Fallback-Hits
+
+Risiken / Notes:
+- Temporäre Doppelstrategie (direkte Typableitung + Mapper) entfernen sobald konsistente Namenslösung aktiv.
+- Fallback Heuristik streng hinter deterministischen Regeln ausführen (keine Überschreibung existierender konkreter Typen).
+- UDF Wrapper: Nur anwenden, wenn Function Snapshot returnsJson=true UND keine manuelle Spaltenliste bereits expandiert.
+
 - [x] Sample beschreibt Aktivierung des neuen Outputs (Feature Flag) im README (Abschnitt vorhanden 19.10.2025)
 - [!] Schema Rebuild Pipeline (`dotnet run --project src/SpocR.csproj -- rebuild -p samples/restapi/spocr.json --no-auto-update`) erzeugt deterministisch `samples/restapi/.spocr/schema`
 - [~] Generierter Output in `samples/restapi/SpocR` deterministisch (Golden Hash Feature implementiert, CI Verify offen) - Golden Write/Verify verfügbar, noch nicht in CI

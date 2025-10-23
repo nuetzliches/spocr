@@ -238,6 +238,7 @@ public class Program
                 console?.Error($"Unhandled exception: {ex.Message}");
                 if (ex.InnerException != null)
                     console?.Error($"Inner exception: {ex.InnerException.Message}");
+                console?.Error(ex.StackTrace ?? "<no stacktrace>");
             }
             catch { }
             return ExitCodes.InternalError;
