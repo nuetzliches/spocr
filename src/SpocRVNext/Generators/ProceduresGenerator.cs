@@ -169,7 +169,9 @@ public sealed class ProceduresGenerator
                         Optional: targetSet.Optional,
                         HasSelectStar: targetSet.HasSelectStar,
                         ExecSourceSchemaName: ph.ExecSourceSchemaName,
-                        ExecSourceProcedureName: ph.ExecSourceProcedureName
+                        ExecSourceProcedureName: ph.ExecSourceProcedureName,
+                        ReturnsJson: targetSet.ReturnsJson,
+                        ReturnsJsonArray: targetSet.ReturnsJsonArray
                     );
                     cloned.Add(clonedSet);
                 }
@@ -198,7 +200,9 @@ public sealed class ProceduresGenerator
                     Optional: rs.Optional,
                     HasSelectStar: rs.HasSelectStar,
                     ExecSourceSchemaName: rs.ExecSourceSchemaName,
-                    ExecSourceProcedureName: rs.ExecSourceProcedureName
+                    ExecSourceProcedureName: rs.ExecSourceProcedureName,
+                    ReturnsJson: rs.ReturnsJson,
+                    ReturnsJsonArray: rs.ReturnsJsonArray
                 )).ToList();
                 try { Console.Out.WriteLine($"[proc-forward-debug-finalizing] {proc.Schema}.{proc.ProcedureName} -> sets=" + string.Join(",", reIndexed.Select(r => r.Name + ":" + r.Fields.Count))); } catch { }
                 var newProc = new ProcedureDescriptor(
@@ -407,6 +411,7 @@ public sealed class ProceduresGenerator
                     // JSON Aggregator Fallback (FOR JSON PATH) falls alle Ordinals < 0 und trotzdem Feld-Metadata vorhanden
                     var allMissingCondition = rs.Fields.Count > 0 ? string.Join(" && ", rs.Fields.Select((f, i) => $"o{i} < 0")) : "false"; // nur für Nicht-JSON Sets relevant
                     // ReturnsJson Flag aus Snapshot nutzen (ResultSet Modell besitzt Properties)
+                    // JSON-Erkennung: jedes ResultSet mit ReturnsJson wird über Single-Column Deserialisierung verarbeitet (FOR JSON liefert genau eine NVARCHAR-Spalte).
                     var isJson = rs.ReturnsJson;
                     var isJsonArray = rs.ReturnsJsonArray;
                     string jsonFallback = string.Empty;
@@ -449,9 +454,9 @@ public sealed class ProceduresGenerator
                         var whileLoop = $"while (await r.ReadAsync(ct).ConfigureAwait(false)) {{ list.Add(new {rsType}({fieldExprs})); }}";
                         bodyBlock = $"var list = new System.Collections.Generic.List<object>(); {ordinalDecls} {whileLoop} return list;";
                     }
-                    // Nested JSON sub-struct generation (always active for JSON sets with underscore groups)
+                    // Nested JSON sub-struct generation (JSON Sets): nur '.' trennt Hierarchie; Unterstriche bleiben literal
                     string nestedRecordsBlock = string.Empty;
-                    if (isJson && effectiveFields.Any(f => f.Name.Contains('.') || f.Name.Contains('_')))
+                    if (isJson && effectiveFields.Any(f => f.Name.Contains('.')))
                     {
                         // Build hierarchical tree
                         var rootLeafFields = new List<FieldDescriptor>();
@@ -459,8 +464,14 @@ public sealed class ProceduresGenerator
                         var groups = new Dictionary<string, List<FieldDescriptor>>(StringComparer.OrdinalIgnoreCase);
                         foreach (var f in effectiveFields)
                         {
-                            var parts = f.Name.Contains('.') ? f.Name.Split('.') : f.Name.Split('_');
-                            if (parts.Length == 1)
+                            if (!f.Name.Contains('.'))
+                            {
+                                // Kein '.' => bleibt Leaf (Unterstriche werden NICHT geparst)
+                                rootLeafFields.Add(f);
+                                continue;
+                            }
+                            var parts = f.Name.Split('.', StringSplitOptions.RemoveEmptyEntries);
+                            if (parts.Length <= 1)
                             {
                                 rootLeafFields.Add(f);
                                 continue;
@@ -503,7 +514,13 @@ public sealed class ProceduresGenerator
                             var subGroups = new Dictionary<string, List<FieldDescriptor>>(StringComparer.OrdinalIgnoreCase);
                             foreach (var f in fields)
                             {
-                                var parts = f.Name.Contains('.') ? f.Name.Split('.') : f.Name.Split('_');
+                                if (!f.Name.Contains('.'))
+                                {
+                                    // Keine weitere Hierarchie (Unterstriche bleiben erhalten)
+                                    leaves.Add(new FieldDescriptor(f.Name, f.Name, f.ClrType, f.IsNullable, f.SqlTypeName, f.MaxLength, f.Documentation, f.Attributes));
+                                    continue;
+                                }
+                                var parts = f.Name.Split('.', StringSplitOptions.RemoveEmptyEntries);
                                 if (parts.Length == 2)
                                 {
                                     leaves.Add(new FieldDescriptor(parts[1], parts[1], f.ClrType, f.IsNullable, f.SqlTypeName, f.MaxLength, f.Documentation, f.Attributes));
@@ -511,8 +528,7 @@ public sealed class ProceduresGenerator
                                 else if (parts.Length > 2)
                                 {
                                     var sub = parts[1];
-                                    var remainder = string.Join('_', parts.Skip(1));
-                                    // Reconstruct descriptor with trimmed name
+                                    var remainder = string.Join('.', parts.Skip(1));
                                     var f2 = new FieldDescriptor(remainder, remainder, f.ClrType, f.IsNullable, f.SqlTypeName, f.MaxLength, f.Documentation, f.Attributes);
                                     if (!subGroups.ContainsKey(sub)) subGroups[sub] = new List<FieldDescriptor>();
                                     subGroups[sub].Add(f2);
@@ -549,22 +565,24 @@ public sealed class ProceduresGenerator
                         }
                         nestedRecordsBlock = string.Join("\n", builtTypes.Select(t => t.Code));
 
-                        // Rebuild fieldsBlock for root: root leaves + group properties
+                        // Rebuild fieldsBlock for root: root leaves + group properties (alias-treu; keine PascalCase Umwandlung; '_' bleibt Bestandteil des Alias)
                         var rootParams = new List<string>();
-                        // Root leaf fields
                         for (int i = 0; i < rootLeafFields.Count; i++)
                         {
                             var lf = rootLeafFields[i];
+                            var aliasName = lf.Name; // original alias
+                            if (aliasName.Contains('.')) aliasName = aliasName.Split('.', StringSplitOptions.RemoveEmptyEntries).Last();
                             var comma = (i == rootLeafFields.Count - 1 && groupOrder.Count == 0) ? string.Empty : ",";
-                            rootParams.Add($"    {lf.ClrType} {lf.PropertyName}{comma}");
+                            rootParams.Add($"    {lf.ClrType} {aliasName}{comma}");
                         }
-                        // Group properties
+                        // Group properties (escaped via AliasToIdentifier to protect reserved keywords like 'params')
                         for (int i = 0; i < groupOrder.Count; i++)
                         {
                             var g = groupOrder[i];
+                            var gEsc = AliasToIdentifier(g);
                             var nestedTypeName = BuildNestedTypeName(rsType, g);
                             var comma = i == groupOrder.Count - 1 ? string.Empty : ",";
-                            rootParams.Add($"    {nestedTypeName} {g}{comma}");
+                            rootParams.Add($"    {nestedTypeName} {gEsc}{comma}");
                         }
                         var rootFieldsBlock = string.Join(Environment.NewLine, rootParams);
                         rsMeta.Add(new
@@ -585,23 +603,163 @@ public sealed class ProceduresGenerator
                         rsIdx++;
                         continue; // skip flat record path
                     }
-                    var fieldsBlock = string.Join(Environment.NewLine, effectiveFields.Select((f, i) => $"    {f.ClrType} {aliasProps[i]}{(i == effectiveFields.Count - 1 ? string.Empty : ",")}"));
-                    rsMeta.Add(new
+                    // NEW: Verschachtelte Record-Generierung auch für nicht-JSON Sets mit Dot-Aliasen
+                    // (Bisher nur JSON Sets erhielten nestedRecordsBlock – nun allgemeiner Ansatz).
+                    if (!isJson && effectiveFields.Any(f => f.Name.Contains('.')))
                     {
-                        Name = rs.Name,
-                        TypeName = rsType,
-                        PropName = propName,
-                        OrdinalDecls = ordinalDecls,
-                        FieldExprs = fieldExprs,
-                        Index = rsIdx,
-                        AggregateAssignment = initializerExpr,
-                        FieldsBlock = fieldsBlock,
-                        ReturnsJson = isJson,
-                        ReturnsJsonArray = isJsonArray,
-                        BodyBlock = bodyBlock,
-                        NestedRecordsBlock = nestedRecordsBlock
-                    });
-                    rsIdx++;
+                        // Build tree auf Basis von '.' Segmenten (Unterstriche bleiben wörtlich erhalten)
+                        var rootLeafFields = new List<FieldDescriptor>();
+                        var groupOrder = new List<string>();
+                        var groups = new Dictionary<string, List<FieldDescriptor>>(StringComparer.OrdinalIgnoreCase);
+                        foreach (var f in effectiveFields)
+                        {
+                            if (!f.Name.Contains('.')) { rootLeafFields.Add(f); continue; }
+                            var parts = f.Name.Split('.', StringSplitOptions.RemoveEmptyEntries);
+                            var key = parts[0];
+                            if (!groups.ContainsKey(key)) { groups[key] = new List<FieldDescriptor>(); groupOrder.Add(key); }
+                            // Rekonstruiere Rest ohne ersten Teil als zusammengesetzter Name (mit '.') zur späteren Auflösung
+                            var remainder = string.Join('.', parts.Skip(1));
+                            groups[key].Add(new FieldDescriptor(remainder, remainder, f.ClrType, f.IsNullable, f.SqlTypeName, f.MaxLength, f.Documentation, f.Attributes));
+                        }
+                        string Pascal(string raw)
+                        {
+                            if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
+                            var segs = raw.Split(new[] { '-', '_' }, StringSplitOptions.RemoveEmptyEntries);
+                            var b = new System.Text.StringBuilder();
+                            foreach (var seg in segs)
+                            {
+                                var clean = new string(seg.Where(char.IsLetterOrDigit).ToArray());
+                                if (clean.Length == 0) continue;
+                                b.Append(char.ToUpperInvariant(clean[0]) + (clean.Length > 1 ? clean.Substring(1) : string.Empty));
+                            }
+                            var res = b.ToString();
+                            if (res.Length == 0) res = "Segment";
+                            if (char.IsDigit(res[0])) res = "N" + res;
+                            return res;
+                        }
+                        string BuildNestedTypeName(string root, string segment) => (root.EndsWith("Result", StringComparison.Ordinal) ? root[..^"Result".Length] : root) + Pascal(segment) + "Result";
+
+                        var builtTypes = new List<(string TypeName, string Code)>();
+                        var exprLookup = effectiveFields.Select((f, idx) => (f, idx)).ToDictionary(t => t.f.Name, t => MaterializeFieldExpressionCached(t.f, t.idx), StringComparer.OrdinalIgnoreCase);
+
+                        List<(string TypeName, string Code)> BuildGroup(string rootTypeName, string groupName, List<FieldDescriptor> fields, out string ctorExpr)
+                        {
+                            var leaves = new List<FieldDescriptor>();
+                            var subGroups = new Dictionary<string, List<FieldDescriptor>>(StringComparer.OrdinalIgnoreCase);
+                            foreach (var f in fields)
+                            {
+                                if (!f.Name.Contains('.')) { leaves.Add(f); continue; }
+                                var parts = f.Name.Split('.', StringSplitOptions.RemoveEmptyEntries);
+                                var sub = parts[0];
+                                var remainder = string.Join('.', parts.Skip(1));
+                                if (!subGroups.ContainsKey(sub)) subGroups[sub] = new List<FieldDescriptor>();
+                                subGroups[sub].Add(new FieldDescriptor(remainder, remainder, f.ClrType, f.IsNullable, f.SqlTypeName, f.MaxLength, f.Documentation, f.Attributes));
+                            }
+                            var typeNameNested = BuildNestedTypeName(rootTypeName, groupName);
+                            var paramLines = new List<string>();
+                            // Parameter Lines für nested type
+                            for (int i = 0; i < leaves.Count; i++)
+                            {
+                                var lf = leaves[i];
+                                var comma = (i == leaves.Count - 1 && subGroups.Count == 0) ? string.Empty : ",";
+                                // Leaf PropertyName letzter Segment-Teil
+                                var pName = lf.Name.Split('.', StringSplitOptions.RemoveEmptyEntries).Last();
+                                paramLines.Add($"    {lf.ClrType} {pName}{comma}");
+                            }
+                            // Subgroups rekursiv
+                            var subgroupCtorExprs = new List<string>();
+                            int sgIdx = 0;
+                            foreach (var sg in subGroups)
+                            {
+                                var nestedList = BuildGroup(typeNameNested, sg.Key, sg.Value, out var subCtor);
+                                builtTypes.AddRange(nestedList);
+                                var nestedTypeName = BuildNestedTypeName(typeNameNested, sg.Key);
+                                var comma = sgIdx == subGroups.Count - 1 ? string.Empty : ",";
+                                paramLines.Add($"    {nestedTypeName} {sg.Key}{comma}");
+                                subgroupCtorExprs.Add(subCtor);
+                                sgIdx++;
+                            }
+                            var code = $"public readonly record struct {typeNameNested}(\n" + string.Join("\n", paramLines) + "\n);\n";
+                            // Constructor expression für diesen Gruppenknoten: new Type(a,b, new Child(...))
+                            var leafExprs = leaves.Select(l => exprLookup.TryGetValue(ComposeFullName(groupName, l.Name), out var ex) ? ex : "default");
+                            var totalArgs = leafExprs.Concat(subgroupCtorExprs);
+                            ctorExpr = $"new {typeNameNested}(" + string.Join(", ", totalArgs) + ")";
+                            return new List<(string TypeName, string Code)> { (typeNameNested, code) };
+                        }
+                        string ComposeFullName(string root, string remainder) => string.IsNullOrEmpty(remainder) ? root : (remainder.Contains('.') ? root + "." + remainder : root + "." + remainder);
+
+                        var topGroupCtorExprs = new List<string>();
+                        foreach (var g in groupOrder)
+                        {
+                            var nestedList = BuildGroup(rsType, g, groups[g], out var gCtor);
+                            builtTypes.AddRange(nestedList);
+                            topGroupCtorExprs.Add(gCtor);
+                        }
+                        // Root FieldsBlock: leaf root columns + group properties
+                        var rootParams = new List<string>();
+                        for (int i = 0; i < rootLeafFields.Count; i++)
+                        {
+                            var lf = rootLeafFields[i];
+                            var comma = (i == rootLeafFields.Count - 1 && groupOrder.Count == 0) ? string.Empty : ",";
+                            rootParams.Add($"    {lf.ClrType} {lf.Name}{comma}");
+                        }
+                        for (int i = 0; i < groupOrder.Count; i++)
+                        {
+                            var g = groupOrder[i];
+                            var gEsc = AliasToIdentifier(g);
+                            var nestedTypeName = BuildNestedTypeName(rsType, g);
+                            var comma = i == groupOrder.Count - 1 ? string.Empty : ",";
+                            rootParams.Add($"    {nestedTypeName} {gEsc}{comma}");
+                        }
+                        var rootFieldsBlock = string.Join(Environment.NewLine, rootParams);
+                        // Mapping Argumente: root leaves gefolgt von group ctor exprs (konsistent zur Parameterreihenfolge)
+                        var rootLeafExprs = rootLeafFields.Select(f => exprLookup.TryGetValue(f.Name, out var ex) ? ex : "default");
+                        var constructorArgs = string.Join(", ", rootLeafExprs.Concat(topGroupCtorExprs));
+                        // Passe BodyBlock (Zeilenlese-Variante) an: new rsType(constructorArgs)
+                        if (!isJson)
+                        {
+                            var ordinalDeclNested = ordinalDecls; // identisch nutzen
+                            var whileLoopNested = $"while (await r.ReadAsync(ct).ConfigureAwait(false)) {{ list.Add(new {rsType}({constructorArgs})); }}";
+                            bodyBlock = $"var list = new System.Collections.Generic.List<object>(); {ordinalDeclNested} {whileLoopNested} return list;";
+                        }
+                        nestedRecordsBlock = string.Join("\n", builtTypes.Select(t => t.Code));
+                        rsMeta.Add(new
+                        {
+                            Name = rs.Name,
+                            TypeName = rsType,
+                            PropName = propName,
+                            OrdinalDecls = ordinalDecls,
+                            FieldExprs = constructorArgs,
+                            Index = rsIdx,
+                            AggregateAssignment = initializerExpr,
+                            FieldsBlock = rootFieldsBlock,
+                            ReturnsJson = isJson,
+                            ReturnsJsonArray = isJsonArray,
+                            BodyBlock = bodyBlock,
+                            NestedRecordsBlock = nestedRecordsBlock
+                        });
+                        rsIdx++;
+                    }
+                    else
+                    {
+                        var fieldsBlock = string.Join(Environment.NewLine, effectiveFields.Select((f, i) => $"    {f.ClrType} {aliasProps[i]}{(i == effectiveFields.Count - 1 ? string.Empty : ",")}"));
+                        rsMeta.Add(new
+                        {
+                            Name = rs.Name,
+                            TypeName = rsType,
+                            PropName = propName,
+                            OrdinalDecls = ordinalDecls,
+                            FieldExprs = fieldExprs,
+                            Index = rsIdx,
+                            AggregateAssignment = initializerExpr,
+                            FieldsBlock = fieldsBlock,
+                            ReturnsJson = isJson,
+                            ReturnsJsonArray = isJsonArray,
+                            BodyBlock = bodyBlock,
+                            NestedRecordsBlock = nestedRecordsBlock
+                        });
+                        rsIdx++;
+                    }
                 }
 
                 // Parameters meta

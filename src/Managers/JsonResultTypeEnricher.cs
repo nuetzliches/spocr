@@ -98,6 +98,7 @@ public sealed class JsonResultTypeEnricher
                     catch { tblColumns = new List<Column>(); }
                     tableCache[tblKey] = tblColumns;
                 }
+                // Für Dot-Aliase (z.B. type.typeId) versucht SourceColumn ggf. das volle Alias – fallback: letztes Segment gegen Tabellenspalten
                 var match = tblColumns.FirstOrDefault(c => c.Name.Equals(col.SourceColumn, StringComparison.OrdinalIgnoreCase));
                 if (match != null)
                 {

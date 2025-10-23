@@ -64,10 +64,13 @@ public class ModelGenerator(
         // Heuristic: Legacy FOR JSON output (single synthetic column) -> treat as raw JSON
         // Detection: exactly one column, name = JSON_F52E2B61-18A1-11d1-B105-00805F49916B (case-insensitive), nvarchar(max)
         var currentSetReturnsJson = currentSet?.ReturnsJson ?? false;
-        var genMode = System.Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant() ?? "dual";
-        bool legacyRawJsonOnly = genMode != "next"; // suppress JSON model generation in legacy/dual
-                                                    // Legacy single-column FOR JSON heuristic removed. Rely solely on parser FOR JSON detection (vNext only).
-        var treatAsJson = currentSetReturnsJson && !legacyRawJsonOnly;
+        // Neue Policy: JSON ResultSets erzeugen grundsätzlich kein Model mehr (immer Raw/Deserialize über SP-Extensions).
+        if (currentSetReturnsJson)
+        {
+            consoleService.Verbose($"[model-skip-json] Suppressed model for JSON returning procedure '{storedProcedure.Name}'.");
+            return null;
+        }
+        var treatAsJson = false; // JSON Model codepfad vollständig deaktiviert
 
         // Local helpers
         string InferType(string sqlType, bool? nullable)
@@ -77,10 +80,20 @@ public class ModelGenerator(
             return ParseTypeFromSqlDbTypeName(sqlType, nullable ?? false).ToString();
         }
 
-        ClassDeclarationSyntax AddProperty(ClassDeclarationSyntax cls, string name, string typeName)
+        // Alias-treue Property-Erzeugung: Keine PascalCase-Konvertierung mehr.
+        // Nur minimale Sanitization für ungültige Identifier.
+        ClassDeclarationSyntax AddProperty(ClassDeclarationSyntax cls, string aliasName, string typeName)
         {
-            // Build a fresh auto-property instead of cloning the template placeholder (its marker triggers removal)
-            var identifier = SyntaxFactory.Identifier(name.FirstCharToUpper());
+            string Sanitize(string raw)
+            {
+                if (string.IsNullOrWhiteSpace(raw)) return "_";
+                var cleaned = new string(raw.Select(ch => char.IsLetterOrDigit(ch) ? ch : '_').ToArray());
+                cleaned = cleaned.TrimStart('@');
+                if (string.IsNullOrWhiteSpace(cleaned)) cleaned = "_";
+                if (char.IsDigit(cleaned[0])) cleaned = "_" + cleaned;
+                return cleaned; // Original casing bleibt erhalten
+            }
+            var identifier = SyntaxFactory.Identifier(Sanitize(aliasName));
             var typeSyntax = SyntaxFactory.ParseTypeName(typeName);
             var prop = SyntaxFactory.PropertyDeclaration(typeSyntax, identifier)
                 .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
@@ -115,7 +128,7 @@ public class ModelGenerator(
             // Generate nested classes for each group
             foreach (var kv in dottedRoot)
             {
-                var groupName = kv.Key.FirstCharToUpper();
+                var groupName = kv.Key; // alias-treu
                 var cols = kv.Value;
                 // Build tree nodes
                 var nodeRoot = new JsonPathNode(kv.Key);
@@ -144,6 +157,7 @@ public class ModelGenerator(
                 // Generate nested class recursively
                 ClassDeclarationSyntax Build(JsonPathNode n)
                 {
+                    // Klassennamen weiter PascalCase (Lesbarkeit), Properties alias-treu
                     var clsName = n.Name.FirstCharToUpper();
                     var cls = SyntaxFactory.ClassDeclaration(clsName).AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword));
                     foreach (var child in n.Children.Values)
@@ -154,7 +168,7 @@ public class ModelGenerator(
                     }
                     foreach (var leafCol in n.Columns)
                     {
-                        var propName = leafCol.Name.Split('.', System.StringSplitOptions.RemoveEmptyEntries).Last().FirstCharToUpper();
+                        var propName = leafCol.Name.Split('.', System.StringSplitOptions.RemoveEmptyEntries).Last();
                         if (!cls.Members.OfType<PropertyDeclarationSyntax>().Any(p => p.Identifier.Text == propName))
                         {
                             cls = AddProperty(cls, propName, InferType(leafCol.SqlTypeName, leafCol.IsNullable));
@@ -208,7 +222,7 @@ public class ModelGenerator(
                     if (!child.HasChildren && child.Columns.Count == 1 && string.Equals(child.Columns[0].Name, child.Name, System.StringComparison.OrdinalIgnoreCase))
                     {
                         var col = child.Columns[0];
-                        var propName = col.Name.FirstCharToUpper();
+                        var propName = col.Name; // alias-treu
                         if (!cls.Members.OfType<PropertyDeclarationSyntax>().Any(p => p.Identifier.Text == propName))
                         {
                             var typeName = InferType(col.SqlTypeName, col.IsNullable);
@@ -232,7 +246,7 @@ public class ModelGenerator(
                 // Leaf columns -> properties
                 foreach (var c in node.Columns)
                 {
-                    var propName = c.Name.FirstCharToUpper();
+                    var propName = c.Name; // alias-treu
                     if (!cls.Members.OfType<PropertyDeclarationSyntax>().Any(p => p.Identifier.Text == propName))
                     {
                         var typeName = InferType(c.SqlTypeName, c.IsNullable);
@@ -270,12 +284,7 @@ public class ModelGenerator(
                 {
                     classNode = classNode.AddMembers(cls);
                 }
-                var desiredPropName = top.Name.FirstCharToUpper();
-                if (desiredPropName == cls.Identifier.Text)
-                {
-                    // If class name equals desired property name (rare after suffix) shorten property (remove suffix)
-                    desiredPropName = top.Name.FirstCharToUpper();
-                }
+                var desiredPropName = top.Name; // alias-treu für root property
                 if (!classNode.Members.OfType<PropertyDeclarationSyntax>().Any(p => p.Identifier.Text == desiredPropName))
                 {
                     classNode = AddProperty(classNode, desiredPropName, cls.Identifier.Text);
@@ -289,51 +298,9 @@ public class ModelGenerator(
         // Legacy auto-generated header removed for cleaner output and to minimize diff noise.
         // Intentionally no header injection here.
 
-        if (!hasResultColumns && currentSetReturnsJson && !legacyRawJsonOnly)
-        {
-            consoleService.Warn($"No JSON columns extracted for stored procedure '{storedProcedure.Name}'. Generated empty model (RawJson fallback).");
-            // Add RawJson fallback property to surface payload
-            classNode = AddProperty(classNode, "RawJson", "string");
-            // Replace class in root to persist new property
-            var nsAfterRemoval = root.Members.OfType<BaseNamespaceDeclarationSyntax>().First();
-            var existingClass = nsAfterRemoval.Members.OfType<ClassDeclarationSyntax>().First();
-            root = root.ReplaceNode(existingClass, classNode);
-            // Ensure placeholder property removed if template left it in during replacement
-            root = TemplateManager.RemoveTemplateProperty(root);
-            // Add doc comment if still empty
-            classNode = root.Members.OfType<BaseNamespaceDeclarationSyntax>().First().Members.OfType<ClassDeclarationSyntax>().First();
-            if (!classNode.Members.OfType<PropertyDeclarationSyntax>().Any())
-            {
-                var xml = "/// <summary>Generated JSON model (no columns detected at generation time). The underlying stored procedure returns JSON, but its column structure couldn't be statically inferred.</summary>" + System.Environment.NewLine +
-                          "/// <remarks>Consider rewriting the procedure with an explicit SELECT list or stable aliases so properties can be generated.</remarks>" + System.Environment.NewLine;
-                var updated = classNode.WithLeadingTrivia(SyntaxFactory.ParseLeadingTrivia(xml).AddRange(classNode.GetLeadingTrivia()));
-                var currentNs = (BaseNamespaceDeclarationSyntax)root.Members[0];
-                root = root.ReplaceNode(classNode, updated);
-            }
-        }
+        // Hinweis: Kein Fallback-JSON-Model bei fehlenden Columns mehr – JSON ResultSets produzieren grundsätzlich kein Model.
 
-        if (legacyRawJsonOnly && currentSetReturnsJson)
-        {
-            // In legacy/dual Mode bisher komplette Unterdrückung – führt zu NullRef in Tests bei leeren JSON Sets.
-            // Stattdessen erzeugen wir ein Minimalmodell mit Dokumentation, damit Konsumenten optional typisiert arbeiten können.
-            if (!hasResultColumns)
-            {
-                // Fallback RawJson Property – trotz legacy Modus für Diagnose.
-                classNode = AddProperty(classNode, "RawJson", "string");
-            }
-            var nsAfter = root.Members.OfType<BaseNamespaceDeclarationSyntax>().First();
-            var existingClassLegacy = nsAfter.Members.OfType<ClassDeclarationSyntax>().First();
-            root = root.ReplaceNode(existingClassLegacy, classNode);
-            root = TemplateManager.RemoveTemplateProperty(root);
-            // Doc Kommentar immer hinzufügen (unabhängig von Properties) für Erklärbarkeit.
-            var finalClass = root.Members.OfType<BaseNamespaceDeclarationSyntax>().First().Members.OfType<ClassDeclarationSyntax>().First();
-            var xml = "/// <summary>Generated JSON model (legacy mode) – columns suppressed or not inferred.</summary>" + System.Environment.NewLine +
-                      "/// <remarks>Raw JSON access still available via stored procedure Raw method. Upgrade to vNext mode for rich nested mapping.</remarks>" + System.Environment.NewLine;
-            var updatedLegacy = finalClass.WithLeadingTrivia(SyntaxFactory.ParseLeadingTrivia(xml).AddRange(finalClass.GetLeadingTrivia()));
-            var currentNsLegacy = (BaseNamespaceDeclarationSyntax)root.Members[0];
-            root = root.ReplaceNode(finalClass, updatedLegacy);
-            return TemplateManager.GenerateSourceText(root);
-        }
+        // Legacy JSON Suppression Block entfernt – JSON Modelle werden generell nicht mehr generiert.
         return TemplateManager.GenerateSourceText(root);
     }
 

@@ -358,6 +358,143 @@ public class SpocrManager(
                 // Stack used to build DotPath names during recursive mapping (initialized before mapping).
                 // Removed DotPath stacking: Name now strictly equals SQL alias as parsed (reverted per requirements)
                 var _columnNameStack = new Stack<string>(); // retained only for possible future diagnostics; not used for naming
+                // Local helper to map runtime ResultColumn (flattened JSON model) -> snapshot column recursively
+                SnapshotResultColumn MapSnapshotResultColumn(StoredProcedureContentModel.ResultColumn col, bool parentReturnsJson, StoredProcedureModel spCtx)
+                {
+                    var snap = new SnapshotResultColumn
+                    {
+                        Name = col.Name,
+                        SqlTypeName = ShouldPruneSqlType(col.SqlTypeName, parentReturnsJson) ? null : col.SqlTypeName,
+                        IsNullable = col.IsNullable,
+                        MaxLength = col.MaxLength,
+                        UserTypeSchemaName = col.UserTypeSchemaName,
+                        UserTypeName = col.UserTypeName,
+                        IsNestedJson = (col.IsNestedJson == true && col.ReturnsJson != true) ? true : null,
+                        ReturnsJson = col.ReturnsJson,
+                        ReturnsJsonArray = col.ReturnsJsonArray,
+                        JsonRootProperty = col.JsonRootProperty
+                    };
+                    // CAST / CONVERT Zieltyp Übernahme falls aktueller Typ leer/ngepruned
+                    if (snap.SqlTypeName == null && !string.IsNullOrWhiteSpace(col.CastTargetType))
+                    {
+                        var castType = col.CastTargetType.Trim();
+                        // Parameterisierte Typen zusammensetzen
+                        if (col.CastTargetPrecision.HasValue && col.CastTargetScale.HasValue && (castType.Equals("decimal", StringComparison.OrdinalIgnoreCase) || castType.Equals("numeric", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            snap.SqlTypeName = $"{castType}({col.CastTargetPrecision.Value},{col.CastTargetScale.Value})";
+                        }
+                        else if (col.CastTargetLength.HasValue && (castType.Contains("char", StringComparison.OrdinalIgnoreCase) || castType.Contains("binary", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            snap.SqlTypeName = $"{castType}({col.CastTargetLength.Value})";
+                        }
+                        else
+                        {
+                            snap.SqlTypeName = castType;
+                        }
+                    }
+                    // Zusätzliche Typinferenz für JSON Columns ohne konkrete Quelle
+                    if (parentReturnsJson && string.IsNullOrWhiteSpace(snap.SqlTypeName))
+                    {
+                        var fnName = col.FunctionName?.Trim();
+                        if (string.IsNullOrWhiteSpace(fnName) && col.IsAggregate == true && !string.IsNullOrWhiteSpace(col.AggregateFunction))
+                            fnName = col.AggregateFunction;
+                        if (!string.IsNullOrWhiteSpace(fnName))
+                        {
+                            var fnLower = fnName.ToLowerInvariant();
+                            switch (fnLower)
+                            {
+                                case "count":
+                                    snap.SqlTypeName = "int"; break;
+                                case "count_big":
+                                    snap.SqlTypeName = "bigint"; break; // korrekt für COUNT_BIG
+                                case "sum":
+                                    var rawExpr = col.RawExpression?.Trim();
+                                    if (!string.IsNullOrWhiteSpace(rawExpr))
+                                    {
+                                        var rawLower = rawExpr.ToLowerInvariant();
+                                        if (rawLower.Contains("iif") && rawLower.Contains(",1,0")) { snap.SqlTypeName = "int"; break; }
+                                        if (rawLower.StartsWith("sum(") && rawLower.Contains(" then 1") && rawLower.Contains(" else 0")) { snap.SqlTypeName = "int"; break; }
+                                    }
+                                    if (snap.SqlTypeName == null)
+                                    {
+                                        if (col.HasDecimalLiteral) snap.SqlTypeName = "decimal(18,2)"; else if (col.HasIntegerLiteral) snap.SqlTypeName = "int"; // sonst offen lassen
+                                        else snap.SqlTypeName = "decimal(18,2)"; // konservativer Fallback für SUM ohne Literal (typischer monetärer Kontext)
+                                    }
+                                    break;
+                                case "avg":
+                                    // AVG immer decimal (SQL Server promotet i.d.R. zu decimal/numeric)
+                                    snap.SqlTypeName = "decimal(18,2)"; break;
+                                case "exists":
+                                    snap.SqlTypeName = "bit"; break;
+                                case "min":
+                                case "max":
+                                    // Ohne Quelltyp keine sichere Aussage – offen lassen
+                                    break;
+                            }
+                            if (options.Verbose && parentReturnsJson)
+                            {
+                                if (snap.SqlTypeName != null)
+                                    consoleService.Verbose($"[json-agg-diag] innerSubqueryResolved fn={fnLower} name={col.Name} sqlType={snap.SqlTypeName}");
+                                else
+                                    consoleService.Verbose($"[json-agg-diag] unresolved-agg fn={fnLower} name={col.Name} hasIntLit={col.HasIntegerLiteral} hasDecLit={col.HasDecimalLiteral} raw='{col.RawExpression?.Replace("\n", " ")}'");
+                            }
+                        }
+                        if (string.IsNullOrWhiteSpace(snap.SqlTypeName) && !string.IsNullOrWhiteSpace(col.RawExpression))
+                        {
+                            var raw = col.RawExpression.Trim();
+                            if (raw.StartsWith("CASE", StringComparison.OrdinalIgnoreCase))
+                            {
+                                if (raw.IndexOf(" THEN 1", StringComparison.OrdinalIgnoreCase) > 0 && raw.IndexOf(" ELSE 0", StringComparison.OrdinalIgnoreCase) > 0)
+                                    snap.SqlTypeName = "int";
+                                else if (raw.IndexOf(" THEN 0", StringComparison.OrdinalIgnoreCase) > 0 && raw.IndexOf(" ELSE 1", StringComparison.OrdinalIgnoreCase) > 0)
+                                    snap.SqlTypeName = "int";
+                            }
+                        }
+                    }
+                    // StoredProcedureModel verwendet Property 'Input' (List<StoredProcedureInputModel>). Zugriff ohne Methodengruppe Absicherung.
+                    var spInputs = spCtx.Input?.ToList();
+                    if (snap.SqlTypeName == null && parentReturnsJson && !string.IsNullOrWhiteSpace(snap.Name) && spInputs != null && spInputs.Count() > 0)
+                    {
+                        if (snap.Name.StartsWith("params.", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var paramName = snap.Name.Substring(7);
+                            var match = spInputs.FirstOrDefault(i => i.Name?.TrimStart('@').Equals(paramName, StringComparison.OrdinalIgnoreCase) == true);
+                            if (match != null && !string.IsNullOrWhiteSpace(match.SqlTypeName))
+                            {
+                                snap.SqlTypeName = match.SqlTypeName;
+                                if (match.IsNullable.HasValue) snap.IsNullable = match.IsNullable.Value ? true : null;
+                                if (match.MaxLength.HasValue && match.MaxLength.Value > 0) snap.MaxLength = match.MaxLength.Value;
+                            }
+                        }
+                    }
+                    if (options.Verbose && parentReturnsJson && snap.SqlTypeName == null)
+                    {
+                        // Rauschreduktion: Wenn diese Spalte selbst ein JSON-Container mit bereits expandierten Kindspalten ist,
+                        // kein 'unresolved-json-column' mehr loggen, sondern kompaktes Container-Log.
+                        if ((col.ReturnsJson == true || col.IsNestedJson == true) && col.Columns != null && col.Columns.Count > 0)
+                        {
+                            consoleService.Verbose($"[json-agg-diag] json-container name={snap.Name} childCount={col.Columns.Count}");
+                        }
+                        else
+                        {
+                            consoleService.Verbose($"[json-agg-diag] unresolved-json-column name={snap.Name} exprKind={col.ExpressionKind} fn={col.FunctionName} aggFn={col.AggregateFunction} isAgg={col.IsAggregate} hasIntLit={col.HasIntegerLiteral} hasDecLit={col.HasDecimalLiteral}");
+                        }
+                    }
+                    if (!string.IsNullOrWhiteSpace(snap.UserTypeName))
+                    {
+                        snap.SqlTypeName = null; snap.IsNullable = null; snap.MaxLength = null;
+                    }
+                    if (snap.IsNullable == false) snap.IsNullable = null;
+                    if ((col.IsNestedJson == true || col.ReturnsJson == true) && col.Columns != null && col.Columns.Count > 0)
+                    {
+                        _columnNameStack.Push(col.Name);
+                        snap.Columns = col.Columns.Select(n => MapSnapshotResultColumn(n, col.ReturnsJson == true, spCtx)).Where(c => c != null).ToList();
+                        _columnNameStack.Pop();
+                    }
+                    else { snap.Columns = null; }
+                    return snap;
+                }
+
                 var procedures = schemas.SelectMany(sc => sc.StoredProcedures ?? Enumerable.Empty<StoredProcedureModel>())
                     .Select(sp =>
                     {
@@ -392,50 +529,20 @@ public class SpocrManager(
                                 JsonRootProperty = rs.JsonRootProperty,
                                 ExecSourceSchemaName = rs.ExecSourceSchemaName,
                                 ExecSourceProcedureName = rs.ExecSourceProcedureName,
-                                HasSelectStar = rs.HasSelectStar == true ? true : false, // will be pruned later if false
-                                Columns = rs.Columns.Select(c => MapSnapshotResultColumn(c, rs.ReturnsJson)).ToList()
+                                HasSelectStar = rs.HasSelectStar == true ? true : false,
+                                Columns = rs.Columns.Select(c => MapSnapshotResultColumn(c, rs.ReturnsJson, sp)).ToList()
                             }).ToList()
                         };
                     }).ToList();
 
-                // Local helper to map runtime ResultColumn (flattened JSON model) -> snapshot column recursively
-                SnapshotResultColumn MapSnapshotResultColumn(StoredProcedureContentModel.ResultColumn col, bool parentReturnsJson)
+                bool ShouldPruneSqlType(string sqlType, bool parentJson)
                 {
-                    // Build hierarchical DotPath name: propagate parent path via closure stack
-                    var snap = new SnapshotResultColumn
-                    {
-                        Name = col.Name, // alias from SQL (no synthetic path)
-                        SqlTypeName = string.IsNullOrWhiteSpace(col.SqlTypeName) && parentReturnsJson ? null : col.SqlTypeName,
-                        IsNullable = col.IsNullable,
-                        MaxLength = col.MaxLength,
-                        UserTypeSchemaName = col.UserTypeSchemaName,
-                        UserTypeName = col.UserTypeName,
-                        IsNestedJson = (col.IsNestedJson == true && col.ReturnsJson != true) ? true : null, // omit when ReturnsJson true (derivable)
-                        ReturnsJson = col.ReturnsJson,
-                        ReturnsJsonArray = col.ReturnsJsonArray,
-                        JsonRootProperty = col.JsonRootProperty
-                    };
-                    // Prune scalar fields when UDTT reference present
-                    if (!string.IsNullOrWhiteSpace(snap.UserTypeName))
-                    {
-                        snap.SqlTypeName = null;
-                        snap.IsNullable = null;
-                        snap.MaxLength = null;
-                    }
-                    // Prune IsNullable when false to reduce snapshot noise (absence implies false)
-                    if (snap.IsNullable == false) snap.IsNullable = null;
-                    if ((col.IsNestedJson == true || col.ReturnsJson == true) && col.Columns != null && col.Columns.Count > 0)
-                    {
-                        _columnNameStack.Push(col.Name);
-                        snap.Columns = col.Columns.Select(n => MapSnapshotResultColumn(n, col.ReturnsJson == true)).Where(c => c != null).ToList();
-                        _columnNameStack.Pop();
-                    }
-                    else
-                    {
-                        // Ensure we do not serialize empty array for scalar column
-                        snap.Columns = null;
-                    }
-                    return snap;
+                    if (string.IsNullOrWhiteSpace(sqlType)) return parentJson; // leer im JSON Kontext prunen
+                    var t = sqlType.Trim().ToLowerInvariant();
+                    if (!parentJson) return false; // außerhalb JSON nie prunen
+                    // Fallback Kandidaten: nvarchar(max), unknown
+                    if (t == "nvarchar(max)" || t == "unknown") return true;
+                    return false; // konkrete Typen behalten
                 }
 
                 // (Reverted) Keine automatische Stub-Erzeugung für cross-schema EXEC Ziele – ursprüngliches Verhalten wiederhergestellt.
@@ -485,7 +592,7 @@ public class SpocrManager(
                 //   * Functions früh falls spätere Dependency/Impact Analysen von Views oder zukünftiger AST benötigt werden.
                 //   * sys.columns liefert für Views bereits fertige Typen – Reihenfolge zu Functions hat keinen Einfluss auf Typauflösung.
                 //   * Procedures zuletzt, da JSON Enrichment alle vorherigen Metadaten (UDTT, Functions, UDTs) nutzen kann.
-                bool phaseUserTypesDone = false, phaseFunctionsDone = false, phaseTablesDone = false, phaseViewsDone = false, phaseProceduresDone = procedures.Count > 0;
+                bool phaseUserTypesDone = false, phaseFunctionsDone = false, phaseTablesDone = false, phaseProceduresDone = procedures.Count > 0;
                 List<SnapshotFunction> snapshotEarlyFunctions = null;
 
                 var userDefinedTypeRows = await dbContext.UserDefinedScalarTypesAsync(System.Threading.CancellationToken.None);
@@ -594,7 +701,7 @@ public class SpocrManager(
                         });
                     }
                 }
-                phaseViewsDone = true;
+                // Views Phase abgeschlossen (Variable entfernt – Guard Meldungen behalten nur falls Reihenfolge verletzt würde)
                 if (!phaseTablesDone) consoleService.Warn("[ordering-guard] Views loaded before Tables – unexpected sequence.");
                 if (!phaseFunctionsDone) consoleService.Warn("[ordering-guard] Views loaded before Functions – unexpected sequence.");
 
@@ -660,29 +767,30 @@ public class SpocrManager(
                 {
                     consoleService.Warn($"[snapshot-expanded-error] {fx.Message}");
                 }
-                    consoleService.Verbose($"[snapshot] saved (expanded only) fingerprint={fingerprint} procs={procedures.Count} fns={(snapshot.Functions?.Count ?? 0)} udtts={udtts.Count} tables={tables.Count} views={views.Count} udts={userDefinedTypes.Count}");
-                    // Hash pro UDTT jetzt im Cache statt im Snapshot: separate Cache-Datei erzeugen
-                    try
+                consoleService.Verbose($"[snapshot] saved (expanded only) fingerprint={fingerprint} procs={procedures.Count} fns={(snapshot.Functions?.Count ?? 0)} udtts={udtts.Count} tables={tables.Count} views={views.Count} udts={userDefinedTypes.Count}");
+                // Hash pro UDTT jetzt im Cache statt im Snapshot: separate Cache-Datei erzeugen
+                try
+                {
+                    var working = Utils.DirectoryUtils.GetWorkingDirectory();
+                    if (!string.IsNullOrWhiteSpace(working))
                     {
-                        var working = Utils.DirectoryUtils.GetWorkingDirectory();
-                        if (!string.IsNullOrWhiteSpace(working))
+                        var cacheDir = System.IO.Path.Combine(working, ".spocr", "cache");
+                        System.IO.Directory.CreateDirectory(cacheDir);
+                        var cachePath = System.IO.Path.Combine(cacheDir, "tabletype-hashes.json");
+                        var cacheDoc = new
                         {
-                            var cacheDir = System.IO.Path.Combine(working, ".spocr", "cache");
-                            System.IO.Directory.CreateDirectory(cacheDir);
-                            var cachePath = System.IO.Path.Combine(cacheDir, "tabletype-hashes.json");
-                            var cacheDoc = new {
-                                version = 1,
-                                items = udtts.Select(u => new { name = $"{u.Schema}.{u.Name}", hash = u.Hash }).OrderBy(x => x.name).ToList()
-                            };
-                            var jsonCache = System.Text.Json.JsonSerializer.Serialize(cacheDoc, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-                            System.IO.File.WriteAllText(cachePath, jsonCache);
-                            consoleService.Verbose($"[cache] tabletype-hashes written count={udtts.Count}");
-                        }
+                            version = 1,
+                            items = udtts.Select(u => new { name = $"{u.Schema}.{u.Name}", hash = u.Hash }).OrderBy(x => x.name).ToList()
+                        };
+                        var jsonCache = System.Text.Json.JsonSerializer.Serialize(cacheDoc, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                        System.IO.File.WriteAllText(cachePath, jsonCache);
+                        consoleService.Verbose($"[cache] tabletype-hashes written count={udtts.Count}");
                     }
-                    catch (Exception cex)
-                    {
-                        consoleService.Warn($"[cache-write-failed] {cex.Message}");
-                    }
+                }
+                catch (Exception cex)
+                {
+                    consoleService.Warn($"[cache-write-failed] {cex.Message}");
+                }
                 // Informational migration note (legacy schema node removed)
                 consoleService.Verbose("[migration] Legacy 'schema' node removed; snapshot + IgnoredSchemas are now authoritative.");
                 // Always show run-level JSON enrichment summary (even if zero) unless logging is Off

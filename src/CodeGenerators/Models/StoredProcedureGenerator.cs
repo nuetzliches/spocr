@@ -67,20 +67,16 @@ public class StoredProcedureGenerator(
         bool NeedsModel(Definition.StoredProcedure sp)
         {
             if (sp.ResultSets == null || sp.ResultSets.Count == 0) return false;
-            // Primäres Set: erstes JSON Set (falls vorhanden) sonst erstes Set
-            var primary = sp.ResultSets.FirstOrDefault(r => r.ReturnsJson) ?? sp.ResultSets.First();
-            if (primary == null) return false;
-            // Im Legacy/Dual Modus niemals ein Modell für JSON ResultSets erzeugen
-            if (legacyRawJsonOnly && primary.ReturnsJson) return false;
-            if (primary.ReturnsJson && !legacyRawJsonOnly) return true; // vNext: JSON erzeugt Modell
+            // JSON ResultSets erzeugen grundsätzlich kein Model mehr
+            var primary = sp.ResultSets.First();
+            if (primary.ReturnsJson) return false;
             var cols = primary.Columns?.Count ?? 0;
             if (cols == 0) return false;
             if (cols == 1)
             {
                 var c = primary.Columns[0];
                 bool isNVarChar = (c.SqlTypeName?.StartsWith("nvarchar", StringComparison.OrdinalIgnoreCase) ?? false);
-                bool hasOtherJson = sp.ResultSets.Any(r => r != primary && r.ReturnsJson);
-                if (isNVarChar && !hasOtherJson) return false; // rein skalar
+                if (isNVarChar) return false; // skalar -> kein Model
             }
             return true;
         }

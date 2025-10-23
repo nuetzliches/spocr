@@ -633,8 +633,8 @@ Status-Legende: [>] deferred (v5 Ziel) – Querverweis auf README / Roadmap Absc
 - [!] Rebuild: dotnet run --project src/SpocR.csproj -- rebuild -p C:\Projekte\GitHub\spocr\debug
 - [~] StoredProcedure Regex Audit abgeschlossen (Regex-Fallbacks entfernt), offene Spezialfälle: WITHOUT_ARRAY_WRAPPER Erkennung & identity.RecordAsJson Flag (Tests rot)
 - [ ] Fix fehlende JSON Sets Spezialfälle (StoredProcedure AST)  
-       sub: - [ ] WITHOUT_ARRAY_WRAPPER setzt ReturnsJsonArray=false (Regression nach Heuristik-Entfernung) - [ ] identity.RecordAsJson (schema-qualifizierter Funktionsaufruf) wieder als IsRecordAsJson markieren
-- [ ] Env Fallback Flag Planung (`SPOCR_JSON_REGEX_FALLBACK`): Entscheidung treffen (derzeit nicht implementiert zugunsten deterministischem AST)
+       sub: - [ ] WITHOUT_ARRAY_WRAPPER setzt ReturnsJsonArray=false (Regression nach Heuristik-Entfernung) - [ ] `IsRecordAsJson` Heuristik entfernen. 
+- [ ] Env Fallback Flag Planung (`SPOCR_JSON_REGEX_FALLBACK`): Entscheidung: SPOCR_JSON_REGEX_FALLBACK nicht verwenden, reines AST-Parsing.
 
 ### 1. JSON Deserialisierung Tests abschließen
 

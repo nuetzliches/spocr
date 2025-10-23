@@ -61,22 +61,21 @@ public class StoredProcedureContentModel
         using (var reader = new StringReader(normalizedDefinition))
             fragment = Parser.Parse(reader, out parseErrors);
 
-        // Anpassung: Verwende AST auch bei ParseErrors sofern Fragment vorhanden (tolerant gegenüber geringfügigen Syntax-Issues wie doppelten Semikolons).
+        // Kein heuristischer Fallback mehr: Wenn Parser kein Fragment liefert -> leeres Modell mit Fehlerinfos zurückgeben.
         if (fragment == null)
         {
-            var fb = Fallback(definition);
             return new StoredProcedureContentModel
             {
-                Definition = fb.Definition,
-                Statements = fb.Statements,
-                ContainsSelect = fb.ContainsSelect,
-                ContainsInsert = fb.ContainsInsert,
-                ContainsUpdate = fb.ContainsUpdate,
-                ContainsDelete = fb.ContainsDelete,
-                ContainsMerge = fb.ContainsMerge,
-                ContainsOpenJson = fb.ContainsOpenJson,
-                ResultSets = fb.ResultSets,
-                UsedFallbackParser = true,
+                Definition = definition,
+                Statements = new[] { definition.Trim() },
+                ContainsSelect = false,
+                ContainsInsert = false,
+                ContainsUpdate = false,
+                ContainsDelete = false,
+                ContainsMerge = false,
+                ContainsOpenJson = false,
+                ResultSets = Array.Empty<ResultSet>(),
+                UsedFallbackParser = false,
                 ParseErrorCount = parseErrors?.Count,
                 FirstParseError = parseErrors?.FirstOrDefault()?.Message
             };
@@ -155,44 +154,12 @@ public class StoredProcedureContentModel
             RawExecCandidates = rawExec,
             RawExecCandidateKinds = rawKinds,
             UsedFallbackParser = false,
-            ParseErrorCount = 0,
-            FirstParseError = null
+            ParseErrorCount = (parseErrors?.Count ?? 0) == 0 ? null : parseErrors.Count,
+            FirstParseError = (parseErrors?.Count ?? 0) == 0 ? null : parseErrors.FirstOrDefault()?.Message
         };
     }
 
-    // Fallback-Heuristik bei Parserfehlern
-    private static StoredProcedureContentModel Fallback(string definition)
-    {
-        bool Has(string w) => definition.IndexOf(w, StringComparison.OrdinalIgnoreCase) >= 0;
-        var statements = definition.Split(new[] { "GO" }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(s => s.Trim()).Where(s => s.Length > 0).ToArray();
-        var returnsJson = Has("FOR JSON");
-        var noArray = Has("WITHOUT ARRAY WRAPPER") || Has("WITHOUT_ARRAY_WRAPPER");
-        string root = null;
-        if (returnsJson)
-        {
-            var token = "ROOT("; var ri = definition.IndexOf(token, StringComparison.OrdinalIgnoreCase);
-            if (ri >= 0)
-            {
-                var sq = definition.IndexOf('\'', ri); var eq = sq >= 0 ? definition.IndexOf('\'', sq + 1) : -1;
-                if (sq >= 0 && eq > sq) root = definition.Substring(sq + 1, eq - sq - 1);
-            }
-        }
-        var sets = returnsJson ? new[] { new ResultSet { ReturnsJson = true, ReturnsJsonArray = !noArray, JsonRootProperty = root } } : Array.Empty<ResultSet>();
-        return new StoredProcedureContentModel
-        {
-            Definition = definition,
-            Statements = statements.Length > 0 ? statements : new[] { definition.Trim() },
-            ContainsSelect = Has("SELECT"),
-            ContainsInsert = Has("INSERT"),
-            ContainsUpdate = Has("UPDATE"),
-            ContainsDelete = Has("DELETE"),
-            ContainsMerge = Has("MERGE"),
-            ContainsOpenJson = Has("OPENJSON"),
-            ResultSets = sets,
-            UsedFallbackParser = true
-        };
-    }
+    // Entfernt: heuristischer Fallback. (Bewusst beibehaltene Methode gelöscht für deterministische AST-only Pipeline.)
 
     // (Removed) Token Fallback Helpers – not needed after revert
 
@@ -224,6 +191,11 @@ public class StoredProcedureContentModel
         public string SourceAlias { get; set; }
         public string SqlTypeName { get; set; }
         public string CastTargetType { get; set; }
+        public int? CastTargetLength { get; set; }
+        public int? CastTargetPrecision { get; set; }
+        public int? CastTargetScale { get; set; }
+        public bool HasIntegerLiteral { get; set; }
+        public bool HasDecimalLiteral { get; set; }
         public bool? IsNullable { get; set; }
         public bool? ForcedNullable { get; set; }
         public bool? IsNestedJson { get; set; }
@@ -241,10 +213,11 @@ public class StoredProcedureContentModel
         // AST-only function call metadata (no heuristics). Populated when ExpressionKind == FunctionCall or JsonQuery.
         public string FunctionSchemaName { get; set; }
         public string FunctionName { get; set; }
-        // Convenience flag set strictly by AST if the function is identity.RecordAsJson (schema-qualified) – no fallback guessing.
-        public bool? IsRecordAsJson { get; set; }
         // Raw scalar expression text extracted from original definition (exact substring). Enables deterministic pattern matching.
         public string RawExpression { get; set; }
+            // Aggregate-Metadaten (Propagation über Derived Tables / Subqueries)
+            public bool IsAggregate { get; set; }
+            public string AggregateFunction { get; set; }
     }
     public enum ResultColumnExpressionKind { ColumnRef, Cast, FunctionCall, JsonQuery, Computed, Unknown }
 
@@ -276,7 +249,8 @@ public class StoredProcedureContentModel
         private readonly HashSet<string> _tableSources = new(StringComparer.OrdinalIgnoreCase); // schema.table canonical
                                                                                                 // Für abgeleitete Tabellen / Subselects (QueryDerivedTable, CTE) wird hier eine Alias->Column->Source Map gepflegt.
                                                                                                 // Key: Derived table alias. Value: Dictionary(OutputColumnName -> (Schema, Table, Column, Ambiguous))
-        private readonly Dictionary<string, Dictionary<string, (string Schema, string Table, string Column, bool Ambiguous)>> _derivedTableColumnSources = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Dictionary<string, (string Schema, string Table, string Column, bool Ambiguous)>> _derivedTableColumnSources = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, List<ResultColumn>> _derivedTableColumns = new(StringComparer.OrdinalIgnoreCase); // Original ResultColumns je Derived Alias
         public Visitor(string definition, Analysis analysis) { _definition = definition; _analysis = analysis; }
         public override void ExplicitVisit(CreateProcedureStatement node) { _procedureDepth++; base.ExplicitVisit(node); _procedureDepth--; }
         public override void ExplicitVisit(CreateOrAlterProcedureStatement node) { _procedureDepth++; base.ExplicitVisit(node); _procedureDepth--; }
@@ -558,10 +532,12 @@ public class StoredProcedureContentModel
                             var alias = cte.ExpressionName?.Value;
                             if (!string.IsNullOrWhiteSpace(alias))
                             {
-                                var columnMap = ExtractColumnSourceMapFromQuerySpecification(qs);
+                                var derivedCols = new List<ResultColumn>();
+                                var columnMap = ExtractColumnSourceMapFromQuerySpecification(qs, derivedCols);
                                 if (columnMap.Count > 0)
                                 {
                                     _derivedTableColumnSources[alias] = columnMap;
+                                    _derivedTableColumns[alias] = derivedCols;
                                     ConsoleWriteDerived(alias, columnMap, isCte: true);
                                 }
                             }
@@ -614,6 +590,10 @@ public class StoredProcedureContentModel
         }
         private void AnalyzeScalarExpression(ScalarExpression expr, ResultColumn target, SourceBindingState state)
         {
+            if (expr != null)
+            {
+                try { System.Console.WriteLine($"[json-agg-diag] analyze-enter name={target?.Name} exprType={expr.GetType().Name}"); } catch { }
+            }
             switch (expr)
             {
                 case null:
@@ -621,6 +601,45 @@ public class StoredProcedureContentModel
                 case ColumnReferenceExpression cref:
                     target.ExpressionKind = ResultColumnExpressionKind.ColumnRef;
                     BindColumnReference(cref, target, state);
+                    // Stabile Dot-Alias Typ-Bindung: Falls Alias selbst ein dot path ist (z.B. type.typeId) und BindColumnReference keine SourceColumn setzte,
+                    // versuchen wir Mapping: Erstes Segment (group) -> vorhandener Tabellenalias, Suffix -> Spaltenname.
+                    if (string.IsNullOrWhiteSpace(target.SourceColumn) && !string.IsNullOrWhiteSpace(target.Name) && target.Name.Contains('.') && _tableAliases.Count > 0)
+                    {
+                        var aliasParts = target.Name.Split('.', StringSplitOptions.RemoveEmptyEntries);
+                        if (aliasParts.Length >= 2)
+                        {
+                            var groupPrefix = aliasParts[0];
+                            var columnSuffix = aliasParts[^1];
+                            // Versuche exakten Tabellenalias-Match über Namensähnlichkeit (groupPrefix == alias oder groupPrefix == alias ohne Underscores)
+                            // Falls mehrere Aliase existieren, wählen wir denjenigen, dessen Tabelle bereits eine Spalte mit diesem Namen hat (über zuvor registrierte bindings).
+                            var candidateAliases = _tableAliases.Keys
+                                .Where(a => a.Equals(groupPrefix, StringComparison.OrdinalIgnoreCase))
+                                .ToList();
+                            if (!candidateAliases.Any())
+                            {
+                                // Lockerer Versuch: groupPrefix ohne Sonderzeichen mit alias ohne Sonderzeichen vergleichen
+                                string Normalize(string s) => new string(s.Where(char.IsLetterOrDigit).ToArray()).ToLowerInvariant();
+                                var normGroup = Normalize(groupPrefix);
+                                candidateAliases = _tableAliases.Keys
+                                    .Where(a => Normalize(a) == normGroup)
+                                    .ToList();
+                            }
+                            foreach (var cand in candidateAliases)
+                            {
+                                if (_tableAliases.TryGetValue(cand, out var tbl))
+                                {
+                                    // Trage Binding ein – wir kennen Schema/Table, Spaltenname ist suffix
+                                    target.SourceAlias = cand;
+                                    target.SourceSchema = tbl.Schema;
+                                    target.SourceTable = tbl.Table;
+                                    target.SourceColumn = columnSuffix;
+                                    state.Register(target.SourceSchema, target.SourceTable, target.SourceColumn);
+                                    ConsoleWriteBind(target, reason: "dotted-alias");
+                                    break;
+                                }
+                            }
+                        }
+                    }
                     try
                     {
                         var parts = cref.MultiPartIdentifier?.Identifiers?.Select(i => i.Value).ToList();
@@ -631,7 +650,6 @@ public class StoredProcedureContentModel
                             {
                                 target.FunctionSchemaName = parts[^2];
                                 target.FunctionName = parts[^1];
-                                target.IsRecordAsJson = true;
                                 // Column reference binding is not meaningful for a function pseudo-column; clear source binding
                                 target.SourceSchema = null;
                                 target.SourceTable = null;
@@ -648,6 +666,7 @@ public class StoredProcedureContentModel
                     {
                         var typeName = string.Join('.', castCall.DataType.Name.Identifiers.Select(i => i.Value));
                         if (!string.IsNullOrWhiteSpace(typeName)) target.CastTargetType = typeName;
+                        TryExtractTypeParameters(castCall.DataType, target);
                     }
                     AnalyzeScalarExpression(castCall.Parameter, target, state);
                     break;
@@ -657,16 +676,33 @@ public class StoredProcedureContentModel
                     {
                         var typeName = string.Join('.', convertCall.DataType.Name.Identifiers.Select(i => i.Value));
                         if (!string.IsNullOrWhiteSpace(typeName)) target.CastTargetType = typeName;
+                        TryExtractTypeParameters(convertCall.DataType, target);
                     }
                     foreach (var p in new[] { convertCall.Parameter, convertCall.Style }) AnalyzeScalarExpression(p, target, state);
                     break;
+                case IntegerLiteral _:
+                    target.HasIntegerLiteral = true; break;
+                case NumericLiteral nl:
+                    if (!string.IsNullOrWhiteSpace(nl.Value) && nl.Value.Contains('.')) target.HasDecimalLiteral = true; else target.HasIntegerLiteral = true; break;
+                case RealLiteral _:
+                    target.HasDecimalLiteral = true; break;
                 case FunctionCall fn:
                     // Distinguish JSON_QUERY
                     var fnName = fn.FunctionName?.Value;
+                    try { System.Console.WriteLine($"[json-agg-diag] fn-enter name={target.Name} fn={fnName} paramCount={fn.Parameters?.Count}"); } catch { }
                     if (!string.IsNullOrWhiteSpace(fnName) && fnName.Equals("JSON_QUERY", StringComparison.OrdinalIgnoreCase))
                         target.ExpressionKind = ResultColumnExpressionKind.JsonQuery;
                     else
                         target.ExpressionKind = ResultColumnExpressionKind.FunctionCall;
+                    if (!string.IsNullOrWhiteSpace(fnName))
+                    {
+                        var lower = fnName.ToLowerInvariant();
+                        if (lower is "sum" or "count" or "count_big" or "avg" or "exists" or "min" or "max")
+                        {
+                            target.IsAggregate = true;
+                            target.AggregateFunction = lower;
+                        }
+                    }
                     // Capture function schema + name if schema-qualified (CallTarget) – purely AST based
                     try
                     {
@@ -688,19 +724,71 @@ public class StoredProcedureContentModel
                         {
                             target.FunctionName = fnName;
                         }
-                        if (!string.IsNullOrWhiteSpace(target.FunctionSchemaName) && !string.IsNullOrWhiteSpace(target.FunctionName))
-                        {
-                            if (target.FunctionSchemaName.Equals("identity", StringComparison.OrdinalIgnoreCase) && target.FunctionName.Equals("RecordAsJson", StringComparison.OrdinalIgnoreCase))
-                            {
-                                target.IsRecordAsJson = true;
-                            }
-                        }
+                        // identity.RecordAsJson remains detectable via FunctionSchemaName/FunctionName only
                     }
                     catch { }
-                    // For JSON_QUERY we intentionally do NOT traverse parameters for source binding (alias should represent JSON extraction, not raw column type)
-                    if (target.ExpressionKind != ResultColumnExpressionKind.JsonQuery)
+                    // Erweiterung: Für JSON_QUERY nun innere ScalarSubquery parsen, um Aggregat-Typen zu erkennen
+                    if (target.ExpressionKind == ResultColumnExpressionKind.JsonQuery)
                     {
-                        foreach (var p in fn.Parameters) AnalyzeScalarExpression(p, target, state);
+                        if (fn.Parameters != null)
+                        foreach (var p in fn.Parameters)
+                        {
+                            try
+                            {
+                                bool subqueryHandled = false;
+                                try { System.Console.WriteLine($"[json-agg-diag] jsonQueryParamType name={target.Name} paramType={p?.GetType().Name}"); } catch { }
+                                // Direktes ScalarSubquery
+                                if (p is ScalarSubquery ss)
+                                {
+                                    var innerQs = UnwrapToQuerySpecification(ss.QueryExpression);
+                                    if (innerQs != null)
+                                    {
+                                        AnalyzeJsonQueryInnerSubquery(innerQs, target, state);
+                                        subqueryHandled = true; continue; // nächster Parameter
+                                    }
+                                }
+                                // Parenthesized -> ScalarSubquery -> (SelectStatement|QuerySpecification)
+                                if (p is ParenthesisExpression pe && pe.Expression is ScalarSubquery ss2)
+                                {
+                                    var innerQs2 = UnwrapToQuerySpecification(ss2.QueryExpression);
+                                    if (innerQs2 != null)
+                                    {
+                                        AnalyzeJsonQueryInnerSubquery(innerQs2, target, state);
+                                        subqueryHandled = true; continue;
+                                    }
+                                }
+                                if (!subqueryHandled)
+                                {
+                                    // Versuche eine tiefere verschachtelte ScalarSubquery zu finden (Binary / Function / Parenthesis)
+                                    var deepSs = FindFirstScalarSubquery(p as ScalarExpression, 0);
+                                    if (deepSs != null)
+                                    {
+                                        var innerQs3 = UnwrapToQuerySpecification(deepSs.QueryExpression);
+                                        if (innerQs3 != null)
+                                        {
+                                            AnalyzeJsonQueryInnerSubquery(innerQs3, target, state);
+                                            try { System.Console.WriteLine($"[json-agg-diag] jsonQueryParamDeepSubquery name={target.Name} depthFound"); } catch { }
+                                        }
+                                    }
+                                }
+                                // Sonstige Parameter NICHT traversieren, um keine Source-Bindings fälschlich zu übernehmen
+                            }
+                            catch { }
+                        }
+                    }
+                    else
+                    {
+                        foreach (var p in fn.Parameters)
+                        {
+                            // Aggregat: Parameter-Analyse nicht ExpressionKind überschreiben lassen
+                            var beforeKind = target.ExpressionKind;
+                            AnalyzeScalarExpression(p, target, state);
+                            if (target.IsAggregate == true && beforeKind == ResultColumnExpressionKind.FunctionCall && target.ExpressionKind != beforeKind)
+                            {
+                                // Restore FunctionCall classification (Parameter-Bind hat es evtl. auf ColumnRef gesetzt)
+                                target.ExpressionKind = beforeKind;
+                            }
+                        }
                     }
                     break;
                 // JSON_QUERY appears as FunctionCall with name 'JSON_QUERY'; we already classify via FunctionCall. No dedicated node.
@@ -803,6 +891,8 @@ public class StoredProcedureContentModel
                         if (dsrc.Ambiguous) col.IsAmbiguous = true;
                         state.Register(col.SourceSchema, col.SourceTable, col.SourceColumn);
                         ConsoleWriteBind(col, reason: "single-derived-unique");
+                        // Aggregat-Propagation: finde ursprüngliche ResultColumn im Derived Table um AggregateFlags zu kopieren
+                        TryPropagateAggregateFromDerived(parts[0], md.Key, col);
                     }
                     else col.IsAmbiguous = true;
                 }
@@ -920,14 +1010,16 @@ public class StoredProcedureContentModel
         {
             var alias = node?.Alias?.Value; if (string.IsNullOrWhiteSpace(alias)) return;
             if (node.QueryExpression is not QuerySpecification qs) return; // Nur einfache SELECTs behandeln (kein UNION etc.)
-            var columnMap = ExtractColumnSourceMapFromQuerySpecification(qs);
+            var derivedCols = new List<ResultColumn>();
+            var columnMap = ExtractColumnSourceMapFromQuerySpecification(qs, derivedCols);
             if (columnMap.Count > 0)
             {
                 _derivedTableColumnSources[alias] = columnMap;
+                _derivedTableColumns[alias] = derivedCols;
                 ConsoleWriteDerived(alias, columnMap, isCte: false);
             }
         }
-        private Dictionary<string, (string Schema, string Table, string Column, bool Ambiguous)> ExtractColumnSourceMapFromQuerySpecification(QuerySpecification qs)
+        private Dictionary<string, (string Schema, string Table, string Column, bool Ambiguous)> ExtractColumnSourceMapFromQuerySpecification(QuerySpecification qs, List<ResultColumn> outColumns)
         {
             var localAliases = new Dictionary<string, (string Schema, string Table)>(StringComparer.OrdinalIgnoreCase);
             var localTableSources = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -939,6 +1031,7 @@ public class StoredProcedureContentModel
             foreach (var sce in qs.SelectElements.OfType<SelectScalarExpression>())
             {
                 var alias = sce.ColumnName?.Value;
+                try { System.Console.WriteLine($"[json-agg-diag] select-elt alias={sce.ColumnName?.Value} exprType={sce.Expression?.GetType().Name}"); } catch { }
                 if (string.IsNullOrWhiteSpace(alias))
                 {
                     if (sce.Expression is ColumnReferenceExpression implicitCr && implicitCr.MultiPartIdentifier?.Identifiers?.Count > 0)
@@ -950,8 +1043,19 @@ public class StoredProcedureContentModel
                 var col = new ResultColumn();
                 var state = new SourceBindingState();
                 AnalyzeScalarExpressionDerived(sce.Expression, col, state, localAliases, localTableSources);
+                // Aggregat-Erkennung falls direkter FunctionCall
+                if (sce.Expression is FunctionCall dirFn && !string.IsNullOrWhiteSpace(col.FunctionName))
+                {
+                    var low = col.FunctionName.ToLowerInvariant();
+                    if (low is "sum" or "count" or "count_big" or "avg" or "exists" or "min" or "max")
+                    {
+                        col.IsAggregate = true;
+                        col.AggregateFunction = low;
+                    }
+                }
                 var ambiguous = col.IsAmbiguous == true || state.BindingCount > 1;
                 map[alias] = (col.SourceSchema, col.SourceTable, col.SourceColumn, ambiguous);
+                outColumns?.Add(col);
             }
             return map;
         }
@@ -999,7 +1103,6 @@ public class StoredProcedureContentModel
                             {
                                 target.FunctionSchemaName = parts[^2];
                                 target.FunctionName = parts[^1];
-                                target.IsRecordAsJson = true;
                                 target.SourceSchema = null;
                                 target.SourceTable = null;
                                 target.SourceColumn = null;
@@ -1017,8 +1120,15 @@ public class StoredProcedureContentModel
                     AnalyzeScalarExpressionDerived(convertCall.Parameter, target, state, localAliases, localTableSources);
                     AnalyzeScalarExpressionDerived(convertCall.Style, target, state, localAliases, localTableSources);
                     break;
+                case IntegerLiteral _:
+                    target.HasIntegerLiteral = true; break;
+                case NumericLiteral nl:
+                    if (!string.IsNullOrWhiteSpace(nl.Value) && nl.Value.Contains('.')) target.HasDecimalLiteral = true; else target.HasIntegerLiteral = true; break;
+                case RealLiteral _:
+                    target.HasDecimalLiteral = true; break;
                 case FunctionCall fn:
                     var fnName2 = fn.FunctionName?.Value;
+                    try { System.Console.WriteLine($"[json-agg-diag] fn-enter-derived name={target.Name} fn={fnName2} paramCount={fn.Parameters?.Count}"); } catch {}
                     if (string.IsNullOrWhiteSpace(fnName2) || !fnName2.Equals("JSON_QUERY", StringComparison.OrdinalIgnoreCase))
                     {
                         try
@@ -1040,16 +1150,67 @@ public class StoredProcedureContentModel
                             {
                                 target.FunctionName = fnName2;
                             }
-                            if (!string.IsNullOrWhiteSpace(target.FunctionSchemaName) && !string.IsNullOrWhiteSpace(target.FunctionName))
+                            if (!string.IsNullOrWhiteSpace(fnName2))
                             {
-                                if (target.FunctionSchemaName.Equals("identity", StringComparison.OrdinalIgnoreCase) && target.FunctionName.Equals("RecordAsJson", StringComparison.OrdinalIgnoreCase))
+                                var lower2 = fnName2.ToLowerInvariant();
+                                if (lower2 is "sum" or "count" or "count_big" or "avg" or "exists" or "min" or "max")
                                 {
-                                    target.IsRecordAsJson = true;
+                                    target.IsAggregate = true;
+                                    target.AggregateFunction = lower2;
                                 }
                             }
+                            // identity.RecordAsJson detection via FunctionSchemaName/FunctionName only
                         }
                         catch { }
                         foreach (var p in fn.Parameters) AnalyzeScalarExpressionDerived(p, target, state, localAliases, localTableSources);
+                    }
+                    else
+                    {
+                        // JSON_QUERY im Derived-Kontext: Parameter untersuchen wie im primären Analyzer
+                        target.ExpressionKind = ResultColumnExpressionKind.JsonQuery;
+                        if (fn.Parameters != null)
+                        {
+                            foreach (var p in fn.Parameters)
+                            {
+                                try
+                                {
+                                    bool subqueryHandled = false;
+                                    try { System.Console.WriteLine($"[json-agg-diag] jsonQueryParamType name={target.Name} paramType={p?.GetType().Name} (derived)"); } catch { }
+                                    if (p is ScalarSubquery ss)
+                                    {
+                                        var innerQs = UnwrapToQuerySpecification(ss.QueryExpression);
+                                        if (innerQs != null)
+                                        {
+                                            AnalyzeJsonQueryInnerSubquery(innerQs, target, state);
+                                            subqueryHandled = true; continue;
+                                        }
+                                    }
+                                    if (p is ParenthesisExpression pe && pe.Expression is ScalarSubquery ss2)
+                                    {
+                                        var innerQs2 = UnwrapToQuerySpecification(ss2.QueryExpression);
+                                        if (innerQs2 != null)
+                                        {
+                                            AnalyzeJsonQueryInnerSubquery(innerQs2, target, state);
+                                            subqueryHandled = true; continue;
+                                        }
+                                    }
+                                    if (!subqueryHandled)
+                                    {
+                                        var deepSs = FindFirstScalarSubquery(p as ScalarExpression, 0);
+                                        if (deepSs != null)
+                                        {
+                                            var innerQs3 = UnwrapToQuerySpecification(deepSs.QueryExpression);
+                                            if (innerQs3 != null)
+                                            {
+                                                AnalyzeJsonQueryInnerSubquery(innerQs3, target, state);
+                                                try { System.Console.WriteLine($"[json-agg-diag] jsonQueryParamDeepSubquery name={target.Name} depthFound (derived)"); } catch { }
+                                            }
+                                        }
+                                    }
+                                }
+                                catch { }
+                            }
+                        }
                     }
                     break;
                 case BinaryExpression be:
@@ -1130,6 +1291,151 @@ public class StoredProcedureContentModel
                 state.Register(col.SourceSchema, col.SourceTable, col.SourceColumn);
             }
         }
+
+        /// <summary>
+        /// Analysiert eine innere QuerySpecification innerhalb eines JSON_QUERY( (subquery) , path ) Aufrufs.
+        /// Ziel: Wenn das Subselect genau eine SelectElement hat und diese ein Aggregat (SUM/COUNT/COUNT_BIG/AVG/EXISTS)
+        /// oder eine einfache CAST davon ist, die Aggregat-Metadaten (IsAggregate, AggregateFunction, Literal Flags) auf die äußere JSON Column propagieren.
+        /// </summary>
+        private void AnalyzeJsonQueryInnerSubquery(QuerySpecification qs, ResultColumn outer, SourceBindingState state)
+        {
+            if (qs == null || outer == null) return;
+            try { System.Console.WriteLine($"[json-agg-diag] json-inner-enter outer={outer.Name} selectCount={qs.SelectElements?.Count}"); } catch { }
+            // Nur einfache Fälle: genau ein SelectElement, kein SELECT *
+            if (qs.SelectElements == null || qs.SelectElements.Count == 0) return;
+            if (qs.SelectElements.OfType<SelectStarExpression>().Any()) return;
+            // Hybrid Logik
+            if (qs.SelectElements.Count == 1 && qs.SelectElements[0] is SelectScalarExpression singleSse)
+            {
+                try
+                {
+                    var expr = singleSse.Expression;
+                    var temp = new ResultColumn();
+                    AnalyzeScalarExpression(expr, temp, state);
+                    if (temp.IsAggregate == true)
+                    {
+                        outer.IsAggregate = true;
+                        outer.AggregateFunction = temp.AggregateFunction;
+                        if (temp.HasIntegerLiteral) outer.HasIntegerLiteral = true;
+                        if (temp.HasDecimalLiteral) outer.HasDecimalLiteral = true;
+                        if (string.IsNullOrWhiteSpace(outer.RawExpression) && !string.IsNullOrWhiteSpace(temp.RawExpression)) outer.RawExpression = temp.RawExpression;
+                        System.Console.WriteLine($"[json-agg-diag] innerSubqueryResolvedScalar name={outer.Name} aggFn={outer.AggregateFunction}");
+                        return;
+                    }
+                    else
+                    {
+                        try { System.Console.WriteLine($"[json-agg-diag] innerJsonQuerySingleNoAgg name={outer.Name} exprKind={temp.ExpressionKind}"); } catch { }
+                    }
+                }
+                catch { }
+            }
+            // Objekt-Expansion
+            outer.ReturnsJson = true;
+            bool withoutArray = false;
+            try
+            {
+                if (qs.StartOffset >= 0 && qs.FragmentLength > 0 && _definition != null && qs.StartOffset + qs.FragmentLength <= _definition.Length)
+                {
+                    var frag = _definition.Substring(qs.StartOffset, qs.FragmentLength);
+                    if (frag.IndexOf("WITHOUT_ARRAY_WRAPPER", StringComparison.OrdinalIgnoreCase) >= 0) withoutArray = true;
+                }
+            }
+            catch { }
+            outer.ReturnsJsonArray = withoutArray ? false : true;
+            var expandedChildren = outer.Columns != null ? outer.Columns.ToList() : new List<ResultColumn>();
+            foreach (var se in qs.SelectElements.OfType<SelectScalarExpression>())
+            {
+                try
+                {
+                    var alias = se.ColumnName?.Value;
+                    if (string.IsNullOrWhiteSpace(alias) && se.Expression is ColumnReferenceExpression cref && cref.MultiPartIdentifier?.Identifiers?.Count > 0)
+                        alias = cref.MultiPartIdentifier.Identifiers.Last().Value;
+                    if (string.IsNullOrWhiteSpace(alias)) continue;
+                    var path = NormalizeJsonPath(alias);
+                    var child = new ResultColumn { Name = SanitizeAliasPreserveDots(path) };
+                    var childState = new SourceBindingState();
+                    AnalyzeScalarExpression(se.Expression, child, childState);
+                    try
+                    {
+                        if (se.StartOffset >= 0 && se.FragmentLength > 0 && _definition != null && se.StartOffset + se.FragmentLength <= _definition.Length)
+                            child.RawExpression = _definition.Substring(se.StartOffset, se.FragmentLength).Trim();
+                    }
+                    catch { }
+                    child.ExpressionKind ??= ResultColumnExpressionKind.Unknown;
+                    if (!expandedChildren.Any(c => c.Name.Equals(child.Name, StringComparison.OrdinalIgnoreCase))) expandedChildren.Add(child);
+                }
+                catch { }
+            }
+            outer.Columns = expandedChildren;
+            try { System.Console.WriteLine($"[json-agg-diag] innerJsonQueryExpanded name={outer.Name} childCount={outer.Columns?.Count}"); } catch { }
+        }
+
+        /// <summary>
+        /// Versucht eine beliebige QueryExpression auf die innere QuerySpecification zu reduzieren.
+        /// Unterstützt SelectStatement (->QueryExpression), QueryParenthesisExpression (rekursiv) und direkte QuerySpecification.
+        /// </summary>
+        private static QuerySpecification UnwrapToQuerySpecification(QueryExpression qe)
+        {
+            try
+            {
+                if (qe == null) return null;
+                if (qe is QuerySpecification qs) return qs;
+                if (qe is QueryParenthesisExpression qpe)
+                {
+                    return UnwrapToQuerySpecification(qpe.QueryExpression);
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        /// <summary>
+        /// Durchsucht einen beliebig verschachtelten ScalarExpression-Baum nach dem ersten ScalarSubquery.
+        /// Unterstützt ParenthesisExpression, BinaryExpression, FunctionCall (Parameter), CASE Expressions.
+        /// depthLimit schützt vor pathologischer Rekursion.
+        /// </summary>
+        private static ScalarSubquery FindFirstScalarSubquery(ScalarExpression expr, int depth, int depthLimit = 12)
+        {
+            if (expr == null || depth > depthLimit) return null;
+            try
+            {
+                if (expr is ScalarSubquery ss) return ss;
+                switch (expr)
+                {
+                    case ParenthesisExpression pe:
+                        return FindFirstScalarSubquery(pe.Expression, depth + 1, depthLimit);
+                    case BinaryExpression be:
+                        return FindFirstScalarSubquery(be.FirstExpression as ScalarExpression, depth + 1, depthLimit)
+                               ?? FindFirstScalarSubquery(be.SecondExpression as ScalarExpression, depth + 1, depthLimit);
+                    case FunctionCall fc:
+                        if (fc.Parameters != null)
+                        {
+                            foreach (var p in fc.Parameters.OfType<ScalarExpression>())
+                            {
+                                var found = FindFirstScalarSubquery(p, depth + 1, depthLimit);
+                                if (found != null) return found;
+                            }
+                        }
+                        break;
+                    case SearchedCaseExpression sce:
+                        foreach (var w in sce.WhenClauses)
+                        {
+                            var f = FindFirstScalarSubquery(w.ThenExpression as ScalarExpression, depth + 1, depthLimit);
+                            if (f != null) return f;
+                        }
+                        return FindFirstScalarSubquery(sce.ElseExpression as ScalarExpression, depth + 1, depthLimit);
+                    case SimpleCaseExpression simp:
+                        foreach (var w in simp.WhenClauses)
+                        {
+                            var f = FindFirstScalarSubquery(w.ThenExpression as ScalarExpression, depth + 1, depthLimit);
+                            if (f != null) return f;
+                        }
+                        return FindFirstScalarSubquery(simp.ElseExpression as ScalarExpression, depth + 1, depthLimit);
+                }
+            }
+            catch { }
+            return null;
+        }
         private static void ConsoleWriteBind(ResultColumn col, string reason)
         {
             if (!_astVerboseEnabled) return;
@@ -1147,6 +1453,81 @@ public class StoredProcedureContentModel
                     var kind = isCte ? "cte" : "derived";
                     var amb = kv.Value.Ambiguous ? " amb" : "";
                     Console.WriteLine($"[json-ast-derived] {alias}.{kv.Key} => {kv.Value.Schema}.{kv.Value.Table}.{kv.Value.Column}{amb} ({kind})");
+                }
+            }
+            catch { }
+        }
+
+        private void TryPropagateAggregateFromDerived(string innerAliasColumn, string derivedAlias, ResultColumn target)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(innerAliasColumn) || string.IsNullOrWhiteSpace(derivedAlias)) return;
+                // Wir suchen im gespeicherten Derived-ResultSet nach der Spalte innerAliasColumn
+                if (_derivedTableColumns.TryGetValue(derivedAlias, out var derivedCols))
+                {
+                    var src = derivedCols.FirstOrDefault(c => c.Name.Equals(innerAliasColumn, StringComparison.OrdinalIgnoreCase));
+                    if (src != null && src.IsAggregate && !target.IsAggregate)
+                    {
+                        target.IsAggregate = true;
+                        target.AggregateFunction = src.AggregateFunction;
+                        // Literal Flags übernehmen falls Ziel sie noch nicht hat (nur additive; kein Überschreiben false->true relevant)
+                        if (src.HasIntegerLiteral) target.HasIntegerLiteral = true;
+                        if (src.HasDecimalLiteral) target.HasDecimalLiteral = true;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        private static void TryExtractTypeParameters(DataTypeReference dataType, ResultColumn target)
+        {
+            if (dataType is null || target is null) return;
+            try
+            {
+                switch (dataType)
+                {
+                    case SqlDataTypeReference sqlRef:
+                        // Numeric/decimal: (precision, scale)
+                        if (sqlRef.SqlDataTypeOption is SqlDataTypeOption.Decimal or SqlDataTypeOption.Numeric)
+                        {
+                            if (sqlRef.Parameters?.Count >= 1)
+                            {
+                                if (sqlRef.Parameters[0] is Literal lit0 && int.TryParse(lit0.Value, out var prec)) target.CastTargetPrecision = prec;
+                            }
+                            if (sqlRef.Parameters?.Count >= 2)
+                            {
+                                if (sqlRef.Parameters[1] is Literal lit1 && int.TryParse(lit1.Value, out var sc)) target.CastTargetScale = sc;
+                            }
+                        }
+                        // (var)char/binary: length
+                        if (sqlRef.Parameters?.Count >= 1 && target.CastTargetLength == null)
+                        {
+                            if (sqlRef.Parameters[0] is Literal litLen)
+                            {
+                                var p0 = litLen.Value;
+                                if (!string.IsNullOrWhiteSpace(p0) && !p0.Equals("max", StringComparison.OrdinalIgnoreCase) && int.TryParse(p0, out var len))
+                                    target.CastTargetLength = len;
+                            }
+                        }
+                        break;
+                    case ParameterizedDataTypeReference paramRef:
+                        if (paramRef.Parameters != null && paramRef.Parameters.Count > 0)
+                        {
+                            // Heuristik: 1 Parameter -> Length, 2 Parameter -> Precision/Scale
+                            if (paramRef.Parameters.Count == 1 && paramRef.Parameters[0] is Literal l0)
+                            {
+                                var v = l0.Value;
+                                if (!string.IsNullOrWhiteSpace(v) && !v.Equals("max", StringComparison.OrdinalIgnoreCase) && int.TryParse(v, out var len))
+                                    target.CastTargetLength = len;
+                            }
+                            else if (paramRef.Parameters.Count >= 2)
+                            {
+                                if (paramRef.Parameters[0] is Literal l1 && int.TryParse(l1.Value, out var prec)) target.CastTargetPrecision = prec;
+                                if (paramRef.Parameters[1] is Literal l2 && int.TryParse(l2.Value, out var sc)) target.CastTargetScale = sc;
+                            }
+                        }
+                        break;
                 }
             }
             catch { }

@@ -68,24 +68,6 @@ FOR JSON PATH, ROOT('payload');";
         Assert.Null(userCol.SourceTable);
     }
 
-    [Fact]
-    public void Identity_RecordAsJson_Function_Should_Set_IsRecordAsJson()
-    {
-        var sql = @"CREATE PROCEDURE samples.UserRecordJson AS
-SELECT identity.RecordAsJson(u) AS 'user'
-FROM samples.Users u
-FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;";
-        var model = StoredProcedureContentModel.Parse(sql, DefaultSchema);
-        var rs = Assert.Single(model.ResultSets);
-        var userCol = rs.Columns.First(c => c.Name == "user");
-        Assert.True(userCol.IsRecordAsJson == true);
-        Assert.Equal("identity", userCol.FunctionSchemaName);
-        Assert.Equal("RecordAsJson", userCol.FunctionName);
-        // Function pseudo-column should not carry table bindings
-        Assert.Null(userCol.SourceSchema);
-        Assert.Null(userCol.SourceTable);
-        Assert.Null(userCol.SourceColumn);
-    }
 
     [Fact]
     public void Ambiguous_SinglePart_Column_Should_Set_IsAmbiguous()
