@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using SpocR.Managers;
 using SpocR.Models;
+using SpocRVNext.Configuration; // for EnvConfiguration
 
 namespace SpocR.Services;
 
@@ -108,11 +109,37 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
 
         // Load current config (best-effort) to derive IgnoredSchemas dynamically; if unavailable fallback to snapshot status field.
         List<string> ignored = null; SchemaStatusEnum defaultStatus = SchemaStatusEnum.Build;
+        List<string> buildSchemas = null; // SPOCR_BUILD_SCHEMAS positive allow-list
         try
         {
             var cfg = _configFile?.Config; // FileManager keeps last loaded config
             ignored = cfg?.Project?.IgnoredSchemas ?? new List<string>();
             defaultStatus = cfg?.Project?.DefaultSchemaStatus ?? SchemaStatusEnum.Build;
+
+            // Load build schemas from .env file (same logic as vNext generators)
+            try
+            {
+                var workingDir = Utils.DirectoryUtils.GetWorkingDirectory();
+                var envConfig = EnvConfiguration.Load(projectRoot: workingDir);
+                if (envConfig.BuildSchemas != null && envConfig.BuildSchemas.Count > 0)
+                {
+                    buildSchemas = envConfig.BuildSchemas.ToList();
+                    _console.Verbose($"[snapshot-provider] using BuildSchemas from .env: {string.Join(",", buildSchemas)}");
+                }
+            }
+            catch
+            {
+                // Fallback to direct environment variable check (legacy behavior)
+                var buildSchemasRaw = Environment.GetEnvironmentVariable("SPOCR_BUILD_SCHEMAS");
+                if (!string.IsNullOrWhiteSpace(buildSchemasRaw))
+                {
+                    buildSchemas = buildSchemasRaw.Split(',')
+                        .Select(s => s.Trim())
+                        .Where(s => !string.IsNullOrWhiteSpace(s))
+                        .ToList();
+                    _console.Verbose($"[snapshot-provider] using SPOCR_BUILD_SCHEMAS from environment: {string.Join(",", buildSchemas)}");
+                }
+            }
         }
         catch { ignored = new List<string>(); }
 
@@ -121,9 +148,18 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
 
         var schemas = snapshot.Schemas.Select(s =>
             {
-                // Derive status: if default=Ignore we promote all non-explicit schemas to Build (first-run + subsequent semantics)
+                // Derive status: check SPOCR_BUILD_SCHEMAS first (positive allow-list), then fall back to legacy ignore logic
                 SchemaStatusEnum status;
-                if (defaultStatus == SchemaStatusEnum.Ignore)
+
+                // If SPOCR_BUILD_SCHEMAS is specified, use it as positive allow-list
+                if (buildSchemas != null && buildSchemas.Any())
+                {
+                    status = buildSchemas.Contains(s.Name, StringComparer.OrdinalIgnoreCase)
+                        ? SchemaStatusEnum.Build
+                        : SchemaStatusEnum.Ignore;
+                }
+                // Otherwise use legacy logic with IgnoredSchemas
+                else if (defaultStatus == SchemaStatusEnum.Ignore)
                 {
                     status = ignored.Contains(s.Name, StringComparer.OrdinalIgnoreCase)
                         ? SchemaStatusEnum.Ignore
@@ -150,10 +186,10 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
                         {
                             Name = i.Name,
                             SqlTypeName = i.SqlTypeName,
-                                IsNullable = i.IsNullable ?? false,
-                                MaxLength = i.MaxLength ?? 0,
-                                IsOutput = i.IsOutput ?? false,
-                                IsTableType = !string.IsNullOrWhiteSpace(i.TableTypeName) && !string.IsNullOrWhiteSpace(i.TableTypeSchema),
+                            IsNullable = i.IsNullable ?? false,
+                            MaxLength = i.MaxLength ?? 0,
+                            IsOutput = i.IsOutput ?? false,
+                            IsTableType = !string.IsNullOrWhiteSpace(i.TableTypeName) && !string.IsNullOrWhiteSpace(i.TableTypeSchema),
                             UserTypeName = i.TableTypeName,
                             UserTypeSchemaName = i.TableTypeSchema
                         })).ToList(),
