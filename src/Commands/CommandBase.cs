@@ -36,11 +36,21 @@ public abstract class CommandBase : IAppCommand, ICommandOptions
     [Option("--no-cache", "Do not load or save the local procedure metadata cache (forces full re-parse)", CommandOptionType.NoValue)]
     public virtual bool NoCache { get; set; }
 
+    [Option("--procedure", "Process only specific procedures (comma-separated, format: schema.procedurename)", CommandOptionType.SingleValue)]
+    public virtual string Procedure { get; set; }
+
     public virtual async Task<int> OnExecuteAsync()
     {
         DirectoryUtils.SetBasePath(Path);
         // Propagate no-cache flag for downstream providers to force snapshot reload.
         try { SpocR.Utils.CacheControl.ForceReload = NoCache; } catch { }
+
+        // Propagate procedure filter as environment variable
+        if (!string.IsNullOrWhiteSpace(Procedure))
+        {
+            Environment.SetEnvironmentVariable("SPOCR_BUILD_PROCEDURES", Procedure);
+        }
+
         return await Task.FromResult((int)ExecuteResultEnum.Succeeded);
     }
 
@@ -58,6 +68,7 @@ public interface ICommandOptions
     bool NoAutoUpdate { get; set; }
     bool Debug { get; }
     bool NoCache { get; }
+    string Procedure { get; }
 }
 
 public class CommandOptions : ICommandOptions
@@ -122,6 +133,7 @@ public class CommandOptions : ICommandOptions
 
     public bool Debug => EffectiveOptions.Debug;
     public bool NoCache => (EffectiveOptions as dynamic).NoCache; // dynamic to allow older instances; guaranteed on new builds
+    public string Procedure => EffectiveOptions.Procedure;
 
     private sealed class MutableCommandOptions : ICommandOptions
     {
@@ -134,5 +146,6 @@ public class CommandOptions : ICommandOptions
         public bool NoAutoUpdate { get; set; }
         public bool Debug { get; set; }
         public bool NoCache { get; set; }
+        public string Procedure { get; set; }
     }
 }

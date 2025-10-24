@@ -731,23 +731,22 @@ Status-Legende: [>] deferred (v5 Ziel) – Querverweis auf README / Roadmap Absc
   - test: IifComplexExpressionTests mit verschachtelten Funktionen [Todo]
   - logging: `[ast-type-iif-complex]` für Branch-Analyse und resultierende Typ-Vereinigung ✅
 
-- [ ] **CASE Expression Typ-Ableitung**: SearchedCase & SimpleCase mit Typ-Vereinigung der WHEN/ELSE Branches
+- [x] **CASE Expression Typ-Ableitung**: SearchedCase & SimpleCase mit Typ-Vereinigung der WHEN/ELSE Branches
 
-  - **PROBLEM ERKANNT**: Aktuell überschreibt jede Branch die target.SqlTypeName, statt Typ-Vereinigung wie bei IIF
-  - acceptance: `CASE WHEN ... THEN 'string' ELSE NULL END` → `nvarchar` IsNullable=true
-  - implementation: CaseExpression cases mit Branch-Sammlung und Typ-Consolidierung analog zu IIF-Logik
-  - test: CaseExpressionTypeTests mit gemischten Branch-Typen
-  - logging: `[ast-type-case]` für Branch-Anzahl und resultierende Typ-Vereinigung
+  - **IMPLEMENTIERT**: Typ-Vereinigung analog zur IIF-Logik für alle WHEN/ELSE branches ✅
+  - acceptance: `CASE WHEN ... THEN 'string' ELSE NULL END` → `nvarchar` IsNullable=true ✅
+  - implementation: CaseExpression cases mit Branch-Sammlung und Typ-Consolidierung analog zu IIF-Logik ✅
+  - test: CaseExpressionTypeTests mit gemischten Branch-Typen [Todo]
+  - logging: `[ast-type-case]` für Branch-Anzahl und resultierende Typ-Vereinigung ✅
+  - **BEWEIS**: Debug log zeigt `[ast-type-case] JournalUrl: identical types nvarchar, maxLength=229 from 3 branches`
 
-- [ ] **COALESCE/ISNULL/NULLIF Typ-Ableitung**: Null-Handling Funktionen mit Operanden-basierten Typen
+- [x] **COALESCE/ISNULL/NULLIF Typ-Ableitung**: Null-Handling Funktionen mit Operanden-basierten Typen
 
-  - **PROBLEM ERKANNT**: CoalesceExpression fehlt komplett in AnalyzeScalarExpression case switch
-  - acceptance: `ISNULL(nullable_column, 'fallback')` übernimmt Typ von nullable_column oder fallback
-  - implementation: CoalesceExpression case + FunctionCall cases für ISNULL/NULLIF mit Operanden-Priorität  
-  - test: NullHandlingFunctionTests mit verschiedenen Operanden-Kombinationen
-  - logging: `[ast-type-nullfn]` für Funktions-Name und gewählten Operanden-Typ
-
-- [ ] **Arithmetic Expression Typ-Ableitung**: BinaryExpression für +,-,\*,/ mit Typ-Arithmetik
+  - **IMPLEMENTIERT**: CoalesceExpression case hinzugefügt in AnalyzeScalarExpression ✅
+  - acceptance: `ISNULL(nullable_column, 'fallback')` übernimmt Typ von nullable_column oder fallback ✅
+  - implementation: CoalesceExpression case + FunctionCall cases für ISNULL/NULLIF mit Operanden-Priorität ✅
+  - test: NullHandlingFunctionTests mit verschiedenen Operanden-Kombinationen [Todo]
+  - logging: `[ast-type-coalesce]` für Funktions-Name und gewählten Operanden-Typ ✅- [ ] **Arithmetic Expression Typ-Ableitung**: BinaryExpression für +,-,\*,/ mit Typ-Arithmetik
   - acceptance: `column_int + 1` → `int`, `column_decimal * 2.5` → `decimal`
   - implementation: BinaryExpression mit Operator-spezifischer Typ-Logik
   - test: ArithmeticExpressionTypeTests mit verschiedenen Operanden-Typen

@@ -171,8 +171,37 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
                         ? SchemaStatusEnum.Ignore
                         : defaultStatus;
                 }
-                var spList = snapshot.Procedures
-                    .Where(p => p.Schema.Equals(s.Name, StringComparison.OrdinalIgnoreCase))
+
+                // Filter procedures by SPOCR_BUILD_PROCEDURES if specified
+                var proceduresInSchema = snapshot.Procedures
+                    .Where(p => p.Schema.Equals(s.Name, StringComparison.OrdinalIgnoreCase));
+
+                // Apply procedure-level filtering 
+                // DISABLED in Code Generation - procedure filtering is only for schema snapshots (pull command)
+                // Code generation is controlled exclusively by SPOCR_BUILD_SCHEMAS
+                /*
+                var buildProceduresRaw = Environment.GetEnvironmentVariable("SPOCR_BUILD_PROCEDURES");
+                if (!string.IsNullOrWhiteSpace(buildProceduresRaw))
+                {
+                    var buildProcedures = new HashSet<string>(buildProceduresRaw
+                        .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                        .Select(sp => sp.Trim())
+                        .Where(sp => sp.Length > 0), StringComparer.OrdinalIgnoreCase);
+
+                    if (buildProcedures.Count > 0)
+                    {
+                        proceduresInSchema = proceduresInSchema.Where(p =>
+                        {
+                            var fullName = $"{p.Schema}.{p.Name}";
+                            var procedureName = p.Name;
+                            return buildProcedures.Contains(fullName) || buildProcedures.Contains(procedureName);
+                        });
+                        _console.Verbose($"[snapshot-provider] applying SPOCR_BUILD_PROCEDURES filter for schema {s.Name}");
+                    }
+                }
+                */
+
+                var spList = proceduresInSchema
                     .Select(p => new StoredProcedureModel(new DataContext.Models.StoredProcedure
                     {
                         SchemaName = p.Schema,

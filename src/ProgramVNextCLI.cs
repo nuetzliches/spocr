@@ -37,6 +37,9 @@ internal static class ProgramVNextCLI
         var forceOption = new Option<bool>(
             name: "--force",
             description: "Force overwrite existing target file (for init-env)");
+        var procedureOption = new Option<string>(
+            name: "--procedure",
+            description: "Process only specific procedures (comma-separated, format: schema.procedurename)");
 
         var demoCommand = new Command("generate-demo", "Run a demo template render using the vNext generator")
         {

@@ -42,31 +42,68 @@ public sealed class ProceduresGenerator
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
         // Work list subject to filters
         var procs = allProcedures.ToList();
+        
+        // Check for explicit procedure filter first
+        var buildProceduresRaw = Environment.GetEnvironmentVariable("SPOCR_BUILD_PROCEDURES");
+        var hasExplicitProcedures = !string.IsNullOrWhiteSpace(buildProceduresRaw);
+        
         // 1) Positive allow-list: prefer EnvConfiguration.BuildSchemas; fallback to direct env var only if cfg missing
+        // Skip schema filtering if procedures are explicitly specified
         HashSet<string>? buildSchemas = null;
-        if (_cfg?.BuildSchemas is { Count: > 0 })
+        if (!hasExplicitProcedures)
         {
-            buildSchemas = new HashSet<string>(_cfg.BuildSchemas, StringComparer.OrdinalIgnoreCase);
-        }
-        else
-        {
-            var buildSchemasRaw = Environment.GetEnvironmentVariable("SPOCR_BUILD_SCHEMAS");
-            if (!string.IsNullOrWhiteSpace(buildSchemasRaw))
+            if (_cfg?.BuildSchemas is { Count: > 0 })
             {
-                buildSchemas = new HashSet<string>(buildSchemasRaw!
-                    .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
-                    .Select(s => s.Trim())
-                    .Where(s => s.Length > 0), StringComparer.OrdinalIgnoreCase);
+                buildSchemas = new HashSet<string>(_cfg.BuildSchemas, StringComparer.OrdinalIgnoreCase);
+            }
+            else
+            {
+                var buildSchemasRaw = Environment.GetEnvironmentVariable("SPOCR_BUILD_SCHEMAS");
+                if (!string.IsNullOrWhiteSpace(buildSchemasRaw))
+                {
+                    buildSchemas = new HashSet<string>(buildSchemasRaw!
+                        .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                        .Select(s => s.Trim())
+                        .Where(s => s.Length > 0), StringComparer.OrdinalIgnoreCase);
+                }
+            }
+            if (buildSchemas is { Count: > 0 })
+            {
+                var before = procs.Count;
+                // Filter strictly by schema list
+                procs = procs.Where(p => buildSchemas.Contains(p.Schema ?? "dbo")).ToList();
+                var removed = before - procs.Count;
+                try { Console.Out.WriteLine($"[spocr vNext] Info: BuildSchemas allow-list active -> {procs.Count} of {before} procedures retained. Removed: {removed}. Schemas: {string.Join(",", buildSchemas)}"); } catch { }
             }
         }
-        if (buildSchemas is { Count: > 0 })
+
+        // 1.5) Procedure-specific allow-list (SPOCR_BUILD_PROCEDURES) 
+        // DISABLED in Code Generation - procedure filtering is only for schema snapshots (pull command)
+        // Code generation is controlled exclusively by SPOCR_BUILD_SCHEMAS
+        /*
+        HashSet<string>? buildProcedures = null;
+        if (!string.IsNullOrWhiteSpace(buildProceduresRaw))
+        {
+            buildProcedures = new HashSet<string>(buildProceduresRaw!
+                .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => s.Trim())
+                .Where(s => s.Length > 0), StringComparer.OrdinalIgnoreCase);
+        }
+        if (buildProcedures is { Count: > 0 })
         {
             var before = procs.Count;
-            // Filter strictly by schema list
-            procs = procs.Where(p => buildSchemas.Contains(p.Schema ?? "dbo")).ToList();
+            // Filter by procedure list (format: schema.procedurename or just procedurename)
+            procs = procs.Where(p =>
+            {
+                var fullName = $"{p.Schema}.{p.ProcedureName}";
+                var procedureName = p.ProcedureName;
+                return buildProcedures.Contains(fullName) || buildProcedures.Contains(procedureName);
+            }).ToList();
             var removed = before - procs.Count;
-            try { Console.Out.WriteLine($"[spocr vNext] Info: BuildSchemas allow-list active -> {procs.Count} of {before} procedures retained. Removed: {removed}. Schemas: {string.Join(",", buildSchemas)}"); } catch { }
+            try { Console.Out.WriteLine($"[spocr vNext] Info: BuildProcedures allow-list active -> {procs.Count} of {before} procedures retained. Removed: {removed}. Procedures: {string.Join(",", buildProcedures)}"); } catch { }
         }
+        */
+
         // 2) Dynamic negative filter only when no positive list is active
         //    Reads ignored schemas from spocr.json (if present) and/or ENV override
         List<string> ignoredSchemas = new();

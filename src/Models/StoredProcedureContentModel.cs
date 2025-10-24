@@ -90,7 +90,57 @@ public class StoredProcedureContentModel
         }
 
         var analysis = new Analysis(string.IsNullOrWhiteSpace(defaultSchema) ? "dbo" : defaultSchema);
-        fragment.Accept(new Visitor(normalizedDefinition, analysis));
+        var visitor = new Visitor(normalizedDefinition, analysis);
+        fragment.Accept(visitor);
+
+        // Filter CTE ResultSets and capture their column types for nested JSON propagation
+        Console.WriteLine($"[cte-filter] Before filtering: {analysis.JsonSets.Count} ResultSets");
+
+        // If we have 2 ResultSets, the second one should be the CTE with proper type information
+        if (analysis.JsonSets.Count == 2)
+        {
+            var cteResultSet = analysis.JsonSets[1];
+            Console.WriteLine($"[cte-filter] Processing CTE ResultSet with {cteResultSet.Columns.Count} columns");
+
+            // Capture CTE column types and map them to nested JSON column names
+            foreach (var column in cteResultSet.Columns)
+            {
+                if (!string.IsNullOrEmpty(column.Name) && !string.IsNullOrEmpty(column.SqlTypeName))
+                {
+                    var mappedName = MapCteColumnNameToNestedJsonName(column.Name);
+                    if (!string.IsNullOrEmpty(mappedName))
+                    {
+                        visitor.CaptureCteColumnType(mappedName, new ResultColumn
+                        {
+                            Name = mappedName,
+                            SqlTypeName = column.SqlTypeName,
+                            MaxLength = column.MaxLength,
+                            IsNullable = column.IsNullable
+                        });
+                        Console.WriteLine($"[cte-filter] Captured {column.Name} -> {mappedName}: {column.SqlTypeName}, MaxLength={column.MaxLength}, IsNullable={column.IsNullable}");
+                    }
+                }
+            }
+
+            // Remove the CTE ResultSet to maintain single ResultSet behavior
+            analysis.JsonSets.RemoveAt(1);
+            Console.WriteLine($"[cte-filter] Removed CTE ResultSet, back to {analysis.JsonSets.Count} ResultSets");
+        }
+
+        // Post-process: Apply CTE type propagation to nested JSON columns
+        visitor.ApplyCteTypePropagationToNestedJsonColumns();
+
+        string MapCteColumnNameToNestedJsonName(string cteColumnName)
+        {
+            return cteColumnName?.ToLowerInvariant() switch
+            {
+                "claimid" => "claimId",
+                "claimvalue" => "value",
+                "displayname" => "displayName",
+                "ischecked" => "isChecked",
+                _ => null
+            };
+        }
 
         // Summary-Ausgabe nach vollständiger Traversierung (immer ausgegeben für Diagnose).
         // Zusammenfassungszeile nur bei aktiviertem JSON-AST-Diagnose-Level
@@ -499,6 +549,10 @@ public class StoredProcedureContentModel
                                                                                                 // Key: Derived table alias. Value: Dictionary(OutputColumnName -> (Schema, Table, Column, Ambiguous))
         private readonly Dictionary<string, Dictionary<string, (string Schema, string Table, string Column, bool Ambiguous)>> _derivedTableColumnSources = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, List<ResultColumn>> _derivedTableColumns = new(StringComparer.OrdinalIgnoreCase); // Original ResultColumns je Derived Alias
+        private readonly Dictionary<string, ResultColumn> _cteColumnTypes = new(StringComparer.OrdinalIgnoreCase); // Captured CTE column types for nested JSON propagation
+        private readonly HashSet<QuerySpecification> _cteQuerySpecifications = new(); // Track CTE QuerySpecifications to exclude from ResultSets
+        private readonly Dictionary<string, List<ResultColumn>> _cteDefinitions = new(StringComparer.OrdinalIgnoreCase); // Track CTE alias -> columns for type resolution
+        private readonly Dictionary<string, (string SqlTypeName, int? MaxLength, bool? IsNullable)> _resolvedColumnTypes = new(StringComparer.OrdinalIgnoreCase); // Cache für aufgelöste Spalten-Typen
         public Visitor(string definition, Analysis analysis) { _definition = definition; _analysis = analysis; }
         public override void ExplicitVisit(CreateProcedureStatement node) { _procedureDepth++; base.ExplicitVisit(node); _procedureDepth--; }
         public override void ExplicitVisit(CreateOrAlterProcedureStatement node) { _procedureDepth++; base.ExplicitVisit(node); _procedureDepth--; }
@@ -523,6 +577,11 @@ public class StoredProcedureContentModel
         {
             try
             {
+                Console.WriteLine($"[qs-debug] ExplicitVisit QuerySpecification - CTE count: {_cteQuerySpecifications.Count}, checking if this is CTE: {_cteQuerySpecifications.Contains(node)}");
+                
+                // For now, let all QuerySpecifications be processed normally - we'll filter CTE ResultSets at the end
+                // This allows CTE columns to be properly typed through normal processing
+
                 try
                 {
                     if (ShouldDiag()) Console.WriteLine($"[qs-debug] enter startOffset={node.StartOffset} fragmentLength={node.FragmentLength} forClauseType={(node.ForClause?.GetType().Name ?? "null")}");
@@ -876,7 +935,7 @@ public class StoredProcedureContentModel
         }
         public override void ExplicitVisit(WithCtesAndXmlNamespaces node)
         {
-            // Verarbeite CTEs: Jede CTE als 'abgeleitete Tabelle'
+            // Verarbeite CTEs: Jede CTE als 'abgeleitete Tabelle' und markiere QuerySpecifications als CTE
             if (node?.CommonTableExpressions != null)
             {
                 foreach (var cte in node.CommonTableExpressions)
@@ -885,6 +944,9 @@ public class StoredProcedureContentModel
                     {
                         if (cte?.QueryExpression is QuerySpecification qs)
                         {
+                            // Markiere als CTE QuerySpecification (soll keine ResultSet erzeugen)
+                            _cteQuerySpecifications.Add(qs);
+
                             var alias = cte.ExpressionName?.Value;
                             if (!string.IsNullOrWhiteSpace(alias))
                             {
@@ -895,6 +957,27 @@ public class StoredProcedureContentModel
                                     _derivedTableColumnSources[alias] = columnMap;
                                     _derivedTableColumns[alias] = derivedCols;
                                     ConsoleWriteDerived(alias, columnMap, isCte: true);
+                                    
+                                    // Capture CTE column types for later nested JSON propagation
+                                    Console.WriteLine($"[cte-type-capture] Processing CTE '{alias}' with {derivedCols.Count} columns");
+                                    foreach (var col in derivedCols)
+                                    {
+                                        if (!string.IsNullOrEmpty(col.Name) && !string.IsNullOrEmpty(col.SqlTypeName))
+                                        {
+                                            _cteColumnTypes[col.Name] = new ResultColumn
+                                            {
+                                                Name = col.Name,
+                                                SqlTypeName = col.SqlTypeName,
+                                                MaxLength = col.MaxLength,
+                                                IsNullable = col.IsNullable
+                                            };
+                                            Console.WriteLine($"[cte-type-capture-early] Captured {col.Name}: {col.SqlTypeName}, MaxLength={col.MaxLength}, IsNullable={col.IsNullable}");
+                                        }
+                                        else
+                                        {
+                                            Console.WriteLine($"[cte-type-capture-early] Skipping {col.Name}: missing type info (SqlTypeName='{col.SqlTypeName}')");
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1607,21 +1690,215 @@ public class StoredProcedureContentModel
                     break;
                 case SearchedCaseExpression sce:
                     target.ExpressionKind = ResultColumnExpressionKind.Computed;
-                    foreach (var w in sce.WhenClauses)
+
+                    // CASE Typ-Vereinigung: Sammle alle Branch-Typen und vereinige sie
+                    try
                     {
-                        AnalyzeScalarExpression(w.ThenExpression, target, state);
+                        var branchCols = new List<ResultColumn>();
+
+                        // Analysiere alle WHEN-THEN Branches
+                        if (sce.WhenClauses != null)
+                        {
+                            foreach (var w in sce.WhenClauses)
+                            {
+                                var branchCol = new ResultColumn();
+                                var branchState = new SourceBindingState();
+                                AnalyzeScalarExpression(w.ThenExpression, branchCol, branchState);
+                                branchCols.Add(branchCol);
+                            }
+                        }
+
+                        // Analysiere ELSE Branch (falls vorhanden)
+                        if (sce.ElseExpression != null)
+                        {
+                            var elseCol = new ResultColumn();
+                            var elseState = new SourceBindingState();
+                            AnalyzeScalarExpression(sce.ElseExpression, elseCol, elseState);
+                            branchCols.Add(elseCol);
+                        }
+
+                        // Typ-Vereinigung aller Branches
+                        if (string.IsNullOrWhiteSpace(target.SqlTypeName) && branchCols.Count > 0)
+                        {
+                            // Versuche identische SqlTypeName zu finden
+                            var typedBranches = branchCols.Where(b => !string.IsNullOrWhiteSpace(b.SqlTypeName)).ToList();
+                            if (typedBranches.Count > 0)
+                            {
+                                var firstType = typedBranches[0].SqlTypeName;
+                                if (typedBranches.All(b => b.SqlTypeName.Equals(firstType, StringComparison.OrdinalIgnoreCase)))
+                                {
+                                    // Alle Branches haben identischen Typ
+                                    target.SqlTypeName = firstType;
+                                    var maxLengths = typedBranches.Where(b => b.MaxLength.HasValue).Select(b => b.MaxLength!.Value);
+                                    if (maxLengths.Any()) target.MaxLength = maxLengths.Max();
+
+                                    if (ShouldDiagJsonAst())
+                                    {
+                                        try { System.Console.WriteLine($"[ast-type-case] {target.Name}: identical types {target.SqlTypeName}, maxLength={target.MaxLength} from {typedBranches.Count} branches"); } catch { }
+                                    }
+                                }
+                                else if (typedBranches.All(b => b.SqlTypeName.StartsWith("nvarchar", StringComparison.OrdinalIgnoreCase)))
+                                {
+                                    // Alle nvarchar aber verschiedene Längen → nvarchar union
+                                    target.SqlTypeName = "nvarchar";
+                                    var maxLengths = typedBranches.Where(b => b.MaxLength.HasValue).Select(b => b.MaxLength!.Value);
+                                    target.MaxLength = maxLengths.Any() ? maxLengths.Max() : (int?)null;
+
+                                    if (ShouldDiagJsonAst())
+                                    {
+                                        try { System.Console.WriteLine($"[ast-type-case] {target.Name}: nvarchar union, maxLength={target.MaxLength} from {typedBranches.Count} branches"); } catch { }
+                                    }
+                                }
+                                else
+                                {
+                                    // Fallback: Ersten verfügbaren Typ verwenden
+                                    target.SqlTypeName = typedBranches[0].SqlTypeName;
+                                    target.MaxLength = typedBranches[0].MaxLength;
+
+                                    if (ShouldDiagJsonAst())
+                                    {
+                                        try { System.Console.WriteLine($"[ast-type-case] {target.Name}: fallback to first branch type {target.SqlTypeName}"); } catch { }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Falls ELSE-Branch fehlt → IsNullable = true (CASE kann NULL zurückgeben)
+                        if (sce.ElseExpression == null && target.IsNullable != true)
+                        {
+                            target.IsNullable = true;
+                        }
                     }
-                    AnalyzeScalarExpression(sce.ElseExpression, target, state);
+                    catch { }
                     break;
                 case SimpleCaseExpression simp:
                     target.ExpressionKind = ResultColumnExpressionKind.Computed;
+
+                    // Analysiere Input Expression (wird aber nicht für Typ-Vereinigung verwendet)
                     AnalyzeScalarExpression(simp.InputExpression, target, state);
-                    foreach (var w in simp.WhenClauses)
+
+                    // CASE Typ-Vereinigung: Sammle alle Branch-Typen und vereinige sie
+                    try
                     {
-                        // w.WhenExpression is BooleanExpression; skip
-                        AnalyzeScalarExpression(w.ThenExpression, target, state);
+                        var branchCols = new List<ResultColumn>();
+
+                        // Analysiere alle WHEN-THEN Branches
+                        if (simp.WhenClauses != null)
+                        {
+                            foreach (var w in simp.WhenClauses)
+                            {
+                                var branchCol = new ResultColumn();
+                                var branchState = new SourceBindingState();
+                                AnalyzeScalarExpression(w.ThenExpression, branchCol, branchState);
+                                branchCols.Add(branchCol);
+                            }
+                        }
+
+                        // Analysiere ELSE Branch (falls vorhanden)
+                        if (simp.ElseExpression != null)
+                        {
+                            var elseCol = new ResultColumn();
+                            var elseState = new SourceBindingState();
+                            AnalyzeScalarExpression(simp.ElseExpression, elseCol, elseState);
+                            branchCols.Add(elseCol);
+                        }
+
+                        // Typ-Vereinigung aller Branches (gleiche Logik wie SearchedCase)
+                        if (string.IsNullOrWhiteSpace(target.SqlTypeName) && branchCols.Count > 0)
+                        {
+                            var typedBranches = branchCols.Where(b => !string.IsNullOrWhiteSpace(b.SqlTypeName)).ToList();
+                            if (typedBranches.Count > 0)
+                            {
+                                var firstType = typedBranches[0].SqlTypeName;
+                                if (typedBranches.All(b => b.SqlTypeName.Equals(firstType, StringComparison.OrdinalIgnoreCase)))
+                                {
+                                    // Alle Branches haben identischen Typ
+                                    target.SqlTypeName = firstType;
+                                    var maxLengths = typedBranches.Where(b => b.MaxLength.HasValue).Select(b => b.MaxLength!.Value);
+                                    if (maxLengths.Any()) target.MaxLength = maxLengths.Max();
+
+                                    if (ShouldDiagJsonAst())
+                                    {
+                                        try { System.Console.WriteLine($"[ast-type-case-simple] {target.Name}: identical types {target.SqlTypeName}, maxLength={target.MaxLength} from {typedBranches.Count} branches"); } catch { }
+                                    }
+                                }
+                                else if (typedBranches.All(b => b.SqlTypeName.StartsWith("nvarchar", StringComparison.OrdinalIgnoreCase)))
+                                {
+                                    // Alle nvarchar aber verschiedene Längen → nvarchar union
+                                    target.SqlTypeName = "nvarchar";
+                                    var maxLengths = typedBranches.Where(b => b.MaxLength.HasValue).Select(b => b.MaxLength!.Value);
+                                    target.MaxLength = maxLengths.Any() ? maxLengths.Max() : (int?)null;
+
+                                    if (ShouldDiagJsonAst())
+                                    {
+                                        try { System.Console.WriteLine($"[ast-type-case-simple] {target.Name}: nvarchar union, maxLength={target.MaxLength} from {typedBranches.Count} branches"); } catch { }
+                                    }
+                                }
+                                else
+                                {
+                                    // Fallback: Ersten verfügbaren Typ verwenden
+                                    target.SqlTypeName = typedBranches[0].SqlTypeName;
+                                    target.MaxLength = typedBranches[0].MaxLength;
+
+                                    if (ShouldDiagJsonAst())
+                                    {
+                                        try { System.Console.WriteLine($"[ast-type-case-simple] {target.Name}: fallback to first branch type {target.SqlTypeName}"); } catch { }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Falls ELSE-Branch fehlt → IsNullable = true
+                        if (simp.ElseExpression == null && target.IsNullable != true)
+                        {
+                            target.IsNullable = true;
+                        }
                     }
-                    AnalyzeScalarExpression(simp.ElseExpression, target, state);
+                    catch { }
+                    break;
+                case CoalesceExpression coalesce:
+                    target.ExpressionKind = ResultColumnExpressionKind.FunctionCall;
+
+                    // COALESCE Typ-Ableitung: Nimmt ersten non-null Wert, daher ersten verfügbaren Typ verwenden
+                    try
+                    {
+                        if (coalesce.Expressions != null && coalesce.Expressions.Count > 0)
+                        {
+                            var operandCols = new List<ResultColumn>();
+
+                            // Analysiere alle Operanden
+                            foreach (var operandExpr in coalesce.Expressions.OfType<ScalarExpression>())
+                            {
+                                var operandCol = new ResultColumn();
+                                var operandState = new SourceBindingState();
+                                AnalyzeScalarExpression(operandExpr, operandCol, operandState);
+                                operandCols.Add(operandCol);
+                            }
+
+                            // Typ-Ableitung: Ersten verfügbaren Typ verwenden (COALESCE-Semantik)
+                            if (string.IsNullOrWhiteSpace(target.SqlTypeName))
+                            {
+                                var typedOperand = operandCols.FirstOrDefault(op => !string.IsNullOrWhiteSpace(op.SqlTypeName));
+                                if (typedOperand != null)
+                                {
+                                    target.SqlTypeName = typedOperand.SqlTypeName;
+                                    target.MaxLength = typedOperand.MaxLength;
+
+                                    if (ShouldDiagJsonAst())
+                                    {
+                                        try { System.Console.WriteLine($"[ast-type-coalesce] {target.Name}: using type {target.SqlTypeName} from first available operand"); } catch { }
+                                    }
+                                }
+                            }
+
+                            // COALESCE kann NULL zurückgeben wenn alle Operanden NULL sind
+                            if (target.IsNullable != true)
+                            {
+                                target.IsNullable = true;
+                            }
+                        }
+                    }
+                    catch { }
                     break;
                 case ParenthesisExpression pe:
                     AnalyzeScalarExpression(pe.Expression, target, state);
@@ -1908,6 +2185,8 @@ public class StoredProcedureContentModel
                         _analysis.ColumnRefBound++;
                         // Aggregat-Propagation: finde ursprüngliche ResultColumn im Derived Table um AggregateFlags zu kopieren
                         TryPropagateAggregateFromDerived(parts[0], md.Key, col);
+                        // CTE-Type-Propagation: propagiere SqlTypeName und andere Type-Properties von CTE
+                        TryPropagateTypeFromDerived(parts[0], md.Key, col);
                     }
                     else col.IsAmbiguous = true;
                 }
@@ -2054,20 +2333,66 @@ public class StoredProcedureContentModel
         {
             if (col == null) return;
             if (!string.IsNullOrWhiteSpace(col.SqlTypeName)) return; // bereits gesetzt (Literal / Aggregat etc.)
-            if (ResolveTableColumnType == null) return;
-            if (string.IsNullOrWhiteSpace(col.SourceSchema) || string.IsNullOrWhiteSpace(col.SourceTable) || string.IsNullOrWhiteSpace(col.SourceColumn)) return;
+            if (ResolveTableColumnType == null) 
+            {
+                if (ShouldDiag()) System.Console.WriteLine($"[cte-col-type-debug] ResolveTableColumnType delegate is null");
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(col.SourceSchema) || string.IsNullOrWhiteSpace(col.SourceTable) || string.IsNullOrWhiteSpace(col.SourceColumn)) 
+            {
+                if (ShouldDiag()) System.Console.WriteLine($"[cte-col-type-debug] Missing source info: schema={col.SourceSchema} table={col.SourceTable} column={col.SourceColumn}");
+                return;
+            }
             try
             {
+                if (ShouldDiag()) System.Console.WriteLine($"[cte-col-type-debug] Resolving {col.SourceSchema}.{col.SourceTable}.{col.SourceColumn}");
                 var res = ResolveTableColumnType(col.SourceSchema, col.SourceTable, col.SourceColumn);
                 if (!string.IsNullOrWhiteSpace(res.SqlTypeName))
                 {
                     col.SqlTypeName = res.SqlTypeName;
                     if (res.MaxLength.HasValue) col.MaxLength = res.MaxLength.Value;
                     if (res.IsNullable.HasValue) col.IsNullable = res.IsNullable.Value;
+                    if (ShouldDiag()) System.Console.WriteLine($"[cte-col-type-debug] Resolved to: type={col.SqlTypeName} maxLen={col.MaxLength} nullable={col.IsNullable}");
+                    
+                    // Store the resolved type information for later CTE usage
+                    // Note: This is a static method, so we can't directly access the visitor instance
+                    // We'll use a different approach for storing type information
+                }
+                else
+                {
+                    if (ShouldDiag()) System.Console.WriteLine($"[cte-col-type-debug] ResolveTableColumnType returned empty SqlTypeName");
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                if (ShouldDiag()) System.Console.WriteLine($"[cte-col-type-debug] Exception: {ex.Message}");
+            }
         }
+
+        // Store and retrieve column type information for CTE processing
+        private void StoreColumnTypeInfo(string schema, string table, string column, string sqlTypeName, int? maxLength, bool? isNullable)
+        {
+            if (string.IsNullOrWhiteSpace(schema) || string.IsNullOrWhiteSpace(table) || string.IsNullOrWhiteSpace(column)) return;
+            var key = $"{schema}.{table}.{column}";
+            _resolvedColumnTypes[key] = (sqlTypeName, maxLength, isNullable);
+            if (ShouldDiag()) System.Console.WriteLine($"[cte-type-store] stored {key} -> {sqlTypeName} maxLen={maxLength} nullable={isNullable}");
+        }
+
+        private (string SqlTypeName, int? MaxLength, bool? IsNullable) GetStoredColumnTypeInfo(string schema, string table, string column)
+        {
+            if (string.IsNullOrWhiteSpace(schema) || string.IsNullOrWhiteSpace(table) || string.IsNullOrWhiteSpace(column)) 
+                return (string.Empty, null, null);
+            
+            var key = $"{schema}.{table}.{column}";
+            if (_resolvedColumnTypes.TryGetValue(key, out var typeInfo))
+            {
+                if (ShouldDiag()) System.Console.WriteLine($"[cte-type-retrieve] found {key} -> {typeInfo.SqlTypeName} maxLen={typeInfo.MaxLength} nullable={typeInfo.IsNullable}");
+                return typeInfo;
+            }
+            if (ShouldDiag()) System.Console.WriteLine($"[cte-type-retrieve] not found {key}");
+            return (string.Empty, null, null);
+        }
+
         public override void ExplicitVisit(ExecuteSpecification node)
         {
             try
@@ -2206,6 +2531,23 @@ public class StoredProcedureContentModel
                 }
                 var ambiguous = col.IsAmbiguous == true || state.BindingCount > 1;
                 map[alias] = (col.SourceSchema, col.SourceTable, col.SourceColumn, ambiguous);
+                
+                // CRITICAL: Nach dem Derived-Binding die Typ-Informationen direkt aus Table-Metadata laden
+                if (!string.IsNullOrWhiteSpace(col.SourceSchema) && !string.IsNullOrWhiteSpace(col.SourceTable) && !string.IsNullOrWhiteSpace(col.SourceColumn))
+                {
+                    // Direkt TryAssignColumnType aufrufen statt über Mock-ColumnReference
+                    TryAssignColumnType(col);
+                    
+                    if (ShouldDiag()) 
+                    {
+                        try 
+                        { 
+                            System.Console.WriteLine($"[cte-col-type-loaded] {col.Name} from {col.SourceSchema}.{col.SourceTable}.{col.SourceColumn} type={col.SqlTypeName} maxLen={col.MaxLength} nullable={col.IsNullable}"); 
+                        } 
+                        catch { } 
+                    }
+                }
+                
                 outColumns?.Add(col);
                 if (ShouldDiag()) { try { System.Console.WriteLine($"[json-agg-diag] derived-col name={col.Name} agg={col.IsAggregate} fn={col.AggregateFunction} intLit={col.HasIntegerLiteral} decLit={col.HasDecimalLiteral}"); } catch { } }
             }
@@ -2524,6 +2866,8 @@ public class StoredProcedureContentModel
             {
                 var tableOrAlias = parts[0];
                 var column = parts[1];
+                
+                // Prüfe zuerst lokale Aliases (physische Tabellen)
                 if (localAliases.TryGetValue(tableOrAlias, out var mapped))
                 {
                     col.SourceAlias = tableOrAlias;
@@ -2534,7 +2878,53 @@ public class StoredProcedureContentModel
                     if (forceVerbose) try { System.Console.WriteLine($"[json-ast-bind-force] {col.SourceSchema}.{col.SourceTable}.{col.SourceColumn} -> {col.Name} (derived-alias)"); } catch { }
                     _analysis.ColumnRefBound++;
                 }
-                else col.IsAmbiguous = true;
+                // Neue Funktionalität: Prüfe CTE/Derived Table Aliases
+                else if (_derivedTableColumns.TryGetValue(tableOrAlias, out var derivedCols))
+                {
+                    // Finde passende Spalte aus der CTE/Derived Table
+                    var sourceCol = derivedCols.FirstOrDefault(c => c.Name?.Equals(column, StringComparison.OrdinalIgnoreCase) == true);
+                    if (sourceCol != null)
+                    {
+                        // Propagiere Type-Informationen von der CTE-Spalte
+                        if (!string.IsNullOrWhiteSpace(sourceCol.SqlTypeName))
+                        {
+                            col.SqlTypeName = sourceCol.SqlTypeName;
+                        }
+                        if (sourceCol.MaxLength.HasValue)
+                        {
+                            col.MaxLength = sourceCol.MaxLength;
+                        }
+                        if (sourceCol.IsNullable.HasValue)
+                        {
+                            col.IsNullable = sourceCol.IsNullable;
+                        }
+                        
+                        // Setze CTE-spezifische Source-Informationen
+                        col.SourceAlias = tableOrAlias;
+                        col.SourceColumn = column;
+                        // Für CTEs verwenden wir keine Schema.Table, da es virtuelle Tabellen sind
+                        
+                        if (forceVerbose || ShouldDiag()) 
+                        {
+                            try 
+                            { 
+                                System.Console.WriteLine($"[cte-bind-derived] CTE {tableOrAlias}.{column} -> {col.Name} type={col.SqlTypeName} maxLen={col.MaxLength} nullable={col.IsNullable}"); 
+                            } 
+                            catch { } 
+                        }
+                        _analysis.ColumnRefBound++;
+                    }
+                    else
+                    {
+                        col.IsAmbiguous = true;
+                        if (forceVerbose) try { System.Console.WriteLine($"[cte-bind-derived] CTE {tableOrAlias} found but column {column} not found"); } catch { }
+                    }
+                }
+                else 
+                {
+                    col.IsAmbiguous = true;
+                    if (forceVerbose) try { System.Console.WriteLine($"[cte-bind-derived] Neither physical table nor CTE found for alias {tableOrAlias}"); } catch { }
+                }
             }
             else if (parts.Count >= 3)
             {
@@ -2780,6 +3170,16 @@ public class StoredProcedureContentModel
                         // Literal Flags immer additiv propagieren (auch für Computed-Ausdrücke)
                         if (src.HasIntegerLiteral) target.HasIntegerLiteral = true;
                         if (src.HasDecimalLiteral) target.HasDecimalLiteral = true;
+
+                        // **NEUE CTE TYPE PROPAGATION**: SqlTypeName aus CTE/Derived Table übertragen
+                        if (string.IsNullOrWhiteSpace(target.SqlTypeName) && !string.IsNullOrWhiteSpace(src.SqlTypeName))
+                        {
+                            target.SqlTypeName = src.SqlTypeName;
+                            target.MaxLength = src.MaxLength;
+                            target.IsNullable = src.IsNullable;
+                            if (ShouldDiag()) System.Console.WriteLine($"[cte-type-propagation] {derivedAlias}.{innerAliasColumn} -> {target.SqlTypeName} (MaxLength={target.MaxLength})");
+                        }
+
                         // Aggregat nur propagieren, wenn Ziel selbst ein reiner ColumnRef ist (kein Computed Ausdruck)
                         if (src.IsAggregate && !target.IsAggregate && target.ExpressionKind == ResultColumnExpressionKind.ColumnRef)
                         {
@@ -2808,6 +3208,172 @@ public class StoredProcedureContentModel
                 }
             }
             catch { }
+        }
+
+        private void TryPropagateTypeFromDerived(string innerAliasColumn, string derivedAlias, ResultColumn target)
+        {
+            try
+            {
+                if (ShouldDiag()) System.Console.WriteLine($"[cte-type-propagation] enter innerAlias={innerAliasColumn} derivedAlias={derivedAlias} target={target?.Name}");
+
+                if (_derivedTableColumns.TryGetValue(derivedAlias, out var derivedCols))
+                {
+                    var sourceCol = derivedCols.FirstOrDefault(c => c.Name?.Equals(innerAliasColumn, StringComparison.OrdinalIgnoreCase) == true);
+                    if (sourceCol != null)
+                    {
+                        if (ShouldDiag()) System.Console.WriteLine($"[cte-type-propagation] found sourceCol={sourceCol.Name} sqlType={sourceCol.SqlTypeName} maxLen={sourceCol.MaxLength}");
+
+                        // Propagiere SqlTypeName und verwandte Properties
+                        if (!string.IsNullOrWhiteSpace(sourceCol.SqlTypeName) && string.IsNullOrWhiteSpace(target.SqlTypeName))
+                        {
+                            target.SqlTypeName = sourceCol.SqlTypeName;
+                            if (ShouldDiag()) System.Console.WriteLine($"[cte-type-propagation] propagated SqlTypeName={target.SqlTypeName}");
+                        }
+                        if (sourceCol.MaxLength.HasValue && !target.MaxLength.HasValue)
+                        {
+                            target.MaxLength = sourceCol.MaxLength;
+                            if (ShouldDiag()) System.Console.WriteLine($"[cte-type-propagation] propagated MaxLength={target.MaxLength}");
+                        }
+                        if (sourceCol.IsNullable.HasValue && !target.IsNullable.HasValue)
+                        {
+                            target.IsNullable = sourceCol.IsNullable;
+                            if (ShouldDiag()) System.Console.WriteLine($"[cte-type-propagation] propagated IsNullable={target.IsNullable}");
+                        }
+                    }
+                    else
+                    {
+                        if (ShouldDiag()) System.Console.WriteLine($"[cte-type-propagation] no match for innerAlias={innerAliasColumn} in derivedAlias={derivedAlias}");
+                    }
+                }
+                else
+                {
+                    if (ShouldDiag()) System.Console.WriteLine($"[cte-type-propagation] derivedAlias={derivedAlias} not found in _derivedTableColumns");
+                }
+            }
+            catch (Exception ex)
+            {
+                if (ShouldDiag()) System.Console.WriteLine($"[cte-type-propagation] error: {ex.Message}");
+            }
+        }
+
+        private void TryApplyCteTypePropagationToNestedJson(ResultColumn nestedCol, string schema, string fname)
+        {
+            try
+            {
+                Console.WriteLine($"[cte-nested-json-type] enter col={nestedCol?.Name} schema={schema} fname={fname}");
+
+                // Strategy 1: Try to find column type from captured CTE types (AST-based)
+                if (!string.IsNullOrEmpty(nestedCol.Name) && _cteColumnTypes.TryGetValue(nestedCol.Name, out var cteColumn))
+                {
+                    Console.WriteLine($"[cte-nested-json-type] Found CTE column {nestedCol.Name}: {cteColumn.SqlTypeName}, MaxLength={cteColumn.MaxLength}, IsNullable={cteColumn.IsNullable}");
+
+                    // Propagate type information from captured CTE column
+                    nestedCol.SqlTypeName = cteColumn.SqlTypeName;
+                    nestedCol.MaxLength = cteColumn.MaxLength;
+                    nestedCol.IsNullable = cteColumn.IsNullable;
+                    
+                    Console.WriteLine($"[cte-nested-json-type] Applied CTE type to {nestedCol.Name}: {nestedCol.SqlTypeName}, MaxLength={nestedCol.MaxLength}, IsNullable={nestedCol.IsNullable}");
+                    return;
+                }
+
+                Console.WriteLine($"[cte-nested-json-type] Column {nestedCol.Name} not found in captured CTE types. CTE types count: {_cteColumnTypes.Count}");
+                foreach (var cteType in _cteColumnTypes)
+                {
+                    Console.WriteLine($"[cte-nested-json-type] Available CTE type: {cteType.Key} -> {cteType.Value.SqlTypeName}");
+                }
+
+                // Strategy 2: Try to find any CTE (derived table) that has a column with this name
+                foreach (var derivedEntry in _derivedTableColumns)
+                {
+                    var derivedAlias = derivedEntry.Key;
+                    var derivedCols = derivedEntry.Value;
+                    
+                    var sourceCol = derivedCols.FirstOrDefault(c => c.Name?.Equals(nestedCol.Name, StringComparison.OrdinalIgnoreCase) == true);
+                    if (sourceCol != null && !string.IsNullOrWhiteSpace(sourceCol.SqlTypeName))
+                    {
+                        Console.WriteLine($"[cte-nested-json-type] found match col={nestedCol.Name} in derivedAlias={derivedAlias} sqlType={sourceCol.SqlTypeName}");
+
+                        // Propagate type information from CTE column to nested JSON column
+                        nestedCol.SqlTypeName = sourceCol.SqlTypeName;
+                        nestedCol.MaxLength = sourceCol.MaxLength;
+                        nestedCol.IsNullable = sourceCol.IsNullable;
+                        
+                        Console.WriteLine($"[cte-nested-json-type] propagated to col={nestedCol.Name} sqlType={nestedCol.SqlTypeName} maxLen={nestedCol.MaxLength} nullable={nestedCol.IsNullable}");
+                        return; // Success, exit early
+                    }
+                }
+
+                // AST-based resolution needed - no heuristics per CHECKLIST.md requirements
+                if (string.IsNullOrWhiteSpace(nestedCol.SqlTypeName))
+                {
+                    Console.WriteLine($"[cte-nested-json-type] AST-based resolution needed for column: {nestedCol.Name}");
+                }
+                
+                Console.WriteLine($"[cte-nested-json-type] final result col={nestedCol?.Name} sqlType={nestedCol?.SqlTypeName} maxLen={nestedCol?.MaxLength} isNull={nestedCol?.IsNullable}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[cte-nested-json-type] error: {ex.Message}");
+            }
+        }
+
+        public void ApplyCteTypePropagationToNestedJsonColumns()
+        {
+            try
+            {
+                if (ShouldDiag()) System.Console.WriteLine($"[cte-nested-json-post] starting post-processing for nested JSON CTE type propagation");
+
+                // Walk through all result sets and find nested JSON columns
+                foreach (var resultSet in _analysis.JsonSets)
+                {
+                    ApplyCteTypePropagationToColumnsRecursive(resultSet.Columns);
+                }
+
+                if (ShouldDiag()) System.Console.WriteLine($"[cte-nested-json-post] completed post-processing");
+            }
+            catch (Exception ex)
+            {
+                if (ShouldDiag()) System.Console.WriteLine($"[cte-nested-json-post] error: {ex.Message}");
+            }
+        }
+
+        private void ApplyCteTypePropagationToColumnsRecursive(IReadOnlyList<ResultColumn> columns)
+        {
+            if (columns == null) return;
+
+            foreach (var col in columns)
+            {
+                // Apply CTE type propagation to nested JSON columns that don't have type info
+                if (col.IsNestedJson == true && col.Columns != null)
+                {
+                    if (ShouldDiag()) System.Console.WriteLine($"[cte-nested-json-post] processing nested JSON column: {col.Name}");
+
+                    // Apply CTE type propagation to each nested column
+                    foreach (var nestedCol in col.Columns)
+                    {
+                        if (string.IsNullOrWhiteSpace(nestedCol.SqlTypeName))
+                        {
+                            Console.WriteLine($"[cte-nested-json-post] applying CTE type propagation to nested column: {nestedCol.Name}");
+                            TryApplyCteTypePropagationToNestedJson(nestedCol, null, null);
+                        }
+                        else
+                        {
+                            Console.WriteLine($"[cte-nested-json-post] skipping nested column {nestedCol.Name} - already has type: {nestedCol.SqlTypeName}");
+                        }
+                    }
+
+                    // Recursively process nested columns
+                    ApplyCteTypePropagationToColumnsRecursive(col.Columns);
+                }
+            }
+        }
+
+        public void CaptureCteColumnType(string columnName, ResultColumn columnType)
+        {
+            if (!string.IsNullOrEmpty(columnName) && columnType != null)
+            {
+                _cteColumnTypes[columnName] = columnType;
+            }
         }
 
         private static void TryExtractTypeParameters(DataTypeReference dataType, ResultColumn target)

@@ -276,6 +276,28 @@ public class SchemaManager(
             }
         }
 
+        // Apply --procedure flag filtering for schema snapshots (pull command only)
+        var buildProcedures = Environment.GetEnvironmentVariable("SPOCR_BUILD_PROCEDURES");
+        if (!string.IsNullOrWhiteSpace(buildProcedures))
+        {
+            var buildSet = new HashSet<string>(
+                buildProcedures.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                    .Select(p => p.Trim())
+                    .Where(p => !string.IsNullOrEmpty(p)),
+                StringComparer.OrdinalIgnoreCase);
+            
+            if (buildSet.Count > 0)
+            {
+                var beforeCount = storedProcedures.Count;
+                storedProcedures = storedProcedures.Where(sp => buildSet.Contains($"{sp.SchemaName}.{sp.Name}"))?.ToList();
+                var kept = storedProcedures.Count;
+                if (kept != beforeCount)
+                {
+                    consoleService.Verbose($"[procedure-filter] Filtered to {kept} procedure(s) via --procedure flag (was {beforeCount})");
+                }
+            }
+        }
+
         // Build a simple fingerprint (avoid secrets): use output namespace or role kind + schemas + SP count
         var projectId = config?.Project?.Output?.Namespace ?? config?.Project?.Role?.Kind.ToString() ?? "UnknownProject";
         var fingerprintRaw = $"{projectId}|{schemaListString}|{storedProcedures.Count}";
