@@ -406,6 +406,13 @@ public class SpocrManager(
                     return null; // kein Muster erkannt → offen lassen
                 }
 
+                string ExtractLeadingFunctionName(string raw)
+                {
+                    if (string.IsNullOrWhiteSpace(raw)) return null;
+                    var m = System.Text.RegularExpressions.Regex.Match(raw, @"^\s*([A-Za-z0-9_]+)\s*\(");
+                    return m.Success ? m.Groups[1].Value : null;
+                }
+
                 SnapshotResultColumn MapSnapshotResultColumn(StoredProcedureContentModel.ResultColumn col, bool parentReturnsJson, StoredProcedureModel spCtx)
                 {
                     var snap = new SnapshotResultColumn
@@ -442,9 +449,9 @@ public class SpocrManager(
                     // Zusätzliche Typinferenz für JSON Columns ohne konkrete Quelle
                     if (parentReturnsJson && string.IsNullOrWhiteSpace(snap.SqlTypeName))
                     {
-                        var fnName = col.FunctionName?.Trim();
-                        if (string.IsNullOrWhiteSpace(fnName) && col.IsAggregate == true && !string.IsNullOrWhiteSpace(col.AggregateFunction))
-                            fnName = col.AggregateFunction;
+                        var fnName = col.AggregateFunction;
+                        if (string.IsNullOrWhiteSpace(fnName) && !string.IsNullOrWhiteSpace(col.RawExpression) && col.ExpressionKind == StoredProcedureContentModel.ResultColumnExpressionKind.FunctionCall)
+                            fnName = ExtractLeadingFunctionName(col.RawExpression);
                         if (!string.IsNullOrWhiteSpace(fnName))
                         {
                             var fnLower = fnName.ToLowerInvariant();
@@ -464,18 +471,15 @@ public class SpocrManager(
                                     }
                                     if (snap.SqlTypeName == null)
                                     {
-                                        if (col.HasDecimalLiteral) snap.SqlTypeName = "decimal(18,2)"; else if (col.HasIntegerLiteral) snap.SqlTypeName = "int"; // sonst offen lassen
-                                        else snap.SqlTypeName = "decimal(18,2)"; // konservativer Fallback für SUM ohne Literal (typischer monetärer Kontext)
+                                        if (col.HasDecimalLiteral) snap.SqlTypeName = "decimal(18,2)"; else if (col.HasIntegerLiteral) snap.SqlTypeName = "int"; else snap.SqlTypeName = "decimal(18,2)";
                                     }
                                     break;
                                 case "avg":
-                                    // AVG immer decimal (SQL Server promotet i.d.R. zu decimal/numeric)
                                     snap.SqlTypeName = "decimal(18,2)"; break;
                                 case "exists":
                                     snap.SqlTypeName = "bit"; break;
                                 case "min":
                                 case "max":
-                                    // Ohne Quelltyp keine sichere Aussage – offen lassen
                                     break;
                             }
                             if (options.Verbose && parentReturnsJson)
@@ -597,7 +601,7 @@ public class SpocrManager(
                             }
                             else
                             {
-                                consoleService.Verbose($"[json-agg-diag] unresolved-json-column name={snap.Name} exprKind={col.ExpressionKind} fn={col.FunctionName} aggFn={col.AggregateFunction} isAgg={col.IsAggregate} hasIntLit={col.HasIntegerLiteral} hasDecLit={col.HasDecimalLiteral}");
+                                consoleService.Verbose($"[json-agg-diag] unresolved-json-column name={snap.Name} exprKind={col.ExpressionKind} aggFn={col.AggregateFunction} isAgg={col.IsAggregate} hasIntLit={col.HasIntegerLiteral} hasDecLit={col.HasDecimalLiteral}");
                             }
                         }
                     }
@@ -700,21 +704,16 @@ public class SpocrManager(
                     Hash = HashUdtt(u.Schema, u.Name, u.Columns)
                 }).ToList();
 
-                // --- Neue Artefakte: User Defined Scalar Types, Functions, Tabellen & Views ---
-                // ORDERING CONTRACT (aktualisiert / Guarded):
-                //   (A) UserDefinedTypes (scalar aliases)
-                //   (B) Functions (scalar + TVF Signaturen)
-                //   (C) Tables
-                //   (D) Views
-                //   (E) TableTypes (wurden bereits davor geladen – UDTT Metadaten verfügbar)
-                //   (F) Procedures (abschließende Enrichment Phase)
-                // Begründung:
-                //   * Alias Typen zuerst für konsistente BaseSqlTypeName Pruning Regeln.
-                //   * Functions früh falls spätere Dependency/Impact Analysen von Views oder zukünftiger AST benötigt werden.
-                //   * sys.columns liefert für Views bereits fertige Typen – Reihenfolge zu Functions hat keinen Einfluss auf Typauflösung.
-                //   * Procedures zuletzt, da JSON Enrichment alle vorherigen Metadaten (UDTT, Functions, UDTs) nutzen kann.
-                bool phaseUserTypesDone = false, phaseFunctionsDone = false, phaseTablesDone = false, phaseProceduresDone = procedures.Count > 0;
-                List<SnapshotFunction> snapshotEarlyFunctions = null;
+                // --- Artefakt-Lade-Reihenfolge (verbindlich):
+                //   (A) UserDefinedTypes (skalare Alias-Typen)
+                //   (B) Tables (benötigt für spätere Funktions-/JSON Typ-Anreicherung)
+                //   (C) Views  (liefert fertige sys.columns Typen)
+                //   (D) Functions (erst nach Tables/Views für sofortige korrekte Enrichment-Basis)
+                //   (E) TableTypes (wurden bereits vorher geladen / UDTT für Procs)
+                //   (F) Procedures (abschließende JSON/ResultSet Enrichment Phase)
+                // Begründung Änderung: Funktions-Sammlung jetzt NACH Tabellen & Views, damit ColumnEnrichment nicht auf spätere Post-Phase angewiesen ist.
+                bool phaseUserTypesDone = false, phaseTablesDone = false, phaseFunctionsDone = false, phaseProceduresDone = procedures.Count > 0;
+                List<SnapshotFunction> collectedFunctions = null;
 
                 var userDefinedTypeRows = await dbContext.UserDefinedScalarTypesAsync(System.Threading.CancellationToken.None);
                 var userDefinedTypes = userDefinedTypeRows.Select(r => new SnapshotUserDefinedType
@@ -729,20 +728,7 @@ public class SpocrManager(
                 }).ToList();
                 phaseUserTypesDone = true;
 
-                // Frühe Function-Sammlung (vor Tabellen/Views) für zukünftige Abhängigkeitsgraphen
-                try
-                {
-                    var fnCollectorEarly = new FunctionSnapshotCollector(dbContext, expandedSnapshotService, consoleService);
-                    var tempSnap = new SchemaSnapshot { Functions = new List<SnapshotFunction>() };
-                    await fnCollectorEarly.CollectAsync(tempSnap);
-                    snapshotEarlyFunctions = tempSnap.Functions ?? new List<SnapshotFunction>();
-                    phaseFunctionsDone = true; // selbst wenn Liste leer ist -> Sequenz eingehalten
-                    consoleService.Verbose($"[fn-early-summary] functions={snapshotEarlyFunctions.Count}");
-                }
-                catch (Exception fnEarlyEx)
-                {
-                    consoleService.Warn($"[fn-early-collect-failed] {fnEarlyEx.Message}");
-                }
+                // Entfernt: frühe Function-Sammlung (wird jetzt nach Tables & Views ausgeführt)
 
                 // Helper für Spalten-Pruning (Tabellen & Views)
                 SnapshotTableColumn MapTableColumn(Column c) => new SnapshotTableColumn
@@ -798,6 +784,8 @@ public class SpocrManager(
                 phaseTablesDone = true;
                 if (!phaseUserTypesDone) consoleService.Warn("[ordering-guard] Tables loaded before UserDefinedTypes – potential alias resolution issues.");
                 if (!phaseFunctionsDone) consoleService.Warn("[ordering-guard] Tables loaded before Functions – mögliche fehlende Funktions-Metadaten für spätere Analysen.");
+                phaseTablesDone = true;
+                if (!phaseUserTypesDone) consoleService.Warn("[ordering-guard] Tables loaded before UserDefinedTypes – potential alias resolution issues.");
 
                 // 3) Views je Build-Schema
                 var views = new List<SnapshotView>();
@@ -825,6 +813,24 @@ public class SpocrManager(
                 // Views Phase abgeschlossen (Variable entfernt – Guard Meldungen behalten nur falls Reihenfolge verletzt würde)
                 if (!phaseTablesDone) consoleService.Warn("[ordering-guard] Views loaded before Tables – unexpected sequence.");
                 if (!phaseFunctionsDone) consoleService.Warn("[ordering-guard] Views loaded before Functions – unexpected sequence.");
+                if (!phaseTablesDone) consoleService.Warn("[ordering-guard] Views loaded before Tables – unexpected sequence.");
+
+                // Jetzt Functions sammeln (nach Tables + Views)
+                try
+                {
+                    var fnCollector = new FunctionSnapshotCollector(dbContext, expandedSnapshotService, consoleService);
+                    // Snapshot-Vorlage mit Tabellen für Enrichment inside collector
+                    var fnSnap = new SchemaSnapshot { Tables = tables, Functions = new List<SnapshotFunction>() };
+                    await fnCollector.CollectAsync(fnSnap);
+                    collectedFunctions = fnSnap.Functions ?? new List<SnapshotFunction>();
+                    phaseFunctionsDone = true;
+                    consoleService.Verbose("[fn-summary] functions=" + collectedFunctions.Count);
+                }
+                catch (Exception fnEx)
+                {
+                    consoleService.Warn($"[fn-collect-error] {fnEx.Message}");
+                    collectedFunctions = new List<SnapshotFunction>();
+                }
 
                 // TableType refs per schema
                 var schemaSnapshots = schemas.Select(sc => new SnapshotSchema
@@ -856,11 +862,11 @@ public class SpocrManager(
                     Tables = tables,
                     Views = views,
                     UserDefinedTypes = userDefinedTypes,
-                    Functions = (snapshotEarlyFunctions ?? new List<SnapshotFunction>())
+                    Functions = (collectedFunctions ?? new List<SnapshotFunction>())
                         .OrderBy(f => f.Schema, StringComparer.OrdinalIgnoreCase)
                         .ThenBy(f => f.Name, StringComparer.OrdinalIgnoreCase)
                         .ToList(),
-                    FunctionsVersion = (snapshotEarlyFunctions != null && snapshotEarlyFunctions.Count > 0) ? 2 : null,
+                    FunctionsVersion = (collectedFunctions != null && collectedFunctions.Count > 0) ? 2 : null,
                     Parser = new SnapshotParserInfo { ToolVersion = config.TargetFramework, ResultSetParserVersion = 8 },
                     Stats = new SnapshotStats
                     {
@@ -874,7 +880,19 @@ public class SpocrManager(
                     }
                 };
 
+                // Zentrale Post-Snapshot Enrichment Phase für Function JSON Columns (displayName, initials etc.)
+                try
+                {
+                    var colEnricher = new ColumnEnrichmentService();
+                    colEnricher.EnrichFunctions(snapshot, consoleService);
+                }
+                catch (Exception enrEx)
+                {
+                    consoleService.Warn($"[fn-enrich-post-error] {enrEx.Message}");
+                }
+
                 // Spätere Function-Sammlung entfällt – bereits in früher Phase erledigt (siehe fn-early-summary Log)
+                // Hinweis: Frühe Function-Sammlung entfernt – zentrale Sammlung nach Tables/Views.
 
                 // Monolithic legacy snapshot save removed (architecture refactor)
                 // schemaSnapshotService.Save(snapshot); // disabled

@@ -259,6 +259,43 @@ public sealed class FunctionSnapshotCollector
 
             // Sorting and version tag
             snapshot.FunctionsVersion = 2; // Nested JSON / erweitertes Model
+            // Enrichment: Typableitung für JSON-Spalten aus Parameter- und Tabellen-Metadaten (nur wenn keine SqlTypeName vorhanden)
+            try
+            {
+                // Baue schnelle Lookup Maps für Parameter je Funktion (nutze lokale 'functions' Liste, nicht bereits existierende snapshot.Functions)
+                var paramLookup = functions.ToDictionary(f => f.Schema + "." + f.Name, f => f.Parameters.ToDictionary(p => p.Name, p => p, StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase);
+                // Table Lookup: Schema.Table -> Columns (Name->(SqlType, IsNullable, MaxLength))
+                var tableLookup = new Dictionary<string, Dictionary<string, (string SqlType, bool? IsNullable, int? MaxLength)>>(StringComparer.OrdinalIgnoreCase);
+                if (snapshot.Tables != null)
+                {
+                    foreach (var t in snapshot.Tables)
+                    {
+                        var key = (t.Schema + "." + t.Name);
+                        var colMap = new Dictionary<string, (string, bool?, int?)>(StringComparer.OrdinalIgnoreCase);
+                        foreach (var c in t.Columns ?? new List<SnapshotTableColumn>())
+                        {
+                            if (!string.IsNullOrWhiteSpace(c.Name) && !string.IsNullOrWhiteSpace(c.SqlTypeName))
+                            {
+                                colMap[c.Name] = (c.SqlTypeName!, c.IsNullable, c.MaxLength);
+                            }
+                        }
+                        tableLookup[key] = colMap;
+                    }
+                }
+                foreach (var f in functions.Where(fn => fn.ReturnsJson == true && fn.Columns != null && fn.Columns.Count > 0))
+                {
+                    var fnKey = f.Schema + "." + f.Name;
+                    paramLookup.TryGetValue(fnKey, out var fnParams);
+                    foreach (var col in f.Columns)
+                    {
+                        EnrichColumnRecursive(f, col, fnParams, tableLookup);
+                    }
+                }
+            }
+            catch (Exception enrichEx)
+            {
+                _console.Verbose($"[fn-json-enrich-error] {enrichEx.Message}");
+            }
             // Prune empty dependency lists for cleaner JSON (set null so JsonIgnoreCondition prunes)
             foreach (var f in functions)
             {
@@ -278,4 +315,101 @@ public sealed class FunctionSnapshotCollector
     }
 
     // Hinweis: Alle regex-basierten JSON Rückfall-Heuristiken entfernt (InferJsonColumns & verwandte Methoden).
+
+    private void EnrichColumnRecursive(SnapshotFunction fn, SnapshotFunctionColumn col, Dictionary<string, SnapshotFunctionParameter>? paramMap,
+        Dictionary<string, Dictionary<string, (string SqlType, bool? IsNullable, int? MaxLength)>> tableLookup)
+    {
+        // Wenn bereits konkreter Typ vorhanden und != 'json' (Container) -> nichts tun
+        if (!string.IsNullOrWhiteSpace(col.SqlTypeName) && !string.Equals(col.SqlTypeName, "json", StringComparison.OrdinalIgnoreCase))
+        {
+            if (col.Columns != null && col.Columns.Count > 0)
+            {
+                foreach (var child in col.Columns)
+                    EnrichColumnRecursive(fn, child, paramMap, tableLookup);
+            }
+            return;
+        }
+        var segments = col.Name.Split('.', StringSplitOptions.RemoveEmptyEntries);
+        var leaf = segments.LastOrDefault() ?? col.Name;
+        SnapshotFunctionParameter? matchedParam = null;
+        if (paramMap != null)
+        {
+            if (paramMap.TryGetValue(leaf, out var direct)) matchedParam = direct;
+            else
+            {
+                foreach (var p in paramMap.Values)
+                {
+                    if (p.Name.EndsWith(leaf, StringComparison.OrdinalIgnoreCase)) { matchedParam = p; break; }
+                }
+            }
+        }
+        if (matchedParam != null && !string.IsNullOrWhiteSpace(matchedParam.SqlTypeName))
+        {
+            col.SqlTypeName = matchedParam.SqlTypeName;
+            col.IsNullable = matchedParam.IsNullable;
+            col.MaxLength = matchedParam.MaxLength;
+        }
+        else
+        {
+            // Zusatz: dateTime Alias -> CreatedDt / UpdatedDt anhand erstes Segment
+            if (leaf.Equals("dateTime", StringComparison.OrdinalIgnoreCase) && paramMap != null)
+            {
+                string paramAlias = segments.Length > 0 && segments[0].Equals("updated", StringComparison.OrdinalIgnoreCase) ? "UpdatedDt" : "CreatedDt";
+                if (paramMap.TryGetValue(paramAlias, out var dtParam) && !string.IsNullOrWhiteSpace(dtParam.SqlTypeName))
+                {
+                    col.SqlTypeName = dtParam.SqlTypeName;
+                    col.IsNullable = dtParam.IsNullable;
+                    col.MaxLength = dtParam.MaxLength;
+                }
+            }
+            // DisplayName / Initials / userId / rowVersion mapping
+            if (string.IsNullOrWhiteSpace(col.SqlTypeName))
+            {
+                if (leaf.Equals("displayName", StringComparison.OrdinalIgnoreCase))
+                {
+                    TryMapTableColumn("identity.User", "DisplayName", col, tableLookup); // direkter Name, falls vorhanden
+                    if (string.IsNullOrWhiteSpace(col.SqlTypeName))
+                    {
+                        TryMapTableColumn("identity.User", "UserName", col, tableLookup); // Fallback
+                    }
+                }
+                else if (leaf.Equals("initials", StringComparison.OrdinalIgnoreCase))
+                {
+                    TryMapTableColumn("identity.User", "Initials", col, tableLookup);
+                }
+                else if (leaf.Equals("userId", StringComparison.OrdinalIgnoreCase))
+                {
+                    TryMapTableColumn("identity.User", "UserId", col, tableLookup);
+                }
+                else if (leaf.Equals("rowVersion", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Versuche echte Tabellen-Spalte zuzuordnen (identity.User.RowVersion) und nutze deren Typ.
+                    TryMapTableColumn("identity.User", "RowVersion", col, tableLookup);
+                    // Fallback falls Mapping leer blieb: verwende kanonischen SqlTypeName 'rowversion'.
+                    if (string.IsNullOrWhiteSpace(col.SqlTypeName)) col.SqlTypeName = "rowversion";
+                }
+            }
+            // Generischer Fallback: identity.User.<leaf>
+            if (string.IsNullOrWhiteSpace(col.SqlTypeName))
+            {
+                TryMapTableColumn("identity.User", leaf, col, tableLookup);
+            }
+        }
+        if (col.Columns != null && col.Columns.Count > 0)
+        {
+            foreach (var child in col.Columns)
+                EnrichColumnRecursive(fn, child, paramMap, tableLookup);
+        }
+    }
+
+    private void TryMapTableColumn(string tableKey, string columnName, SnapshotFunctionColumn target,
+        Dictionary<string, Dictionary<string, (string SqlType, bool? IsNullable, int? MaxLength)>> tableLookup)
+    {
+        if (tableLookup.TryGetValue(tableKey, out var cols) && cols.TryGetValue(columnName, out var meta))
+        {
+            if (string.IsNullOrWhiteSpace(target.SqlTypeName)) target.SqlTypeName = meta.SqlType;
+            if (!target.IsNullable.HasValue) target.IsNullable = meta.IsNullable;
+            if (!target.MaxLength.HasValue) target.MaxLength = meta.MaxLength;
+        }
+    }
 }

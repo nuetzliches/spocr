@@ -260,10 +260,12 @@ public sealed class ProceduresGenerator
                 // werden dessen Ziel-ResultSets virtuell expandiert (inline), ohne die ursprüngliche Descriptor-Liste zu verändern.
                 foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
                 {
-                    bool isExecPlaceholder = rs.Fields.Count == 0 && rs.ExecSourceProcedureName != null;
+                    bool isExecPlaceholder = rs.Fields.Count == 0 && ((rs.ExecSourceProcedureName != null) || (rs.Reference?.Kind == "Procedure"));
                     if (isExecPlaceholder)
                     {
-                        var targetKey = (rs.ExecSourceSchemaName ?? "dbo") + "." + rs.ExecSourceProcedureName;
+                        var targetSchema = rs.Reference?.Schema ?? rs.ExecSourceSchemaName ?? "dbo";
+                        var targetProcName = rs.Reference?.Name ?? rs.ExecSourceProcedureName;
+                        var targetKey = targetSchema + "." + targetProcName;
                         if (originalLookup.TryGetValue(targetKey, out var targetProc) && targetProc.ResultSets != null && targetProc.ResultSets.Count > 0)
                         {
                             if (IsDebug()) { try { Console.Out.WriteLine($"[proc-forward-expand] {proc.Schema}.{proc.ProcedureName} expanding placeholder -> {targetKey} sets={targetProc.ResultSets.Count}"); } catch { } }
@@ -280,7 +282,8 @@ public sealed class ProceduresGenerator
                                     ExecSourceSchemaName: rs.ExecSourceSchemaName,
                                     ExecSourceProcedureName: rs.ExecSourceProcedureName,
                                     ReturnsJson: tSet.ReturnsJson,
-                                    ReturnsJsonArray: tSet.ReturnsJsonArray
+                                    ReturnsJsonArray: tSet.ReturnsJsonArray,
+                                    Reference: rs.Reference ?? (targetProcName != null ? new ColumnReferenceInfo("Procedure", targetSchema, targetProcName) : null)
                                 );
                                 // Weiterverarbeitung wie reguläres ResultSet (Mapping & Record-Emission)
                                 AppendResultSetMeta(virtualRs);
@@ -318,6 +321,40 @@ public sealed class ProceduresGenerator
                         }
                         effectiveFields = remapped;
                     }
+                    // Generator-Phase: Deferred JSON Funktions-Expansion (RecordAsJson etc.)
+                    // Ersetzt Container-Spalte durch virtuelle Dot-Pfad Felder: record.<col>
+                    try
+                    {
+                        var deferredContainers = effectiveFields.Where(f => f.DeferredJsonExpansion == true && f.Reference?.Kind == "Function" && !string.IsNullOrWhiteSpace(f.Reference.Name)).ToList();
+                        if (deferredContainers.Count > 0 && StoredProcedureContentModel.ResolveFunctionJsonSet != null)
+                        {
+                            var expanded = new List<FieldDescriptor>(effectiveFields);
+                            bool changed = false;
+                            foreach (var dc in deferredContainers)
+                            {
+                                var refInfo = dc.Reference!; // bereits gefiltert auf non-null
+                                (bool ReturnsJson, bool ReturnsJsonArray, string RootProperty, IReadOnlyList<string> ColumnNames) meta;
+                                try { meta = StoredProcedureContentModel.ResolveFunctionJsonSet(refInfo.Schema ?? "dbo", refInfo.Name); } catch { continue; }
+                                if (!meta.ReturnsJson || meta.ColumnNames == null || meta.ColumnNames.Count == 0) continue;
+                                // Entferne Container-Spalte
+                                expanded.Remove(dc);
+                                foreach (var colName in meta.ColumnNames)
+                                {
+                                    if (string.IsNullOrWhiteSpace(colName)) continue;
+                                    var pathName = dc.Name + "." + colName.Trim();
+                                    // Leaf als string (Typ-Anreicherung über separaten Enricher zukünftige Erweiterung)
+                                    expanded.Add(new FieldDescriptor(pathName, pathName, "string", true, "nvarchar", null, null, null));
+                                }
+                                changed = true;
+                            }
+                            if (changed)
+                            {
+                                // Stabilisiere Reihenfolge für deterministische Ausgabe
+                                effectiveFields = expanded.OrderBy(f => f.Name, StringComparer.OrdinalIgnoreCase).ToList();
+                            }
+                        }
+                    }
+                    catch { }
                     // Typ-Namensschema an Tests angleichen:
                     // Verwende konsistent NamePolicy.ResultSet(procPart, rs.Name) für jeden ResultSet Record.
                     // Unified Aggregate bleibt NamePolicy.Result(procPart) und kollidiert somit nicht mehr mit erstem Satz.

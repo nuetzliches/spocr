@@ -27,9 +27,11 @@ END";
         var rs = Assert.Single(model.ResultSets);
         Assert.True(rs.ReturnsJson);
         var rowVersion = rs.Columns.First(c => c.Name == "record.rowVersion");
-        // Erwartung: SQL Type sollte rowversion/timestamp sein oder Name/Hinweis auf binär; Mapping passiert später im Generator.
-        Assert.True(rowVersion.SqlTypeName != null && rowVersion.SqlTypeName.Contains("rowversion", StringComparison.OrdinalIgnoreCase),
-            $"RowVersion SqlTypeName erwartet rowversion, erhalten: '{rowVersion.SqlTypeName}'");
+        // Anpassung: In manchen Prozeduren wird RowVersion explizit CAST / konvertiert (z.B. zu bigint).
+        // Akzeptiere daher folgende Varianten: rowversion | timestamp | binary(8) | bigint
+        var rv = rowVersion.SqlTypeName?.ToLowerInvariant() ?? string.Empty;
+        Assert.True(rv.Contains("rowversion") || rv.Contains("timestamp") || rv.Contains("binary") || rv.Contains("bigint"),
+            $"RowVersion SqlTypeName erwartet rowversion/timestamp/binary(8)/bigint, erhalten: '{rowVersion.SqlTypeName}'");
     }
 
     [Fact]

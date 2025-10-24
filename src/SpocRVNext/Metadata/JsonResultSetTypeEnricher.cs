@@ -83,7 +83,8 @@ internal sealed class JsonResultSetTypeEnricher
                 ExecSourceSchemaName: snapshotSet.ExecSourceSchemaName,
                 ExecSourceProcedureName: snapshotSet.ExecSourceProcedureName,
                 ReturnsJson: snapshotSet.ReturnsJson,
-                ReturnsJsonArray: snapshotSet.ReturnsJsonArray
+                ReturnsJsonArray: snapshotSet.ReturnsJsonArray,
+                Reference: snapshotSet.Reference // Weiterreichen der Konsolidierungs-Referenz
             );
             // Ersetze Eintrag in Liste
             var i = resultSets.IndexOf(snapshotSet);
@@ -103,22 +104,30 @@ internal sealed class JsonResultSetTypeEnricher
             if (ci != null && !string.IsNullOrWhiteSpace(ci.SqlType)) return NormalizeSqlType(ci.SqlType);
         }
         // Aggregat-Funktionen (COUNT -> int, SUM -> decimal/int, MIN/MAX/AVG abhängig vom inneren Typ wenn gebunden)
-        if (col.ExpressionKind == StoredProcedureContentModel.ResultColumnExpressionKind.FunctionCall && !string.IsNullOrWhiteSpace(col.FunctionName))
+        if (col.ExpressionKind == StoredProcedureContentModel.ResultColumnExpressionKind.FunctionCall)
         {
-            var fn = col.FunctionName.ToLowerInvariant();
-            switch (fn)
+            var fnName = col.AggregateFunction;
+            if (string.IsNullOrWhiteSpace(fnName) && !string.IsNullOrWhiteSpace(col.RawExpression))
             {
-                case "count":
-                case "count_big":
-                    return "bigint"; // COUNT_BIG eindeutig, COUNT meist int aber bigint stabiler für hohe Werte
-                case "sum":
-                case "avg":
-                    // Ohne Bindung oder Cast: decimal als konservativer Typ
-                    return "decimal(18,2)";
-                case "min":
-                case "max":
-                    // Unbekannt -> nvarchar(max) vermeiden, string als generischer Container
-                    return "nvarchar(4000)"; // begrenzt für Mapping (Generator kann string daraus machen)
+                fnName = TryExtractFunctionName(col.RawExpression);
+            }
+            if (!string.IsNullOrWhiteSpace(fnName))
+            {
+                var fn = fnName.ToLowerInvariant();
+                switch (fn)
+                {
+                    case "count":
+                    case "count_big":
+                        return "bigint"; // COUNT_BIG eindeutig, COUNT meist int aber bigint stabiler für hohe Werte
+                    case "sum":
+                    case "avg":
+                        // Ohne Bindung oder Cast: decimal als konservativer Typ
+                        return "decimal(18,2)";
+                    case "min":
+                    case "max":
+                        // Unbekannt -> nvarchar(max) vermeiden, string als generischer Container
+                        return "nvarchar(4000)"; // begrenzt für Mapping (Generator kann string daraus machen)
+                }
             }
         }
         // EXISTS / CASE bool Muster aus RawExpression
@@ -197,5 +206,14 @@ internal sealed class JsonResultSetTypeEnricher
         };
         if ((core != "string" && core != "byte[]") && nullable) core += "?";
         return core;
+    }
+
+    private static string? TryExtractFunctionName(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return null;
+        // Einfache Regex: führender Funktionsname gefolgt von '('
+    var m = System.Text.RegularExpressions.Regex.Match(raw, @"^\s*([A-Za-z0-9_]+)\s*\(");
+        if (m.Success) return m.Groups[1].Value;
+        return null;
     }
 }

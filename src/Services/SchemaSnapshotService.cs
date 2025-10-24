@@ -94,6 +94,8 @@ public class SchemaSnapshotService : ISchemaSnapshotService
                     ReturnsJson = c.ReturnsJson == true ? true : null,
                     ReturnsJsonArray = c.ReturnsJsonArray == true ? true : null,
                     JsonRootProperty = string.IsNullOrWhiteSpace(c.JsonRootProperty) ? null : c.JsonRootProperty,
+                    DeferredJsonExpansion = c.DeferredJsonExpansion == true ? true : null,
+                    Reference = c.Reference != null ? new SnapshotColumnReference { Kind = c.Reference.Kind, Schema = c.Reference.Schema, Name = c.Reference.Name } : null
                 };
                 if (c.Columns != null && c.Columns.Count > 0)
                 {
@@ -278,6 +280,9 @@ public class SnapshotResultColumn
     // Legacy v5 fields kept for backward compatibility during load; will be pruned on save.
     [Obsolete] public string JsonPath { get; set; }
     [Obsolete] public SnapshotNestedJson JsonResult { get; set; }
+    // Deferred Funktions-Expansion: Persistiere Referenz & Flag
+    public SnapshotColumnReference Reference { get; set; }
+    public bool? DeferredJsonExpansion { get; set; }
 }
 
 public class SnapshotNestedJson
@@ -286,6 +291,13 @@ public class SnapshotNestedJson
     public bool ReturnsJsonArray { get; set; }
     public string JsonRootProperty { get; set; }
     public List<SnapshotResultColumn> Columns { get; set; } = new();
+}
+
+public sealed class SnapshotColumnReference
+{
+    public string Kind { get; set; } // Function | View | Procedure
+    public string Schema { get; set; }
+    public string Name { get; set; }
 }
 
 public class SnapshotSchema

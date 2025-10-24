@@ -250,7 +250,27 @@ namespace SpocR.SpocRVNext.Metadata
                                 var maxLen = c.GetPropertyOrDefaultInt("MaxLength");
                                 var isNullable = SpocR.SpocRVNext.Metadata.SchemaMetadataProviderJsonExtensions.GetPropertyOrDefaultBoolStrict(c, "IsNullable");
                                 var clr = MapSqlToClr(sqlType, isNullable);
-                                columns.Add(new FieldDescriptor(colName, NamePolicy.Sanitize(colName), clr, isNullable, sqlType, maxLen));
+                                ColumnReferenceInfo? refInfo = null;
+                                bool? deferred = null;
+                                try
+                                {
+                                    if (c.TryGetProperty("Reference", out var refEl) && refEl.ValueKind == JsonValueKind.Object)
+                                    {
+                                        var kind = refEl.GetPropertyOrDefault("Kind");
+                                        var schemaRef = refEl.GetPropertyOrDefault("Schema");
+                                        var nameRef = refEl.GetPropertyOrDefault("Name");
+                                        if (!string.IsNullOrWhiteSpace(kind) && !string.IsNullOrWhiteSpace(nameRef))
+                                        {
+                                            refInfo = new ColumnReferenceInfo(kind!, schemaRef ?? "dbo", nameRef!);
+                                        }
+                                    }
+                                    if (c.TryGetProperty("DeferredJsonExpansion", out var defEl))
+                                    {
+                                        if (defEl.ValueKind == JsonValueKind.True) deferred = true; else if (defEl.ValueKind == JsonValueKind.False) deferred = null; // nur true behalten
+                                    }
+                                }
+                                catch { }
+                                columns.Add(new FieldDescriptor(colName, NamePolicy.Sanitize(colName), clr, isNullable, sqlType, maxLen, Reference: refInfo, DeferredJsonExpansion: deferred));
                             }
                         }
                         var rsName = ResultSetNaming.DeriveName(idx, columns, usedNames);
@@ -299,6 +319,11 @@ namespace SpocR.SpocRVNext.Metadata
                             returnsJsonArray = rse.GetPropertyOrDefaultBool("ReturnsJsonArray");
                         }
                         catch { /* best effort */ }
+                        ColumnReferenceInfo? rsRef = null;
+                        if (!string.IsNullOrWhiteSpace(execSourceProc))
+                        {
+                            rsRef = new ColumnReferenceInfo("Procedure", execSourceSchema ?? "dbo", execSourceProc!);
+                        }
                         resultSetDescriptors.Add(new ResultSetDescriptor(
                             Index: idx,
                             Name: rsName,
@@ -309,7 +334,8 @@ namespace SpocR.SpocRVNext.Metadata
                             ExecSourceSchemaName: execSourceSchema,
                             ExecSourceProcedureName: execSourceProc,
                             ReturnsJson: returnsJson,
-                            ReturnsJsonArray: returnsJsonArray
+                            ReturnsJsonArray: returnsJsonArray,
+                            Reference: rsRef
                         ));
                         idx++;
                     }
