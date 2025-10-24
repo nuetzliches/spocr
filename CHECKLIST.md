@@ -704,6 +704,57 @@ Status-Legende: [>] deferred (v5 Ziel) – Querverweis auf README / Roadmap Absc
 - [ ] JSON Metrics Aggregation: Anzahl JSON ResultSets, Fallback-Hits, unresolved-json-column Stats, Aggregat-Verteilung (pro Pull Summary + optional Write in debug/)
 - [ ] Env Fallback Flag Planung (`SPOCR_JSON_REGEX_FALLBACK`): Entscheidung: SPOCR_JSON_REGEX_FALLBACK nicht verwenden, reines AST-Parsing.
 
+### 0. AST-basierte Typ-Inferenz Verbesserungen (P1 - Kritisch)
+
+**Ziel**: Elimierung aller Typ-Heuristiken durch pure AST-Analyse. Bekannte Probleme: CONCAT, IIF mit komplexen Ausdrücken, FOR JSON PATH Subqueries ohne Typen.
+
+**Acceptance**: Keine fehlenden SqlTypeName bei gängigen SQL Konstrukten (CONCAT, IIF, FOR JSON Subqueries, CASE). Tests mit identity.UserListAsJson als Referenz.
+
+- [x] **CONCAT Funktions-Typ-Ableitung**: AST-basierte Erkennung von CONCAT(expr, ...) → `nvarchar` mit geschätzter MaxLength aus Operanden
+
+  - acceptance: `CONCAT(u.[LastName], N', ', u.[FirstName])` wird als `nvarchar(202)` erkannt (100+2+100) ✅
+  - implementation: FunctionCall case für 'CONCAT' mit Operanden-Analyse ✅
+  - test: ConcatTypeInferenceTests mit verschiedenen Operanden-Kombinationen (Literale, Spalten, Mixed) [Todo]
+  - logging: `[ast-type-concat]` für Typ-Ableitung, Operanden-Anzahl, resultierende MaxLength ✅
+
+- [ ] **FOR JSON PATH Subquery Typ-Ableitung**: Erkennung von `(SELECT ... FOR JSON PATH)` → `nvarchar(max)`
+
+  - acceptance: Subqueries mit FOR JSON PATH erhalten SqlTypeName='nvarchar' MaxLength=null (unbegrenzt)
+  - implementation: SubQuery case mit JSON-specific Erkennung (ForClause.ForClauseOptions prüfen)
+  - test: ForJsonSubqueryTypeTests mit verschiedenen JSON-Strukturen
+  - logging: `[ast-type-subjson]` für erkannte JSON Subqueries
+
+- [x] **IIF Komplexe Ausdrücke**: IIF mit Funktionsaufrufen statt nur String-Literale analysieren
+
+  - acceptance: `IIF(condition, CONCAT(...), ISNULL(...))` analysiert beide Branches für Typ-Ableitung ✅
+  - implementation: Erweitern der IIfCall Analyse um rekursive Expression-Ableitung ✅
+  - test: IifComplexExpressionTests mit verschachtelten Funktionen [Todo]
+  - logging: `[ast-type-iif-complex]` für Branch-Analyse und resultierende Typ-Vereinigung ✅
+
+- [ ] **CASE Expression Typ-Ableitung**: SearchedCase & SimpleCase mit Typ-Vereinigung der WHEN/ELSE Branches
+
+  - **PROBLEM ERKANNT**: Aktuell überschreibt jede Branch die target.SqlTypeName, statt Typ-Vereinigung wie bei IIF
+  - acceptance: `CASE WHEN ... THEN 'string' ELSE NULL END` → `nvarchar` IsNullable=true
+  - implementation: CaseExpression cases mit Branch-Sammlung und Typ-Consolidierung analog zu IIF-Logik
+  - test: CaseExpressionTypeTests mit gemischten Branch-Typen
+  - logging: `[ast-type-case]` für Branch-Anzahl und resultierende Typ-Vereinigung
+
+- [ ] **COALESCE/ISNULL/NULLIF Typ-Ableitung**: Null-Handling Funktionen mit Operanden-basierten Typen
+
+  - **PROBLEM ERKANNT**: CoalesceExpression fehlt komplett in AnalyzeScalarExpression case switch
+  - acceptance: `ISNULL(nullable_column, 'fallback')` übernimmt Typ von nullable_column oder fallback
+  - implementation: CoalesceExpression case + FunctionCall cases für ISNULL/NULLIF mit Operanden-Priorität  
+  - test: NullHandlingFunctionTests mit verschiedenen Operanden-Kombinationen
+  - logging: `[ast-type-nullfn]` für Funktions-Name und gewählten Operanden-Typ
+
+- [ ] **Arithmetic Expression Typ-Ableitung**: BinaryExpression für +,-,\*,/ mit Typ-Arithmetik
+  - acceptance: `column_int + 1` → `int`, `column_decimal * 2.5` → `decimal`
+  - implementation: BinaryExpression mit Operator-spezifischer Typ-Logik
+  - test: ArithmeticExpressionTypeTests mit verschiedenen Operanden-Typen
+  - logging: `[ast-type-arith]` für Operator und resultierende Typ-Ableitung
+
+**Fallback Strategy**: Falls AST-Analyse nicht möglich, custom parsing mit explizitem Logging und Test-Coverage.
+
 ### 1. JSON Deserialisierung Tests abschließen
 
 - [x] Test Infrastructure (`JsonResultSetTypeMappingTests`, `JsonResultSetAuditTests`)

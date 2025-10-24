@@ -1191,7 +1191,85 @@ public class StoredProcedureContentModel
                             if (string.IsNullOrWhiteSpace(target.SqlTypeName) && !string.IsNullOrWhiteSpace(thenCol.SqlTypeName) && thenCol.SqlTypeName.Equals(elseCol.SqlTypeName, StringComparison.OrdinalIgnoreCase))
                             {
                                 target.SqlTypeName = thenCol.SqlTypeName;
+                                // MaxLength übernehmen bei identischen Typen
+                                if (thenCol.MaxLength.HasValue && elseCol.MaxLength.HasValue)
+                                {
+                                    target.MaxLength = Math.Max(thenCol.MaxLength.Value, elseCol.MaxLength.Value);
+                                }
+                                else if (thenCol.MaxLength.HasValue || elseCol.MaxLength.HasValue)
+                                {
+                                    target.MaxLength = thenCol.MaxLength ?? elseCol.MaxLength;
+                                }
+
+                                if (ShouldDiagJsonAst())
+                                {
+                                    try { System.Console.WriteLine($"[ast-type-iif-branches] {target.Name}: identical types {target.SqlTypeName}, maxLength={target.MaxLength}"); } catch { }
+                                }
                             }
+                            // Erweiterte Typ-Vereinigung: Beide nvarchar aber verschiedene Längen
+                            else if (string.IsNullOrWhiteSpace(target.SqlTypeName)
+                                && !string.IsNullOrWhiteSpace(thenCol.SqlTypeName) && !string.IsNullOrWhiteSpace(elseCol.SqlTypeName)
+                                && thenCol.SqlTypeName.StartsWith("nvarchar", StringComparison.OrdinalIgnoreCase)
+                                && elseCol.SqlTypeName.StartsWith("nvarchar", StringComparison.OrdinalIgnoreCase))
+                            {
+                                target.SqlTypeName = "nvarchar";
+                                // Maximum der beiden MaxLength Werte
+                                if (thenCol.MaxLength.HasValue && elseCol.MaxLength.HasValue)
+                                {
+                                    target.MaxLength = Math.Max(thenCol.MaxLength.Value, elseCol.MaxLength.Value);
+                                }
+                                else
+                                {
+                                    // Falls einer unbegrenzt ist → unbegrenzt
+                                    target.MaxLength = null;
+                                }
+
+                                if (ShouldDiagJsonAst())
+                                {
+                                    try { System.Console.WriteLine($"[ast-type-iif-branches] {target.Name}: nvarchar union, maxLength={target.MaxLength}"); } catch { }
+                                }
+                            }
+                            // Fallback: Nur eine Branch hat einen Typ → übernehmen, aber MaxLength beider Branches berücksichtigen
+                            else if (string.IsNullOrWhiteSpace(target.SqlTypeName))
+                            {
+                                if (!string.IsNullOrWhiteSpace(thenCol.SqlTypeName))
+                                {
+                                    target.SqlTypeName = thenCol.SqlTypeName;
+                                    // MaxLength: Maximum beider Branches verwenden, auch wenn nur eine einen Typ hat
+                                    if (thenCol.MaxLength.HasValue && elseCol.MaxLength.HasValue)
+                                    {
+                                        target.MaxLength = Math.Max(thenCol.MaxLength.Value, elseCol.MaxLength.Value);
+                                    }
+                                    else if (thenCol.MaxLength.HasValue || elseCol.MaxLength.HasValue)
+                                    {
+                                        target.MaxLength = thenCol.MaxLength ?? elseCol.MaxLength;
+                                    }
+
+                                    if (ShouldDiagJsonAst())
+                                    {
+                                        try { System.Console.WriteLine($"[ast-type-iif-branches] {target.Name}: using THEN branch type {target.SqlTypeName}, maxLength={target.MaxLength} (then={thenCol.MaxLength}, else={elseCol.MaxLength})"); } catch { }
+                                    }
+                                }
+                                else if (!string.IsNullOrWhiteSpace(elseCol.SqlTypeName))
+                                {
+                                    target.SqlTypeName = elseCol.SqlTypeName;
+                                    // MaxLength: Maximum beider Branches verwenden, auch wenn nur eine einen Typ hat
+                                    if (thenCol.MaxLength.HasValue && elseCol.MaxLength.HasValue)
+                                    {
+                                        target.MaxLength = Math.Max(thenCol.MaxLength.Value, elseCol.MaxLength.Value);
+                                    }
+                                    else if (thenCol.MaxLength.HasValue || elseCol.MaxLength.HasValue)
+                                    {
+                                        target.MaxLength = thenCol.MaxLength ?? elseCol.MaxLength;
+                                    }
+
+                                    if (ShouldDiagJsonAst())
+                                    {
+                                        try { System.Console.WriteLine($"[ast-type-iif-branches] {target.Name}: using ELSE branch type {target.SqlTypeName}, maxLength={target.MaxLength} (then={thenCol.MaxLength}, else={elseCol.MaxLength})"); } catch { }
+                                    }
+                                }
+                            }
+
                             // Beide Literal-Strings → nvarchar(maxLen)
                             if (string.IsNullOrWhiteSpace(target.SqlTypeName)
                                 && IsLiteralString(thenExpr, out var litThen)
@@ -1203,6 +1281,137 @@ public class StoredProcedureContentModel
                         }
                     }
                     catch { }
+
+                    // CONCAT Funktions-Typ-Ableitung: AST-basierte Erkennung mit MaxLength Schätzung
+                    try
+                    {
+                        if (!string.IsNullOrWhiteSpace(fnName) && fnName.Equals("CONCAT", StringComparison.OrdinalIgnoreCase) && fn.Parameters?.Count > 0)
+                        {
+                            if (string.IsNullOrWhiteSpace(target.SqlTypeName))
+                            {
+                                int totalMaxLength = 0;
+                                bool hasUnboundedOperand = false;
+                                int operandCount = 0;
+
+                                if (ShouldDiagJsonAst())
+                                {
+                                    try { System.Console.WriteLine($"[ast-type-concat] analyzing CONCAT with {fn.Parameters.Count} operands for {target.Name}"); } catch { }
+                                }
+
+                                foreach (var param in fn.Parameters)
+                                {
+                                    if (param is ScalarExpression scalarParam)
+                                    {
+                                        operandCount++;
+                                        var operandCol = new ResultColumn();
+                                        var operandState = new SourceBindingState();
+                                        AnalyzeScalarExpression(scalarParam, operandCol, operandState);
+
+                                        // String-Literal: direkte Länge verwenden
+                                        if (IsLiteralString(scalarParam, out var literalValue))
+                                        {
+                                            var literalLength = literalValue?.Length ?? 0;
+                                            totalMaxLength += literalLength;
+                                            if (ShouldDiagJsonAst())
+                                            {
+                                                try { System.Console.WriteLine($"[ast-type-concat] operand {operandCount}: string literal, length={literalLength}"); } catch { }
+                                            }
+                                        }
+                                        // Spalten-Referenz mit bekanntem Typ
+                                        else if (!string.IsNullOrWhiteSpace(operandCol.SqlTypeName))
+                                        {
+                                            if (operandCol.SqlTypeName.StartsWith("nvarchar", StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                if (operandCol.MaxLength.HasValue && operandCol.MaxLength.Value > 0)
+                                                {
+                                                    totalMaxLength += operandCol.MaxLength.Value;
+                                                    if (ShouldDiagJsonAst())
+                                                    {
+                                                        try { System.Console.WriteLine($"[ast-type-concat] operand {operandCount}: nvarchar({operandCol.MaxLength.Value})"); } catch { }
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    hasUnboundedOperand = true;
+                                                    if (ShouldDiagJsonAst())
+                                                    {
+                                                        try { System.Console.WriteLine($"[ast-type-concat] operand {operandCount}: nvarchar(max) - unbounded"); } catch { }
+                                                    }
+                                                }
+                                            }
+                                            else if (operandCol.SqlTypeName.StartsWith("varchar", StringComparison.OrdinalIgnoreCase))
+                                            {
+                                                // varchar -> nvarchar conversion, gleiche MaxLength
+                                                if (operandCol.MaxLength.HasValue && operandCol.MaxLength.Value > 0)
+                                                {
+                                                    totalMaxLength += operandCol.MaxLength.Value;
+                                                }
+                                                else
+                                                {
+                                                    hasUnboundedOperand = true;
+                                                }
+                                            }
+                                            else
+                                            {
+                                                // Andere Typen: konservative Schätzung für Konvertierung zu String
+                                                totalMaxLength += 50; // Default für int, datetime, etc.
+                                                if (ShouldDiagJsonAst())
+                                                {
+                                                    try { System.Console.WriteLine($"[ast-type-concat] operand {operandCount}: {operandCol.SqlTypeName} - estimated 50 chars"); } catch { }
+                                                }
+                                            }
+                                        }
+                                        else
+                                        {
+                                            // Unbekannter Typ: konservative Schätzung
+                                            totalMaxLength += 100;
+                                            if (ShouldDiagJsonAst())
+                                            {
+                                                try { System.Console.WriteLine($"[ast-type-concat] operand {operandCount}: unknown type - estimated 100 chars"); } catch { }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Ergebnis-Typ setzen
+                                target.SqlTypeName = "nvarchar";
+                                if (hasUnboundedOperand || totalMaxLength > 4000)
+                                {
+                                    // nvarchar(max) falls ein Operand unbegrenzt ist oder Gesamtlänge > 4000
+                                    target.MaxLength = null;
+                                    if (ShouldDiagJsonAst())
+                                    {
+                                        try { System.Console.WriteLine($"[ast-type-concat] result: nvarchar(max) - unbounded or too long ({totalMaxLength})"); } catch { }
+                                    }
+                                }
+                                else if (totalMaxLength > 0)
+                                {
+                                    target.MaxLength = totalMaxLength;
+                                    if (ShouldDiagJsonAst())
+                                    {
+                                        try { System.Console.WriteLine($"[ast-type-concat] result: nvarchar({totalMaxLength})"); } catch { }
+                                    }
+                                }
+                                else
+                                {
+                                    // Fallback: nvarchar(max)
+                                    target.MaxLength = null;
+                                    if (ShouldDiagJsonAst())
+                                    {
+                                        try { System.Console.WriteLine($"[ast-type-concat] result: nvarchar(max) - fallback"); } catch { }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        if (ShouldDiag())
+                        {
+                            try { System.Console.WriteLine($"[ast-type-concat] error analyzing CONCAT for {target.Name}: {ex.Message}"); } catch { }
+                        }
+                    }
+
                     // Erweiterung: Für JSON_QUERY nun innere ScalarSubquery parsen, um Aggregat-Typen zu erkennen
                     if (target.ExpressionKind == ResultColumnExpressionKind.JsonQuery)
                     {
@@ -1284,12 +1493,100 @@ public class StoredProcedureContentModel
                         AnalyzeScalarExpression(thenExpr, thenCol, thenState);
                         var elseCol = new ResultColumn(); var elseState = new SourceBindingState();
                         AnalyzeScalarExpression(elseExpr, elseCol, elseState);
-                        if (string.IsNullOrWhiteSpace(target.SqlTypeName)
-                            && IsLiteralString(thenExpr, out var litThen)
-                            && IsLiteralString(elseExpr, out var litElse))
+
+                        // Erweiterte IIF-Typ-Vereinigung (gleiche Logik wie FunctionCall IIF)
+                        if (string.IsNullOrWhiteSpace(target.SqlTypeName))
                         {
-                            var maxLen = Math.Max(litThen?.Length ?? 0, litElse?.Length ?? 0);
-                            target.SqlTypeName = "nvarchar"; if (maxLen > 0) target.MaxLength = maxLen;
+                            // Identische vorab abgeleitete SqlTypeName Werte
+                            if (!string.IsNullOrWhiteSpace(thenCol.SqlTypeName) && thenCol.SqlTypeName.Equals(elseCol.SqlTypeName, StringComparison.OrdinalIgnoreCase))
+                            {
+                                target.SqlTypeName = thenCol.SqlTypeName;
+                                // MaxLength übernehmen bei identischen Typen
+                                if (thenCol.MaxLength.HasValue && elseCol.MaxLength.HasValue)
+                                {
+                                    target.MaxLength = Math.Max(thenCol.MaxLength.Value, elseCol.MaxLength.Value);
+                                }
+                                else if (thenCol.MaxLength.HasValue || elseCol.MaxLength.HasValue)
+                                {
+                                    target.MaxLength = thenCol.MaxLength ?? elseCol.MaxLength;
+                                }
+
+                                if (ShouldDiagJsonAst())
+                                {
+                                    try { System.Console.WriteLine($"[ast-type-iif-branches] {target.Name}: identical types {target.SqlTypeName}, maxLength={target.MaxLength}"); } catch { }
+                                }
+                            }
+                            // Erweiterte Typ-Vereinigung: Beide nvarchar aber verschiedene Längen
+                            else if (!string.IsNullOrWhiteSpace(thenCol.SqlTypeName) && !string.IsNullOrWhiteSpace(elseCol.SqlTypeName)
+                                && thenCol.SqlTypeName.StartsWith("nvarchar", StringComparison.OrdinalIgnoreCase)
+                                && elseCol.SqlTypeName.StartsWith("nvarchar", StringComparison.OrdinalIgnoreCase))
+                            {
+                                target.SqlTypeName = "nvarchar";
+                                // Maximum der beiden MaxLength Werte
+                                if (thenCol.MaxLength.HasValue && elseCol.MaxLength.HasValue)
+                                {
+                                    target.MaxLength = Math.Max(thenCol.MaxLength.Value, elseCol.MaxLength.Value);
+                                }
+                                else
+                                {
+                                    // Falls einer unbegrenzt ist → unbegrenzt
+                                    target.MaxLength = null;
+                                }
+
+                                if (ShouldDiagJsonAst())
+                                {
+                                    try { System.Console.WriteLine($"[ast-type-iif-branches] {target.Name}: nvarchar union, maxLength={target.MaxLength}"); } catch { }
+                                }
+                            }
+                            // Fallback: Nur eine Branch hat einen Typ → übernehmen, aber MaxLength beider Branches berücksichtigen
+                            else if (!string.IsNullOrWhiteSpace(thenCol.SqlTypeName))
+                            {
+                                target.SqlTypeName = thenCol.SqlTypeName;
+                                // MaxLength: Maximum beider Branches verwenden, auch wenn nur eine einen Typ hat
+                                if (thenCol.MaxLength.HasValue && elseCol.MaxLength.HasValue)
+                                {
+                                    target.MaxLength = Math.Max(thenCol.MaxLength.Value, elseCol.MaxLength.Value);
+                                }
+                                else if (thenCol.MaxLength.HasValue || elseCol.MaxLength.HasValue)
+                                {
+                                    target.MaxLength = thenCol.MaxLength ?? elseCol.MaxLength;
+                                }
+
+                                if (ShouldDiagJsonAst())
+                                {
+                                    try { System.Console.WriteLine($"[ast-type-iif-branches] {target.Name}: using THEN branch type {target.SqlTypeName}, maxLength={target.MaxLength} (then={thenCol.MaxLength}, else={elseCol.MaxLength})"); } catch { }
+                                }
+                            }
+                            else if (!string.IsNullOrWhiteSpace(elseCol.SqlTypeName))
+                            {
+                                target.SqlTypeName = elseCol.SqlTypeName;
+                                // MaxLength: Maximum beider Branches verwenden, auch wenn nur eine einen Typ hat
+                                if (thenCol.MaxLength.HasValue && elseCol.MaxLength.HasValue)
+                                {
+                                    target.MaxLength = Math.Max(thenCol.MaxLength.Value, elseCol.MaxLength.Value);
+                                }
+                                else if (thenCol.MaxLength.HasValue || elseCol.MaxLength.HasValue)
+                                {
+                                    target.MaxLength = thenCol.MaxLength ?? elseCol.MaxLength;
+                                }
+
+                                if (ShouldDiagJsonAst())
+                                {
+                                    try { System.Console.WriteLine($"[ast-type-iif-branches] {target.Name}: using ELSE branch type {target.SqlTypeName}, maxLength={target.MaxLength} (then={thenCol.MaxLength}, else={elseCol.MaxLength})"); } catch { }
+                                }
+                            }
+                            // Legacy String-Literal Fallback
+                            else if (IsLiteralString(thenExpr, out var litThen) && IsLiteralString(elseExpr, out var litElse))
+                            {
+                                var maxLen = Math.Max(litThen?.Length ?? 0, litElse?.Length ?? 0);
+                                target.SqlTypeName = "nvarchar";
+                                if (maxLen > 0) target.MaxLength = maxLen;
+
+                                if (ShouldDiagJsonAst())
+                                {
+                                    try { System.Console.WriteLine($"[ast-type-iif-branches] {target.Name}: string literal fallback, maxLength={maxLen}"); } catch { }
+                                }
+                            }
                         }
                     }
                     catch { }
