@@ -54,7 +54,7 @@ public class ModelGenerator(
         bool loneIsNVarChar = loneCol != null && (loneCol.SqlTypeName?.StartsWith("nvarchar", System.StringComparison.OrdinalIgnoreCase) ?? false);
         bool noJsonRoot = !(currentSet?.JsonRootProperty?.Length > 0);
         bool flatJsonPath = loneCol != null && loneCol.IsNestedJson != true; // flattened model: treat as flat when not nested
-        bool legacyJsonSentinel = loneCol != null && loneCol.Name.Equals("JSON_F52E2B61-18A1-11d1-B105-00805F49916B", System.StringComparison.OrdinalIgnoreCase);
+        bool legacyJsonSentinel = loneCol?.Name?.Equals("JSON_F52E2B61-18A1-11d1-B105-00805F49916B", System.StringComparison.OrdinalIgnoreCase) ?? false;
         if (isCrudVerbName && singlePseudoColumn && loneIsNVarChar && noJsonRoot && flatJsonPath && !legacyJsonSentinel)
         {
             consoleService.Verbose($"[model-skip] Suppressed model for CRUD '{storedProcedure.Name}' (pseudo single nvarchar column) – using Output only.");
@@ -535,7 +535,7 @@ public class ModelGenerator(
         bool loneIsNVarChar2 = loneCol2 != null && (loneCol2.SqlTypeName?.StartsWith("nvarchar", System.StringComparison.OrdinalIgnoreCase) ?? false);
         bool noJsonRoot2 = !(currentSet?.JsonRootProperty?.Length > 0);
         bool flatJsonPath2 = loneCol2 != null && loneCol2.IsNestedJson != true;
-        bool legacyJsonSentinel2 = loneCol2 != null && loneCol2.Name.Equals("JSON_F52E2B61-18A1-11d1-B105-00805F49916B", System.StringComparison.OrdinalIgnoreCase);
+        bool legacyJsonSentinel2 = loneCol2?.Name?.Equals("JSON_F52E2B61-18A1-11d1-B105-00805F49916B", System.StringComparison.OrdinalIgnoreCase) ?? false;
         if (isCrudVerbName2 && singlePseudoColumn2 && loneIsNVarChar2 && noJsonRoot2 && flatJsonPath2 && !legacyJsonSentinel2)
         {
             consoleService.Verbose($"[model-skip] Suppressed model write for CRUD '{storedProcedure.Name}' (pseudo single nvarchar column) – Output only.");

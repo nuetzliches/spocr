@@ -62,9 +62,9 @@ public class StoredProcedureGenerator(
         }
 
         // Determine if any stored procedure in this group actually produces a model (skip pure scalar non-JSON procs)
-    // Unabhängig vom Modus: JSON Procs erzeugen ausschließlich Raw Methoden (Task<string>), niemals typed Models oder Deserialize Methoden.
-    var genMode = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant() ?? "dual"; // read but no behavioral effect for JSON typing
-    bool legacyRawJsonOnly = true; // force raw-only for JSON always
+        // Unabhängig vom Modus: JSON Procs erzeugen ausschließlich Raw Methoden (Task<string>), niemals typed Models oder Deserialize Methoden.
+        var genMode = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant() ?? "dual"; // read but no behavioral effect for JSON typing
+        bool legacyRawJsonOnly = true; // force raw-only for JSON always
         bool NeedsModel(Definition.StoredProcedure sp)
         {
             if (sp.ResultSets == null || sp.ResultSets.Count == 0) return false;
@@ -317,8 +317,8 @@ public class StoredProcedureGenerator(
             bool loneIsNVarChar = (lone.SqlTypeName?.StartsWith("nvarchar", StringComparison.OrdinalIgnoreCase) ?? false);
             bool noRoot = !(set.JsonRootProperty?.Length > 0);
             // JsonPath removed – treat as flat if no nested JSON columns
-            bool flatPath = (lone.IsNestedJson != true);
-            bool legacyJsonSentinel = lone.Name.Equals("JSON_F52E2B61-18A1-11d1-B105-00805F49916B", StringComparison.OrdinalIgnoreCase);
+            bool flatPath = lone.IsNestedJson != true;
+            bool legacyJsonSentinel = lone?.Name?.Equals("JSON_F52E2B61-18A1-11d1-B105-00805F49916B", StringComparison.OrdinalIgnoreCase) ?? false;
             // Rein strukturelle Heuristik: Einzelne nvarchar(max) Spalte ohne Root/verschachtelten Pfad -> pseudo tabular
             return loneIsNVarChar && noRoot && flatPath && !legacyJsonSentinel;
         }
@@ -494,8 +494,8 @@ public class StoredProcedureGenerator(
             }
         }
 
-    // Deserialize Pfad entfernt -> requiresAsync immer false
-    var requiresAsync = false;
+        // Deserialize Pfad entfernt -> requiresAsync immer false
+        var requiresAsync = false;
 
         var rawJson = false;
         // Special case: multiple result sets but exactly one JSON set -> treat JSON as primary
