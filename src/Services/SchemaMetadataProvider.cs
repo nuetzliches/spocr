@@ -263,7 +263,14 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
                 IsNestedJson = hasFlattened ? c.IsNestedJson : (c.JsonResult != null ? true : null),
                 ReturnsJson = hasFlattened ? c.ReturnsJson : c.JsonResult?.ReturnsJson,
                 ReturnsJsonArray = hasFlattened ? c.ReturnsJsonArray : c.JsonResult?.ReturnsJsonArray,
-                JsonRootProperty = hasFlattened ? c.JsonRootProperty : c.JsonResult?.JsonRootProperty
+                JsonRootProperty = hasFlattened ? c.JsonRootProperty : c.JsonResult?.JsonRootProperty,
+                DeferredJsonExpansion = c.DeferredJsonExpansion == true ? true : null,
+                Reference = c.Reference != null ? new StoredProcedureContentModel.ColumnReferenceInfo
+                {
+                    Kind = c.Reference.Kind,
+                    Schema = c.Reference.Schema,
+                    Name = c.Reference.Name
+                } : null
             };
             var nestedSource = hasFlattened ? c.Columns : c.JsonResult?.Columns;
 #pragma warning restore CS0612
@@ -283,6 +290,20 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
             ExecSourceSchemaName = rs.ExecSourceSchemaName,
             ExecSourceProcedureName = rs.ExecSourceProcedureName,
             HasSelectStar = rs.HasSelectStar == true,
+            Reference = rs.Reference != null ? new StoredProcedureContentModel.ColumnReferenceInfo
+            {
+                Kind = rs.Reference.Kind,
+                Schema = rs.Reference.Schema,
+                Name = rs.Reference.Name
+            }
+            : (!string.IsNullOrWhiteSpace(rs.ExecSourceProcedureName)
+                ? new StoredProcedureContentModel.ColumnReferenceInfo
+                {
+                    Kind = "Procedure",
+                    Schema = rs.ExecSourceSchemaName ?? "dbo",
+                    Name = rs.ExecSourceProcedureName
+                }
+                : null),
             Columns = rs.Columns.Select(MapSnapshotCol).ToArray()
         }).ToList();
 

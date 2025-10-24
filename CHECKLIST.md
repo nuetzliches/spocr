@@ -46,43 +46,15 @@ Status-Legende:
 - [x] Debug Logging für nested-json Gruppen entfernt (nur temporär für Verifikation genutzt)
 - [x] Kompatibilitätsentscheidung: Kein Feature Toggle für verschachtelte Records – immer aktiv (Dokumentation ergänzen)
 
-// AST-only Konsolidierung & Referenz-Migration (Updated 24.10.2025)
-- [x] Entfernung identity.RecordAsJson Heuristik (kein Flag zur Erzwingung von JSON mehr)
-- [x] Entfernung sämtlicher namensbasierter Typableitungen (Id-Suffix, is*/has*, *Count etc.) – reine AST + Literal-Länge (IIF/CASE)
-- [x] WITHOUT_ARRAY_WRAPPER korrekt: ReturnsJsonArray=false (kein heuristisches Re-Flip)
-- [x] ParseErrorCount non-nullable (int, statt optional)
-- [x] ColumnReferenceExpression überschreibt FunctionCall nicht mehr (IIF Klassifikation stabil)
-- [x] IIF Typisierung: Nur String-Literal Länge → nvarchar(n); keine Source-Binding / Namensheuristik
-- [x] Neue Tests: IifParsingTests & PathFindAsJsonTypingTests (remoteStatusId/orderNo untyped; directionCode nvarchar(3))
-- [x] Deferred JSON Function Container: Parser speichert nur Reference (Kind=Function) + DeferredJsonExpansion Flag (kein Inline-Expand)
-- [x] Generator-Phase Expansion: Virtuelle Dot-Pfad Felder (record.id, record.statusCode ...) werden beim Codegen synthetisiert
-- [x] Konsolidierung ExecSource*: ResultSet.Reference.Kind="Procedure" ersetzt separate ExecSourceSchemaName/ExecSourceProcedureName (Legacy Felder vorerst noch eingelesen)
-- [x] Tests: FunctionJsonExpansionTests (Deferral) + DeferredJsonFunctionExpansionTests (Generator Expansion) + ExecSourceReferenceTests (Procedure Reference)
-- [x] Entfernte Function*/SourceFunction* Properties aus StoredProcedureContentModel (vereinheitlicht über ColumnReferenceInfo)
-- [ ] CASE Expression Test analog zu IIF (Literal-Längen Ableitung) – AUSSTEHEND
-- [ ] Strict Mode Flag (`SPOCR_JSON_AST_STRICT`) für Deaktivierung synthetischer JSON Fallback Sets – Planung
-
 ### Debug Phase (Aggregat & JSON Typisierung Erweiterungen 23.10.2025)
 
-- Erweiterte Aggregat-Typinferenz (AST-basiert):
-      - SUM über 0/1 bedingte Ausdrücke → int
-      - COUNT → int, COUNT_BIG → bigint
-      - AVG → decimal(18,2)
-      - EXISTS → bit
-      - SUM ansonsten Fallback decimal(18,2|18,4) abhängig von Literal-Erkennung (Integer vs. Decimal)
+- Erweiterte Aggregat-Typinferenz (AST-basiert): - SUM über 0/1 bedingte Ausdrücke → int - COUNT → int, COUNT_BIG → bigint - AVG → decimal(18,2) - EXISTS → bit - SUM ansonsten Fallback decimal(18,2|18,4) abhängig von Literal-Erkennung (Integer vs. Decimal)
 - Propagation von AggregateFlags & SqlTypeName aus Derived Tables auf äußere ColumnRefs ergänzt (inkl. count_big → bigint).
-- Zusätzliche Diagnose Logs aktiviert (qs-debug / json-agg-diag) für:
-      - QuerySpecification Offsets + ForClause Typ
-      - Heuristische FOR JSON Erkennung (Segment Scan) falls AST ForClause fehlt
-      - Aggregat Funktions-Einstieg + Literal-Erkennung
+- Zusätzliche Diagnose Logs aktiviert (qs-debug / json-agg-diag) für: - QuerySpecification Offsets + ForClause Typ - Heuristische FOR JSON Erkennung (Segment Scan) falls AST ForClause fehlt - Aggregat Funktions-Einstieg + Literal-Erkennung
 - Heuristische FOR JSON PATH Erkennung eingeführt (Segment Scan) → aktuell doppelte JSON-Markierung (inner + outer SELECT) bekannt; Verfeinerung geplant.
 - Test `JournalMetricsTypingTests` erweitert um COUNT, COUNT_BIG, AVG; Assertions für AggregateFunction & SqlTypeName erfolgreich (grün).
 - Korrektur: COUNT_BIG wurde in ScalarSubquery Ableitung fälschlich als int gesetzt → Fix: bigint.
-- Offene Punkte (Rest / Status aktualisiert 23.10.2025):
-      - [x] MIN/MAX Typableitung (Parametertyp ermitteln via Source Binding) – Source Binding & Propagation abgeschlossen
-      - [x] Vermeidung doppelter JSON ResultSets (Heuristik nur auf finales SELECT anwenden) – Subquery-Depth Filter aktiv
-      - [x] Reduktion Debug Log Lautstärke / Steuerung über `SPOCR_LOG_LEVEL` – ShouldDiag / ShouldDiagJsonAst Gating implementiert
-      - [x] Entfernung temporärer Segment-Scan Heuristik (Functions Regex & FOR JSON Segment Scan) – AST-only Pfad finalisieren (AST-only aktiviert; Flags: SPOCR_JSON_PLACEHOLDER_REPARSE, SPOCR_JSON_LEGACY_SINGLE, SPOCR_JSON_MISS_AST_DIAG eingeführt; Diagnose Log [proc-json-miss-ast])
+- Offene Punkte (Rest / Status aktualisiert 23.10.2025): - [x] MIN/MAX Typableitung (Parametertyp ermitteln via Source Binding) – Source Binding & Propagation abgeschlossen - [x] Vermeidung doppelter JSON ResultSets (Heuristik nur auf finales SELECT anwenden) – Subquery-Depth Filter aktiv - [x] Reduktion Debug Log Lautstärke / Steuerung über `SPOCR_LOG_LEVEL` – ShouldDiag / ShouldDiagJsonAst Gating implementiert - [x] Entfernung temporärer Segment-Scan Heuristik (Functions Regex & FOR JSON Segment Scan) – AST-only Pfad finalisieren (AST-only aktiviert; Flags: SPOCR_JSON_PLACEHOLDER_REPARSE, SPOCR_JSON_LEGACY_SINGLE, SPOCR_JSON_MISS_AST_DIAG eingeführt; Diagnose Log [proc-json-miss-ast])
 
 ### Nachtrag 23.10.2025 (Stabilisierungsschritt)
 
@@ -102,10 +74,19 @@ Status-Legende:
 - Platzhalter `aggCols=0` noch ohne reale Aggregat-Spaltenzählung (Folgeaufgabe erfasst).
 
 Neue Folgeaufgaben (eingetragen in passende Sektionen):
+
 - Aggregat-Spaltenzählung implementieren (ersetzt Placeholder 0).
 - Optionale Filterung der per-Prozedur Summaries (nur unresolved / nur Änderungen) per Flag.
 - Entfernung verbleibender FOR JSON Regex Heuristik (Functions) sobald AST Pfad überall stabil.
 
+### Update 24.10.2025 (Referenz-Migration & Snapshot)
+
+- [x] `StoredProcedureContentModel.ResultSet` trägt jetzt `Reference` (ColumnReferenceInfo) für JSON Container (Funktions-/Prozedur-Quellen)
+- [x] Parser unwrappt `JSON_QUERY`/Subquery Wrapper, sodass `identity`/`core`.RecordAsJson Verweise erhalten bleiben
+- [x] Snapshot- & Generator-Pipeline persistiert/rehydriert Referenzen (`SchemaSnapshotService`, `SpocrManager`, `SchemaMetadataProvider`, `SpocRVNext.Metadata`)
+- [x] Tests erweitert (`JsonParserRecordAsJsonDetectionTests`: JSON_QUERY + core.RecordAsJson) zur Absicherung der Referenzkette
+- [x] Snapshot Pull mit neuen Referenzfeldern verifiziert (`dotnet run --project src/SpocR.csproj -- pull -p C:\Projekte\GitHub\spocr\debug --no-cache --verbose`)
+- [ ] Dokumentation: Hinweis auf erforderlichen `JSON_QUERY` Wrapper für unveränderte Funktions-Rückgaben (Teil der vNext JSON Procedure Handling Doku)
 
 ---
 
@@ -271,9 +252,6 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [x] Doppelter Schreibpfad Outputs/CrudResult entfernt (Skip base copy)
       note: Konsistenz-Check für generierte Dateien (Determinismus pro Generator; keine Legacy-Paritäts-Pflicht) – Hash Manifeste vorhanden (noch keine harte Policy); Timestamp-Zeile neutralisiert (Regex Normalisierung); Doppelter Schreibpfad Outputs/CrudResult entfernt (Skip base copy)
 - [x] TableTypes: Always-On Generation (Interface `ITableType` einmalig, Records je Schema unter `SpocR/<schema>/`) integriert in Build (dual|next)
-- [x] Referenz-Migration abgeschlossen (FieldDescriptor + ResultSetDescriptor tragen ColumnReferenceInfo für Function / Procedure Forwarding)
-- [x] Deferred JSON Funktions-Expansion im Generator aktiv (ResolveFunctionJsonSet → Dot-Pfad Felder)
-- [x] Testabdeckung für Referenz-Migration (ExecSourceReferenceTests, DeferredJsonFunctionExpansionTests)
 - [x] TableTypes: Timestamp `<remarks>` Zeile eingefügt und beim Hashing ignoriert (DirectoryHasher Filter)
 - [x] TableTypes: Original Snapshot Namen vollständig beibehalten (nur Sanitizing) – keine erzwungene \*TableType Suffix Ergänzung
       note: Nested JSON Sub-Struct Generation aktiv (immer an) – künftige Doku: Segment Case-Preservation / Mapping Regeln
@@ -424,7 +402,6 @@ note: Konfig-Keys `Project.Role.Kind`, `RuntimeConnectionStringIdentifier`, `Pro
 ### Dokumentation (Update 2025-10-18)
 
 - [ ] docs Build läuft (Bun / Nuxt) ohne Fehler
-- [ ] Dokumentation: Deferral Pipeline (Parser → Snapshot → Generator Expansion für deferred JSON Functions & ExecSource Forwarding)
 - [>] docs/content Referenzen (CLI, Konfiguration, API) aktualisiert
 - [x] README Quick Start an neuen Generator angepasst
       note: vNext DbContext Beispiel ergänzt & ValidateOnBuild entfernt (18.10.2025)
@@ -474,8 +451,7 @@ Ziel: Abschluss der reinen AST-basierten, deterministischen Typableitung für JS
 - [ ] JSON Aggregates: Konsolidierte Namensstrategie (Präfix behalten oder Mapping-Fallback implementieren) – Entscheidung dokumentieren
 - [ ] JSON Aggregates: Entfernung der direkten Sofort-Typableitung (Option D) nach Abschluss Namensstrategie (Refactor → alleinige Typableitung im Snapshot Mapper)
 - [ ] JSON ColumnRef Binding: Tabellen-/Alias-Lookup erweitern (Schema.Table.Column → Quelltyp) zur Reduktion von unresolved-json-column
-- [ ] JSON Unknown Fallback Heuristiken: id → int | is*/has* → bit | *Amount/*Sum → decimal(18,2) | *Count → int (nur anwenden wenn keine andere Ableitung greift)
-- [>] (Neu bewertet 24.10.2025) Namenbasierte Fallback Heuristiken bleiben deaktiviert (AST-only Standard). Re-Intro nur hinter explizitem Flag in v5 möglich.
+- [ ] JSON Unknown Fallback Heuristiken: id → int | is*/has* → bit | *Amount/*Sum → decimal(18,2) | \*Count → int (nur anwenden wenn keine andere Ableitung greift)
 - [ ] JSON Noise Reduktion II: De-Duplizierung identischer unresolved-json-column Logs (HashSet oder counting, optional max N pro Prozedur)
 - [ ] JSON UDF Wrapper Expansion: Nutzung fn-json-cols für JSON_QUERY(Schema.Function(...)) Einzel-Wrapper → Child Columns synthetisieren
 - [ ] JSON CASE Bool Flag: Eigenes Flag (IsCase01Bool) setzen statt Pattern-Matching im RawExpression
@@ -486,6 +462,7 @@ Ziel: Abschluss der reinen AST-basierten, deterministischen Typableitung für JS
 - [ ] Entfernung verbleibender FOR JSON Regex Heuristik (Functions) – AST-only Pfad finalisieren
 
 Risiken / Notes:
+
 - Temporäre Doppelstrategie (direkte Typableitung + Mapper) entfernen sobald konsistente Namenslösung aktiv.
 - Fallback Heuristik streng hinter deterministischen Regeln ausführen (keine Überschreibung existierender konkreter Typen).
 - UDF Wrapper: Nur anwenden, wenn Function Snapshot returnsJson=true UND keine manuelle Spaltenliste bereits expandiert.
@@ -711,19 +688,20 @@ Status-Legende: [>] deferred (v5 Ziel) – Querverweis auf README / Roadmap Absc
 - [x] Wir benötigen noch .spocr/schema/[tables|views|types] um beim AST Parsing die Typen auflösen zu können. (Implementiert: Verzeichnisse + Writer + Tests)
 - [x] Sicherstellen, dass die .spocr/schema/tabletypes bereits die korrekten UDT-Typen beinhalten, Properties ergänzen, wenn nötig. (Alias/BaseSqlTypeName, Precision/Scale, Identity & Pruning aktiv)
 - [x] `types` müssen zuerst abgerufen werden, damit andere Objekte darauf referenzieren können, bzw. ihre finalen Typen bestimmen können. (Ordering Guard + frühe Function-Sammlung angepasst)
-- [x] AST Parsing für vnext Output: Heuristische Typableitung vollständig entfernt (Regex / Namensmuster); einzig minimaler FOR JSON Segment-Fallback bei fehlender JsonForClause verbleibt.
+- [~] AST Parsing für vnext Output sauber implementieren und Heuristiken zu Typen-Auflösung entfernen. (Snapshot Basis & Normalisierung vorhanden; Parser-Heuristik Ablösung noch offen)
 - [x] Functions werden jetzt VOR Tables/Views gesammelt (frühe Signaturen für künftige Dependency-Graphen), Ordering Kommentar aktualisiert.
 - [x] Unbenutzte Guard-Variable bereinigt (phaseFunctionsDone in früherer Variante entfernt; neue Sequenz konsolidiert).
 - [ ] Legacy Output soll keine JSON-Models erzeugen, SP-Extensions ohne JSON-Model (using auch beachten / entfernen).
 - [!] Rebuild: dotnet run --project src/SpocR.csproj -- rebuild -p C:\Projekte\GitHub\spocr\debug
-- [x] StoredProcedure Regex Audit abgeschlossen (Alle Regex-Fallbacks entfernt; identity.RecordAsJson entfernt; WITHOUT_ARRAY_WRAPPER Fix aktiv)
- - [x] Fix fehlende JSON Sets Spezialfälle konsolidiert (ReturnsJsonArray korrekt; keine RecordAsJson Sonderpfade mehr)
- - [ ] Keine synthetischen Fallback-ResultSets (nur reine AST-Erkennung)
- - [ ] Functions: Ersetzen FOR JSON Regex Heuristik durch Token-/AST-basierte Erkennung (Kommentar-Stripping, finale SELECT Nähe)
- - [ ] Dokumentation Abschnitt "JSON AST Parsing & Fallback" (FOR JSON PATH Erkennung, synthetic ResultSet, WITHOUT_ARRAY_WRAPPER Behandlung, Strict Mode Verhalten)
- - [ ] JSON Metrics Aggregation: Anzahl JSON ResultSets, Fallback-Hits, unresolved-json-column Stats, Aggregat-Verteilung (pro Pull Summary + optional Write in debug/)
+- [~] StoredProcedure Regex Audit abgeschlossen (Regex-Fallbacks entfernt), offene Spezialfälle: WITHOUT_ARRAY_WRAPPER Erkennung & identity.RecordAsJson Flag (Tests rot)
+- [~] StoredProcedure Regex Audit: Regex-Fallbacks entfernt; WITHOUT_ARRAY_WRAPPER AST/Fallback Fix implementiert (Tests grün); identity.RecordAsJson Heuristik noch zu entfernen (Folgetask)
+- [~] Fix fehlende JSON Sets Spezialfälle (StoredProcedure AST)  
+   sub: - [x] WITHOUT_ARRAY_WRAPPER setzt ReturnsJsonArray=false (Fix implementiert, Tests grün) - [ ] identity.RecordAsJson Heuristik entfernen (Entfernung & Test hinzufügen)
+- [ ] Strict Mode Flag für JSON AST (`SPOCR_JSON_AST_STRICT=1`) deaktiviert synthetische Fallback-ResultSets (nur reine AST-Erkennung)
+- [ ] Functions: Ersetzen FOR JSON Regex Heuristik durch Token-/AST-basierte Erkennung (Kommentar-Stripping, finale SELECT Nähe)
+- [ ] Dokumentation Abschnitt "JSON AST Parsing & Fallback" (FOR JSON PATH Erkennung, synthetic ResultSet, WITHOUT_ARRAY_WRAPPER Behandlung, Strict Mode Verhalten)
+- [ ] JSON Metrics Aggregation: Anzahl JSON ResultSets, Fallback-Hits, unresolved-json-column Stats, Aggregat-Verteilung (pro Pull Summary + optional Write in debug/)
 - [ ] Env Fallback Flag Planung (`SPOCR_JSON_REGEX_FALLBACK`): Entscheidung: SPOCR_JSON_REGEX_FALLBACK nicht verwenden, reines AST-Parsing.
-- [ ] `src\Models\StoredProcedureContentModel.ResultColumn`: Stelle alle Verweise auf das neue DTO `Reference` um.
 
 ### 1. JSON Deserialisierung Tests abschließen
 

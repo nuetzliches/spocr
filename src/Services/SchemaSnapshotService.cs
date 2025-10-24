@@ -150,6 +150,7 @@ public class SchemaSnapshotService : ISchemaSnapshotService
                         ExecSourceSchemaName = rs.ExecSourceSchemaName,
                         ExecSourceProcedureName = rs.ExecSourceProcedureName,
                         HasSelectStar = rs.HasSelectStar == true ? true : null,
+                        Reference = rs.Reference != null ? new SnapshotColumnReference { Kind = rs.Reference.Kind, Schema = rs.Reference.Schema, Name = rs.Reference.Name } : null,
                         Columns = rs.Columns?.Select(ProcessColumn).Where(c => c != null).ToList() ?? new List<SnapshotResultColumn>()
                     }).Where(r => r != null).ToList() ?? new List<SnapshotResultSet>()
                 }).ToList() ?? new List<SnapshotProcedure>()
@@ -254,6 +255,7 @@ public class SnapshotResultSet
     public string ExecSourceSchemaName { get; set; }
     public string ExecSourceProcedureName { get; set; }
     public bool? HasSelectStar { get; set; } // nullable to allow pruning when false
+    public SnapshotColumnReference Reference { get; set; }
 }
 
 public class SnapshotResultColumn

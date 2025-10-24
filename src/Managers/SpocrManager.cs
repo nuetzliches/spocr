@@ -617,6 +617,8 @@ public class SpocrManager(
                         _columnNameStack.Pop();
                     }
                     else { snap.Columns = null; }
+                    snap.Reference = col.Reference != null ? new SnapshotColumnReference { Kind = col.Reference.Kind, Schema = col.Reference.Schema, Name = col.Reference.Name } : null;
+                    snap.DeferredJsonExpansion = col.DeferredJsonExpansion == true ? true : null;
                     return snap;
                 }
 
@@ -655,6 +657,7 @@ public class SpocrManager(
                                 ExecSourceSchemaName = rs.ExecSourceSchemaName,
                                 ExecSourceProcedureName = rs.ExecSourceProcedureName,
                                 HasSelectStar = rs.HasSelectStar == true ? true : false,
+                                Reference = rs.Reference != null ? new SnapshotColumnReference { Kind = rs.Reference.Kind, Schema = rs.Reference.Schema, Name = rs.Reference.Name } : null,
                                 Columns = rs.Columns.Select(c => MapSnapshotResultColumn(c, rs.ReturnsJson, sp)).ToList()
                             }).ToList()
                         };

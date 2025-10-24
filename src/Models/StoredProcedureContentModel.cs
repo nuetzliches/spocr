@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using Microsoft.SqlServer.TransactSql.ScriptDom;
 
 namespace SpocR.Models;
@@ -403,6 +404,7 @@ public class StoredProcedureContentModel
         public string ExecSourceSchemaName { get; init; }
         public string ExecSourceProcedureName { get; init; }
         public bool HasSelectStar { get; init; }
+        public ColumnReferenceInfo Reference { get; init; }
     }
     public sealed class ExecutedProcedureCall
     {
@@ -1396,50 +1398,102 @@ public class StoredProcedureContentModel
         private static void TryExpandFunctionJson(FunctionCall fc, ResultColumn target)
         {
             if (fc?.FunctionName == null) return;
-            // Deferral zuerst, auch ohne Resolver erlaubt (wir können Schema/Name aus Call ableiten)
-            if (IsDeferralEnabled())
+            var fnValue = fc.FunctionName.Value;
+            if (!string.IsNullOrWhiteSpace(fnValue) && fnValue.Equals("JSON_QUERY", StringComparison.OrdinalIgnoreCase))
             {
-                // Nur Referenz festhalten, keine Expansion
-                string defSchema = null; string defFname = fc.FunctionName.Value;
-                if (fc.CallTarget is MultiPartIdentifierCallTarget mpDef && mpDef.MultiPartIdentifier?.Identifiers?.Count > 0)
+                FunctionCall innerCall = null;
+                if (fc.Parameters != null && fc.Parameters.Count > 0)
                 {
-                    var ids = mpDef.MultiPartIdentifier.Identifiers.Select(i => i.Value).ToList();
-                    if (ids.Count >= 2) { defSchema = ids[^2]; defFname = ids[^1]; }
-                    else if (ids.Count == 1) { defFname = ids[0]; }
+                    var firstParam = fc.Parameters[0];
+                    switch (firstParam)
+                    {
+                        case FunctionCall innerFn:
+                            innerCall = innerFn;
+                            break;
+                        case ScalarExpression scalar when scalar is ParenthesisExpression pe && pe.Expression is FunctionCall parenFn:
+                            innerCall = parenFn;
+                            break;
+                        case ScalarExpression scalar when scalar is CastCall cast && cast.Parameter is FunctionCall castFn:
+                            innerCall = castFn;
+                            break;
+                        case ScalarExpression scalar:
+                            innerCall = FindFirstFunctionCall(scalar, 0);
+                            break;
+                    }
                 }
-                if (defSchema == null && !string.IsNullOrWhiteSpace(defFname) && defFname.Contains('.'))
+                if (innerCall != null)
                 {
-                    var segs = defFname.Split('.', StringSplitOptions.RemoveEmptyEntries);
-                    if (segs.Length >= 2) { defSchema = segs[^2]; defFname = segs[^1]; }
+                    TryExpandFunctionJson(innerCall, target);
+                    return;
                 }
-                defSchema ??= "dbo";
-                target.Reference ??= new ColumnReferenceInfo { Kind = "Function", Schema = defSchema, Name = defFname };
-                target.DeferredJsonExpansion = true;
-                target.IsNestedJson = true;
-                target.ReturnsJson = true; // Kennzeichnung: JSON Container, Array-Frage später
-                return; // Deferral beendet Verarbeitung
             }
-            if (ResolveFunctionJsonSet == null) return; // Kein Resolver -> keine direkte Expansion möglich
-            if (!string.IsNullOrWhiteSpace(target.SqlTypeName)) return; // Bereits typisiert -> keine Container-Expansion
-            // Schema + Name extrahieren
+            var fnName = fc.FunctionName.Value;
             string schema = null;
-            string fname = fc.FunctionName.Value;
-            // MultiPartIdentifier (z.B. identity.RecordAsJson) kommt über fc.FunctionName.MultiPartIdentifier
-            // MultiPart Identifier über CallTarget oder FunctionName.Value (einfacher Name)
+            string fname = fnName;
             if (fc.CallTarget is MultiPartIdentifierCallTarget mp && mp.MultiPartIdentifier?.Identifiers?.Count > 0)
             {
                 var ids = mp.MultiPartIdentifier.Identifiers.Select(i => i.Value).ToList();
                 if (ids.Count >= 2)
                 {
-                    schema = ids[ids.Count - 2];
-                    fname = ids[ids.Count - 1];
+                    schema = ids[^2];
+                    fname = ids[^1];
                 }
                 else if (ids.Count == 1)
                 {
-                    fname = ids[0];
+                    schema = ids[0];
                 }
             }
-            // Fallback: Funktionsname selbst enthält Schema
+            else if (fc.CallTarget != null)
+            {
+                try
+                {
+                    var ctType = fc.CallTarget.GetType();
+                    var identifierProp = ctType.GetProperty("Identifier");
+                    if (identifierProp?.GetValue(fc.CallTarget) is Identifier ident && !string.IsNullOrWhiteSpace(ident.Value))
+                    {
+                        schema = ident.Value;
+                    }
+                    else
+                    {
+                        var multiProp = ctType.GetProperty("MultiPartIdentifier");
+                        if (multiProp?.GetValue(fc.CallTarget) is MultiPartIdentifier mpi && mpi.Identifiers?.Count > 0)
+                        {
+                            var ids = mpi.Identifiers.Select(i => i.Value).ToList();
+                            if (ids.Count >= 2)
+                            {
+                                schema ??= ids[^2];
+                                fname = ids[^1];
+                            }
+                            else if (ids.Count == 1)
+                            {
+                                schema ??= ids[0];
+                            }
+                        }
+                    }
+                }
+                catch { /* reflective fallback best effort */ }
+            }
+            if (string.IsNullOrWhiteSpace(schema) && !string.IsNullOrWhiteSpace(fname) && !string.IsNullOrWhiteSpace(target.RawExpression))
+            {
+                try
+                {
+                    var match = Regex.Match(target.RawExpression, @"(?:(?<schema>\[[^\]]+\]|[A-Za-z0-9_]+)\s*\.)?(?<name>[A-Za-z0-9_]+)\s*\(");
+                    if (match.Success)
+                    {
+                        var schemaToken = match.Groups["schema"].Value;
+                        if (!string.IsNullOrWhiteSpace(schemaToken))
+                        {
+                            schema = schemaToken.Trim().Trim('[', ']');
+                        }
+                        var nameToken = match.Groups["name"].Value;
+                        if (!string.IsNullOrWhiteSpace(nameToken))
+                        {
+                            fname = nameToken;
+                        }
+                    }
+                }
+                catch { /* best effort string fallback */ }
+            }
             if (schema == null && !string.IsNullOrWhiteSpace(fname) && fname.Contains('.'))
             {
                 var segs = fname.Split('.', StringSplitOptions.RemoveEmptyEntries);
@@ -1449,11 +1503,31 @@ public class StoredProcedureContentModel
                     fname = segs[^1];
                 }
             }
-            // Schema nur aus MultiPart Identifier / Fallback "dbo"
-            schema ??= "dbo";
             if (string.IsNullOrWhiteSpace(fname)) return;
+            schema ??= "dbo";
+            if (ShouldDiagJsonAst())
+            {
+                try
+                {
+                    var callTargetType = fc.CallTarget?.GetType();
+                    var propNames = callTargetType?.GetProperties().Select(p => p.Name).ToArray() ?? Array.Empty<string>();
+                    System.Console.WriteLine($"[json-ast-fn-meta-enter] alias={target.Name} rawFnName={fnName} callTarget={callTargetType?.Name ?? "(null)"} props={string.Join('|', propNames)} resolvedSchema={schema} resolvedName={fname}");
+                }
+                catch { }
+            }
+            if (IsDeferralEnabled())
+            {
+                target.Reference ??= new ColumnReferenceInfo { Kind = "Function", Schema = schema, Name = fname };
+                target.DeferredJsonExpansion = true;
+                target.IsNestedJson = true;
+                target.ReturnsJson = true;
+                return;
+            }
+            target.Reference ??= new ColumnReferenceInfo { Kind = "Function", Schema = schema, Name = fname };
+            if (ResolveFunctionJsonSet == null) return;
+            if (!string.IsNullOrWhiteSpace(target.SqlTypeName)) return;
             var key = schema + "." + fname;
-            if (_functionJsonExpansionStack.Contains(key)) return; // Zyklus-Schutz
+            if (_functionJsonExpansionStack.Contains(key)) return;
             (bool ReturnsJson, bool ReturnsJsonArray, string RootProperty, IReadOnlyList<string> ColumnNames) meta;
             try { meta = ResolveFunctionJsonSet(schema, fname); } catch { return; }
             if (ShouldDiagJsonAst())
@@ -1468,7 +1542,6 @@ public class StoredProcedureContentModel
                 target.ReturnsJson = true;
                 target.ReturnsJsonArray = meta.ReturnsJsonArray;
                 target.JsonRootProperty = meta.RootProperty;
-                target.Reference ??= new ColumnReferenceInfo { Kind = "Function", Schema = schema, Name = fname };
                 var list = new List<ResultColumn>();
                 var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 foreach (var cn in meta.ColumnNames)
@@ -1478,7 +1551,6 @@ public class StoredProcedureContentModel
                     if (seen.Add(name)) list.Add(new ResultColumn { Name = name });
                 }
                 target.Columns = list;
-                // Container selbst darf keinen skalaren SQL Typ tragen
                 target.SqlTypeName = null; target.MaxLength = null; target.IsNullable = null;
                 if (ShouldDiagJsonAst()) try { System.Console.WriteLine($"[json-ast-fn-expand] {schema}.{fname} cols={list.Count} alias={target.Name}"); } catch { }
             }
@@ -2582,6 +2654,75 @@ public class StoredProcedureContentModel
     {
         var lvl = Environment.GetEnvironmentVariable("SPOCR_LOG_LEVEL");
         return lvl != null && (lvl.Equals("debug", StringComparison.OrdinalIgnoreCase) || lvl.Equals("trace", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static FunctionCall FindFirstFunctionCall(ScalarExpression expr, int depth, int depthLimit = 12)
+    {
+        if (expr == null || depth > depthLimit) return null;
+        try
+        {
+            switch (expr)
+            {
+                case FunctionCall fc:
+                    return fc;
+                case ParenthesisExpression pe:
+                    return FindFirstFunctionCall(pe.Expression, depth + 1, depthLimit);
+                case CastCall cast:
+                    return FindFirstFunctionCall(cast.Parameter as ScalarExpression, depth + 1, depthLimit);
+                case ConvertCall conv:
+                    var fnConv = FindFirstFunctionCall(conv.Parameter as ScalarExpression, depth + 1, depthLimit);
+                    if (fnConv != null) return fnConv;
+                    return FindFirstFunctionCall(conv.Style as ScalarExpression, depth + 1, depthLimit);
+                case ScalarSubquery ss:
+                    static QuerySpecification LocalUnwrap(QueryExpression qe)
+                    {
+                        while (qe is QueryParenthesisExpression qpe) qe = qpe.QueryExpression;
+                        return qe as QuerySpecification;
+                    }
+                    var qs = LocalUnwrap(ss.QueryExpression);
+                    if (qs != null)
+                    {
+                        foreach (var se in qs.SelectElements?.OfType<SelectScalarExpression>() ?? Array.Empty<SelectScalarExpression>())
+                        {
+                            var fcInner = FindFirstFunctionCall(se.Expression, depth + 1, depthLimit);
+                            if (fcInner != null) return fcInner;
+                        }
+                    }
+                    break;
+                case CoalesceExpression coalesce:
+                    if (coalesce.Expressions != null)
+                    {
+                        foreach (var exprItem in coalesce.Expressions.OfType<ScalarExpression>())
+                        {
+                            var fcCoalesce = FindFirstFunctionCall(exprItem, depth + 1, depthLimit);
+                            if (fcCoalesce != null) return fcCoalesce;
+                        }
+                    }
+                    break;
+                case IIfCall iif:
+                    return FindFirstFunctionCall(iif.ThenExpression as ScalarExpression, depth + 1, depthLimit)
+                           ?? FindFirstFunctionCall(iif.ElseExpression as ScalarExpression, depth + 1, depthLimit);
+                case SimpleCaseExpression sce:
+                    foreach (var w in sce.WhenClauses)
+                    {
+                        var fcSimple = FindFirstFunctionCall(w.ThenExpression as ScalarExpression, depth + 1, depthLimit);
+                        if (fcSimple != null) return fcSimple;
+                    }
+                    return FindFirstFunctionCall(sce.ElseExpression as ScalarExpression, depth + 1, depthLimit);
+                case SearchedCaseExpression scex:
+                    foreach (var w in scex.WhenClauses)
+                    {
+                        var fcSearch = FindFirstFunctionCall(w.ThenExpression as ScalarExpression, depth + 1, depthLimit);
+                        if (fcSearch != null) return fcSearch;
+                    }
+                    return FindFirstFunctionCall(scex.ElseExpression as ScalarExpression, depth + 1, depthLimit);
+                case NullIfExpression nif:
+                    return FindFirstFunctionCall(nif.FirstExpression as ScalarExpression, depth + 1, depthLimit)
+                           ?? FindFirstFunctionCall(nif.SecondExpression as ScalarExpression, depth + 1, depthLimit);
+            }
+        }
+        catch { }
+        return null;
     }
 }
 

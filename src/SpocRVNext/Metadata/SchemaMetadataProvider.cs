@@ -320,9 +320,23 @@ namespace SpocR.SpocRVNext.Metadata
                         }
                         catch { /* best effort */ }
                         ColumnReferenceInfo? rsRef = null;
+                        try
+                        {
+                            if (rse.TryGetProperty("Reference", out var rsRefEl) && rsRefEl.ValueKind == JsonValueKind.Object)
+                            {
+                                var kind = rsRefEl.GetPropertyOrDefault("Kind");
+                                var schemaRef = rsRefEl.GetPropertyOrDefault("Schema");
+                                var nameRef = rsRefEl.GetPropertyOrDefault("Name");
+                                if (!string.IsNullOrWhiteSpace(kind) && !string.IsNullOrWhiteSpace(nameRef))
+                                {
+                                    rsRef = new ColumnReferenceInfo(kind!, schemaRef ?? "dbo", nameRef!);
+                                }
+                            }
+                        }
+                        catch { }
                         if (!string.IsNullOrWhiteSpace(execSourceProc))
                         {
-                            rsRef = new ColumnReferenceInfo("Procedure", execSourceSchema ?? "dbo", execSourceProc!);
+                            rsRef ??= new ColumnReferenceInfo("Procedure", execSourceSchema ?? "dbo", execSourceProc!);
                         }
                         resultSetDescriptors.Add(new ResultSetDescriptor(
                             Index: idx,
