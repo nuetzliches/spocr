@@ -271,6 +271,13 @@ public sealed class ProceduresGenerator
                             if (IsDebug()) { try { Console.Out.WriteLine($"[proc-forward-expand] {proc.Schema}.{proc.ProcedureName} expanding placeholder -> {targetKey} sets={targetProc.ResultSets.Count}"); } catch { } }
                             foreach (var tSet in targetProc.ResultSets)
                             {
+                                // Skip empty target ResultSets in virtual expansion
+                                if (tSet.Fields.Count == 0)
+                                {
+                                    if (IsDebug()) { try { Console.Out.WriteLine($"[proc-virtual-skip] {proc.Schema}.{proc.ProcedureName} skipping empty target ResultSet {tSet.Name} from {targetKey}"); } catch { } }
+                                    continue;
+                                }
+
                                 // Virtuelle Projektion: benutze Ziel-Felder & JSON Flags, setze ExecSource* auf Platzhalter Herkunft
                                 var virtualRs = new ResultSetDescriptor(
                                     Index: rsIdx,
@@ -297,9 +304,10 @@ public sealed class ProceduresGenerator
                             continue;
                         }
                     }
-                    // Nur ResultSets mit Feldern verarbeiten (leere ExecSource Platzhalter überspringen)
-                    if (rs.Fields.Count == 0 && isExecPlaceholder)
+                    // Nur ResultSets mit Feldern verarbeiten (leere ResultSets aller Art überspringen)
+                    if (rs.Fields.Count == 0)
                     {
+                        if (IsDebug()) { try { Console.Out.WriteLine($"[proc-skip-empty] {proc.Schema}.{proc.ProcedureName} skipping empty ResultSet {rs.Name}"); } catch { } }
                         continue;
                     }
                     AppendResultSetMeta(rs);

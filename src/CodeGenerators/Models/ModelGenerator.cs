@@ -44,7 +44,7 @@ public class ModelGenerator(
         var currentSet = storedProcedure.ResultSets[0];
         var resultColumns = currentSet?.Columns?.ToList() ?? [];
         var hasResultColumns = resultColumns.Any();
-        
+
         // Skip empty ResultSets (e.g., from ExecSource placeholders with no target columns)
         if (!hasResultColumns)
         {
@@ -531,14 +531,14 @@ public class ModelGenerator(
             throw new System.InvalidOperationException($"Model generation expects exactly one ResultSet (got {storedProcedure.ResultSets?.Count ?? 0}) for '{storedProcedure.Name}'.");
         }
         var currentSet = storedProcedure.ResultSets[0];
-        
+
         // Skip empty ResultSets (e.g., from ExecSource placeholders with no target columns)
         if (currentSet.Columns == null || currentSet.Columns.Count == 0)
         {
             consoleService.Verbose($"[model-skip] Suppressed model for '{storedProcedure.Name}' (empty ResultSet) – no columns to generate.");
             return;
         }
-        
+
         var currentSetReturnsJson = currentSet.ReturnsJson;
         var hasResultCols = (currentSet.Columns?.Any() ?? false);
         var isScalarResultCols = hasResultCols && !currentSetReturnsJson && currentSet.Columns.Count == 1;

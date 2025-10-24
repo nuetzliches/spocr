@@ -691,6 +691,7 @@ Status-Legende: [>] deferred (v5 Ziel) – Querverweis auf README / Roadmap Absc
 - [~] AST Parsing für vnext Output sauber implementieren und Heuristiken zu Typen-Auflösung entfernen. (Snapshot Basis & Normalisierung vorhanden; Parser-Heuristik Ablösung noch offen)
 - [x] Functions werden jetzt VOR Tables/Views gesammelt (frühe Signaturen für künftige Dependency-Graphen), Ordering Kommentar aktualisiert.
 - [x] Unbenutzte Guard-Variable bereinigt (phaseFunctionsDone in früherer Variante entfernt; neue Sequenz konsolidiert).
+- [x] ExecSource Leere ResultSets Filterung: Verhindern der Generierung leerer Models bei Cross-Schema Forwarding von Prozeduren ohne Output (ProceduresGenerator + ModelGenerator enhanced).
 - [ ] Legacy Output soll keine JSON-Models erzeugen, SP-Extensions ohne JSON-Model (using auch beachten / entfernen).
 - [!] Rebuild: dotnet run --project src/SpocR.csproj -- rebuild -p C:\Projekte\GitHub\spocr\debug
 - [~] StoredProcedure Regex Audit abgeschlossen (Regex-Fallbacks entfernt), offene Spezialfälle: WITHOUT_ARRAY_WRAPPER Erkennung & identity.RecordAsJson Flag (Tests rot)
