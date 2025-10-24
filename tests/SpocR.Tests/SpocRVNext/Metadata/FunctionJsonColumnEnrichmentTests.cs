@@ -83,6 +83,42 @@ public class FunctionJsonColumnEnrichmentTests
         Assert.Equal("nvarchar(10)", colMap["updated.user.initials"].SqlTypeName);
     }
 
+    [Fact]
+    public async Task RecordAsJson_FunctionParameters_Should_Fallback_To_UserDefinedType_Nullability()
+    {
+        // Arrange
+        var fake = new FakeDbContext();
+        var layout = new SchemaSnapshotFileLayoutService();
+        var console = new NullConsoleService();
+        var collector = new FunctionSnapshotCollector(fake, layout, console);
+        var snapshot = new SchemaSnapshot
+        {
+            Tables = new List<SnapshotTable>
+            {
+                new SnapshotTable
+                {
+                    Schema = "identity",
+                    Name = "User",
+                    Columns = new List<SnapshotTableColumn>
+                    {
+                        new SnapshotTableColumn { Name = "UserName", SqlTypeName = "nvarchar(200)", IsNullable = false },
+                        new SnapshotTableColumn { Name = "Initials", SqlTypeName = "nvarchar(10)", IsNullable = false }
+                    }
+                }
+            }
+        };
+
+        // Act
+        await collector.CollectAsync(snapshot, CancellationToken.None);
+        var fn = snapshot.Functions.Single(f => f.Name == "RecordAsJson" && f.Schema == "identity");
+        var createdParam = fn.Parameters.Single(p => p.Name == "CreatedUserId");
+        var createdUserColumn = fn.Columns.Single(c => c.Name == "created.user.userId");
+
+        // Assert
+        Assert.False(createdParam.IsNullable.GetValueOrDefault(true));
+        Assert.False(createdUserColumn.IsNullable.GetValueOrDefault(true));
+    }
+
     private sealed class FakeDbContext : DbContext
     {
         public FakeDbContext() : base(new NullConsoleService())
@@ -140,7 +176,7 @@ END",
                 int ordinal = 1;
                 list.Add(MakeParam(objectId, ordinal++, "@RecordId", "int", 4));
                 list.Add(MakeParam(objectId, ordinal++, "@RowVersion", "bigint", 8));
-                list.Add(MakeParam(objectId, ordinal++, "@CreatedUserId", "int", 4));
+                list.Add(MakeParam(objectId, ordinal++, "@CreatedUserId", "int", 4, userTypeName: "_id", userTypeSchema: "core", userTypeIsNullable: 0));
                 list.Add(MakeParam(objectId, ordinal++, "@CreatedDt", "datetime2", 8));
                 list.Add(MakeParam(objectId, ordinal++, "@UpdatedUserId", "int", 4));
                 list.Add(MakeParam(objectId, ordinal++, "@UpdatedDt", "datetime2", 8));
@@ -157,7 +193,7 @@ END",
             return Task.FromResult<List<T>>(null);
         }
 
-        private static FunctionParamRow MakeParam(int objectId, int ordinal, string name, string sqlType, int length)
+        private static FunctionParamRow MakeParam(int objectId, int ordinal, string name, string sqlType, int length, string userTypeName = null, string userTypeSchema = null, int? userTypeIsNullable = null)
         {
             return new FunctionParamRow
             {
@@ -172,8 +208,9 @@ END",
                 max_length = length,
                 precision = 0,
                 scale = 0,
-                user_type_name = null,
-                user_type_schema_name = null,
+                user_type_name = userTypeName,
+                user_type_schema_name = userTypeSchema,
+                user_type_is_nullable = userTypeIsNullable,
                 base_type_name = sqlType
             };
         }

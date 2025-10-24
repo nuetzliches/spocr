@@ -32,6 +32,7 @@ ORDER BY s.name, o.name;";
  CAST(t.scale AS int) AS scale,
  t_alias.name AS user_type_name,
  s_alias.name AS user_type_schema_name,
+ CAST(t_alias.is_nullable AS INT) AS user_type_is_nullable,
  t.name AS base_type_name
  FROM sys.parameters p
  INNER JOIN sys.types t ON t.user_type_id = p.system_type_id AND t.system_type_id = p.system_type_id
@@ -88,6 +89,7 @@ public class FunctionParamRow {
     public int scale { get; set; }
     public string user_type_name { get; set; }
     public string user_type_schema_name { get; set; }
+    public int? user_type_is_nullable { get; set; }
     public string base_type_name { get; set; }
 }
 public class FunctionColumnRow {

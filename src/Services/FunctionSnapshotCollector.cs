@@ -174,6 +174,9 @@ public sealed class FunctionSnapshotCollector
                 int maxLength = p.normalized_length;
                 bool isOutput = p.is_output == 1;
                 bool isNullable = p.is_nullable == 1;
+                bool? userTypeNullable = p.user_type_is_nullable.HasValue
+                    ? p.user_type_is_nullable.Value == 1 ? true : false
+                    : null;
                 bool hasDefault = p.has_default_value == 1;
 
                 // Erkennung Rückgabe-Parameter: Bei skalarer Funktion liefert SQL Server einen Parameter ohne Namen ("" oder null) als Rückgabepseudo-Parameter
@@ -185,6 +188,16 @@ public sealed class FunctionSnapshotCollector
                     continue; // nicht als regulärer Parameter aufnehmen
                 }
 
+                bool? finalNullable;
+                if (!isNullable)
+                {
+                    finalNullable = false;
+                }
+                else
+                {
+                    finalNullable = userTypeNullable ?? true;
+                }
+
                 fn.Parameters.Add(new SnapshotFunctionParameter
                 {
                     Name = name,
@@ -192,7 +205,7 @@ public sealed class FunctionSnapshotCollector
                     TableTypeName = null,
                     IsOutput = null, // pruned (immer false)
                     SqlTypeName = sqlType,
-                    IsNullable = isNullable ? true : null,
+                    IsNullable = finalNullable,
                     MaxLength = maxLength > 0 ? maxLength : null,
                     HasDefaultValue = hasDefault ? true : null
                 });
