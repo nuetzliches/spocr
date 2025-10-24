@@ -293,8 +293,14 @@ public sealed class ProceduresGenerator
                         else
                         {
                             if (IsDebug()) { try { Console.Out.WriteLine($"[proc-forward-expand][skip] target missing for {targetKey}"); } catch { } }
-                            // Fällt zurück auf leeren Satz (keine Felder) – wird normal verarbeitet (führt zu leerem Record)
+                            // Platzhalter mit leerem Ziel wird übersprungen - keine leeren Records generieren
+                            continue;
                         }
+                    }
+                    // Nur ResultSets mit Feldern verarbeiten (leere ExecSource Platzhalter überspringen)
+                    if (rs.Fields.Count == 0 && isExecPlaceholder)
+                    {
+                        continue;
                     }
                     AppendResultSetMeta(rs);
                 }
