@@ -42,11 +42,11 @@ public sealed class ProceduresGenerator
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
         // Work list subject to filters
         var procs = allProcedures.ToList();
-        
+
         // Check for explicit procedure filter first
         var buildProceduresRaw = Environment.GetEnvironmentVariable("SPOCR_BUILD_PROCEDURES");
         var hasExplicitProcedures = !string.IsNullOrWhiteSpace(buildProceduresRaw);
-        
+
         // 1) Positive allow-list: prefer EnvConfiguration.BuildSchemas; fallback to direct env var only if cfg missing
         // Skip schema filtering if procedures are explicitly specified
         HashSet<string>? buildSchemas = null;

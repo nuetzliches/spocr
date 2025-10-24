@@ -47,41 +47,41 @@ END";
         // Assert
         Assert.Single(result.Procedures);
         var procedure = result.Procedures.First();
-        
+
         Assert.Equal("test", procedure.Schema);
         Assert.Equal("CteTypePropagationTest", procedure.Name);
-        
+
         // Should have exactly 1 ResultSet (CTE should not generate separate ResultSet)
         Assert.Single(procedure.ResultSets);
         var resultSet = procedure.ResultSets.First();
-        
+
         // Should have 2 columns: mainField and testData
         Assert.Equal(2, resultSet.Columns.Count);
-        
+
         // Check mainField
         var mainField = resultSet.Columns.First(c => c.Name == "mainField");
         Assert.Equal("nvarchar", mainField.SqlTypeName);
-        
+
         // Check testData (FOR JSON PATH subquery)
         var testData = resultSet.Columns.First(c => c.Name == "testData");
         Assert.True(testData.ReturnsJson);
         Assert.True(testData.ReturnsJsonArray);
-        
+
         // Critical: testData should have properly typed columns from CTE
         Assert.Equal(4, testData.Columns.Count);
-        
+
         var testId = testData.Columns.First(c => c.Name == "testId");
         Assert.Equal("int", testId.SqlTypeName);
         Assert.Equal(4, testId.MaxLength);
-        
+
         var value = testData.Columns.First(c => c.Name == "value");
         Assert.Equal("nvarchar", value.SqlTypeName);
         Assert.Equal(100, value.MaxLength);
-        
+
         var displayName = testData.Columns.First(c => c.Name == "displayName");
         Assert.Equal("nvarchar", displayName.SqlTypeName);
         Assert.Equal(50, displayName.MaxLength);
-        
+
         var isActive = testData.Columns.First(c => c.Name == "isActive");
         Assert.Equal("bit", isActive.SqlTypeName);
         Assert.Equal(1, isActive.MaxLength);
@@ -142,34 +142,34 @@ END";
         // Assert
         Assert.Single(result.Procedures);
         var procedure = result.Procedures.First();
-        
+
         // Should have exactly 1 ResultSet (CTE should not generate separate ResultSet)
         Assert.Single(procedure.ResultSets);
         var resultSet = procedure.ResultSets.First();
-        
+
         // Should have 5 columns including claims FOR JSON PATH subquery
         Assert.Equal(5, resultSet.Columns.Count);
-        
+
         // Check claims column (FOR JSON PATH subquery)
         var claims = resultSet.Columns.First(c => c.Name == "claims");
         Assert.True(claims.ReturnsJson);
         Assert.True(claims.ReturnsJsonArray);
-        
+
         // Critical: claims should have properly typed columns from CTE
         Assert.Equal(4, claims.Columns.Count);
-        
+
         var claimId = claims.Columns.First(c => c.Name == "claimId");
         Assert.Equal("int", claimId.SqlTypeName);
         Assert.NotNull(claimId.MaxLength);
-        
+
         var value = claims.Columns.First(c => c.Name == "value");
         Assert.Equal("nvarchar", value.SqlTypeName);
         Assert.NotNull(value.MaxLength);
-        
+
         var displayName = claims.Columns.First(c => c.Name == "displayName");
         Assert.Equal("nvarchar", displayName.SqlTypeName);
         Assert.NotNull(displayName.MaxLength);
-        
+
         var isChecked = claims.Columns.First(c => c.Name == "isChecked");
         Assert.Equal("bit", isChecked.SqlTypeName);
         Assert.Equal(1, isChecked.MaxLength);

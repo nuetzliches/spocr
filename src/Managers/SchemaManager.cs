@@ -285,7 +285,7 @@ public class SchemaManager(
                     .Select(p => p.Trim())
                     .Where(p => !string.IsNullOrEmpty(p)),
                 StringComparer.OrdinalIgnoreCase);
-            
+
             if (buildSet.Count > 0)
             {
                 var beforeCount = storedProcedures.Count;

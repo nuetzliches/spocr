@@ -578,7 +578,7 @@ public class StoredProcedureContentModel
             try
             {
                 Console.WriteLine($"[qs-debug] ExplicitVisit QuerySpecification - CTE count: {_cteQuerySpecifications.Count}, checking if this is CTE: {_cteQuerySpecifications.Contains(node)}");
-                
+
                 // For now, let all QuerySpecifications be processed normally - we'll filter CTE ResultSets at the end
                 // This allows CTE columns to be properly typed through normal processing
 
@@ -957,7 +957,7 @@ public class StoredProcedureContentModel
                                     _derivedTableColumnSources[alias] = columnMap;
                                     _derivedTableColumns[alias] = derivedCols;
                                     ConsoleWriteDerived(alias, columnMap, isCte: true);
-                                    
+
                                     // Capture CTE column types for later nested JSON propagation
                                     Console.WriteLine($"[cte-type-capture] Processing CTE '{alias}' with {derivedCols.Count} columns");
                                     foreach (var col in derivedCols)
@@ -2333,12 +2333,12 @@ public class StoredProcedureContentModel
         {
             if (col == null) return;
             if (!string.IsNullOrWhiteSpace(col.SqlTypeName)) return; // bereits gesetzt (Literal / Aggregat etc.)
-            if (ResolveTableColumnType == null) 
+            if (ResolveTableColumnType == null)
             {
                 if (ShouldDiag()) System.Console.WriteLine($"[cte-col-type-debug] ResolveTableColumnType delegate is null");
                 return;
             }
-            if (string.IsNullOrWhiteSpace(col.SourceSchema) || string.IsNullOrWhiteSpace(col.SourceTable) || string.IsNullOrWhiteSpace(col.SourceColumn)) 
+            if (string.IsNullOrWhiteSpace(col.SourceSchema) || string.IsNullOrWhiteSpace(col.SourceTable) || string.IsNullOrWhiteSpace(col.SourceColumn))
             {
                 if (ShouldDiag()) System.Console.WriteLine($"[cte-col-type-debug] Missing source info: schema={col.SourceSchema} table={col.SourceTable} column={col.SourceColumn}");
                 return;
@@ -2353,7 +2353,7 @@ public class StoredProcedureContentModel
                     if (res.MaxLength.HasValue) col.MaxLength = res.MaxLength.Value;
                     if (res.IsNullable.HasValue) col.IsNullable = res.IsNullable.Value;
                     if (ShouldDiag()) System.Console.WriteLine($"[cte-col-type-debug] Resolved to: type={col.SqlTypeName} maxLen={col.MaxLength} nullable={col.IsNullable}");
-                    
+
                     // Store the resolved type information for later CTE usage
                     // Note: This is a static method, so we can't directly access the visitor instance
                     // We'll use a different approach for storing type information
@@ -2380,9 +2380,9 @@ public class StoredProcedureContentModel
 
         private (string SqlTypeName, int? MaxLength, bool? IsNullable) GetStoredColumnTypeInfo(string schema, string table, string column)
         {
-            if (string.IsNullOrWhiteSpace(schema) || string.IsNullOrWhiteSpace(table) || string.IsNullOrWhiteSpace(column)) 
+            if (string.IsNullOrWhiteSpace(schema) || string.IsNullOrWhiteSpace(table) || string.IsNullOrWhiteSpace(column))
                 return (string.Empty, null, null);
-            
+
             var key = $"{schema}.{table}.{column}";
             if (_resolvedColumnTypes.TryGetValue(key, out var typeInfo))
             {
@@ -2531,23 +2531,23 @@ public class StoredProcedureContentModel
                 }
                 var ambiguous = col.IsAmbiguous == true || state.BindingCount > 1;
                 map[alias] = (col.SourceSchema, col.SourceTable, col.SourceColumn, ambiguous);
-                
+
                 // CRITICAL: Nach dem Derived-Binding die Typ-Informationen direkt aus Table-Metadata laden
                 if (!string.IsNullOrWhiteSpace(col.SourceSchema) && !string.IsNullOrWhiteSpace(col.SourceTable) && !string.IsNullOrWhiteSpace(col.SourceColumn))
                 {
                     // Direkt TryAssignColumnType aufrufen statt über Mock-ColumnReference
                     TryAssignColumnType(col);
-                    
-                    if (ShouldDiag()) 
+
+                    if (ShouldDiag())
                     {
-                        try 
-                        { 
-                            System.Console.WriteLine($"[cte-col-type-loaded] {col.Name} from {col.SourceSchema}.{col.SourceTable}.{col.SourceColumn} type={col.SqlTypeName} maxLen={col.MaxLength} nullable={col.IsNullable}"); 
-                        } 
-                        catch { } 
+                        try
+                        {
+                            System.Console.WriteLine($"[cte-col-type-loaded] {col.Name} from {col.SourceSchema}.{col.SourceTable}.{col.SourceColumn} type={col.SqlTypeName} maxLen={col.MaxLength} nullable={col.IsNullable}");
+                        }
+                        catch { }
                     }
                 }
-                
+
                 outColumns?.Add(col);
                 if (ShouldDiag()) { try { System.Console.WriteLine($"[json-agg-diag] derived-col name={col.Name} agg={col.IsAggregate} fn={col.AggregateFunction} intLit={col.HasIntegerLiteral} decLit={col.HasDecimalLiteral}"); } catch { } }
             }
@@ -2866,7 +2866,7 @@ public class StoredProcedureContentModel
             {
                 var tableOrAlias = parts[0];
                 var column = parts[1];
-                
+
                 // Prüfe zuerst lokale Aliases (physische Tabellen)
                 if (localAliases.TryGetValue(tableOrAlias, out var mapped))
                 {
@@ -2898,19 +2898,19 @@ public class StoredProcedureContentModel
                         {
                             col.IsNullable = sourceCol.IsNullable;
                         }
-                        
+
                         // Setze CTE-spezifische Source-Informationen
                         col.SourceAlias = tableOrAlias;
                         col.SourceColumn = column;
                         // Für CTEs verwenden wir keine Schema.Table, da es virtuelle Tabellen sind
-                        
-                        if (forceVerbose || ShouldDiag()) 
+
+                        if (forceVerbose || ShouldDiag())
                         {
-                            try 
-                            { 
-                                System.Console.WriteLine($"[cte-bind-derived] CTE {tableOrAlias}.{column} -> {col.Name} type={col.SqlTypeName} maxLen={col.MaxLength} nullable={col.IsNullable}"); 
-                            } 
-                            catch { } 
+                            try
+                            {
+                                System.Console.WriteLine($"[cte-bind-derived] CTE {tableOrAlias}.{column} -> {col.Name} type={col.SqlTypeName} maxLen={col.MaxLength} nullable={col.IsNullable}");
+                            }
+                            catch { }
                         }
                         _analysis.ColumnRefBound++;
                     }
@@ -2920,7 +2920,7 @@ public class StoredProcedureContentModel
                         if (forceVerbose) try { System.Console.WriteLine($"[cte-bind-derived] CTE {tableOrAlias} found but column {column} not found"); } catch { }
                     }
                 }
-                else 
+                else
                 {
                     col.IsAmbiguous = true;
                     if (forceVerbose) try { System.Console.WriteLine($"[cte-bind-derived] Neither physical table nor CTE found for alias {tableOrAlias}"); } catch { }
@@ -3271,7 +3271,7 @@ public class StoredProcedureContentModel
                     nestedCol.SqlTypeName = cteColumn.SqlTypeName;
                     nestedCol.MaxLength = cteColumn.MaxLength;
                     nestedCol.IsNullable = cteColumn.IsNullable;
-                    
+
                     Console.WriteLine($"[cte-nested-json-type] Applied CTE type to {nestedCol.Name}: {nestedCol.SqlTypeName}, MaxLength={nestedCol.MaxLength}, IsNullable={nestedCol.IsNullable}");
                     return;
                 }
@@ -3287,7 +3287,7 @@ public class StoredProcedureContentModel
                 {
                     var derivedAlias = derivedEntry.Key;
                     var derivedCols = derivedEntry.Value;
-                    
+
                     var sourceCol = derivedCols.FirstOrDefault(c => c.Name?.Equals(nestedCol.Name, StringComparison.OrdinalIgnoreCase) == true);
                     if (sourceCol != null && !string.IsNullOrWhiteSpace(sourceCol.SqlTypeName))
                     {
@@ -3297,7 +3297,7 @@ public class StoredProcedureContentModel
                         nestedCol.SqlTypeName = sourceCol.SqlTypeName;
                         nestedCol.MaxLength = sourceCol.MaxLength;
                         nestedCol.IsNullable = sourceCol.IsNullable;
-                        
+
                         Console.WriteLine($"[cte-nested-json-type] propagated to col={nestedCol.Name} sqlType={nestedCol.SqlTypeName} maxLen={nestedCol.MaxLength} nullable={nestedCol.IsNullable}");
                         return; // Success, exit early
                     }
@@ -3308,7 +3308,7 @@ public class StoredProcedureContentModel
                 {
                     Console.WriteLine($"[cte-nested-json-type] AST-based resolution needed for column: {nestedCol.Name}");
                 }
-                
+
                 Console.WriteLine($"[cte-nested-json-type] final result col={nestedCol?.Name} sqlType={nestedCol?.SqlTypeName} maxLen={nestedCol?.MaxLength} isNull={nestedCol?.IsNullable}");
             }
             catch (Exception ex)
