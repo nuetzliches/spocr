@@ -715,7 +715,7 @@ public class SpocrManager(
                 //   (E) TableTypes (wurden bereits vorher geladen / UDTT für Procs)
                 //   (F) Procedures (abschließende JSON/ResultSet Enrichment Phase)
                 // Begründung Änderung: Funktions-Sammlung jetzt NACH Tabellen & Views, damit ColumnEnrichment nicht auf spätere Post-Phase angewiesen ist.
-                bool phaseUserTypesDone = false, phaseTablesDone = false, phaseFunctionsDone = false, phaseProceduresDone = procedures.Count > 0;
+                bool phaseUserTypesDone = false, phaseTablesDone = false, phaseProceduresDone = procedures.Count > 0;
                 List<SnapshotFunction> collectedFunctions = null;
 
                 var userDefinedTypeRows = await dbContext.UserDefinedScalarTypesAsync(System.Threading.CancellationToken.None);
@@ -786,7 +786,7 @@ public class SpocrManager(
                 }
                 phaseTablesDone = true;
                 if (!phaseUserTypesDone) consoleService.Warn("[ordering-guard] Tables loaded before UserDefinedTypes – potential alias resolution issues.");
-                if (!phaseFunctionsDone) consoleService.Warn("[ordering-guard] Tables loaded before Functions – mögliche fehlende Funktions-Metadaten für spätere Analysen.");
+                // Note: Functions are now intentionally loaded AFTER Tables and Views for correct enrichment
                 phaseTablesDone = true;
                 if (!phaseUserTypesDone) consoleService.Warn("[ordering-guard] Tables loaded before UserDefinedTypes – potential alias resolution issues.");
 
@@ -815,7 +815,7 @@ public class SpocrManager(
                 }
                 // Views Phase abgeschlossen (Variable entfernt – Guard Meldungen behalten nur falls Reihenfolge verletzt würde)
                 if (!phaseTablesDone) consoleService.Warn("[ordering-guard] Views loaded before Tables – unexpected sequence.");
-                if (!phaseFunctionsDone) consoleService.Warn("[ordering-guard] Views loaded before Functions – unexpected sequence.");
+                // Note: Functions are now intentionally loaded AFTER Views for correct enrichment
                 if (!phaseTablesDone) consoleService.Warn("[ordering-guard] Views loaded before Tables – unexpected sequence.");
 
                 // Jetzt Functions sammeln (nach Tables + Views)
@@ -826,7 +826,6 @@ public class SpocrManager(
                     var fnSnap = new SchemaSnapshot { Tables = tables, Functions = new List<SnapshotFunction>() };
                     await fnCollector.CollectAsync(fnSnap);
                     collectedFunctions = fnSnap.Functions ?? new List<SnapshotFunction>();
-                    phaseFunctionsDone = true;
                     consoleService.Verbose("[fn-summary] functions=" + collectedFunctions.Count);
                 }
                 catch (Exception fnEx)
