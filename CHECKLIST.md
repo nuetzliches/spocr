@@ -704,6 +704,7 @@ Status-Legende: [>] deferred (v5 Ziel) – Querverweis auf README / Roadmap Absc
 - [ ] JSON Metrics Aggregation: Anzahl JSON ResultSets, Fallback-Hits, unresolved-json-column Stats, Aggregat-Verteilung (pro Pull Summary + optional Write in debug/)
 - [ ] Env Fallback Flag Planung (`SPOCR_JSON_REGEX_FALLBACK`): Entscheidung: SPOCR_JSON_REGEX_FALLBACK nicht verwenden, reines AST-Parsing.
 - [ ] `Ignored 3 Schemas [ai, ai-journal, dbo]` Log ganz entfernen (generell noch mal logs optimieren)
+- [ ] `debug\.spocr\schema\index.json`: FunctionsVersion überdenken / entfernen
 
 ### 0. AST-basierte Typ-Inferenz Verbesserungen (P1 - Kritisch)
 
