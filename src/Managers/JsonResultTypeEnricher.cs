@@ -136,78 +136,11 @@ public sealed class JsonResultTypeEnricher
                 }
                 else if (!hasConcrete)
                 {
-                    // Always warn when a type could not be determined for a JSON column (visibility independent of verbosity)
+                    // AST-only: signal unresolved type for JSON column; no name-based fallback
                     _console.Warn($"[json-type-miss] {sp.SchemaName}.{sp.Name} {col.Name} source={col.SourceSchema}.{col.SourceTable}.{col.SourceColumn} no-column-match");
                 }
             }
-            // Targeted fallback resolution for initiationId when binding failed but siblings hint at a single source table containing InitiationId
-            if (!hasConcrete && string.IsNullOrWhiteSpace(col.SqlTypeName) &&
-                string.Equals(col.Name, "initiationId", StringComparison.OrdinalIgnoreCase))
-            {
-                try
-                {
-                    // Gather candidate tables from sibling columns in same owning set that are bound
-                    var siblingTables = owningSet?.Columns?
-                        .Where(c => c != null && !string.IsNullOrWhiteSpace(c.SourceSchema) && !string.IsNullOrWhiteSpace(c.SourceTable))
-                        .Select(c => new { Key = $"{c.SourceSchema}.{c.SourceTable}", c.SourceSchema, c.SourceTable })
-                        .GroupBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
-                        .Select(g => g.First())
-                        .Select(x => (Key: x.Key, Schema: x.SourceSchema, Table: x.SourceTable))
-                        .ToList() ?? new List<(string Key, string Schema, string Table)>();
-                    var initiationMatches = new List<(Column Col, string Schema, string Table)>();
-                    foreach (var entry in siblingTables)
-                    {
-                        var key = entry.Key; var schema = entry.Schema; var table = entry.Table;
-                        if (!tableCache.TryGetValue(key, out var cols))
-                        {
-                            try { cols = await _db.TableColumnsListAsync(schema, table, token); }
-                            catch { cols = new List<Column>(); }
-                            tableCache[key] = cols;
-                        }
-                        var idCol = cols.FirstOrDefault(c => c.Name.Equals("InitiationId", StringComparison.OrdinalIgnoreCase));
-                        if (idCol != null) initiationMatches.Add((idCol, schema, table));
-                    }
-                    // If exactly one table exposes InitiationId use that definition
-                    if (initiationMatches.Count == 1)
-                    {
-                        var match = initiationMatches[0];
-                        col = new StoredProcedureContentModel.ResultColumn
-                        {
-                            Name = col.Name,
-                            SourceSchema = match.Schema, // adopt source binding
-                            SourceTable = match.Table,
-                            SourceColumn = match.Col.Name,
-                            SqlTypeName = match.Col.SqlTypeName,
-                            IsNullable = match.Col.IsNullable,
-                            MaxLength = match.Col.MaxLength,
-                            SourceAlias = col.SourceAlias,
-                            ExpressionKind = col.ExpressionKind,
-                            IsNestedJson = col.IsNestedJson,
-                            ReturnsJson = col.ReturnsJson,
-                            ReturnsJsonArray = col.ReturnsJsonArray,
-                            // removed flag
-                            JsonRootProperty = col.JsonRootProperty,
-                            Columns = col.Columns,
-                            ForcedNullable = col.ForcedNullable,
-                            IsAmbiguous = col.IsAmbiguous,
-                            UserTypeSchemaName = col.UserTypeSchemaName,
-                            UserTypeName = col.UserTypeName
-                        };
-                        modifiedLocal = true; hasConcrete = true; hadFallback = false;
-                        if (verbose && level == JsonTypeLogLevel.Detailed)
-                        {
-                            _console.Verbose($"[json-type-initiation-fallback] {sp.SchemaName}.{sp.Name} {col.Name} -> {match.Col.SqlTypeName} ({match.Schema}.{match.Table})");
-                            loggedColumnResolutions.Add($"{sp.SchemaName}.{sp.Name}|{col.Name}->{match.Col.SqlTypeName}");
-                            loggedNewConcrete++; // treat as new concrete resolution
-                        }
-                    }
-                    else if (verbose && level == JsonTypeLogLevel.Detailed && initiationMatches.Count > 1)
-                    {
-                        _console.Verbose($"[json-type-initiation-fallback-skip] {sp.SchemaName}.{sp.Name} {col.Name} ambiguous tables count={initiationMatches.Count}");
-                    }
-                }
-                catch { /* swallow fallback errors */ }
-            }
+            // No name-based targeted fallbacks (AST-only policy)
             // Gemeinsame Heuristik anwenden falls weiterhin kein konkreter Typ bestimmt (kein Binding oder Binding ohne Treffer)
             if (!hasConcrete)
             {

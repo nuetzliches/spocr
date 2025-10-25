@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Text.RegularExpressions;
+using Microsoft.SqlServer.TransactSql.ScriptDom;
 using SpocR.DataContext;
 using SpocR.DataContext.Queries;
 using SpocR.Services;
@@ -147,6 +148,25 @@ public sealed class FunctionSnapshotCollector
                     {
                         _console.Verbose($"[fn-json-cols-empty] {schema}.{name}");
                     }
+                }
+
+                // AST-basierte Ergänzung des präzisen Rückgabetyps aus RETURNS (rein aus Definition, keine DB)
+                if (!isTableValued && !encrypted && !string.IsNullOrWhiteSpace(definition))
+                {
+                    try
+                    {
+                        var parsedReturn = TryParseScalarFunctionReturn(definition);
+                        if (!string.IsNullOrWhiteSpace(parsedReturn))
+                        {
+                            if (string.IsNullOrWhiteSpace(fnModel.ReturnSqlType)
+                                || fnModel.ReturnSqlType.Equals("decimal", StringComparison.OrdinalIgnoreCase)
+                                || fnModel.ReturnSqlType.Equals("numeric", StringComparison.OrdinalIgnoreCase))
+                            {
+                                fnModel.ReturnSqlType = parsedReturn;
+                            }
+                        }
+                    }
+                    catch { }
                 }
 
                 functions.Add(fnModel);
@@ -423,6 +443,63 @@ public sealed class FunctionSnapshotCollector
             if (string.IsNullOrWhiteSpace(target.SqlTypeName)) target.SqlTypeName = meta.SqlType;
             if (!target.IsNullable.HasValue) target.IsNullable = meta.IsNullable;
             if (!target.MaxLength.HasValue) target.MaxLength = meta.MaxLength;
+        }
+    }
+
+    private static string TryParseScalarFunctionReturn(string definition)
+    {
+        try
+        {
+            var parser = new TSql160Parser(false);
+            using var reader = new System.IO.StringReader(definition);
+            var fragment = parser.Parse(reader, out var errors);
+            if (fragment == null) return string.Empty;
+            ScalarFunctionReturnType ret = null;
+            fragment.Accept(new ReturnTypeVisitor(rt => ret = rt));
+            if (ret?.DataType is DataTypeReference dt)
+            {
+                string baseName = string.Join('.', dt.Name?.Identifiers?.Select(i => i.Value) ?? Array.Empty<string>()).ToLowerInvariant();
+                if (string.IsNullOrWhiteSpace(baseName)) return string.Empty;
+                if (dt is SqlDataTypeReference sqlRef)
+                {
+                    // decimal/numeric(precision, scale)
+                    if (sqlRef.SqlDataTypeOption is SqlDataTypeOption.Decimal or SqlDataTypeOption.Numeric)
+                    {
+                        int? p = null; int? s = null;
+                        if (sqlRef.Parameters?.Count >= 1 && sqlRef.Parameters[0] is Literal l0 && int.TryParse(l0.Value, out var p0)) p = p0;
+                        if (sqlRef.Parameters?.Count >= 2 && sqlRef.Parameters[1] is Literal l1 && int.TryParse(l1.Value, out var s0)) s = s0;
+                        if (p.HasValue && s.HasValue) return $"{baseName}({p.Value},{s.Value})";
+                    }
+                    // (n)varchar / varbinary(length)
+                    if (sqlRef.SqlDataTypeOption is SqlDataTypeOption.VarChar or SqlDataTypeOption.NVarChar or SqlDataTypeOption.VarBinary)
+                    {
+                        if (sqlRef.Parameters?.Count >= 1 && sqlRef.Parameters[0] is Literal ll && int.TryParse(ll.Value, out var len))
+                            return $"{baseName}({len})";
+                    }
+                }
+                else if (dt is ParameterizedDataTypeReference pr)
+                {
+                    if (pr.Parameters?.Count == 1 && pr.Parameters[0] is Literal lz && int.TryParse(lz.Value, out var lnum))
+                        return $"{baseName}({lnum})";
+                    if (pr.Parameters?.Count >= 2 && pr.Parameters[0] is Literal lp && pr.Parameters[1] is Literal ls
+                        && int.TryParse(lp.Value, out var pp) && int.TryParse(ls.Value, out var ss))
+                        return $"{baseName}({pp},{ss})";
+                }
+                return baseName;
+            }
+        }
+        catch { }
+        return string.Empty;
+    }
+
+    private sealed class ReturnTypeVisitor : TSqlFragmentVisitor
+    {
+        private readonly Action<ScalarFunctionReturnType> _on;
+        public ReturnTypeVisitor(Action<ScalarFunctionReturnType> on) { _on = on; }
+        public override void Visit(TSqlFragment node)
+        {
+            if (node is CreateFunctionStatement cfs && cfs.ReturnType is ScalarFunctionReturnType srt) _on(srt);
+            base.Visit(node);
         }
     }
 }

@@ -118,6 +118,43 @@ public class SchemaManager(
             catch { }
         }
 
+        // Provide scalar function return type resolver from expanded snapshot (Functions)
+        if (StoredProcedureContentModel.ResolveScalarFunctionReturnType == null)
+        {
+            try
+            {
+                var expanded = expandedSnapshotService.LoadExpanded();
+                var fnMap = new Dictionary<string, (string SqlType, int? MaxLen, bool? IsNull)>(StringComparer.OrdinalIgnoreCase);
+                foreach (var fn in expanded?.Functions ?? new List<Services.SnapshotFunction>())
+                {
+                    if (fn?.IsTableValued == true) continue; // only scalar
+                    if (string.IsNullOrWhiteSpace(fn?.Schema) || string.IsNullOrWhiteSpace(fn?.Name)) continue;
+                    if (string.IsNullOrWhiteSpace(fn.ReturnSqlType)) continue;
+                    var key = $"{fn.Schema}.{fn.Name}";
+                    // Use ReturnSqlType as-is (collector may already include precision/scale or length)
+                    var resolvedType = fn.ReturnSqlType;
+                    fnMap[key] = (resolvedType, fn.ReturnMaxLength, fn.ReturnIsNullable);
+                    // also allow name-only lookup for common schemas
+                    if (!fnMap.ContainsKey(fn.Name)) fnMap[fn.Name] = (resolvedType, fn.ReturnMaxLength, fn.ReturnIsNullable);
+                }
+                StoredProcedureContentModel.ResolveScalarFunctionReturnType = (schema, name) =>
+                {
+                    try
+                    {
+                        if (string.IsNullOrWhiteSpace(name)) return (string.Empty, null, null);
+                        var key1 = (schema ?? "dbo") + "." + name;
+                        if (fnMap.TryGetValue(key1, out var meta) || fnMap.TryGetValue(name, out meta))
+                        {
+                            return (meta.SqlType, meta.MaxLen, meta.IsNull);
+                        }
+                    }
+                    catch { }
+                    return (string.Empty, null, null);
+                };
+            }
+            catch { }
+        }
+
         var dbSchemas = await dbContext.SchemaListAsync(cancellationToken);
         if (dbSchemas == null)
         {
