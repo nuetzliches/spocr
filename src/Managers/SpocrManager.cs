@@ -344,7 +344,7 @@ public class SpocrManager(
 
                 var jsonTypeLogLevel = config.Project?.JsonTypeLogLevel ?? JsonTypeLogLevel.Detailed;
                 var enrichmentStats = new JsonTypeEnrichmentStats();
-                var enricher = new JsonResultTypeEnricher(dbContext, consoleService);
+                var enricher = new JsonResultTypeEnricher(consoleService);
                 foreach (var schema in schemas)
                 {
                     if (schema?.StoredProcedures == null) continue;

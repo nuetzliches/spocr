@@ -2,12 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using SpocR.DataContext;
 using SpocR.DataContext.Models;
-using SpocR.DataContext.Queries;
 using SpocR.Enums;
 using SpocR.Models;
 using SpocR.Services;
+using SpocR.SpocRVNext.Metadata;
+using SpocR.Utils;
 
 namespace SpocR.Managers;
 
@@ -29,14 +29,24 @@ public sealed class JsonTypeEnrichmentStats
 
 /// <summary>
 /// Stage 2 JSON column type enrichment. Resolves unresolved JSON result columns to concrete SQL types
-/// by inspecting base table metadata. Also performs fallback -> concrete upgrades (parser v4).
+/// by inspecting base table metadata from snapshots. Also performs fallback -> concrete upgrades (parser v4).
 /// </summary>
 public sealed class JsonResultTypeEnricher
 {
-    private readonly DbContext _db;
     private readonly IConsoleService _console;
-    public JsonResultTypeEnricher(DbContext db, IConsoleService console)
-    { _db = db; _console = console; }
+    private readonly TableMetadataProvider? _tableMetadataProvider;
+    public JsonResultTypeEnricher(IConsoleService console)
+    {
+        _console = console;
+        try
+        {
+            _tableMetadataProvider = new TableMetadataProvider(DirectoryUtils.GetWorkingDirectory());
+        }
+        catch
+        {
+            _tableMetadataProvider = null;
+        }
+    }
 
     public async Task EnrichAsync(StoredProcedureModel sp, bool verbose, JsonTypeLogLevel level, JsonTypeEnrichmentStats stats, System.Threading.CancellationToken ct)
     {
@@ -62,13 +72,11 @@ public sealed class JsonResultTypeEnricher
 
             // Removed UDTT 'record' mapping heuristic: Only AST-bound table metadata allowed. Leaving UserType* empty unless future AST capture implemented.
             // JSON_QUERY heuristic
-            if (col.ExpressionKind == StoredProcedureContentModel.ResultColumnExpressionKind.JsonQuery && string.IsNullOrWhiteSpace(col.SqlTypeName))
+            // Kein Fallback auf nvarchar: fehlende Typinformationen müssen als null im Snapshot verbleiben
+            if (col.ExpressionKind == StoredProcedureContentModel.ResultColumnExpressionKind.JsonQuery && col.IsNullable == null)
             {
-                col.SqlTypeName = "nvarchar(max)";
-                if (col.IsNullable == null) col.IsNullable = true;
+                col.IsNullable = true;
                 modifiedLocal = true;
-                if (verbose && level == JsonTypeLogLevel.Detailed)
-                    _console.Verbose($"[json-type-jsonquery] {sp.SchemaName}.{sp.Name} {col.Name} -> nvarchar(max)");
             }
             // Forced nullable adjustment (outer join heuristic)
             if (col.ForcedNullable == true && (col.IsNullable == false || col.IsNullable == null))
@@ -86,16 +94,34 @@ public sealed class JsonResultTypeEnricher
             }
 
             bool hadFallback = (string.Equals(col.SqlTypeName, "nvarchar(max)", StringComparison.OrdinalIgnoreCase) || string.Equals(col.SqlTypeName, "unknown", StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(col.SqlTypeName)) && isJsonContext;
-            // Treat heuristic nvarchar with inline length (pattern nvarchar(x)) as upgrade candidates when binding available
-            bool looksHeuristic = !string.IsNullOrWhiteSpace(col.SqlTypeName) && col.SqlTypeName.StartsWith("nvarchar(", StringComparison.OrdinalIgnoreCase);
-            bool hasConcrete = !string.IsNullOrWhiteSpace(col.SqlTypeName) && !hadFallback && !looksHeuristic;
+            bool hasConcrete = !string.IsNullOrWhiteSpace(col.SqlTypeName) && !hadFallback;
             if (hasSourceBinding && col.ExpressionKind != StoredProcedureContentModel.ResultColumnExpressionKind.Cast)
             {
                 var tblKey = ($"{col.SourceSchema}.{col.SourceTable}");
                 if (!tableCache.TryGetValue(tblKey, out var tblColumns))
                 {
-                    try { tblColumns = await _db.TableColumnsListAsync(col.SourceSchema, col.SourceTable, token); }
-                    catch { tblColumns = new List<Column>(); }
+                    var loaded = new List<Column>();
+                    if (_tableMetadataProvider != null)
+                    {
+                        var snapshot = _tableMetadataProvider.TryGet(col.SourceSchema, col.SourceTable);
+                        if (snapshot?.Columns != null && snapshot.Columns.Count > 0)
+                        {
+                            loaded = snapshot.Columns.Select(c => new Column
+                            {
+                                Name = c.Name,
+                                SqlTypeName = c.SqlType ?? string.Empty,
+                                IsNullable = c.IsNullable,
+                                MaxLength = c.MaxLength ?? 0,
+                                BaseSqlTypeName = null,
+                                Precision = null,
+                                Scale = null,
+                                UserTypeName = null,
+                                UserTypeSchemaName = null,
+                                IsIdentityRaw = null
+                            }).ToList();
+                        }
+                    }
+                    tblColumns = loaded;
                     tableCache[tblKey] = tblColumns;
                 }
                 // Für Dot-Aliase (z.B. type.typeId) versucht SourceColumn ggf. das volle Alias – fallback: letztes Segment gegen Tabellenspalten
