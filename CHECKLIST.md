@@ -46,6 +46,14 @@ Status-Legende:
 - [x] Debug Logging für nested-json Gruppen entfernt (nur temporär für Verifikation genutzt)
 - [x] Kompatibilitätsentscheidung: Kein Feature Toggle für verschachtelte Records – immer aktiv (Dokumentation ergänzen)
 
+### Aktualisierung 25.10.2025
+
+- [x] CTE → Top-Level JSON Typweitergabe (z. B. WCalculation in invoice.CalculationFindAsJson)
+- [x] Dotted Scalar Subquery als skalar erkannt (z. B. invoice.invoiceId, kein ReturnsJson)
+- [x] ScalarSubquery Typisierung erweitert (AST-basiert, ohne Namensheuristik): - Einzelnes Select-Element wird vollständig analysiert; erkannter Typ wird übernommen - Aggregatfunktionen in ScalarSubquery: COUNT → int, COUNT_BIG → bigint, AVG → decimal(18,2), EXISTS → bit, SUM → decimal(18,2)
+- [~] Berechnete Felder (arithmetische Ausdrücke) weiter präzisieren (AST-basiert). Noch offen für komplexe mehrstufige Ausdrücke in WCalculation (Net/Success/Gross)
+  Die typischen Betrag/Quota‑Berechnungen (Net/Success/Gross) stammen in dieser Prozedur aus mehrstufigen Ausdrücken (IIF, Fensterfunktionen, Kombinationen). Ich kann die AST‑Typableitung noch enger fassen (z. B. arithmetische Kombinationen aus int/decimal konsequent zu decimal(18,2)), rein aus den erkannten Operatoren – ebenfalls ohne Heuristik. Soll ich das für WCalculation konsistent ergänzen?
+
 ### Debug Phase (Aggregat & JSON Typisierung Erweiterungen 23.10.2025)
 
 - Erweiterte Aggregat-Typinferenz (AST-basiert): - SUM über 0/1 bedingte Ausdrücke → int - COUNT → int, COUNT_BIG → bigint - AVG → decimal(18,2) - EXISTS → bit - SUM ansonsten Fallback decimal(18,2|18,4) abhängig von Literal-Erkennung (Integer vs. Decimal)
@@ -705,6 +713,8 @@ Status-Legende: [>] deferred (v5 Ziel) – Querverweis auf README / Roadmap Absc
 - [ ] Env Fallback Flag Planung (`SPOCR_JSON_REGEX_FALLBACK`): Entscheidung: SPOCR_JSON_REGEX_FALLBACK nicht verwenden, reines AST-Parsing.
 - [ ] `Ignored 3 Schemas [ai, ai-journal, dbo]` Log ganz entfernen (generell noch mal logs optimieren)
 - [ ] `debug\.spocr\schema\index.json`: FunctionsVersion überdenken / entfernen
+- [ ] Schema normalisieren: bit braucht keine MaxLength, int auch nicht, weitere Typen prüfen
+- [ ] wenn der --procedure Filter gesetzt ist, dürfen andere Prozeduren am Ende nicht gelöscht werden.
 
 ### 0. AST-basierte Typ-Inferenz Verbesserungen (P1 - Kritisch)
 
