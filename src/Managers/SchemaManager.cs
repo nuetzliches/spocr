@@ -54,20 +54,68 @@ public class SchemaManager(
         // Ensure AST parser can resolve table column types for CTE type propagation into nested JSON
         if (StoredProcedureContentModel.ResolveTableColumnType == null)
         {
+            // Prefer snapshot metadata (expanded) over live DB calls. Tables/Views/UDTTs/UDTs are loaded before procedures.
+            var tableMeta = new SpocR.SpocRVNext.Metadata.TableMetadataProvider(Utils.DirectoryUtils.GetWorkingDirectory());
+            var tableIndex = tableMeta.GetAll()?.GroupBy(t => t.Schema + "." + t.Name, StringComparer.OrdinalIgnoreCase)
+                                      .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase) ?? new Dictionary<string, SpocR.SpocRVNext.Metadata.TableInfo>(StringComparer.OrdinalIgnoreCase);
+
             StoredProcedureContentModel.ResolveTableColumnType = (schema, table, column) =>
             {
                 try
                 {
-                    var cols = dbContext.TableColumnsListAsync(schema, table, cancellationToken).GetAwaiter().GetResult();
-                    var match = cols?.FirstOrDefault(c => c.Name.Equals(column, StringComparison.OrdinalIgnoreCase));
-                    if (match != null)
+                    if (string.IsNullOrWhiteSpace(schema) || string.IsNullOrWhiteSpace(table) || string.IsNullOrWhiteSpace(column))
+                        return (string.Empty, null, null);
+                    var key = schema + "." + table;
+                    if (tableIndex.TryGetValue(key, out var ti))
                     {
-                        return (match.SqlTypeName, match.MaxLength, match.IsNullable);
+                        var col = ti.Columns?.FirstOrDefault(c => c.Name.Equals(column, StringComparison.OrdinalIgnoreCase));
+                        if (col != null && !string.IsNullOrWhiteSpace(col.SqlType))
+                        {
+                            return (col.SqlType, col.MaxLength, col.IsNullable);
+                        }
                     }
                 }
                 catch { }
                 return (string.Empty, null, null);
             };
+        }
+
+        // Provide UDT resolver from expanded snapshot (UserDefinedTypes)
+        if (StoredProcedureContentModel.ResolveUserDefinedType == null)
+        {
+            try
+            {
+                var expanded = expandedSnapshotService.LoadExpanded();
+                var udtMap = new Dictionary<string, Services.SnapshotUserDefinedType>(StringComparer.OrdinalIgnoreCase);
+                foreach (var u in expanded?.UserDefinedTypes ?? new List<Services.SnapshotUserDefinedType>())
+                {
+                    if (!string.IsNullOrWhiteSpace(u?.Schema) && !string.IsNullOrWhiteSpace(u?.Name))
+                    {
+                        udtMap[$"{u.Schema}.{u.Name}"] = u;
+                        udtMap[u.Name] = u; // allow name-only match for common UDT schemas
+                    }
+                }
+                StoredProcedureContentModel.ResolveUserDefinedType = (schema, name) =>
+                {
+                    try
+                    {
+                        if (string.IsNullOrWhiteSpace(name)) return (string.Empty, null, null, null, null);
+                        var key1 = schema + "." + name;
+                        if (udtMap.TryGetValue(key1, out var udt) || udtMap.TryGetValue(name, out udt))
+                        {
+                            var baseType = udt.BaseSqlTypeName;
+                            int? maxLen = udt.MaxLength;
+                            int? prec = udt.Precision;
+                            int? scale = udt.Scale;
+                            bool? isNull = udt.IsNullable;
+                            return (baseType, maxLen, prec, scale, isNull);
+                        }
+                    }
+                    catch { }
+                    return (string.Empty, null, null, null, null);
+                };
+            }
+            catch { }
         }
 
         var dbSchemas = await dbContext.SchemaListAsync(cancellationToken);

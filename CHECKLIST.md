@@ -834,13 +834,15 @@ Status-Legende: [>] deferred (v5 Ziel) – Querverweis auf README / Roadmap Absc
 - goal: Snapshot-Building nach `src/SpocRVNext` verlegen; modulare, performante Pipeline (Collect/Analyze/Write)
 - acceptance:
   - Orchestrator in `SpocRVNext/SnapshotBuilder` (saubere Trennung Collectors/Analyzers/Writers/Cache)
-  - Expanded Snapshot kompatibel (procedures/*.json, tabletypes/*.json, index.json)
+  - Expanded Snapshot kompatibel (procedures/_.json, tabletypes/_.json, index.json)
   - Pro-Prozedur Cache-Policy (ModifyDate + Content-Hash), Wildcards, per-proc Re-Parse
   - Streaming JSON Writer (Utf8JsonWriter); schreiben nur bei Content-Änderung (Hash)
   - Bounded Parallelism für Parsing/Schreiben; Shared Table-Metadata Cache
   - Performance-Baseline + Messzahlen dokumentiert
 - depends: [E004, E007]
 - tasks:
+  - [ ] spocr.json wird hier nicht mehr verwendet; nur .env / ENV Config
+  - [ ] Keine Abhängigkeiten außerhalb von SpocRVNext schaffen
   - [ ] Skeleton: `SnapshotBuildOrchestrator`, `Collectors/*`, `Analyzers/*`, `Writers/*`, `Cache/*`, `Diagnostics/*`
   - [ ] ProcedureCollector: DB-Enumeration + Filter (Wildcard) + per-proc Cache-Entscheid
   - [ ] ProcedureAnalyzer: `StoredProcedureContentModel.Parse` + JSON/CTE-Postprocessing
