@@ -134,9 +134,10 @@ public sealed class JsonResultTypeEnricher
                         UserTypeName = col.UserTypeName
                     };
                 }
-                else if (verbose && level == JsonTypeLogLevel.Detailed && !hasConcrete)
+                else if (!hasConcrete)
                 {
-                    _console.Verbose($"[json-type-miss] {sp.SchemaName}.{sp.Name} {col.Name} source={col.SourceSchema}.{col.SourceTable}.{col.SourceColumn} no-column-match");
+                    // Always warn when a type could not be determined for a JSON column (visibility independent of verbosity)
+                    _console.Warn($"[json-type-miss] {sp.SchemaName}.{sp.Name} {col.Name} source={col.SourceSchema}.{col.SourceTable}.{col.SourceColumn} no-column-match");
                 }
             }
             // Targeted fallback resolution for initiationId when binding failed but siblings hint at a single source table containing InitiationId

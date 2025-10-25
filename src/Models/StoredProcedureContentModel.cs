@@ -94,13 +94,13 @@ public class StoredProcedureContentModel
         fragment.Accept(visitor);
 
         // Filter CTE ResultSets and capture their column types for nested JSON propagation
-        Console.WriteLine($"[cte-filter] Before filtering: {analysis.JsonSets.Count} ResultSets");
+        if (ShouldDiag()) Console.WriteLine($"[cte-filter] Before filtering: {analysis.JsonSets.Count} ResultSets");
 
         // If we have 2 ResultSets, the second one should be the CTE with proper type information
         if (analysis.JsonSets.Count == 2)
         {
             var cteResultSet = analysis.JsonSets[1];
-            Console.WriteLine($"[cte-filter] Processing CTE ResultSet with {cteResultSet.Columns.Count} columns");
+            if (ShouldDiag()) Console.WriteLine($"[cte-filter] Processing CTE ResultSet with {cteResultSet.Columns.Count} columns");
 
             // Capture CTE column types and map them to nested JSON column names
             foreach (var column in cteResultSet.Columns)
@@ -117,14 +117,14 @@ public class StoredProcedureContentModel
                             MaxLength = column.MaxLength,
                             IsNullable = column.IsNullable
                         });
-                        Console.WriteLine($"[cte-filter] Captured {column.Name} -> {mappedName}: {column.SqlTypeName}, MaxLength={column.MaxLength}, IsNullable={column.IsNullable}");
+                        if (ShouldDiag()) Console.WriteLine($"[cte-filter] Captured {column.Name} -> {mappedName}: {column.SqlTypeName}, MaxLength={column.MaxLength}, IsNullable={column.IsNullable}");
                     }
                 }
             }
 
             // Remove the CTE ResultSet to maintain single ResultSet behavior
             analysis.JsonSets.RemoveAt(1);
-            Console.WriteLine($"[cte-filter] Removed CTE ResultSet, back to {analysis.JsonSets.Count} ResultSets");
+            if (ShouldDiag()) Console.WriteLine($"[cte-filter] Removed CTE ResultSet, back to {analysis.JsonSets.Count} ResultSets");
         }
 
         // Post-process: Apply CTE type propagation to nested JSON columns
@@ -148,7 +148,7 @@ public class StoredProcedureContentModel
         {
             try
             {
-                Console.WriteLine($"[json-ast-summary] colRefTotal={analysis.ColumnRefTotal} bound={analysis.ColumnRefBound} ambiguous={analysis.ColumnRefAmbiguous} inferred={analysis.ColumnRefInferred} aggregates={analysis.AggregateCount} nestedJson={analysis.NestedJsonCount}");
+                if (ShouldDiagJsonAst()) Console.WriteLine($"[json-ast-summary] colRefTotal={analysis.ColumnRefTotal} bound={analysis.ColumnRefBound} ambiguous={analysis.ColumnRefAmbiguous} inferred={analysis.ColumnRefInferred} aggregates={analysis.AggregateCount} nestedJson={analysis.NestedJsonCount}");
             }
             catch { }
         }
@@ -428,6 +428,8 @@ public class StoredProcedureContentModel
     // Gating für JSON-AST-Diagnoseausgaben: Aktiv bei SPOCR_LOG_LEVEL=debug|trace oder separater Flag SPOCR_JSON_AST_DIAG=true.
     private static bool ShouldDiagJsonAst()
     {
+        // Also honor --verbose via SetAstVerbose
+        if (_astVerboseEnabled) return true;
         try
         {
             var lvl = Environment.GetEnvironmentVariable("SPOCR_LOG_LEVEL")?.Trim().ToLowerInvariant();
@@ -577,7 +579,7 @@ public class StoredProcedureContentModel
         {
             try
             {
-                Console.WriteLine($"[qs-debug] ExplicitVisit QuerySpecification - CTE count: {_cteQuerySpecifications.Count}, checking if this is CTE: {_cteQuerySpecifications.Contains(node)}");
+                if (ShouldDiag()) Console.WriteLine($"[qs-debug] ExplicitVisit QuerySpecification - CTE count: {_cteQuerySpecifications.Count}, checking if this is CTE: {_cteQuerySpecifications.Contains(node)}");
 
                 // For now, let all QuerySpecifications be processed normally - we'll filter CTE ResultSets at the end
                 // This allows CTE columns to be properly typed through normal processing
@@ -727,7 +729,7 @@ public class StoredProcedureContentModel
                                 if (iveInit.Identifier != null) initialName = iveInit.Identifier.Value;
                                 else if (iveInit.ValueExpression is StringLiteral slInit && !string.IsNullOrWhiteSpace(slInit.Value)) initialName = slInit.Value;
                             }
-                            Console.WriteLine($"[json-ast-select-elem-enter] startOffset={sce.StartOffset} len={sce.FragmentLength} initialName={initialName} exprType={sce.Expression?.GetType().Name}");
+                            if (ShouldDiagJsonAst()) Console.WriteLine($"[json-ast-select-elem-enter] startOffset={sce.StartOffset} len={sce.FragmentLength} initialName={initialName} exprType={sce.Expression?.GetType().Name}");
                         }
                         catch { }
                     }
@@ -959,7 +961,7 @@ public class StoredProcedureContentModel
                                     ConsoleWriteDerived(alias, columnMap, isCte: true);
 
                                     // Capture CTE column types for later nested JSON propagation
-                                    Console.WriteLine($"[cte-type-capture] Processing CTE '{alias}' with {derivedCols.Count} columns");
+                                    if (ShouldDiag()) Console.WriteLine($"[cte-type-capture] Processing CTE '{alias}' with {derivedCols.Count} columns");
                                     foreach (var col in derivedCols)
                                     {
                                         if (!string.IsNullOrEmpty(col.Name) && !string.IsNullOrEmpty(col.SqlTypeName))
@@ -971,11 +973,11 @@ public class StoredProcedureContentModel
                                                 MaxLength = col.MaxLength,
                                                 IsNullable = col.IsNullable
                                             };
-                                            Console.WriteLine($"[cte-type-capture-early] Captured {col.Name}: {col.SqlTypeName}, MaxLength={col.MaxLength}, IsNullable={col.IsNullable}");
+                                            if (ShouldDiag()) Console.WriteLine($"[cte-type-capture-early] Captured {col.Name}: {col.SqlTypeName}, MaxLength={col.MaxLength}, IsNullable={col.IsNullable}");
                                         }
                                         else
                                         {
-                                            Console.WriteLine($"[cte-type-capture-early] Skipping {col.Name}: missing type info (SqlTypeName='{col.SqlTypeName}')");
+                                            if (ShouldDiag()) Console.WriteLine($"[cte-type-capture-early] Skipping {col.Name}: missing type info (SqlTypeName='{col.SqlTypeName}')");
                                         }
                                     }
                                 }
@@ -1097,8 +1099,21 @@ public class StoredProcedureContentModel
                     if (castCall.DataType?.Name?.Identifiers?.Count > 0)
                     {
                         var typeName = string.Join('.', castCall.DataType.Name.Identifiers.Select(i => i.Value));
-                        if (!string.IsNullOrWhiteSpace(typeName)) target.CastTargetType = typeName;
+                        if (!string.IsNullOrWhiteSpace(typeName))
+                        {
+                            typeName = typeName.ToLowerInvariant();
+                            target.CastTargetType = typeName;
+                            if (string.IsNullOrWhiteSpace(target.SqlTypeName)) target.SqlTypeName = typeName;
+                        }
                         TryExtractTypeParameters(castCall.DataType, target);
+                        if (string.Equals(target.CastTargetType, "bit", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (!target.MaxLength.HasValue) target.MaxLength = 1;
+                        }
+                        else if (target.CastTargetLength.HasValue && (target.CastTargetType?.Contains("char", StringComparison.OrdinalIgnoreCase) == true || target.CastTargetType?.Contains("binary", StringComparison.OrdinalIgnoreCase) == true))
+                        {
+                            if (!target.MaxLength.HasValue) target.MaxLength = target.CastTargetLength;
+                        }
                     }
                     AnalyzeScalarExpression(castCall.Parameter, target, state);
                     break;
@@ -1107,8 +1122,21 @@ public class StoredProcedureContentModel
                     if (convertCall.DataType?.Name?.Identifiers?.Count > 0)
                     {
                         var typeName = string.Join('.', convertCall.DataType.Name.Identifiers.Select(i => i.Value));
-                        if (!string.IsNullOrWhiteSpace(typeName)) target.CastTargetType = typeName;
+                        if (!string.IsNullOrWhiteSpace(typeName))
+                        {
+                            typeName = typeName.ToLowerInvariant();
+                            target.CastTargetType = typeName;
+                            if (string.IsNullOrWhiteSpace(target.SqlTypeName)) target.SqlTypeName = typeName;
+                        }
                         TryExtractTypeParameters(convertCall.DataType, target);
+                        if (string.Equals(target.CastTargetType, "bit", StringComparison.OrdinalIgnoreCase))
+                        {
+                            if (!target.MaxLength.HasValue) target.MaxLength = 1;
+                        }
+                        else if (target.CastTargetLength.HasValue && (target.CastTargetType?.Contains("char", StringComparison.OrdinalIgnoreCase) == true || target.CastTargetType?.Contains("binary", StringComparison.OrdinalIgnoreCase) == true))
+                        {
+                            if (!target.MaxLength.HasValue) target.MaxLength = target.CastTargetLength;
+                        }
                     }
                     foreach (var p in new[] { convertCall.Parameter, convertCall.Style }) AnalyzeScalarExpression(p, target, state);
                     break;
@@ -2599,9 +2627,37 @@ public class StoredProcedureContentModel
                     // RawExpression population for derived expressions delegated to caller (not needed here)
                     break;
                 case CastCall castCall:
+                    // Mirror non-derived handling: mark as Cast and capture target type
+                    target.ExpressionKind = ResultColumnExpressionKind.Cast;
+                    if (castCall.DataType?.Name?.Identifiers?.Count > 0)
+                    {
+                        var typeName = string.Join('.', castCall.DataType.Name.Identifiers.Select(i => i.Value));
+                        if (!string.IsNullOrWhiteSpace(typeName)) typeName = typeName.ToLowerInvariant();
+                        if (!string.IsNullOrWhiteSpace(typeName))
+                        {
+                            target.CastTargetType = typeName;
+                            // For CTE/derived columns, assign SqlTypeName eagerly to enable early CTE type capture
+                            if (string.IsNullOrWhiteSpace(target.SqlTypeName)) target.SqlTypeName = typeName;
+                            if (string.Equals(typeName, "bit", StringComparison.OrdinalIgnoreCase) && !target.MaxLength.HasValue) target.MaxLength = 1;
+                        }
+                        TryExtractTypeParameters(castCall.DataType, target);
+                    }
                     AnalyzeScalarExpressionDerived(castCall.Parameter, target, state, localAliases, localTableSources);
                     break;
                 case ConvertCall convertCall:
+                    target.ExpressionKind = ResultColumnExpressionKind.Cast;
+                    if (convertCall.DataType?.Name?.Identifiers?.Count > 0)
+                    {
+                        var typeName = string.Join('.', convertCall.DataType.Name.Identifiers.Select(i => i.Value));
+                        if (!string.IsNullOrWhiteSpace(typeName)) typeName = typeName.ToLowerInvariant();
+                        if (!string.IsNullOrWhiteSpace(typeName))
+                        {
+                            target.CastTargetType = typeName;
+                            if (string.IsNullOrWhiteSpace(target.SqlTypeName)) target.SqlTypeName = typeName;
+                            if (string.Equals(typeName, "bit", StringComparison.OrdinalIgnoreCase) && !target.MaxLength.HasValue) target.MaxLength = 1;
+                        }
+                        TryExtractTypeParameters(convertCall.DataType, target);
+                    }
                     AnalyzeScalarExpressionDerived(convertCall.Parameter, target, state, localAliases, localTableSources);
                     AnalyzeScalarExpressionDerived(convertCall.Style, target, state, localAliases, localTableSources);
                     break;
@@ -3138,7 +3194,7 @@ public class StoredProcedureContentModel
         {
             if (!_astVerboseEnabled) return;
             if (string.IsNullOrWhiteSpace(col?.SourceSchema) || string.IsNullOrWhiteSpace(col.SourceTable) || string.IsNullOrWhiteSpace(col.SourceColumn)) return;
-            try { Console.WriteLine($"[json-ast-bind] {col.SourceSchema}.{col.SourceTable}.{col.SourceColumn} -> {col.Name} ({reason})"); } catch { }
+            if (ShouldDiagJsonAst()) { try { Console.WriteLine($"[json-ast-bind] {col.SourceSchema}.{col.SourceTable}.{col.SourceColumn} -> {col.Name} ({reason})"); } catch { } }
         }
         private static void ConsoleWriteDerived(string alias, Dictionary<string, (string Schema, string Table, string Column, bool Ambiguous)> map, bool isCte)
         {
@@ -3150,7 +3206,7 @@ public class StoredProcedureContentModel
                     if (string.IsNullOrWhiteSpace(kv.Value.Schema)) continue;
                     var kind = isCte ? "cte" : "derived";
                     var amb = kv.Value.Ambiguous ? " amb" : "";
-                    Console.WriteLine($"[json-ast-derived] {alias}.{kv.Key} => {kv.Value.Schema}.{kv.Value.Table}.{kv.Value.Column}{amb} ({kind})");
+                    if (ShouldDiagJsonAst()) Console.WriteLine($"[json-ast-derived] {alias}.{kv.Key} => {kv.Value.Schema}.{kv.Value.Table}.{kv.Value.Column}{amb} ({kind})");
                 }
             }
             catch { }
@@ -3260,26 +3316,26 @@ public class StoredProcedureContentModel
         {
             try
             {
-                Console.WriteLine($"[cte-nested-json-type] enter col={nestedCol?.Name} schema={schema} fname={fname}");
+                if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] enter col={nestedCol?.Name} schema={schema} fname={fname}");
 
                 // Strategy 1: Try to find column type from captured CTE types (AST-based)
                 if (!string.IsNullOrEmpty(nestedCol.Name) && _cteColumnTypes.TryGetValue(nestedCol.Name, out var cteColumn))
                 {
-                    Console.WriteLine($"[cte-nested-json-type] Found CTE column {nestedCol.Name}: {cteColumn.SqlTypeName}, MaxLength={cteColumn.MaxLength}, IsNullable={cteColumn.IsNullable}");
+                    if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] Found CTE column {nestedCol.Name}: {cteColumn.SqlTypeName}, MaxLength={cteColumn.MaxLength}, IsNullable={cteColumn.IsNullable}");
 
                     // Propagate type information from captured CTE column
                     nestedCol.SqlTypeName = cteColumn.SqlTypeName;
                     nestedCol.MaxLength = cteColumn.MaxLength;
                     nestedCol.IsNullable = cteColumn.IsNullable;
 
-                    Console.WriteLine($"[cte-nested-json-type] Applied CTE type to {nestedCol.Name}: {nestedCol.SqlTypeName}, MaxLength={nestedCol.MaxLength}, IsNullable={nestedCol.IsNullable}");
+                    if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] Applied CTE type to {nestedCol.Name}: {nestedCol.SqlTypeName}, MaxLength={nestedCol.MaxLength}, IsNullable={nestedCol.IsNullable}");
                     return;
                 }
 
-                Console.WriteLine($"[cte-nested-json-type] Column {nestedCol.Name} not found in captured CTE types. CTE types count: {_cteColumnTypes.Count}");
+                if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] Column {nestedCol.Name} not found in captured CTE types. CTE types count: {_cteColumnTypes.Count}");
                 foreach (var cteType in _cteColumnTypes)
                 {
-                    Console.WriteLine($"[cte-nested-json-type] Available CTE type: {cteType.Key} -> {cteType.Value.SqlTypeName}");
+                    if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] Available CTE type: {cteType.Key} -> {cteType.Value.SqlTypeName}");
                 }
 
                 // Strategy 2: Try to find any CTE (derived table) that has a column with this name
@@ -3291,14 +3347,14 @@ public class StoredProcedureContentModel
                     var sourceCol = derivedCols.FirstOrDefault(c => c.Name?.Equals(nestedCol.Name, StringComparison.OrdinalIgnoreCase) == true);
                     if (sourceCol != null && !string.IsNullOrWhiteSpace(sourceCol.SqlTypeName))
                     {
-                        Console.WriteLine($"[cte-nested-json-type] found match col={nestedCol.Name} in derivedAlias={derivedAlias} sqlType={sourceCol.SqlTypeName}");
+                        if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] found match col={nestedCol.Name} in derivedAlias={derivedAlias} sqlType={sourceCol.SqlTypeName}");
 
                         // Propagate type information from CTE column to nested JSON column
                         nestedCol.SqlTypeName = sourceCol.SqlTypeName;
                         nestedCol.MaxLength = sourceCol.MaxLength;
                         nestedCol.IsNullable = sourceCol.IsNullable;
 
-                        Console.WriteLine($"[cte-nested-json-type] propagated to col={nestedCol.Name} sqlType={nestedCol.SqlTypeName} maxLen={nestedCol.MaxLength} nullable={nestedCol.IsNullable}");
+                        if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] propagated to col={nestedCol.Name} sqlType={nestedCol.SqlTypeName} maxLen={nestedCol.MaxLength} nullable={nestedCol.IsNullable}");
                         return; // Success, exit early
                     }
                 }
@@ -3306,14 +3362,14 @@ public class StoredProcedureContentModel
                 // AST-based resolution needed - no heuristics per CHECKLIST.md requirements
                 if (string.IsNullOrWhiteSpace(nestedCol.SqlTypeName))
                 {
-                    Console.WriteLine($"[cte-nested-json-type] AST-based resolution needed for column: {nestedCol.Name}");
+                    if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] AST-based resolution needed for column: {nestedCol.Name}");
                 }
 
-                Console.WriteLine($"[cte-nested-json-type] final result col={nestedCol?.Name} sqlType={nestedCol?.SqlTypeName} maxLen={nestedCol?.MaxLength} isNull={nestedCol?.IsNullable}");
+                if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] final result col={nestedCol?.Name} sqlType={nestedCol?.SqlTypeName} maxLen={nestedCol?.MaxLength} isNull={nestedCol?.IsNullable}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[cte-nested-json-type] error: {ex.Message}");
+                if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] error: {ex.Message}");
             }
         }
 
@@ -3353,12 +3409,12 @@ public class StoredProcedureContentModel
                     {
                         if (string.IsNullOrWhiteSpace(nestedCol.SqlTypeName))
                         {
-                            Console.WriteLine($"[cte-nested-json-post] applying CTE type propagation to nested column: {nestedCol.Name}");
+                            if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-post] applying CTE type propagation to nested column: {nestedCol.Name}");
                             TryApplyCteTypePropagationToNestedJson(nestedCol, null, null);
                         }
                         else
                         {
-                            Console.WriteLine($"[cte-nested-json-post] skipping nested column {nestedCol.Name} - already has type: {nestedCol.SqlTypeName}");
+                            if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-post] skipping nested column {nestedCol.Name} - already has type: {nestedCol.SqlTypeName}");
                         }
                     }
 
@@ -3515,6 +3571,7 @@ public class StoredProcedureContentModel
 
     internal static bool ShouldDiag()
     {
+        if (_astVerboseEnabled) return true;
         var lvl = Environment.GetEnvironmentVariable("SPOCR_LOG_LEVEL");
         return lvl != null && (lvl.Equals("debug", StringComparison.OrdinalIgnoreCase) || lvl.Equals("trace", StringComparison.OrdinalIgnoreCase));
     }

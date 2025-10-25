@@ -703,6 +703,7 @@ Status-Legende: [>] deferred (v5 Ziel) – Querverweis auf README / Roadmap Absc
 - [ ] Dokumentation Abschnitt "JSON AST Parsing & Fallback" (FOR JSON PATH Erkennung, synthetic ResultSet, WITHOUT_ARRAY_WRAPPER Behandlung, Strict Mode Verhalten)
 - [ ] JSON Metrics Aggregation: Anzahl JSON ResultSets, Fallback-Hits, unresolved-json-column Stats, Aggregat-Verteilung (pro Pull Summary + optional Write in debug/)
 - [ ] Env Fallback Flag Planung (`SPOCR_JSON_REGEX_FALLBACK`): Entscheidung: SPOCR_JSON_REGEX_FALLBACK nicht verwenden, reines AST-Parsing.
+- [ ] `Ignored 3 Schemas [ai, ai-journal, dbo]` Log ganz entfernen (generell noch mal logs optimieren)
 
 ### 0. AST-basierte Typ-Inferenz Verbesserungen (P1 - Kritisch)
 
@@ -818,3 +819,33 @@ Status-Legende: [>] deferred (v5 Ziel) – Querverweis auf README / Roadmap Absc
 ---
 
 **Tracking:** Erfolg bei 33 JSON `rowVersion` Korrekturen zeigt Mapping-Layer funktional. Hauptfokus jetzt: Tests ausbauen, Sample stabilisieren, RC-Dokumentation.
+
+## Nachtrag 25.10.2025 (Snapshot & Cache)
+
+- [x] Per-Prozedur Re-Parse bei `--procedure` (Cache nur für gefilterte Prozeduren deaktiviert)
+- [x] Wildcard-Unterstützung für `--procedure` (Schema.Name mit `*`/`?`)
+- [x] Immer Warnung bei nicht ermittelten JSON-Spaltentypen (`[json-type-miss]`)
+- [x] Debug-Logs konsolidiert hinter `--verbose`/Gates (qs-debug/cte/ast)
+- [x] CTE Nested-JSON Typ-Propagation fix für `identity.RoleClaimListAsJson` (claims: claimId/value/displayName/isChecked)
+
+## EPIC-E015 Snapshot Builder vNext (P1)
+
+- id: E015
+- goal: Snapshot-Building nach `src/SpocRVNext` verlegen; modulare, performante Pipeline (Collect/Analyze/Write)
+- acceptance:
+  - Orchestrator in `SpocRVNext/SnapshotBuilder` (saubere Trennung Collectors/Analyzers/Writers/Cache)
+  - Expanded Snapshot kompatibel (procedures/*.json, tabletypes/*.json, index.json)
+  - Pro-Prozedur Cache-Policy (ModifyDate + Content-Hash), Wildcards, per-proc Re-Parse
+  - Streaming JSON Writer (Utf8JsonWriter); schreiben nur bei Content-Änderung (Hash)
+  - Bounded Parallelism für Parsing/Schreiben; Shared Table-Metadata Cache
+  - Performance-Baseline + Messzahlen dokumentiert
+- depends: [E004, E007]
+- tasks:
+  - [ ] Skeleton: `SnapshotBuildOrchestrator`, `Collectors/*`, `Analyzers/*`, `Writers/*`, `Cache/*`, `Diagnostics/*`
+  - [ ] ProcedureCollector: DB-Enumeration + Filter (Wildcard) + per-proc Cache-Entscheid
+  - [ ] ProcedureAnalyzer: `StoredProcedureContentModel.Parse` + JSON/CTE-Postprocessing
+  - [ ] Writer: ExpandedSnapshotWriter (streaming) + IndexWriter
+  - [ ] Cache: SnapshotCache (Hashes), Policy (global/per-proc)
+  - [ ] Parallelisierung: konfigurierbare MaxDegreeOfParallelism
+  - [ ] Optimierung: Table-Metadata Lookup Cache (Laufzeit)
+  - [ ] Telemetrie: Laufzeiten, Resolved/Upgrades, Bytes geschrieben

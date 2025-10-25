@@ -51,6 +51,25 @@ public class SchemaManager(
     // These prefixes allow downstream log consumers to filter transformation phases precisely.
     public async Task<List<SchemaModel>> ListAsync(ConfigurationModel config, bool noCache = false, CancellationToken cancellationToken = default)
     {
+        // Ensure AST parser can resolve table column types for CTE type propagation into nested JSON
+        if (StoredProcedureContentModel.ResolveTableColumnType == null)
+        {
+            StoredProcedureContentModel.ResolveTableColumnType = (schema, table, column) =>
+            {
+                try
+                {
+                    var cols = dbContext.TableColumnsListAsync(schema, table, cancellationToken).GetAwaiter().GetResult();
+                    var match = cols?.FirstOrDefault(c => c.Name.Equals(column, StringComparison.OrdinalIgnoreCase));
+                    if (match != null)
+                    {
+                        return (match.SqlTypeName, match.MaxLength, match.IsNullable);
+                    }
+                }
+                catch { }
+                return (string.Empty, null, null);
+            };
+        }
+
         var dbSchemas = await dbContext.SchemaListAsync(cancellationToken);
         if (dbSchemas == null)
         {
@@ -278,18 +297,45 @@ public class SchemaManager(
 
         // Apply --procedure flag filtering for schema snapshots (pull command only)
         var buildProcedures = Environment.GetEnvironmentVariable("SPOCR_BUILD_PROCEDURES");
+        bool hasProcedureFilter = false;
+        HashSet<string> procedureFilterExact = null;
+        System.Collections.Generic.List<System.Text.RegularExpressions.Regex> procedureFilterWildcard = null;
         if (!string.IsNullOrWhiteSpace(buildProcedures))
         {
-            var buildSet = new HashSet<string>(
-                buildProcedures.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
-                    .Select(p => p.Trim())
-                    .Where(p => !string.IsNullOrEmpty(p)),
-                StringComparer.OrdinalIgnoreCase);
+            var tokens = buildProcedures.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                                        .Select(p => p.Trim())
+                                        .Where(p => !string.IsNullOrEmpty(p))
+                                        .ToList();
 
-            if (buildSet.Count > 0)
+            procedureFilterExact = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            procedureFilterWildcard = new System.Collections.Generic.List<System.Text.RegularExpressions.Regex>();
+            foreach (var t in tokens)
+            {
+                if (t.Contains('*') || t.Contains('?'))
+                {
+                    // Convert wildcard to Regex: escape, then replace \* -> .*, \? -> .
+                    var escaped = System.Text.RegularExpressions.Regex.Escape(t);
+                    var pattern = "^" + escaped.Replace("\\*", ".*").Replace("\\?", ".") + "$";
+                    try { procedureFilterWildcard.Add(new System.Text.RegularExpressions.Regex(pattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.CultureInvariant)); } catch { }
+                }
+                else
+                {
+                    procedureFilterExact.Add(t);
+                }
+            }
+
+            hasProcedureFilter = (procedureFilterExact.Count + procedureFilterWildcard.Count) > 0;
+            if (hasProcedureFilter)
             {
                 var beforeCount = storedProcedures.Count;
-                storedProcedures = storedProcedures.Where(sp => buildSet.Contains($"{sp.SchemaName}.{sp.Name}"))?.ToList();
+                bool Matches(string fq)
+                {
+                    if (procedureFilterExact.Contains(fq)) return true;
+                    if (procedureFilterWildcard.Count == 0) return false;
+                    foreach (var rx in procedureFilterWildcard) { if (rx.IsMatch(fq)) return true; }
+                    return false;
+                }
+                storedProcedures = storedProcedures.Where(sp => Matches($"{sp.SchemaName}.{sp.Name}"))?.ToList();
                 var kept = storedProcedures.Count;
                 if (kept != beforeCount)
                 {
@@ -304,7 +350,7 @@ public class SchemaManager(
         var fingerprint = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(fingerprintRaw))).Substring(0, 16);
 
         var loadStart = DateTime.UtcNow;
-        var disableCache = noCache;
+        var disableCache = noCache; // Global cache toggle; per-procedure forcing handled below
 
         ProcedureCacheSnapshot cache = null;
         if (!disableCache && localCacheService != null)
@@ -392,6 +438,26 @@ public class SchemaManager(
                 var cacheEntry = cache?.Procedures.FirstOrDefault(p => p.Schema == storedProcedure.SchemaName && p.Name == storedProcedure.Name);
                 var previousModifiedTicks = cacheEntry?.ModifiedTicks;
                 var canSkipDetails = !disableCache && previousModifiedTicks.HasValue && previousModifiedTicks.Value == currentModifiedTicks;
+                // Force re-parse for procedures selected via --procedure (per-proc, not global), wildcard-aware
+                if (hasProcedureFilter)
+                {
+                    var fq = $"{storedProcedure.SchemaName}.{storedProcedure.Name}";
+                    bool Matches(string name)
+                    {
+                        if (procedureFilterExact != null && procedureFilterExact.Contains(name)) return true;
+                        if (procedureFilterWildcard != null)
+                        {
+                            foreach (var rx in procedureFilterWildcard) { if (rx.IsMatch(name)) return true; }
+                        }
+                        return false;
+                    }
+                    if (Matches(fq))
+                    {
+                        if (canSkipDetails && jsonTypeLogLevel == JsonTypeLogLevel.Detailed)
+                            consoleService.Verbose($"[cache] Re-parse forced for {fq} due to --procedure flag");
+                        canSkipDetails = false;
+                    }
+                }
                 // Skip decision: previously required snapshot hydration presence; caching test expects skip purely on modify_date stability.
                 // We retain hydration usage when available but do not downgrade skip if absent.
                 if (canSkipDetails && snapshotProcMap != null)
