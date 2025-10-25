@@ -714,7 +714,7 @@ Status-Legende: [>] deferred (v5 Ziel) – Querverweis auf README / Roadmap Absc
 - [ ] `Ignored 3 Schemas [ai, ai-journal, dbo]` Log ganz entfernen (generell noch mal logs optimieren)
 - [ ] `debug\.spocr\schema\index.json`: FunctionsVersion überdenken / entfernen
 - [ ] Schema normalisieren: bit braucht keine MaxLength, int auch nicht, weitere Typen prüfen
-- [ ] wenn der --procedure Filter gesetzt ist, dürfen andere Prozeduren am Ende nicht gelöscht werden.
+- [x] wenn der --procedure Filter gesetzt ist, dürfen andere Prozeduren am Ende nicht gelöscht werden.
 
 ### 0. AST-basierte Typ-Inferenz Verbesserungen (P1 - Kritisch)
 

@@ -70,12 +70,30 @@ internal sealed class TableMetadataProvider : ITableMetadataProvider
                 {
                     foreach (var c in colsEl.EnumerateArray())
                     {
+                        var baseType = (c.GetPropertyOrDefault("SqlTypeName") ?? c.GetPropertyOrDefault("SqlType") ?? string.Empty).Trim();
+                        var baseLower = baseType.ToLowerInvariant();
+                        var maxLen = c.GetPropertyOrDefaultInt("MaxLength");
+                        var prec = c.GetPropertyOrDefaultInt("Precision");
+                        var scale = c.GetPropertyOrDefaultInt("Scale");
+                        string typeString = baseType;
+                        try
+                        {
+                            if (baseLower == "decimal" || baseLower == "numeric")
+                            {
+                                if (prec.HasValue && scale.HasValue) typeString = $"{baseLower}({prec.Value},{scale.Value})";
+                            }
+                            else if (baseLower == "varchar" || baseLower == "nvarchar" || baseLower == "varbinary" || baseLower == "char" || baseLower == "nchar")
+                            {
+                                if (maxLen.HasValue && maxLen.Value > 0) typeString = $"{baseLower}({maxLen.Value})";
+                            }
+                        }
+                        catch { }
                         cols.Add(new ColumnInfo
                         {
                             Name = c.GetPropertyOrDefault("Name") ?? string.Empty,
-                            SqlType = c.GetPropertyOrDefault("SqlTypeName") ?? c.GetPropertyOrDefault("SqlType") ?? string.Empty,
+                            SqlType = typeString,
                             IsNullable = SpocR.SpocRVNext.Metadata.TableMetadataProviderJsonExtensions.GetPropertyOrDefaultBoolStrict(c, "IsNullable"),
-                            MaxLength = c.GetPropertyOrDefaultInt("MaxLength")
+                            MaxLength = maxLen
                         });
                     }
                 }

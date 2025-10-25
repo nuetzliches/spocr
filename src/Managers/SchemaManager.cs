@@ -93,6 +93,12 @@ public class SchemaManager(
                     {
                         udtMap[$"{u.Schema}.{u.Name}"] = u;
                         udtMap[u.Name] = u; // allow name-only match for common UDT schemas
+                        // TODO diese Heuristik muss entfernt werden, geht es allgemein um Sonderzeichen im Namen? Dann nur durch _ ersetzen?
+                        // Also register underscore-prefixed alias to support declarations like [core].[_id]
+                        var underscoreAlias = u.Name.StartsWith("_") ? u.Name : ("_" + u.Name);
+                        if (!udtMap.ContainsKey(underscoreAlias)) udtMap[underscoreAlias] = u;
+                        var fqUnderscore = $"{u.Schema}.{underscoreAlias}";
+                        if (!udtMap.ContainsKey(fqUnderscore)) udtMap[fqUnderscore] = u;
                     }
                 }
                 StoredProcedureContentModel.ResolveUserDefinedType = (schema, name) =>
@@ -108,7 +114,24 @@ public class SchemaManager(
                             int? prec = udt.Precision;
                             int? scale = udt.Scale;
                             bool? isNull = udt.IsNullable;
+                            // Honor underscore variant semantics: NOT NULL
+                            if (!string.IsNullOrWhiteSpace(name) && name.StartsWith("_")) isNull = false;
                             return (baseType, maxLen, prec, scale, isNull);
+                        }
+                        // Fallback: strip leading underscore from UDT name if present (e.g., core._id -> core.id)
+                        if (name.StartsWith("_"))
+                        {
+                            var trimmed = name.TrimStart('_');
+                            var key2 = schema + "." + trimmed;
+                            if (udtMap.TryGetValue(key2, out var udt2) || udtMap.TryGetValue(trimmed, out udt2))
+                            {
+                                var baseType = udt2.BaseSqlTypeName;
+                                int? maxLen = udt2.MaxLength;
+                                int? prec = udt2.Precision;
+                                int? scale = udt2.Scale;
+                                bool? isNull = false; // underscore -> NOT NULL
+                                return (baseType, maxLen, prec, scale, isNull);
+                            }
                         }
                     }
                     catch { }

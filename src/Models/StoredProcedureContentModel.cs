@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -16,15 +16,17 @@ public class StoredProcedureContentModel
     // Global verbosity flag for AST binding diagnostics (bind / derived). Default false; enabled only when manager sets via --verbose.
     private static bool _astVerboseEnabled = false;
     public static void SetAstVerbose(bool enabled) => _astVerboseEnabled = enabled;
-    // Optional externer Resolver fÃ¼r Tabellen-Spalten Typen (AST-only; keine Namensheuristik).
+
+    
+    // Optional externer Resolver f�r Tabellen-Spalten Typen (AST-only; keine Namensheuristik).
     // Signatur: (schema, table, column) -> (sqlTypeName, maxLength, isNullable)
-    // Wenn null oder sqlTypeName leer zurÃ¼ckgegeben wird, erfolgt keine Zuweisung.
+    // Wenn null oder sqlTypeName leer zur�ckgegeben wird, erfolgt keine Zuweisung.
     public static Func<string, string, string, (string SqlTypeName, int? MaxLength, bool? IsNullable)> ResolveTableColumnType { get; set; }
     // JSON-Funktions-Expansion: (schema, functionName) -> (returnsJson, returnsJsonArray, rootProperty, columns[])
-    // columns[] enthÃ¤lt nur Namen (String-Liste); Typen werden nicht inferiert.
+    // columns[] enth�lt nur Namen (String-Liste); Typen werden nicht inferiert.
     public static Func<string, string, (bool ReturnsJson, bool ReturnsJsonArray, string RootProperty, IReadOnlyList<string> ColumnNames)> ResolveFunctionJsonSet { get; set; }
     public static Func<string, string, (string SqlTypeName, int? MaxLength, int? Precision, int? Scale, bool? IsNullable)> ResolveUserDefinedType { get; set; }
-    // Optional externer Resolver für skalare Funktions-Rückgabetypen (AST-only; keine Namensheuristik).
+    // Optional externer Resolver f?r skalare Funktions-R?ckgabetypen (AST-only; keine Namensheuristik).
     // Signatur: (schema, functionName) -> (sqlTypeName, maxLength, isNullable)
     public static Func<string, string, (string SqlTypeName, int? MaxLength, bool? IsNullable)> ResolveScalarFunctionReturnType { get; set; }
 
@@ -50,8 +52,8 @@ public class StoredProcedureContentModel
         if (string.IsNullOrWhiteSpace(definition))
             return new StoredProcedureContentModel { Definition = definition };
 
-        // Normalisierung mehrfacher Semikolons (Parser Toleranz fÃ¼r ";;") ohne Regex-Heuristik.
-        // Ersetzt Runs von ';' (>1) durch genau ein ';'. AnschlieÃŸend sicherstellen, dass am Ende ein Semikolon steht.
+        // Normalisierung mehrfacher Semikolons (Parser Toleranz f�r ";;") ohne Regex-Heuristik.
+        // Ersetzt Runs von ';' (>1) durch genau ein ';'. Anschlie�end sicherstellen, dass am Ende ein Semikolon steht.
         var sbNorm = new StringBuilder(definition.Length);
         int semiRun = 0;
         foreach (var ch in definition)
@@ -73,7 +75,7 @@ public class StoredProcedureContentModel
         using (var reader = new StringReader(normalizedDefinition))
             fragment = Parser.Parse(reader, out parseErrors);
 
-        // Kein heuristischer Fallback mehr: Wenn Parser kein Fragment liefert -> leeres Modell mit Fehlerinfos zurÃ¼ckgeben.
+        // Kein heuristischer Fallback mehr: Wenn Parser kein Fragment liefert -> leeres Modell mit Fehlerinfos zur�ckgeben.
         if (fragment == null)
         {
             return new StoredProcedureContentModel
@@ -142,6 +144,8 @@ public class StoredProcedureContentModel
         // Additionally, if CTE column types were captured with direct name mapping (e.g. NetPercentage -> invoicePercentage.quota),
         // apply by-name propagation to top-level columns with matching names (AST-only, no heuristics)
         visitor.ApplyCteTypePropagationToTopLevelColumnsByName();
+        // Late consolidation: lineage + scoped alias resolution for nested JSON
+        try { visitor.ApplyLineageLateConsolidationToNestedJson(); } catch { }
 
         // Normalize: Flatten accidental single-field JSON containers created by scalar subqueries with dotted aliases (e.g., 'invoice.invoiceId')
         try
@@ -200,13 +204,13 @@ public class StoredProcedureContentModel
                 "claimvalue" => "value",
                 "displayname" => "displayName",
                 "ischecked" => "isChecked",
-                // Explicit mapping for WCalculation → invoicePercentage group
+                // Explicit mapping for WCalculation ? invoicePercentage group
                 "netpercentage" => "invoicePercentage.quota",
                 _ => null
             };
         }
 
-        // Summary-Ausgabe nach vollstÃ¤ndiger Traversierung (immer ausgegeben fÃ¼r Diagnose).
+        // Summary-Ausgabe nach vollst�ndiger Traversierung (immer ausgegeben f�r Diagnose).
         // Zusammenfassungszeile nur bei aktiviertem JSON-AST-Diagnose-Level
         if (ShouldDiagJsonAst())
         {
@@ -266,10 +270,10 @@ public class StoredProcedureContentModel
             }
         }
 
-        // Entfernt: Regex-Heuristik fÃ¼r FOR JSON bei ParseErrors. Nur AST-basierte Erkennung bleibt erhalten.
-        // Global Fallback: Falls AST keine JsonSets erkannt hat, aber das SQL eindeutig ein FOR JSON PATH enthÃ¤lt,
+        // Entfernt: Regex-Heuristik f�r FOR JSON bei ParseErrors. Nur AST-basierte Erkennung bleibt erhalten.
+        // Global Fallback: Falls AST keine JsonSets erkannt hat, aber das SQL eindeutig ein FOR JSON PATH enth�lt,
         // konstruiere ein minimales ResultSet rein aus Textsegmenten. Dieser Fallback ist streng begrenzt und dient
-        // nur dazu einfache FÃ¤lle (Tests) abzudecken, in denen ScriptDom das JsonForClause nicht an das QuerySpecification
+        // nur dazu einfache F�lle (Tests) abzudecken, in denen ScriptDom das JsonForClause nicht an das QuerySpecification
         // knotet. Kein rekursives Parsing, nur Alias-Extraktion.
         if (analysis.JsonSets.Count == 0 && normalizedDefinition.IndexOf("FOR JSON PATH", StringComparison.OrdinalIgnoreCase) >= 0)
         {
@@ -322,7 +326,7 @@ public class StoredProcedureContentModel
                                         col.IsNestedJson = true;
                                         col.ReturnsJson = true;
                                         col.ReturnsJsonArray = meta.ReturnsJsonArray;
-                                        // (legacy SourceFunction* entfernt â€“ Referenz reicht)
+                                        // (legacy SourceFunction* entfernt � Referenz reicht)
                                         col.Columns = meta.ColumnNames.Select(n => new ResultColumn { Name = n }).ToList();
                                     }
                                     break; // Erfolg -> abbrechen
@@ -349,8 +353,7 @@ public class StoredProcedureContentModel
                 {
                     var selectSegment = normalizedDefinition.Substring(selIdx, forIdx - selIdx);
                     // Entferne Zeilenkommentare
-                    selectSegment = string.Join('\n', selectSegment.Split('\n').Select(l => { var ci = l.IndexOf("--", StringComparison.Ordinal); return ci >= 0 ? l.Substring(0, ci) : l; }));
-                    // Pattern erweitert: AS 'alias' | AS identifier | standalone 'alias'
+                    selectSegment = string.Join("\n", selectSegment.Split('\n').Select(l => { var ci = l.IndexOf("--", StringComparison.Ordinal); return ci >= 0 ? l.Substring(0, ci) : l; }));
                     var aliasMatches = System.Text.RegularExpressions.Regex.Matches(selectSegment, @"AS\s+'([^']+)'|AS\s+([A-Za-z_][A-Za-z0-9_]*)|'([^']+)'", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
                     var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                     string LocalNormalizeJsonPath(string value) => string.IsNullOrWhiteSpace(value) ? value : value.Trim().Trim('[', ']', '"', '\'');
@@ -378,7 +381,7 @@ public class StoredProcedureContentModel
                         if (string.IsNullOrWhiteSpace(name) || !seen.Add(name)) continue;
                         cols.Add(new ResultColumn { Name = name });
                     }
-                    // Deferral Markierung fÃ¼r record-Spalte auch ohne Resolver (segmentbasierter Fallback)
+                    // Deferral Markierung f�r record-Spalte auch ohne Resolver (segmentbasierter Fallback)
                     try
                     {
                         var defFlag = Environment.GetEnvironmentVariable("SPOCR_DEFER_JSON_FUNCTION_EXPANSION")?.Trim().ToLowerInvariant();
@@ -397,7 +400,7 @@ public class StoredProcedureContentModel
                         }
                     }
                     catch { }
-                    // Minimal fallback Klassifikation fÃ¼r directionCode IIF(...,'in','out')
+                    // Minimal fallback Klassifikation f�r directionCode IIF(...,'in','out')
                     try
                     {
                         var dirCol = cols.FirstOrDefault(c => c.Name != null && c.Name.Equals("directionCode", StringComparison.OrdinalIgnoreCase));
@@ -405,7 +408,7 @@ public class StoredProcedureContentModel
                         {
                             dirCol.ExpressionKind = ResultColumnExpressionKind.FunctionCall;
                             dirCol.SqlTypeName = "nvarchar";
-                            dirCol.MaxLength = 3; // lÃ¤ngstes Literal 'out'
+                            dirCol.MaxLength = 3; // l�ngstes Literal 'out'
                         }
                     }
                     catch { }
@@ -418,12 +421,12 @@ public class StoredProcedureContentModel
                     Columns = cols,
                     HasSelectStar = false
                 };
-                // Minimal strukturelle Typanreicherung fÃ¼r stark bekannte Muster (keine generische Namens-Heuristik):
+                // Minimal strukturelle Typanreicherung f�r stark bekannte Muster (keine generische Namens-Heuristik):
                 foreach (var c in synthetic.Columns)
                 {
                     if (c.Name != null && c.Name.EndsWith(".rowVersion", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(c.SqlTypeName))
                     {
-                        c.SqlTypeName = "rowversion"; // Stabiler SQL Server Typ fÃ¼r Timestamp/RowVersion
+                        c.SqlTypeName = "rowversion"; // Stabiler SQL Server Typ f�r Timestamp/RowVersion
                     }
                     if (c.Name != null && c.Name.EndsWith(".optionalRef", StringComparison.OrdinalIgnoreCase))
                     {
@@ -440,7 +443,7 @@ public class StoredProcedureContentModel
 
         var resultSets = AttachExecSource(analysis.JsonSets, execs, rawExec, rawKinds, analysis.DefaultSchema);
 
-        // Post-AST minimale Typanreicherung fÃ¼r stark kanonisierte Muster (kein generisches Ratespiel):
+        // Post-AST minimale Typanreicherung f�r stark kanonisierte Muster (kein generisches Ratespiel):
         void EnrichResultColumn(ResultColumn c)
         {
             if (!string.IsNullOrWhiteSpace(c.Name))
@@ -489,7 +492,7 @@ public class StoredProcedureContentModel
         };
     }
 
-    // Gating fÃ¼r JSON-AST-Diagnoseausgaben: Aktiv bei SPOCR_LOG_LEVEL=debug|trace oder separater Flag SPOCR_JSON_AST_DIAG=true.
+    // Gating f�r JSON-AST-Diagnoseausgaben: Aktiv bei SPOCR_LOG_LEVEL=debug|trace oder separater Flag SPOCR_JSON_AST_DIAG=true.
     private static bool ShouldDiagJsonAst()
     {
         // Also honor --verbose via SetAstVerbose
@@ -505,9 +508,9 @@ public class StoredProcedureContentModel
         return false;
     }
 
-    // Entfernt: heuristischer Fallback. (Bewusst beibehaltene Methode gelÃ¶scht fÃ¼r deterministische AST-only Pipeline.)
+    // Entfernt: heuristischer Fallback. (Bewusst beibehaltene Methode gel�scht f�r deterministische AST-only Pipeline.)
 
-    // (Removed) Token Fallback Helpers â€“ not needed after revert
+    // (Removed) Token Fallback Helpers � not needed after revert
 
     // Modelle
     public sealed class ResultSet
@@ -552,21 +555,21 @@ public class StoredProcedureContentModel
         // Removed redundant flag on column level
         public string JsonRootProperty { get; set; }
         public IReadOnlyList<ResultColumn> Columns { get; set; } = Array.Empty<ResultColumn>(); // nested JSON columns (renamed from JsonColumns in v7)
-        // ZusÃ¤tzliche Properties benÃ¶tigt von anderen Komponenten
+        // Zus�tzliche Properties ben�tigt von anderen Komponenten
         public string UserTypeSchemaName { get; set; }
         public string UserTypeName { get; set; }
         public int? MaxLength { get; set; }
         public bool? IsAmbiguous { get; set; }
         // AST-only function call metadata (no heuristics). Populated when ExpressionKind == FunctionCall or JsonQuery.
-        // Entfernt: FunctionSchemaName / FunctionName â€“ Referenzierung erfolgt ausschlieÃŸlich Ã¼ber Reference (Kind=Function)
-        // Erweiterung: Quell-Funktionsinformationen fÃ¼r JSON-Expansion
-        // Entfernt: SourceFunctionSchema / SourceFunctionName â€“ direkte Expansion ersetzt durch Reference / DeferredJsonExpansion
+        // Entfernt: FunctionSchemaName / FunctionName � Referenzierung erfolgt ausschlie�lich �ber Reference (Kind=Function)
+        // Erweiterung: Quell-Funktionsinformationen f�r JSON-Expansion
+        // Entfernt: SourceFunctionSchema / SourceFunctionName � direkte Expansion ersetzt durch Reference / DeferredJsonExpansion
         // Raw scalar expression text extracted from original definition (exact substring). Enables deterministic pattern matching.
         public string RawExpression { get; set; }
-        // Aggregate-Metadaten (Propagation Ã¼ber Derived Tables / Subqueries)
+        // Aggregate-Metadaten (Propagation �ber Derived Tables / Subqueries)
         public bool IsAggregate { get; set; }
         public string AggregateFunction { get; set; }
-        // Neue Referenz fÃ¼r deferred JSON Expansion
+        // Neue Referenz f�r deferred JSON Expansion
         public ColumnReferenceInfo Reference { get; set; }
         public bool? DeferredJsonExpansion { get; set; }
     }
@@ -594,6 +597,8 @@ public class StoredProcedureContentModel
         // Nested JSON result sets produced by scalar subqueries (SELECT ... FOR JSON ...) inside a parent SELECT list.
         // Keyed by the inner QuerySpecification node so we can attach later when analyzing the parent scalar expression.
         public Dictionary<QuerySpecification, ResultSet> NestedJsonSets { get; } = new();
+        // Top-level JSON result sets mapped to their QuerySpecification nodes (when available)
+        public Dictionary<QuerySpecification, ResultSet> TopLevelJsonSets { get; } = new();
         // Diagnose-Metriken
         public int ColumnRefTotal { get; set; }
         public int ColumnRefBound { get; set; }
@@ -611,7 +616,7 @@ public class StoredProcedureContentModel
         private int _procedureDepth;
         private readonly Dictionary<string, (string Schema, string Table)> _tableAliases = new(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> _tableSources = new(StringComparer.OrdinalIgnoreCase); // schema.table canonical
-                                                                                                // FÃ¼r abgeleitete Tabellen / Subselects (QueryDerivedTable, CTE) wird hier eine Alias->Column->Source Map gepflegt.
+                                                                                                // F�r abgeleitete Tabellen / Subselects (QueryDerivedTable, CTE) wird hier eine Alias->Column->Source Map gepflegt.
                                                                                                 // Key: Derived table alias. Value: Dictionary(OutputColumnName -> (Schema, Table, Column, Ambiguous))
         private readonly Dictionary<string, Dictionary<string, (string Schema, string Table, string Column, bool Ambiguous)>> _derivedTableColumnSources = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, List<ResultColumn>> _derivedTableColumns = new(StringComparer.OrdinalIgnoreCase); // Original ResultColumns je Derived Alias
@@ -620,7 +625,7 @@ public class StoredProcedureContentModel
         private readonly Dictionary<string, List<ResultColumn>> _cteDefinitions = new(StringComparer.OrdinalIgnoreCase); // Track CTE alias -> columns for type resolution
         private readonly Dictionary<string, List<ResultColumn>> _tableVariableColumns = new(StringComparer.OrdinalIgnoreCase); // @VarTable -> columns
         private readonly Dictionary<string, string> _tableVariableAliases = new(StringComparer.OrdinalIgnoreCase); // alias -> @VarTable name
-        private readonly Dictionary<string, (string SqlTypeName, int? MaxLength, bool? IsNullable)> _resolvedColumnTypes = new(StringComparer.OrdinalIgnoreCase); // Cache fÃ¼r aufgelÃ¶ste Spalten-Typen
+        private readonly Dictionary<string, (string SqlTypeName, int? MaxLength, bool? IsNullable)> _resolvedColumnTypes = new(StringComparer.OrdinalIgnoreCase); // Cache f�r aufgel�ste Spalten-Typen
         public Visitor(string definition, Analysis analysis) { _definition = definition; _analysis = analysis; try { ExtractTableVariableDeclarations(); } catch { } }
         public override void ExplicitVisit(CreateProcedureStatement node) { _procedureDepth++; base.ExplicitVisit(node); _procedureDepth--; }
         public override void ExplicitVisit(CreateOrAlterProcedureStatement node) { _procedureDepth++; base.ExplicitVisit(node); _procedureDepth--; }
@@ -628,7 +633,223 @@ public class StoredProcedureContentModel
         private int _scalarSubqueryDepth; // Track nesting inside ScalarSubquery expressions
         public override void ExplicitVisit(SelectStatement node) { _analysis.ContainsSelect = true; base.ExplicitVisit(node); }
         // Hinweis: Statement-Level FOR JSON Fallback (SelectStatement.ForClause) wird von ScriptDom nicht angeboten (ForClause nur an QuerySpecification).
-        // Falls kÃ¼nftig Unterschiede auftauchen, kann hier eine alternative Pfadbehandlung ergÃ¤nzt werden.
+        // Falls k�nftig Unterschiede auftauchen, kann hier eine alternative Pfadbehandlung erg�nzt werden.
+        // --- Scoped symbol table for nested resolution (Phase 1/2 scaffolding) ---
+        private enum ScopeSymbolKind { Physical, Derived, VarTable }
+        private sealed class ScopeSymbol
+        {
+            public ScopeSymbolKind Kind { get; init; }
+            public string Schema { get; init; }
+            public string Table { get; init; }
+            public List<ResultColumn> Columns { get; init; }
+        }
+        private sealed class ScopeFrame
+        {
+            public Dictionary<string, ScopeSymbol> Symbols { get; } = new(StringComparer.OrdinalIgnoreCase);
+        }
+        private ScopeFrame BuildScopeFrameForNested(
+            Dictionary<string, List<ResultColumn>> localVarCols,
+            Dictionary<string, (string Schema, string Table)> localAliases)
+        {
+            var scope = new ScopeFrame();
+            if (localVarCols != null)
+            {
+                foreach (var kv in localVarCols)
+                {
+                    if (kv.Value == null) continue;
+                    scope.Symbols[kv.Key] = new ScopeSymbol { Kind = ScopeSymbolKind.VarTable, Columns = kv.Value };
+                }
+            }
+            if (localAliases != null)
+            {
+                foreach (var kv in localAliases)
+                {
+                    var alias = kv.Key; var tup = kv.Value;
+                    if (_derivedTableColumns.TryGetValue(alias, out var dcols) && dcols != null)
+                    {
+                        scope.Symbols[alias] = new ScopeSymbol { Kind = ScopeSymbolKind.Derived, Columns = dcols };
+                    }
+                    else if (!string.IsNullOrWhiteSpace(tup.Table))
+                    {
+                        scope.Symbols[alias] = new ScopeSymbol { Kind = ScopeSymbolKind.Physical, Schema = tup.Schema, Table = tup.Table };
+                    }
+                }
+            }
+            return scope;
+        }
+        private bool TryResolveFromScope(ScopeFrame scope, string alias, string column, out string sqlType, out int? maxLen, out bool? isNull)
+        {
+            sqlType = string.Empty; maxLen = null; isNull = null;
+            if (scope == null || string.IsNullOrWhiteSpace(alias) || string.IsNullOrWhiteSpace(column)) return false;
+            if (!scope.Symbols.TryGetValue(alias, out var sym) || sym == null) return false;
+            if (sym.Kind == ScopeSymbolKind.Physical)
+            {
+                var rc = new ResultColumn { SourceSchema = sym.Schema, SourceTable = sym.Table, SourceColumn = column };
+                TryAssignColumnType(rc);
+                if (!string.IsNullOrWhiteSpace(rc.SqlTypeName)) { sqlType = rc.SqlTypeName; maxLen = rc.MaxLength; isNull = rc.IsNullable; return true; }
+                return false;
+            }
+            if (sym.Columns != null)
+            {
+                var c = sym.Columns.FirstOrDefault(x => x.Name?.Equals(column, StringComparison.OrdinalIgnoreCase) == true && !string.IsNullOrWhiteSpace(x.SqlTypeName));
+                if (c != null) { sqlType = c.SqlTypeName; maxLen = c.MaxLength; isNull = c.IsNullable; return true; }
+            }
+            return false;
+        }
+
+        // --- Minimal lineage nodes for nested scalar expressions ---
+        private abstract class LNode { }
+        private sealed class LColumnRef : LNode { public string Alias; public string Column; }
+        private sealed class LCast : LNode { public LNode Inner; public string TargetType; public int? MaxLen; }
+        private sealed class LIif : LNode { public LNode ThenNode; public LNode ElseNode; }
+        private sealed class LBinary : LNode { public LNode Left; public LNode Right; public BinaryExpressionType Op; }
+        private sealed class LCase : LNode { public List<LNode> Branches = new(); public LNode ElseNode; }
+
+        private LNode BuildLineage(ScalarExpression expr)
+        {
+            try
+            {
+                switch (expr)
+                {
+                    case ColumnReferenceExpression cr when cr.MultiPartIdentifier?.Identifiers?.Count == 2:
+                        return new LColumnRef
+                        {
+                            Alias = cr.MultiPartIdentifier.Identifiers[0].Value,
+                            Column = cr.MultiPartIdentifier.Identifiers[1].Value
+                        };
+                    case CastCall cast:
+                        {
+                            string typeName = null; int? maxLen = null;
+                            if (cast.DataType?.Name?.Identifiers?.Count > 0)
+                            {
+                                typeName = string.Join('.', cast.DataType.Name.Identifiers.Select(i => i.Value)).ToLowerInvariant();
+                                // try single length e.g., nvarchar(100)
+                                if (cast.DataType is SqlDataTypeReference sref && sref.Parameters?.Count >= 1 && sref.Parameters[0] is Literal ll)
+                                {
+                                    if (int.TryParse(ll.Value, out var len0)) maxLen = len0;
+                                }
+                            }
+                            return new LCast { Inner = BuildLineage(cast.Parameter as ScalarExpression), TargetType = typeName, MaxLen = maxLen };
+                        }
+                    case ConvertCall conv:
+                        {
+                            string typeName = null; int? maxLen = null;
+                            if (conv.DataType?.Name?.Identifiers?.Count > 0)
+                            {
+                                typeName = string.Join('.', conv.DataType.Name.Identifiers.Select(i => i.Value)).ToLowerInvariant();
+                                if (conv.DataType is SqlDataTypeReference sref && sref.Parameters?.Count >= 1 && sref.Parameters[0] is Literal ll)
+                                {
+                                    if (int.TryParse(ll.Value, out var len0)) maxLen = len0;
+                                }
+                            }
+                            return new LCast { Inner = BuildLineage(conv.Parameter as ScalarExpression), TargetType = typeName, MaxLen = maxLen };
+                        }
+                    case ParenthesisExpression pe:
+                        return BuildLineage(pe.Expression);
+                    case IIfCall iif:
+                        return new LIif { ThenNode = BuildLineage(iif.ThenExpression as ScalarExpression), ElseNode = BuildLineage(iif.ElseExpression as ScalarExpression) };
+                    case FunctionCall f when string.Equals(f.FunctionName?.Value, "IIF", StringComparison.OrdinalIgnoreCase) && f.Parameters?.Count == 3:
+                        return new LIif { ThenNode = BuildLineage(f.Parameters[1] as ScalarExpression), ElseNode = BuildLineage(f.Parameters[2] as ScalarExpression) };
+                    case BinaryExpression be:
+                        return new LBinary { Left = BuildLineage(be.FirstExpression as ScalarExpression), Right = BuildLineage(be.SecondExpression as ScalarExpression), Op = be.BinaryExpressionType };
+                    case SearchedCaseExpression sce:
+                        {
+                            var lc = new LCase();
+                            if (sce.WhenClauses != null)
+                            {
+                                foreach (var w in sce.WhenClauses)
+                                    lc.Branches.Add(BuildLineage(w.ThenExpression as ScalarExpression));
+                            }
+                            if (sce.ElseExpression != null) lc.ElseNode = BuildLineage(sce.ElseExpression as ScalarExpression);
+                            return lc;
+                        }
+                    case SimpleCaseExpression simp:
+                        {
+                            var lc = new LCase();
+                            if (simp.WhenClauses != null)
+                            {
+                                foreach (var w in simp.WhenClauses)
+                                    lc.Branches.Add(BuildLineage(w.ThenExpression as ScalarExpression));
+                            }
+                            if (simp.ElseExpression != null) lc.ElseNode = BuildLineage(simp.ElseExpression as ScalarExpression);
+                            return lc;
+                        }
+                    default:
+                        return null;
+                }
+            }
+            catch { return null; }
+        }
+
+        private bool TryResolveLineageType(LNode node, ScopeFrame scope, out string sqlType, out int? maxLen, out bool? isNull)
+        {
+            sqlType = string.Empty; maxLen = null; isNull = null;
+            if (node == null || scope == null) return false;
+            switch (node)
+            {
+                case LColumnRef cr:
+                    return TryResolveFromScope(scope, cr.Alias, cr.Column, out sqlType, out maxLen, out isNull);
+                case LCast lc:
+                    if (!string.IsNullOrWhiteSpace(lc.TargetType)) { sqlType = lc.TargetType; maxLen = lc.MaxLen; isNull = null; return true; }
+                    return TryResolveLineageType(lc.Inner, scope, out sqlType, out maxLen, out isNull);
+                case LIif li:
+                    string t1; int? l1; bool? n1; string t2; int? l2; bool? n2;
+                    var ok1 = TryResolveLineageType(li.ThenNode, scope, out t1, out l1, out n1);
+                    var ok2 = TryResolveLineageType(li.ElseNode, scope, out t2, out l2, out n2);
+                    if (ok1 && ok2)
+                    {
+                        if (!string.IsNullOrWhiteSpace(t1) && string.Equals(t1, t2, StringComparison.OrdinalIgnoreCase))
+                        { sqlType = t1; maxLen = (l1.HasValue && l2.HasValue) ? Math.Max(l1.Value, l2.Value) : l1 ?? l2; isNull = (n1 == true || n2 == true); return true; }
+                        // numeric preference
+                        if (!string.IsNullOrWhiteSpace(t1) && t1.Contains("decimal")) { sqlType = t1; maxLen = l1; isNull = n1; return true; }
+                        if (!string.IsNullOrWhiteSpace(t2) && t2.Contains("decimal")) { sqlType = t2; maxLen = l2; isNull = n2; return true; }
+                        // otherwise prefer first resolved
+                        sqlType = !string.IsNullOrWhiteSpace(t1) ? t1 : t2; maxLen = l1 ?? l2; isNull = n1 ?? n2; return !string.IsNullOrWhiteSpace(sqlType);
+                    }
+                    if (ok1) { sqlType = t1; maxLen = l1; isNull = n1; return true; }
+                    if (ok2) { sqlType = t2; maxLen = l2; isNull = n2; return true; }
+                    return false;
+                case LBinary lb:
+                    string lt; int? ll; bool? ln; string rt; int? rl; bool? rn;
+                    var okL = TryResolveLineageType(lb.Left, scope, out lt, out ll, out ln);
+                    var okR = TryResolveLineageType(lb.Right, scope, out rt, out rl, out rn);
+                    if (!(okL || okR)) return false;
+                    string norm(string t) => (t ?? string.Empty).ToLowerInvariant();
+                    var nl = norm(lt); var nr = norm(rt);
+                    bool decL = nl.Contains("decimal") || nl.Contains("numeric") || nl.Contains("money") || nl.Contains("float") || nl.Contains("real");
+                    bool decR = nr.Contains("decimal") || nr.Contains("numeric") || nr.Contains("money") || nr.Contains("float") || nr.Contains("real");
+                    bool intL = nl == "int" || nl == "bigint" || nl == "smallint" || nl == "tinyint";
+                    bool intR = nr == "int" || nr == "bigint" || nr == "smallint" || nr == "tinyint";
+                    bool strL = nl.StartsWith("nvarchar") || nl.StartsWith("varchar") || nl.StartsWith("nchar") || nl.StartsWith("char");
+                    bool strR = nr.StartsWith("nvarchar") || nr.StartsWith("varchar") || nr.StartsWith("nchar") || nr.StartsWith("char");
+                    if (decL || decR) { sqlType = "decimal(18,2)"; maxLen = null; isNull = (ln == true || rn == true); return true; }
+                    if (intL || intR) { sqlType = intL && intR ? (lt ?? "int") : "int"; maxLen = null; isNull = (ln == true || rn == true); return true; }
+                    if (strL || strR) { sqlType = "nvarchar"; maxLen = Math.Max(ll ?? 0, rl ?? 0); maxLen = (maxLen == 0) ? (int?)null : maxLen; isNull = (ln == true || rn == true); return true; }
+                    sqlType = lt ?? rt; maxLen = ll ?? rl; isNull = ln ?? rn; return !string.IsNullOrWhiteSpace(sqlType);
+                case LCase lcase:
+                    var types = new List<(string T, int? L, bool? N)>();
+                    foreach (var b in lcase.Branches)
+                    {
+                        if (TryResolveLineageType(b, scope, out var tb, out var lb2, out var nb)) types.Add((tb, lb2, nb));
+                    }
+                    if (lcase.ElseNode != null && TryResolveLineageType(lcase.ElseNode, scope, out var te, out var le, out var ne)) types.Add((te, le, ne));
+                    if (types.Count == 0) return false;
+                    // all equal
+                    if (types.All(x => !string.IsNullOrWhiteSpace(x.T) && x.T.Equals(types[0].T, StringComparison.OrdinalIgnoreCase)))
+                    { sqlType = types[0].T; maxLen = types.Max(x => x.L) ?? types[0].L; isNull = types.Any(x => x.N == true); return true; }
+                    // prefer decimal if present
+                    var dec = types.FirstOrDefault(x => (x.T ?? string.Empty).ToLowerInvariant().Contains("decimal"));
+                    if (!string.IsNullOrWhiteSpace(dec.T)) { sqlType = dec.T; maxLen = dec.L; isNull = dec.N; return true; }
+                    // else prefer nvarchar
+                    var str = types.FirstOrDefault(x => { var t = (x.T ?? string.Empty).ToLowerInvariant(); return t.StartsWith("nvarchar") || t.StartsWith("varchar") || t.StartsWith("nchar") || t.StartsWith("char"); });
+                    if (!string.IsNullOrWhiteSpace(str.T)) { sqlType = "nvarchar"; maxLen = types.Max(x => x.L); isNull = types.Any(x => x.N == true); return true; }
+                    // fallback to first
+                    sqlType = types[0].T; maxLen = types[0].L; isNull = types[0].N; return !string.IsNullOrWhiteSpace(sqlType);
+                default:
+                    return false;
+            }
+        }
+
         public override void ExplicitVisit(InsertStatement node)
         {
             _analysis.ContainsInsert = true;
@@ -730,7 +951,6 @@ public class StoredProcedureContentModel
                         if (ShouldDiag()) Console.WriteLine($"[qs-debug] segmentScan len={seg.Length} idxForJson={idxForJson} idxForJsonPath={idxForJsonPath}");
                         if (idxForJson >= 0)
                         {
-                            // Ausgabe von 120 Zeichen um das Pattern
                             int previewStart = Math.Max(0, idxForJson - 60);
                             int previewEnd = Math.Min(seg.Length, idxForJson + 120);
                             var preview = seg.Substring(previewStart, previewEnd - previewStart).Replace('\n', ' ').Replace('\r', ' ');
@@ -739,20 +959,19 @@ public class StoredProcedureContentModel
                     }
                 }
                 catch { }
-                // Support FOR JSON PATH both on QuerySpecification.ForClause and parent SelectStatement.ForClause (ScriptDom may attach it at statement level)
                 // ScriptDom bietet keine direkte Parent-Eigenschaft auf QuerySpecification; daher approximieren wir:
-                // Falls node.ForClause null ist, prÃ¼fen wir, ob der Ã¼bergeordnete SelectStatement (der diesen QuerySpecification enthÃ¤lt)
+                // Falls node.ForClause null ist, pr�fen wir, ob der �bergeordnete SelectStatement (der diesen QuerySpecification enth�lt)
                 // einen ForClause besitzt. Da wir Parent nicht haben, nutzen wir eine Heuristik: Wenn node.ForClause null ist UND
                 // der aktuelle SelectStatement (wird vorher in ExplicitVisit(SelectStatement) erfasst) eine ForClause hat, wird diese
-                // spÃ¤ter separat verarbeitet. Vereinfachung: Wir behandeln NUR node.ForClause hier; fÃ¼r Statement-Level FOR JSON
+                // sp�ter separat verarbeitet. Vereinfachung: Wir behandeln NUR node.ForClause hier; f�r Statement-Level FOR JSON
                 // greifen wir in ExplicitVisit(SelectStatement) ein (Fallback Pfad unten implementiert).
                 JsonForClause jsonClause = node.ForClause as JsonForClause;
                 bool isNestedSelect = _scalarSubqueryDepth > 0; // verschachtelte Selects (Subqueries) nicht als eigenes JSON ResultSet markieren
 
                 // Segment-Scan Fallback: Einige reale Prozeduren liefern keinen JsonForClause im AST (ScriptDom Limitation bei komplexen SELECTs).
-                // Um Tests zu erfÃ¼llen ohne globale Regex-Heuristik fÃ¼hren wir einen strikt begrenzten Scan Ã¼ber das QuerySpecification Segment aus.
-                // Bedingungen: (a) top-level (nicht verschachtelt), (b) JsonForClause==null, (c) Segment enthÃ¤lt "FOR JSON PATH".
-                // ZusÃ¤tzliche Optionen WITHOUT_ARRAY_WRAPPER / ROOT('x') werden extrahiert. Dieser Fallback ist rein segmentbezogen & deterministisch.
+                // Um Tests zu erf�llen ohne globale Regex-Heuristik f�hren wir einen strikt begrenzten Scan �ber das QuerySpecification Segment aus.
+                // Bedingungen: (a) top-level (nicht verschachtelt), (b) JsonForClause==null, (c) Segment enth�lt "FOR JSON PATH".
+                // Zus�tzliche Optionen WITHOUT_ARRAY_WRAPPER / ROOT('x') werden extrahiert. Dieser Fallback ist rein segmentbezogen & deterministisch.
                 bool segmentFallbackDetected = false;
                 bool fallbackWithoutArrayWrapper = false;
                 string fallbackRootProperty = null;
@@ -765,8 +984,8 @@ public class StoredProcedureContentModel
                             ? Math.Min(_definition.Length, node.StartOffset + node.FragmentLength)
                             : _definition.Length;
                         var segment = _definition.Substring(startScan, endScan - startScan);
-                        // Entferne einfache Inline Kommentare "--" bis Zeilenende fÃ¼r robustere Erkennung (kein Block-Strip)
-                        var cleaned = string.Join('\n', segment.Split('\n').Select(l =>
+                        // Entferne einfache Inline Kommentare "--" bis Zeilenende f�r robustere Erkennung (kein Block-Strip)
+                        var cleaned = string.Join("\n", segment.Split('\n').Select(l =>
                         {
                             var ci = l.IndexOf("--", StringComparison.Ordinal);
                             return ci >= 0 ? l.Substring(0, ci) : l;
@@ -774,7 +993,7 @@ public class StoredProcedureContentModel
                         var idx = cleaned.IndexOf("FOR JSON PATH", StringComparison.OrdinalIgnoreCase);
                         if (idx < 0)
                         {
-                            // Global fallback: Suche im vollstÃ¤ndigen Definitionstext falls Segment (Fragment) es nicht enthÃ¤lt (ScriptDom Offsets unvollstÃ¤ndig)
+                            // Global fallback: Suche im vollst�ndigen Definitionstext falls Segment (Fragment) es nicht enth�lt (ScriptDom Offsets unvollst�ndig)
                             idx = _definition.IndexOf("FOR JSON PATH", StringComparison.OrdinalIgnoreCase);
                             if (idx >= 0 && ShouldDiagJsonAst()) { try { Console.WriteLine("[json-ast-fallback-global] global search matched FOR JSON PATH outside fragment"); } catch { } }
                         }
@@ -796,7 +1015,7 @@ public class StoredProcedureContentModel
                 }
                 if (jsonClause == null && !isNestedSelect)
                 {
-                    // Weder AST JsonForClause noch segmentbasierte Erkennung â†’ kein JSON ResultSet.
+                    // Weder AST JsonForClause noch segmentbasierte Erkennung ? kein JSON ResultSet.
                     if (ShouldDiagJsonAst()) { try { Console.WriteLine("[json-ast-skip] no JsonForClause and no segment fallback"); } catch { } }
                     _tableAliases.Clear(); foreach (var kv in outerAliases) _tableAliases[kv.Key] = kv.Value;
                     _tableSources.Clear(); foreach (var s in outerSources) _tableSources.Add(s);
@@ -827,7 +1046,7 @@ public class StoredProcedureContentModel
                 }
                 else if (segmentFallbackDetected)
                 {
-                    // Fallback: StandardmÃ¤ÃŸig Array Wrapper aktiv auÃŸer explizitem WITHOUT_ARRAY_WRAPPER
+                    // Fallback: Standardm��ig Array Wrapper aktiv au�er explizitem WITHOUT_ARRAY_WRAPPER
                     builder.JsonWithArrayWrapper = !fallbackWithoutArrayWrapper;
                     builder.JsonWithoutArrayWrapper = fallbackWithoutArrayWrapper;
                     if (!fallbackWithoutArrayWrapper) builder.JsonWithArrayWrapper = true; // sicherstellen default
@@ -892,17 +1111,17 @@ public class StoredProcedureContentModel
                         else if (sce.Expression is CastCall castCall && castCall.Parameter is ColumnReferenceExpression castCol && castCol.MultiPartIdentifier?.Identifiers?.Count > 0)
                             alias = castCol.MultiPartIdentifier.Identifiers[^1].Value;
                     }
-                    // Token-basierte (AST Token Stream) Alias-Erkennung (erweiterter Scan Ã¼ber Expression-Ende hinaus): AS 'literal'
+                    // Token-basierte (AST Token Stream) Alias-Erkennung (erweiterter Scan �ber Expression-Ende hinaus): AS 'literal'
                     if (string.IsNullOrWhiteSpace(alias) && sce.ScriptTokenStream != null)
                     {
                         try
                         {
                             var tokens = sce.ScriptTokenStream;
-                            // Preferred: nutze Token Indices wenn verfÃ¼gbar, ansonsten Offset-Heuristik
+                            // Preferred: nutze Token Indices wenn verf�gbar, ansonsten Offset-Heuristik
                             int exprLastToken = sce.LastTokenIndex >= 0 ? sce.LastTokenIndex : -1;
                             if (exprLastToken < 0)
                             {
-                                // Fallback: bestimme Bereich Ã¼ber Offsets
+                                // Fallback: bestimme Bereich �ber Offsets
                                 int exprStart = sce.StartOffset;
                                 int exprEnd = sce.StartOffset + sce.FragmentLength;
                                 // Finde letzten Token dessen Offset < exprEnd
@@ -917,12 +1136,12 @@ public class StoredProcedureContentModel
                             for (int i = scanStart; i < tokens.Count; i++)
                             {
                                 var t = tokens[i];
-                                // Abbruchbedingungen: nÃ¤chstes SELECT-Element / FROM / Semikolon / Zeilenende-Komma
+                                // Abbruchbedingungen: n�chstes SELECT-Element / FROM / Semikolon / Zeilenende-Komma
                                 if (t.TokenType == TSqlTokenType.Comma || t.TokenType == TSqlTokenType.Semicolon) break;
                                 if (t.Text != null && t.Text.Equals("FROM", StringComparison.OrdinalIgnoreCase)) break;
                                 if (t.TokenType == TSqlTokenType.As && i + 1 < tokens.Count)
                                 {
-                                    // nÃ¤chster signifikanter Token
+                                    // n�chster signifikanter Token
                                     int j = i + 1;
                                     while (j < tokens.Count && string.IsNullOrWhiteSpace(tokens[j].Text)) j++;
                                     if (j >= tokens.Count) break;
@@ -944,14 +1163,14 @@ public class StoredProcedureContentModel
                         }
                         catch { }
                     }
-                    // ZusÃ¤tzliche Alias-Erkennung fÃ¼r FOR JSON Pfad-Syntax inkl. FÃ¤lle, in denen ScriptDom das AS 'alias' auÃŸerhalb des Fragmentes schneidet.
+                    // Zus�tzliche Alias-Erkennung f�r FOR JSON Pfad-Syntax inkl. F�lle, in denen ScriptDom das AS 'alias' au�erhalb des Fragmentes schneidet.
                     if (string.IsNullOrWhiteSpace(alias) && sce.StartOffset >= 0 && sce.FragmentLength > 0)
                     {
                         try
                         {
                             var endExpr = Math.Min(_definition.Length, sce.StartOffset + sce.FragmentLength);
                             var exprSegment = _definition.Substring(sce.StartOffset, endExpr - sce.StartOffset);
-                            // PrimÃ¤r: AS 'alias' im Ausdruckssegment
+                            // Prim�r: AS 'alias' im Ausdruckssegment
                             var m = System.Text.RegularExpressions.Regex.Match(exprSegment, @"AS\s+'([^']+)'", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
                             if (!m.Success)
                             {
@@ -960,7 +1179,7 @@ public class StoredProcedureContentModel
                             }
                             if (!m.Success)
                             {
-                                // Forward-Scan bis FOR JSON oder nÃ¤chstes SELECT/ FROM / GROUP BY zur Begrenzung
+                                // Forward-Scan bis FOR JSON oder n�chstes SELECT/ FROM / GROUP BY zur Begrenzung
                                 int boundary = _definition.IndexOf("FOR JSON", endExpr, StringComparison.OrdinalIgnoreCase);
                                 if (boundary < 0) boundary = _definition.Length;
                                 int scanEnd = Math.Min(_definition.Length, endExpr + 300);
@@ -1022,7 +1241,7 @@ public class StoredProcedureContentModel
                     if (!builder.Columns.Any(c => c.Name.Equals(col.Name, StringComparison.OrdinalIgnoreCase))) builder.Columns.Add(col);
                 }
                 if (node.SelectElements?.OfType<SelectStarExpression>().Any() == true) builder.HasSelectStar = true;
-                var isNested = _scalarSubqueryDepth > 0;
+                var isNested = isNestedSelect;
                 var resultSet = builder.ToResultSet();
                 // Apply table variable typing to nested JSON sets using local alias map + raw expressions
                 if (isNested)
@@ -1036,9 +1255,12 @@ public class StoredProcedureContentModel
                 }
                 else
                 {
-                    // Nur hinzufÃ¼gen wenn echte (AST) JsonForClause ODER heuristisch erkannt im Top-Level
+                    // Nur hinzuf�gen wenn echte (AST) JsonForClause ODER heuristisch erkannt im Top-Level
                     if (jsonClause != null || segmentFallbackDetected)
+                    {
                         _analysis.JsonSets.Add(resultSet);
+                        if (!_analysis.TopLevelJsonSets.ContainsKey(node)) _analysis.TopLevelJsonSets[node] = resultSet;
+                    }
                 }
                 // Restore outer scope
                 _tableAliases.Clear(); foreach (var kv in outerAliases) _tableAliases[kv.Key] = kv.Value;
@@ -1050,33 +1272,130 @@ public class StoredProcedureContentModel
         {
             if (node?.FromClause?.TableReferences == null || set?.Columns == null || set.Columns.Count == 0) return;
             var localVarCols = new Dictionary<string, List<ResultColumn>>(StringComparer.OrdinalIgnoreCase);
+            var localAliases = new Dictionary<string, (string Schema, string Table)>(StringComparer.OrdinalIgnoreCase);
+            var localTableSources = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             try
             {
-                foreach (var tr in node.FromClause.TableReferences)
+                // Recursively walk the FROM tree to capture any VariableTableReference aliases (including inside JOINs)
+                void CollectVarRefs(TableReference tr)
                 {
-                    if (tr is VariableTableReference vtr)
+                    switch (tr)
                     {
-                        var alias = vtr.Alias?.Value;
-                        var varName = vtr.Variable?.Name;
-                        if (!string.IsNullOrWhiteSpace(alias) && !string.IsNullOrWhiteSpace(varName))
+                        case null:
+                            return;
+                        case QualifiedJoin qj:
+                            CollectVarRefs(qj.FirstTableReference);
+                            CollectVarRefs(qj.SecondTableReference);
+                            break;
+                        case VariableTableReference vtr:
+                            try
+                            {
+                                var alias = vtr.Alias?.Value;
+                                var varName = vtr.Variable?.Name;
+                                if (!string.IsNullOrWhiteSpace(alias) && !string.IsNullOrWhiteSpace(varName))
+                                {
+                                    var key = varName.StartsWith("@") ? varName : ("@" + varName);
+                                    if (_tableVariableColumns.TryGetValue(key, out var colsForVar))
+                                        localVarCols[alias] = colsForVar;
+                                }
+                            }
+                            catch { }
+                            break;
+                        case NamedTableReference ntr:
+                            try
+                            {
+                                var schema = ntr.SchemaObject?.SchemaIdentifier?.Value ?? _analysis.DefaultSchema;
+                                var table = ntr.SchemaObject?.BaseIdentifier?.Value;
+                                var alias = ntr.Alias?.Value;
+                                var key = !string.IsNullOrWhiteSpace(alias) ? alias : table;
+                                if (!string.IsNullOrWhiteSpace(key) && !localAliases.ContainsKey(key))
+                                {
+                                    var tbl = table ?? string.Empty;
+                                    localAliases[key] = (schema, tbl);
+                                }
+                                if (!string.IsNullOrWhiteSpace(table)) localTableSources.Add($"{schema}.{table}");
+                            }
+                            catch { }
+                            break;
+                        case QueryDerivedTable:
+                        case SchemaObjectFunctionTableReference:
+                        case JoinParenthesisTableReference:
+                            // no variable capture needed for these nodes in this pass
+                            break;
+                        default:
+                            break;
+                    }
+                }
+                foreach (var tr in node.FromClause.TableReferences) CollectVarRefs(tr);
+                // As a fallback, scan the subquery text for @Var AS alias patterns to capture variable aliases embedded in complex joins
+                try
+                {
+                    if (localVarCols.Count == 0 && node.StartOffset >= 0 && node.FragmentLength > 0 && _definition != null && node.StartOffset + node.FragmentLength <= _definition.Length)
+                    {
+                        var frag = _definition.Substring(node.StartOffset, node.FragmentLength);
+                        var rxVarAlias = new System.Text.RegularExpressions.Regex(@"@(?<var>\w+)\s+(?:AS\s+)?(?<alias>\w+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                        foreach (System.Text.RegularExpressions.Match m in rxVarAlias.Matches(frag))
                         {
-                            var key = varName.StartsWith("@") ? varName : ("@" + varName);
+                            var v = m.Groups["var"].Value; var a = m.Groups["alias"].Value;
+                            if (string.IsNullOrWhiteSpace(v) || string.IsNullOrWhiteSpace(a)) continue;
+                            var key = "@" + v;
                             if (_tableVariableColumns.TryGetValue(key, out var colsForVar))
-                                localVarCols[alias] = colsForVar;
+                                localVarCols[a] = colsForVar;
                         }
                     }
                 }
+                catch { }
             }
             catch { }
-            if (localVarCols.Count == 0) return;
             foreach (var col in set.Columns)
             {
                 try
                 {
                     if (!string.IsNullOrWhiteSpace(col.SqlTypeName)) continue;
                     var raw = col.RawExpression;
-                    if (string.IsNullOrWhiteSpace(raw)) continue;
-                    var m = Regex.Match(raw, @"^\s*(?<alias>[A-Za-z0-9_]+)\.(?<col>[A-Za-z0-9_]+)\b", RegexOptions.IgnoreCase);
+                    if (string.IsNullOrWhiteSpace(raw)) { /* allow name-based fallbacks below */ }
+                    // Attempt AST rebind of the child's scalar by parsing the leading scalar expression from RawExpression
+                    try
+                    {
+                        if (!string.IsNullOrWhiteSpace(raw))
+                        {
+                            var exprTxt = raw;
+                            var idxAs = exprTxt.IndexOf(" AS ", StringComparison.OrdinalIgnoreCase);
+                            if (idxAs > 0) exprTxt = exprTxt.Substring(0, idxAs).Trim();
+                            // Construct a minimal SELECT for the expression and parse
+                            var toParse = "SELECT " + exprTxt + ";";
+                            using var sr = new System.IO.StringReader(toParse);
+                            var frag = Parser.Parse(sr, out var errs);
+                            if (frag != null && errs != null && errs.Count == 0)
+                            {
+                                ScalarExpression extracted = null;
+                                try
+                                {
+                                    if (frag is TSqlScript sc && sc.Batches?.Count > 0)
+                                    {
+                                        var st = sc.Batches[0]?.Statements?.OfType<SelectStatement>()?.FirstOrDefault();
+                                        var qs2 = UnwrapToQuerySpecification(st?.QueryExpression);
+                                        var sse = qs2?.SelectElements?.OfType<SelectScalarExpression>()?.FirstOrDefault();
+                                        extracted = sse?.Expression as ScalarExpression;
+                                    }
+                                }
+                                catch { }
+                                if (extracted != null)
+                                {
+                                    var temp = new ResultColumn(); var st0 = new SourceBindingState();
+                                    AnalyzeScalarExpressionDerived(extracted, temp, st0, localAliases, localTableSources);
+                                    if (!string.IsNullOrWhiteSpace(temp.SqlTypeName))
+                                    {
+                                        col.SqlTypeName = temp.SqlTypeName; col.MaxLength = temp.MaxLength; col.IsNullable = temp.IsNullable;
+                                        if (ShouldDiag()) { try { System.Console.WriteLine($"[json-agg-diag] nested-ast-rebind name={col.Name} sqlType={col.SqlTypeName}"); } catch { } }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+                    // Strict start-anchor match: alias.column
+                    var m = !string.IsNullOrWhiteSpace(raw) ? Regex.Match(raw, @"^\s*(?<alias>[A-Za-z0-9_]+)\.(?<col>[A-Za-z0-9_]+)\b", RegexOptions.IgnoreCase) : Match.Empty;
                     string alias = null;
                     string cName = null;
                     if (m.Success)
@@ -1095,7 +1414,43 @@ public class StoredProcedureContentModel
                                 continue;
                             }
                         }
+                        // Physical table alias mapping
+                        if (localAliases.TryGetValue(alias, out var mapped))
+                        {
+                            var tmp = new ResultColumn { SourceSchema = mapped.Schema, SourceTable = mapped.Table, SourceColumn = cName };
+                            TryAssignColumnType(tmp);
+                            if (!string.IsNullOrWhiteSpace(tmp.SqlTypeName))
+                            {
+                                col.SqlTypeName = tmp.SqlTypeName; col.MaxLength = tmp.MaxLength; col.IsNullable = tmp.IsNullable;
+                                if (ShouldDiag()) { try { System.Console.WriteLine($"[json-agg-diag] nested-raw-phys-col-type name={col.Name} alias={alias} src={mapped.Schema}.{mapped.Table}.{cName} sqlType={col.SqlTypeName}"); } catch { } }
+                                continue;
+                            }
+                        }
                     }
+                    // Relaxed search anywhere in expression for alias.column where alias is a table variable alias
+                    try
+                    {
+                        if (!string.IsNullOrWhiteSpace(raw))
+                        {
+                            var matches = Regex.Matches(raw, @"\b(?<alias>[A-Za-z0-9_]+)\.(?<col>[A-Za-z0-9_]+)\b", RegexOptions.IgnoreCase);
+                        foreach (Match mm in matches)
+                        {
+                            var a = mm.Groups["alias"].Value;
+                            var cn = mm.Groups["col"].Value;
+                            if (!localVarCols.TryGetValue(a, out var tcols2)) continue;
+                            var vcol2 = tcols2.FirstOrDefault(c => c.Name?.Equals(cn, StringComparison.OrdinalIgnoreCase) == true);
+                            if (vcol2 != null)
+                            {
+                                if (!string.IsNullOrWhiteSpace(vcol2.SqlTypeName)) col.SqlTypeName = vcol2.SqlTypeName;
+                                if (vcol2.MaxLength.HasValue) col.MaxLength = vcol2.MaxLength;
+                                if (vcol2.IsNullable.HasValue) col.IsNullable = vcol2.IsNullable;
+                                if (ShouldDiag()) { try { System.Console.WriteLine($"[json-agg-diag] nested-any-var-col-type name={col.Name} alias={a} srcCol={cn} sqlType={col.SqlTypeName} maxLen={col.MaxLength}"); } catch { } }
+                                break;
+                            }
+                        }
+                        }
+                    }
+                    catch { }
                     // Fallback by suffix match to table variable column names (AST-driven via captured declaration)
                     var suffix = col.Name.Contains('.') ? col.Name.Split('.').Last() : col.Name;
                     foreach (var kv in localVarCols)
@@ -1111,8 +1466,82 @@ public class StoredProcedureContentModel
                             break;
                         }
                     }
+                    // Unique last-segment match across variable tables present in this subquery
+                    if (string.IsNullOrWhiteSpace(col.SqlTypeName) && localVarCols.Count > 0)
+                    {
+                        ResultColumn onlyLocal = null; int cntLocal = 0;
+                        foreach (var tset in localVarCols.Values)
+                        {
+                            var hit = tset?.FirstOrDefault(x => x.Name?.Equals(suffix, StringComparison.OrdinalIgnoreCase) == true && !string.IsNullOrWhiteSpace(x.SqlTypeName));
+                            if (hit != null) { onlyLocal = hit; cntLocal++; }
+                        }
+                        if (cntLocal == 1 && onlyLocal != null)
+                        {
+                            col.SqlTypeName = onlyLocal.SqlTypeName; col.MaxLength = onlyLocal.MaxLength; col.IsNullable = onlyLocal.IsNullable;
+                            if (ShouldDiag()) { try { System.Console.WriteLine($"[json-agg-diag] nested-local-unique-last name={col.Name} srcCol={onlyLocal.Name} sqlType={col.SqlTypeName}"); } catch { } }
+                        }
+                    }
+                    // Unique collapsed-name match across variable tables present in this subquery
+                    if (string.IsNullOrWhiteSpace(col.SqlTypeName) && localVarCols.Count > 0)
+                    {
+                        var collapsedLocal = new string((col.Name ?? string.Empty).Where(char.IsLetterOrDigit).ToArray());
+                        ResultColumn onlyLocalC = null; int cntLocalC = 0;
+                        foreach (var tset in localVarCols.Values)
+                        {
+                            foreach (var vc in tset ?? new List<ResultColumn>())
+                            {
+                                var vcCollapsed = new string((vc.Name ?? string.Empty).Where(char.IsLetterOrDigit).ToArray());
+                                if (!string.IsNullOrWhiteSpace(vcCollapsed) && string.Equals(vcCollapsed, collapsedLocal, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(vc.SqlTypeName))
+                                { onlyLocalC = vc; cntLocalC++; }
+                            }
+                        }
+                        if (cntLocalC == 1 && onlyLocalC != null)
+                        {
+                            col.SqlTypeName = onlyLocalC.SqlTypeName; col.MaxLength = onlyLocalC.MaxLength; col.IsNullable = onlyLocalC.IsNullable;
+                            if (ShouldDiag()) { try { System.Console.WriteLine($"[json-agg-diag] nested-local-unique-collapsed name={col.Name} srcCol={onlyLocalC.Name} sqlType={col.SqlTypeName}"); } catch { } }
+                        }
+                    }
+                    // Collapsed normalized-name unique match across all declared table vars in this procedure
+                    if (string.IsNullOrWhiteSpace(col.SqlTypeName) && _tableVariableColumns != null && _tableVariableColumns.Count > 0)
+                    {
+                        var collapsed = new string((col.Name ?? string.Empty).Where(char.IsLetterOrDigit).ToArray());
+                        ResultColumn only = null; int count = 0;
+                        foreach (var kvp in _tableVariableColumns)
+                        {
+                            foreach (var vc in kvp.Value)
+                            {
+                                var vcCollapsed = new string((vc.Name ?? string.Empty).Where(char.IsLetterOrDigit).ToArray());
+                                if (!string.IsNullOrWhiteSpace(vcCollapsed) && string.Equals(vcCollapsed, collapsed, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(vc.SqlTypeName))
+                                {
+                                    only = vc; count++;
+                                }
+                            }
+                        }
+                        if (count == 1 && only != null)
+                        {
+                            col.SqlTypeName = only.SqlTypeName; col.MaxLength = only.MaxLength; col.IsNullable = only.IsNullable;
+                            if (ShouldDiag()) { try { System.Console.WriteLine($"[json-agg-diag] nested-collapsed-var-type name={col.Name} srcCol={only.Name} sqlType={col.SqlTypeName}"); } catch { } }
+                        }
+                    }
                 }
                 catch { }
+            }
+            // If exactly one table variable alias is present, apply a final single-source fallback by last segment name
+            if (localVarCols.Count == 1)
+            {
+                var only = localVarCols.First();
+                var vcols = only.Value;
+                foreach (var col in set.Columns)
+                {
+                    if (!string.IsNullOrWhiteSpace(col.SqlTypeName)) continue;
+                    var last = col.Name.Contains('.') ? col.Name.Split('.').Last() : col.Name;
+                    var v = vcols.FirstOrDefault(c => c.Name?.Equals(last, StringComparison.OrdinalIgnoreCase) == true && !string.IsNullOrWhiteSpace(c.SqlTypeName));
+                    if (v != null)
+                    {
+                        col.SqlTypeName = v.SqlTypeName; col.MaxLength = v.MaxLength; col.IsNullable = v.IsNullable;
+                        if (ShouldDiag()) { try { System.Console.WriteLine($"[json-agg-diag] nested-single-var-fallback name={col.Name} srcCol={v.Name} sqlType={col.SqlTypeName}"); } catch { } }
+                    }
+                }
             }
         }
         private void PreCollectNamedTableReferences(TableReference tr)
@@ -1248,7 +1677,31 @@ public class StoredProcedureContentModel
                                         }
                                         else
                                         {
-                                            if (ShouldDiag()) Console.WriteLine($"[cte-type-capture-early] Skipping {col.Name}: missing type info (SqlTypeName='{col.SqlTypeName}')");
+                                            // Try to resolve from any available derived table columns with same name (AST-only fallback)
+                                            try
+                                            {
+                                                ResultColumn srcAny = null;
+                                                foreach (var kvd in _derivedTableColumns)
+                                                {
+                                                    var found = kvd.Value?.FirstOrDefault(c => !string.IsNullOrWhiteSpace(c.Name)
+                                                        && c.Name.Equals(col.Name, StringComparison.OrdinalIgnoreCase)
+                                                        && !string.IsNullOrWhiteSpace(c.SqlTypeName));
+                                                    if (found != null) { srcAny = found; break; }
+                                                }
+                                                if (srcAny != null)
+                                                {
+                                                    _cteColumnTypes[col.Name] = new ResultColumn
+                                                    {
+                                                        Name = col.Name,
+                                                        SqlTypeName = srcAny.SqlTypeName,
+                                                        MaxLength = srcAny.MaxLength,
+                                                        IsNullable = srcAny.IsNullable
+                                                    };
+                                                    if (ShouldDiag()) Console.WriteLine($"[cte-type-capture-early] Resolved by derived lookup {col.Name}: {srcAny.SqlTypeName}");
+                                                }
+                                                else if (ShouldDiag()) Console.WriteLine($"[cte-type-capture-early] Skipping {col.Name}: missing type info (SqlTypeName='{col.SqlTypeName}')");
+                                            }
+                                            catch { if (ShouldDiag()) Console.WriteLine($"[cte-type-capture-early] Skipping {col.Name}: missing type info (SqlTypeName='{col.SqlTypeName}')"); }
                                         }
                                     }
                                 }
@@ -1286,7 +1739,7 @@ public class StoredProcedureContentModel
                     // already handled by ExplicitVisit(NamedTableReference)
                     break;
                 default:
-                    // ignore other table reference kinds for now (Derived tables / CTE) â€“ future enhancement
+                    // ignore other table reference kinds for now (Derived tables / CTE) � future enhancement
                     break;
             }
         }
@@ -1311,7 +1764,7 @@ public class StoredProcedureContentModel
                 case null:
                     return;
                 case ColumnReferenceExpression cref:
-                    // Einstieg-Instrumentierung fÃ¼r ColumnRef
+                    // Einstieg-Instrumentierung f�r ColumnRef
                     try
                     {
                         var partsPreview = cref.MultiPartIdentifier?.Identifiers?.Select(i => i.Value).ToArray() ?? Array.Empty<string>();
@@ -1319,7 +1772,7 @@ public class StoredProcedureContentModel
                     }
                     catch { }
                     _analysis.ColumnRefTotal++;
-                    // ExpressionKind nur setzen wenn noch nicht klassifiziert (verhindert Ãœberschreiben von FunctionCall/IIF)
+                    // ExpressionKind nur setzen wenn noch nicht klassifiziert (verhindert �berschreiben von FunctionCall/IIF)
                     if (target.ExpressionKind == null)
                         target.ExpressionKind = ResultColumnExpressionKind.ColumnRef;
                     BindColumnReference(cref, target, state);
@@ -1332,8 +1785,8 @@ public class StoredProcedureContentModel
                         {
                             var groupPrefix = aliasParts[0];
                             var columnSuffix = aliasParts[^1];
-                            // Versuche exakten Tabellenalias-Match Ã¼ber NamensÃ¤hnlichkeit (groupPrefix == alias oder groupPrefix == alias ohne Underscores)
-                            // Falls mehrere Aliase existieren, wÃ¤hlen wir denjenigen, dessen Tabelle bereits eine Spalte mit diesem Namen hat (Ã¼ber zuvor registrierte bindings).
+                            // Versuche exakten Tabellenalias-Match �ber Namens�hnlichkeit (groupPrefix == alias oder groupPrefix == alias ohne Underscores)
+                            // Falls mehrere Aliase existieren, w�hlen wir denjenigen, dessen Tabelle bereits eine Spalte mit diesem Namen hat (�ber zuvor registrierte bindings).
                             var candidateAliases = _tableAliases.Keys
                                 .Where(a => a.Equals(groupPrefix, StringComparison.OrdinalIgnoreCase))
                                 .ToList();
@@ -1350,7 +1803,7 @@ public class StoredProcedureContentModel
                             {
                                 if (_tableAliases.TryGetValue(cand, out var tbl))
                                 {
-                                    // Trage Binding ein â€“ wir kennen Schema/Table, Spaltenname ist suffix
+                                    // Trage Binding ein � wir kennen Schema/Table, Spaltenname ist suffix
                                     target.SourceAlias = cand;
                                     target.SourceSchema = tbl.Schema;
                                     target.SourceTable = tbl.Table;
@@ -1362,8 +1815,8 @@ public class StoredProcedureContentModel
                             }
                         }
                     }
-                    // Entfernt: frÃ¼he namenspbasierte Typableitung (InferSqlTypeFromSourceBinding)
-                    // Entfernt: identity.RecordAsJson Spezialbehandlung â€“ keine Funktions-Pseudo-Column Erkennung mehr.
+                    // Entfernt: fr�he namenspbasierte Typableitung (InferSqlTypeFromSourceBinding)
+                    // Entfernt: identity.RecordAsJson Spezialbehandlung � keine Funktions-Pseudo-Column Erkennung mehr.
                     break;
                 case CastCall castCall:
                     target.ExpressionKind = ResultColumnExpressionKind.Cast;
@@ -1433,7 +1886,7 @@ public class StoredProcedureContentModel
                             target.IsAggregate = true;
                             target.AggregateFunction = lower;
                             _analysis.AggregateCount++;
-                            // Erweiterte RÃ¼ckgabewert-Typinferenz fÃ¼r bekannte Aggregatfunktionen
+                            // Erweiterte R�ckgabewert-Typinferenz f�r bekannte Aggregatfunktionen
                             if (string.IsNullOrWhiteSpace(target.SqlTypeName))
                             {
                                 switch (lower)
@@ -1443,7 +1896,7 @@ public class StoredProcedureContentModel
                                     case "count_big":
                                         target.SqlTypeName = "bigint"; break;
                                     case "avg":
-                                        // AVG Ã¼ber integer -> decimal. Feinere PrÃ¤zision kÃ¶nnte aus Parametertyp kommen; hier pauschal.
+                                        // AVG �ber integer -> decimal. Feinere Pr�zision k�nnte aus Parametertyp kommen; hier pauschal.
                                         try
                                         {
                                             if (fn.Parameters?.Count == 1)
@@ -1464,22 +1917,22 @@ public class StoredProcedureContentModel
                                         target.SqlTypeName = "bit"; break;
                                     case "sum":
                                         // SUM Spezialfall weiter unten (zero/one). Wenn dort nicht int gesetzt wird -> Fallback.
-                                        // Versuche param zu inspizieren fÃ¼r integer vs decimal.
+                                        // Versuche param zu inspizieren f�r integer vs decimal.
                                         try
                                         {
                                             if (fn.Parameters?.Count == 1)
                                             {
                                                 var pExpr = fn.Parameters[0] as ScalarExpression;
-                                                // Grobe Heuristik: Wenn Parameter bereits HasIntegerLiteral Flag setzen wÃ¼rde
+                                                // Grobe Heuristik: Wenn Parameter bereits HasIntegerLiteral Flag setzen w�rde
                                                 var temp = new ResultColumn();
                                                 AnalyzeScalarExpression(pExpr, temp, state);
                                                 if (temp.HasIntegerLiteral && !temp.HasDecimalLiteral)
                                                 {
-                                                    target.SqlTypeName = "int"; // integer SUM (kann Ã¼berlaufen, aber pragmatisch)
+                                                    target.SqlTypeName = "int"; // integer SUM (kann �berlaufen, aber pragmatisch)
                                                 }
                                                 else if (temp.HasDecimalLiteral)
                                                 {
-                                                    target.SqlTypeName = "decimal(18,4)"; // etwas hÃ¶here PrÃ¤zision fÃ¼r Summierung
+                                                    target.SqlTypeName = "decimal(18,4)"; // etwas h�here Pr�zision f�r Summierung
                                                 }
                                             }
                                             if (string.IsNullOrWhiteSpace(target.SqlTypeName))
@@ -1492,7 +1945,7 @@ public class StoredProcedureContentModel
                                         break;
                                     case "min":
                                     case "max":
-                                        // MIN/MAX: Wenn einzelner Parameter Literal-Flags erkennen lÃ¤sst, leite einfachen Typ ab
+                                        // MIN/MAX: Wenn einzelner Parameter Literal-Flags erkennen l�sst, leite einfachen Typ ab
                                         try
                                         {
                                             if (fn.Parameters?.Count == 1)
@@ -1509,7 +1962,7 @@ public class StoredProcedureContentModel
                                 }
                             }
                         }
-                        // Spezialfall: SUM Ã¼ber reinem 0/1 Ausdruck -> int
+                        // Spezialfall: SUM �ber reinem 0/1 Ausdruck -> int
                         if (lower == "sum")
                         {
                             try
@@ -1519,7 +1972,7 @@ public class StoredProcedureContentModel
                                     var pExpr = fn.Parameters[0] as ScalarExpression;
                                     if (IsPureZeroOneConditional(pExpr))
                                     {
-                                        target.HasIntegerLiteral = true; // verstÃ¤rke Flag
+                                        target.HasIntegerLiteral = true; // verst�rke Flag
                                         if (string.IsNullOrWhiteSpace(target.SqlTypeName))
                                         {
                                             target.SqlTypeName = "int";
@@ -1531,7 +1984,7 @@ public class StoredProcedureContentModel
                             catch { }
                         }
                     }
-                    // Capture function schema + name if schema-qualified (CallTarget) â€“ purely AST based
+                    // Capture function schema + name if schema-qualified (CallTarget) � purely AST based
                     try
                     {
                         if (ShouldDiagJsonAst())
@@ -1555,14 +2008,14 @@ public class StoredProcedureContentModel
                         {
                             // legacy FunctionName entfernt
                         }
-                        // Fallback: Falls Funktionsname bereits Schema enthÃ¤lt (identity.RecordAsJson)
+                        // Fallback: Falls Funktionsname bereits Schema enth�lt (identity.RecordAsJson)
                         // legacy schema/name normalization removed (Reference handles schema)
-                        // Entfernt: identity.RecordAsJson Erkennung â€“ keine spezielle Funktionsmarkierung mehr.
+                        // Entfernt: identity.RecordAsJson Erkennung � keine spezielle Funktionsmarkierung mehr.
                     }
                     catch { }
-                    // JSON-Funktions-Expansion NACH Erfassung von Schema/Name, damit Resolver korrekte schema erhÃ¤lt
+                    // JSON-Funktions-Expansion NACH Erfassung von Schema/Name, damit Resolver korrekte schema erh�lt
                     TryExpandFunctionJson(fn, target);
-                    // Wenn noch kein konkreter Typ bestimmt ist, versuche skalaren Funktions-Rückgabetyp zuzuweisen
+                    // Wenn noch kein konkreter Typ bestimmt ist, versuche skalaren Funktions-R?ckgabetyp zuzuweisen
                     try { TryApplyScalarFunctionReturnType(fn, target); } catch { }
                     if (ShouldDiagJsonAst())
                     {
@@ -1581,7 +2034,7 @@ public class StoredProcedureContentModel
                             AnalyzeScalarExpression(thenExpr as ScalarExpression, thenCol, thenState);
                             var elseCol = new ResultColumn(); var elseState = new SourceBindingState();
                             AnalyzeScalarExpression(elseExpr as ScalarExpression, elseCol, elseState);
-                            // Gleiche Quellspalte â†’ Typ Ã¼bernehmen
+                            // Gleiche Quellspalte ? Typ �bernehmen
                             if (!string.IsNullOrWhiteSpace(thenCol.SourceColumn) && !string.IsNullOrWhiteSpace(elseCol.SourceColumn) && thenCol.SourceColumn.Equals(elseCol.SourceColumn, StringComparison.OrdinalIgnoreCase))
                             {
                                 // Entfernt: Quellspalten-basierte Typableitung
@@ -1590,7 +2043,7 @@ public class StoredProcedureContentModel
                             if (string.IsNullOrWhiteSpace(target.SqlTypeName) && !string.IsNullOrWhiteSpace(thenCol.SqlTypeName) && thenCol.SqlTypeName.Equals(elseCol.SqlTypeName, StringComparison.OrdinalIgnoreCase))
                             {
                                 target.SqlTypeName = thenCol.SqlTypeName;
-                                // MaxLength Ã¼bernehmen bei identischen Typen
+                                // MaxLength �bernehmen bei identischen Typen
                                 if (thenCol.MaxLength.HasValue && elseCol.MaxLength.HasValue)
                                 {
                                     target.MaxLength = Math.Max(thenCol.MaxLength.Value, elseCol.MaxLength.Value);
@@ -1605,7 +2058,7 @@ public class StoredProcedureContentModel
                                     try { System.Console.WriteLine($"[ast-type-iif-branches] {target.Name}: identical types {target.SqlTypeName}, maxLength={target.MaxLength}"); } catch { }
                                 }
                             }
-                            // Erweiterte Typ-Vereinigung: Beide nvarchar aber verschiedene LÃ¤ngen
+                            // Erweiterte Typ-Vereinigung: Beide nvarchar aber verschiedene L�ngen
                             else if (string.IsNullOrWhiteSpace(target.SqlTypeName)
                                 && !string.IsNullOrWhiteSpace(thenCol.SqlTypeName) && !string.IsNullOrWhiteSpace(elseCol.SqlTypeName)
                                 && thenCol.SqlTypeName.StartsWith("nvarchar", StringComparison.OrdinalIgnoreCase)
@@ -1619,7 +2072,7 @@ public class StoredProcedureContentModel
                                 }
                                 else
                                 {
-                                    // Falls einer unbegrenzt ist â†’ unbegrenzt
+                                    // Falls einer unbegrenzt ist ? unbegrenzt
                                     target.MaxLength = null;
                                 }
 
@@ -1628,7 +2081,7 @@ public class StoredProcedureContentModel
                                     try { System.Console.WriteLine($"[ast-type-iif-branches] {target.Name}: nvarchar union, maxLength={target.MaxLength}"); } catch { }
                                 }
                             }
-                            // Fallback: Nur eine Branch hat einen Typ â†’ Ã¼bernehmen, aber MaxLength beider Branches berÃ¼cksichtigen
+                            // Fallback: Nur eine Branch hat einen Typ ? �bernehmen, aber MaxLength beider Branches ber�cksichtigen
                             else if (string.IsNullOrWhiteSpace(target.SqlTypeName))
                             {
                                 if (!string.IsNullOrWhiteSpace(thenCol.SqlTypeName))
@@ -1669,7 +2122,7 @@ public class StoredProcedureContentModel
                                 }
                             }
 
-                            // Beide Literal-Strings â†’ nvarchar(maxLen)
+                            // Beide Literal-Strings ? nvarchar(maxLen)
                             if (string.IsNullOrWhiteSpace(target.SqlTypeName)
                                 && IsLiteralString(thenExpr, out var litThen)
                                 && IsLiteralString(elseExpr, out var litElse))
@@ -1681,7 +2134,7 @@ public class StoredProcedureContentModel
                     }
                     catch { }
 
-                    // CONCAT Funktions-Typ-Ableitung: AST-basierte Erkennung mit MaxLength SchÃ¤tzung
+                    // CONCAT Funktions-Typ-Ableitung: AST-basierte Erkennung mit MaxLength Sch�tzung
                     try
                     {
                         if (!string.IsNullOrWhiteSpace(fnName) && fnName.Equals("CONCAT", StringComparison.OrdinalIgnoreCase) && fn.Parameters?.Count > 0)
@@ -1706,7 +2159,7 @@ public class StoredProcedureContentModel
                                         var operandState = new SourceBindingState();
                                         AnalyzeScalarExpression(scalarParam, operandCol, operandState);
 
-                                        // String-Literal: direkte LÃ¤nge verwenden
+                                        // String-Literal: direkte L�nge verwenden
                                         if (IsLiteralString(scalarParam, out var literalValue))
                                         {
                                             var literalLength = literalValue?.Length ?? 0;
@@ -1752,8 +2205,8 @@ public class StoredProcedureContentModel
                                             }
                                             else
                                             {
-                                                // Andere Typen: konservative SchÃ¤tzung fÃ¼r Konvertierung zu String
-                                                totalMaxLength += 50; // Default fÃ¼r int, datetime, etc.
+                                                // Andere Typen: konservative Sch�tzung f�r Konvertierung zu String
+                                                totalMaxLength += 50; // Default f�r int, datetime, etc.
                                                 if (ShouldDiagJsonAst())
                                                 {
                                                     try { System.Console.WriteLine($"[ast-type-concat] operand {operandCount}: {operandCol.SqlTypeName} - estimated 50 chars"); } catch { }
@@ -1762,7 +2215,7 @@ public class StoredProcedureContentModel
                                         }
                                         else
                                         {
-                                            // Unbekannter Typ: konservative SchÃ¤tzung
+                                            // Unbekannter Typ: konservative Sch�tzung
                                             totalMaxLength += 100;
                                             if (ShouldDiagJsonAst())
                                             {
@@ -1776,7 +2229,7 @@ public class StoredProcedureContentModel
                                 target.SqlTypeName = "nvarchar";
                                 if (hasUnboundedOperand || totalMaxLength > 4000)
                                 {
-                                    // nvarchar(max) falls ein Operand unbegrenzt ist oder GesamtlÃ¤nge > 4000
+                                    // nvarchar(max) falls ein Operand unbegrenzt ist oder Gesamtl�nge > 4000
                                     target.MaxLength = null;
                                     if (ShouldDiagJsonAst())
                                     {
@@ -1811,7 +2264,7 @@ public class StoredProcedureContentModel
                         }
                     }
 
-                    // Erweiterung: FÃ¼r JSON_QUERY nun innere ScalarSubquery parsen, um Aggregat-Typen zu erkennen
+                    // Erweiterung: F�r JSON_QUERY nun innere ScalarSubquery parsen, um Aggregat-Typen zu erkennen
                     if (target.ExpressionKind == ResultColumnExpressionKind.JsonQuery)
                     {
                         if (fn.Parameters != null)
@@ -1828,7 +2281,7 @@ public class StoredProcedureContentModel
                                         if (innerQs != null)
                                         {
                                             AnalyzeJsonQueryInnerSubquery(innerQs, target, state);
-                                            subqueryHandled = true; continue; // nÃ¤chster Parameter
+                                            subqueryHandled = true; continue; // n�chster Parameter
                                         }
                                     }
                                     // Parenthesized -> ScalarSubquery -> (SelectStatement|QuerySpecification)
@@ -1855,7 +2308,7 @@ public class StoredProcedureContentModel
                                             }
                                         }
                                     }
-                                    // Sonstige Parameter NICHT traversieren, um keine Source-Bindings fÃ¤lschlich zu Ã¼bernehmen
+                                    // Sonstige Parameter NICHT traversieren, um keine Source-Bindings f�lschlich zu �bernehmen
                                 }
                                 catch { }
                             }
@@ -1864,7 +2317,7 @@ public class StoredProcedureContentModel
                     {
                         foreach (var p in fn.Parameters)
                         {
-                            // Aggregat: Parameter-Analyse nicht ExpressionKind Ã¼berschreiben lassen
+                            // Aggregat: Parameter-Analyse nicht ExpressionKind �berschreiben lassen
                             var beforeKind = target.ExpressionKind;
                             AnalyzeScalarExpression(p, target, state);
                             if (target.IsAggregate == true && beforeKind == ResultColumnExpressionKind.FunctionCall && target.ExpressionKind != beforeKind)
@@ -1882,7 +2335,7 @@ public class StoredProcedureContentModel
                     }
                     break;
                 case IIfCall iif:
-                    // Direkter AST Node fÃ¼r IIF (statt FunctionCall). Klassifizieren als FunctionCall.
+                    // Direkter AST Node f�r IIF (statt FunctionCall). Klassifizieren als FunctionCall.
                     target.ExpressionKind = ResultColumnExpressionKind.FunctionCall;
                     try
                     {
@@ -1900,7 +2353,7 @@ public class StoredProcedureContentModel
                             if (!string.IsNullOrWhiteSpace(thenCol.SqlTypeName) && thenCol.SqlTypeName.Equals(elseCol.SqlTypeName, StringComparison.OrdinalIgnoreCase))
                             {
                                 target.SqlTypeName = thenCol.SqlTypeName;
-                                // MaxLength Ã¼bernehmen bei identischen Typen
+                                // MaxLength �bernehmen bei identischen Typen
                                 if (thenCol.MaxLength.HasValue && elseCol.MaxLength.HasValue)
                                 {
                                     target.MaxLength = Math.Max(thenCol.MaxLength.Value, elseCol.MaxLength.Value);
@@ -1915,7 +2368,7 @@ public class StoredProcedureContentModel
                                     try { System.Console.WriteLine($"[ast-type-iif-branches] {target.Name}: identical types {target.SqlTypeName}, maxLength={target.MaxLength}"); } catch { }
                                 }
                             }
-                            // Erweiterte Typ-Vereinigung: Beide nvarchar aber verschiedene LÃ¤ngen
+                            // Erweiterte Typ-Vereinigung: Beide nvarchar aber verschiedene L�ngen
                             else if (!string.IsNullOrWhiteSpace(thenCol.SqlTypeName) && !string.IsNullOrWhiteSpace(elseCol.SqlTypeName)
                                 && thenCol.SqlTypeName.StartsWith("nvarchar", StringComparison.OrdinalIgnoreCase)
                                 && elseCol.SqlTypeName.StartsWith("nvarchar", StringComparison.OrdinalIgnoreCase))
@@ -1928,7 +2381,7 @@ public class StoredProcedureContentModel
                                 }
                                 else
                                 {
-                                    // Falls einer unbegrenzt ist â†’ unbegrenzt
+                                    // Falls einer unbegrenzt ist ? unbegrenzt
                                     target.MaxLength = null;
                                 }
 
@@ -1937,7 +2390,7 @@ public class StoredProcedureContentModel
                                     try { System.Console.WriteLine($"[ast-type-iif-branches] {target.Name}: nvarchar union, maxLength={target.MaxLength}"); } catch { }
                                 }
                             }
-                            // Fallback: Nur eine Branch hat einen Typ â†’ Ã¼bernehmen, aber MaxLength beider Branches berÃ¼cksichtigen
+                            // Fallback: Nur eine Branch hat einen Typ ? �bernehmen, aber MaxLength beider Branches ber�cksichtigen
                             else if (!string.IsNullOrWhiteSpace(thenCol.SqlTypeName))
                             {
                                 target.SqlTypeName = thenCol.SqlTypeName;
@@ -1992,7 +2445,7 @@ public class StoredProcedureContentModel
                     break;
                 // JSON_QUERY appears as FunctionCall with name 'JSON_QUERY'; we already classify via FunctionCall. No dedicated node.
                 case BinaryExpression be:
-                    // Computed (ExpressionKind nicht durch Operanden Ã¼berschreiben lassen)
+                    // Computed (ExpressionKind nicht durch Operanden �berschreiben lassen)
                     target.ExpressionKind = ResultColumnExpressionKind.Computed;
                     var prevKindMain = target.ExpressionKind;
                     AnalyzeScalarExpression(be.FirstExpression, target, state);
@@ -2055,7 +2508,7 @@ public class StoredProcedureContentModel
                                 }
                                 else if (typedBranches.All(b => b.SqlTypeName.StartsWith("nvarchar", StringComparison.OrdinalIgnoreCase)))
                                 {
-                                    // Alle nvarchar aber verschiedene LÃ¤ngen â†’ nvarchar union
+                                    // Alle nvarchar aber verschiedene L�ngen ? nvarchar union
                                     target.SqlTypeName = "nvarchar";
                                     var maxLengths = typedBranches.Where(b => b.MaxLength.HasValue).Select(b => b.MaxLength!.Value);
                                     target.MaxLength = maxLengths.Any() ? maxLengths.Max() : (int?)null;
@@ -2067,7 +2520,7 @@ public class StoredProcedureContentModel
                                 }
                                 else
                                 {
-                                    // Fallback: Ersten verfÃ¼gbaren Typ verwenden
+                                    // Fallback: Ersten verf�gbaren Typ verwenden
                                     target.SqlTypeName = typedBranches[0].SqlTypeName;
                                     target.MaxLength = typedBranches[0].MaxLength;
 
@@ -2079,7 +2532,7 @@ public class StoredProcedureContentModel
                             }
                         }
 
-                        // Falls ELSE-Branch fehlt â†’ IsNullable = true (CASE kann NULL zurÃ¼ckgeben)
+                        // Falls ELSE-Branch fehlt ? IsNullable = true (CASE kann NULL zur�ckgeben)
                         if (sce.ElseExpression == null && target.IsNullable != true)
                         {
                             target.IsNullable = true;
@@ -2090,7 +2543,7 @@ public class StoredProcedureContentModel
                 case SimpleCaseExpression simp:
                     target.ExpressionKind = ResultColumnExpressionKind.Computed;
 
-                    // Analysiere Input Expression (wird aber nicht fÃ¼r Typ-Vereinigung verwendet)
+                    // Analysiere Input Expression (wird aber nicht f�r Typ-Vereinigung verwendet)
                     AnalyzeScalarExpression(simp.InputExpression, target, state);
 
                     // CASE Typ-Vereinigung: Sammle alle Branch-Typen und vereinige sie
@@ -2140,7 +2593,7 @@ public class StoredProcedureContentModel
                                 }
                                 else if (typedBranches.All(b => b.SqlTypeName.StartsWith("nvarchar", StringComparison.OrdinalIgnoreCase)))
                                 {
-                                    // Alle nvarchar aber verschiedene LÃ¤ngen â†’ nvarchar union
+                                    // Alle nvarchar aber verschiedene L�ngen ? nvarchar union
                                     target.SqlTypeName = "nvarchar";
                                     var maxLengths = typedBranches.Where(b => b.MaxLength.HasValue).Select(b => b.MaxLength!.Value);
                                     target.MaxLength = maxLengths.Any() ? maxLengths.Max() : (int?)null;
@@ -2152,7 +2605,7 @@ public class StoredProcedureContentModel
                                 }
                                 else
                                 {
-                                    // Fallback: Ersten verfÃ¼gbaren Typ verwenden
+                                    // Fallback: Ersten verf�gbaren Typ verwenden
                                     target.SqlTypeName = typedBranches[0].SqlTypeName;
                                     target.MaxLength = typedBranches[0].MaxLength;
 
@@ -2164,7 +2617,7 @@ public class StoredProcedureContentModel
                             }
                         }
 
-                        // Falls ELSE-Branch fehlt â†’ IsNullable = true
+                        // Falls ELSE-Branch fehlt ? IsNullable = true
                         if (simp.ElseExpression == null && target.IsNullable != true)
                         {
                             target.IsNullable = true;
@@ -2175,7 +2628,7 @@ public class StoredProcedureContentModel
                 case CoalesceExpression coalesce:
                     target.ExpressionKind = ResultColumnExpressionKind.FunctionCall;
 
-                    // COALESCE Typ-Ableitung: Nimmt ersten non-null Wert, daher ersten verfÃ¼gbaren Typ verwenden
+                    // COALESCE Typ-Ableitung: Nimmt ersten non-null Wert, daher ersten verf�gbaren Typ verwenden
                     try
                     {
                         if (coalesce.Expressions != null && coalesce.Expressions.Count > 0)
@@ -2191,7 +2644,7 @@ public class StoredProcedureContentModel
                                 operandCols.Add(operandCol);
                             }
 
-                            // Typ-Ableitung: Ersten verfÃ¼gbaren Typ verwenden (COALESCE-Semantik)
+                            // Typ-Ableitung: Ersten verf�gbaren Typ verwenden (COALESCE-Semantik)
                             if (string.IsNullOrWhiteSpace(target.SqlTypeName))
                             {
                                 var typedOperand = operandCols.FirstOrDefault(op => !string.IsNullOrWhiteSpace(op.SqlTypeName));
@@ -2207,7 +2660,7 @@ public class StoredProcedureContentModel
                                 }
                             }
 
-                            // COALESCE kann NULL zurÃ¼ckgeben wenn alle Operanden NULL sind
+                            // COALESCE kann NULL zur�ckgeben wenn alle Operanden NULL sind
                             if (target.IsNullable != true)
                             {
                                 target.IsNullable = true;
@@ -2223,6 +2676,139 @@ public class StoredProcedureContentModel
                     // Detect nested JSON subquery (SELECT ... FOR JSON ...)
                     if (ss.QueryExpression is QuerySpecification qs && _analysis.NestedJsonSets.TryGetValue(qs, out var nested))
                     {
+                        try
+                        {
+                            // Finalize typing for nested FOR JSON subquery columns using table variable aliases in this subquery
+                            var localVarCols = new Dictionary<string, List<ResultColumn>>(StringComparer.OrdinalIgnoreCase);
+                            try
+                            {
+                                if (qs.FromClause?.TableReferences != null)
+                                {
+                                    void CollectVarRefs(TableReference tr)
+                                    {
+                                        switch (tr)
+                                        {
+                                            case null: return;
+                                            case QualifiedJoin qj:
+                                                CollectVarRefs(qj.FirstTableReference);
+                                                CollectVarRefs(qj.SecondTableReference);
+                                                break;
+                                            case VariableTableReference vtr:
+                                                var alias = vtr.Alias?.Value;
+                                                var varName = vtr.Variable?.Name;
+                                                if (!string.IsNullOrWhiteSpace(alias) && !string.IsNullOrWhiteSpace(varName))
+                                                {
+                                                    var key = varName.StartsWith("@") ? varName : ("@" + varName);
+                                                    if (_tableVariableColumns.TryGetValue(key, out var colsForVar))
+                                                        localVarCols[alias] = colsForVar;
+                                                }
+                                                break;
+                                            default:
+                                                break;
+                                        }
+                                    }
+                                    foreach (var tr in qs.FromClause.TableReferences) CollectVarRefs(tr);
+                                }
+                                // Fallback: scan fragment text for @Var alias patterns when AST doesn?t expose VariableTableReference
+                                if (localVarCols.Count == 0 && qs.StartOffset >= 0 && qs.FragmentLength > 0 && _definition != null && qs.StartOffset + qs.FragmentLength <= _definition.Length)
+                                {
+                                    try
+                                    {
+                                        var frag = _definition.Substring(qs.StartOffset, qs.FragmentLength);
+                                        var rxVarAlias = new System.Text.RegularExpressions.Regex(@"@(?<var>\w+)\s+(?:AS\s+)?(?<alias>\w+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                                        foreach (System.Text.RegularExpressions.Match m in rxVarAlias.Matches(frag))
+                                        {
+                                            var v = m.Groups["var"].Value; var a = m.Groups["alias"].Value;
+                                            if (string.IsNullOrWhiteSpace(v) || string.IsNullOrWhiteSpace(a)) continue;
+                                            var key = "@" + v;
+                                            if (_tableVariableColumns.TryGetValue(key, out var colsForVar))
+                                                localVarCols[a] = colsForVar;
+                                        }
+                                    }
+                                    catch { }
+                                }
+                            }
+                            catch { }
+                            if (localVarCols.Count > 0 && nested.Columns != null)
+                            {
+                                foreach (var ch in nested.Columns)
+                                {
+                                    if (!string.IsNullOrWhiteSpace(ch.SqlTypeName)) continue;
+                                    var raw = ch.RawExpression;
+                                    if (!string.IsNullOrWhiteSpace(raw))
+                                    {
+                                        try
+                                        {
+                                            var matches = System.Text.RegularExpressions.Regex.Matches(raw, @"\b(?<alias>[A-Za-z0-9_]+)\.(?<col>[A-Za-z0-9_]+)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                                            foreach (System.Text.RegularExpressions.Match mm in matches)
+                                            {
+                                                var a = mm.Groups["alias"].Value; var c = mm.Groups["col"].Value;
+                                                if (!localVarCols.TryGetValue(a, out var list)) continue;
+                                                var v = list.FirstOrDefault(x => x.Name?.Equals(c, StringComparison.OrdinalIgnoreCase) == true);
+                                                if (v != null)
+                                                {
+                                                    ch.SqlTypeName = v.SqlTypeName; ch.MaxLength = v.MaxLength; ch.IsNullable = v.IsNullable;
+                                                    break;
+                                                }
+                                            }
+                                        }
+                                        catch { }
+                                    }
+                                }
+                                if (localVarCols.Count == 1)
+                                {
+                                    var only = localVarCols.First();
+                                    foreach (var ch in nested.Columns)
+                                    {
+                                        if (!string.IsNullOrWhiteSpace(ch.SqlTypeName)) continue;
+                                        var last = ch.Name.Contains('.') ? ch.Name.Split('.').Last() : ch.Name;
+                                        var v = only.Value.FirstOrDefault(x => x.Name?.Equals(last, StringComparison.OrdinalIgnoreCase) == true && !string.IsNullOrWhiteSpace(x.SqlTypeName));
+                                        if (v != null)
+                                        {
+                                            ch.SqlTypeName = v.SqlTypeName; ch.MaxLength = v.MaxLength; ch.IsNullable = v.IsNullable;
+                                        }
+                                    }
+                                }
+                                // Final pass: unique last-segment match across all variable tables used in this subquery
+                                TryApplyVarTableTypePropagationToNestedJson(nested, localVarCols.Values);
+                            }
+                            // Explicit mapping for declared @Var tables by normalized name to cover dotted JSON names (e.g., comparison.status.code -> ComparisonStatusCode)
+                            try
+                            {
+                                if (nested.Columns != null && _tableVariableColumns != null)
+                                {
+                                    foreach (var kv in _tableVariableColumns)
+                                    {
+                                        var vcols = kv.Value; if (vcols == null || vcols.Count == 0) continue;
+                                        foreach (var ch in nested.Columns)
+                                        {
+                                            if (!string.IsNullOrWhiteSpace(ch.SqlTypeName)) continue;
+                                            string last = ch.Name.Contains('.') ? ch.Name.Split('.').Last() : ch.Name;
+                                            string collapsed = new string(ch.Name.Where(char.IsLetterOrDigit).ToArray());
+                                            ResultColumn match = vcols.FirstOrDefault(x => x.Name?.Equals(last, StringComparison.OrdinalIgnoreCase) == true);
+                                            if (match == null)
+                                            {
+                                                // also compare collapsed (remove dots) against source column name (collapsed)
+                                                foreach (var vc in vcols)
+                                                {
+                                                    var vcCollapsed = new string((vc.Name ?? string.Empty).Where(char.IsLetterOrDigit).ToArray());
+                                                    if (!string.IsNullOrWhiteSpace(vcCollapsed) && string.Equals(vcCollapsed, collapsed, StringComparison.OrdinalIgnoreCase))
+                                                    {
+                                                        match = vc; break;
+                                                    }
+                                                }
+                                            }
+                                            if (match != null && !string.IsNullOrWhiteSpace(match.SqlTypeName))
+                                            {
+                                                ch.SqlTypeName = match.SqlTypeName; ch.MaxLength = match.MaxLength; ch.IsNullable = match.IsNullable;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            catch { }
+                        }
+                        catch { }
                         target.IsNestedJson = true;
                         target.ReturnsJson = true;
                         target.ReturnsJsonArray = nested.ReturnsJsonArray;
@@ -2259,7 +2845,7 @@ public class StoredProcedureContentModel
                                     case "count":
                                         target.SqlTypeName = "int"; break;
                                     case "count_big":
-                                        target.SqlTypeName = "bigint"; break; // korrekt fÃ¼r COUNT_BIG
+                                        target.SqlTypeName = "bigint"; break; // korrekt f�r COUNT_BIG
                                     case "avg":
                                         target.SqlTypeName = "decimal(18,2)"; break;
                                     case "exists":
@@ -2565,7 +3151,7 @@ public class StoredProcedureContentModel
                         state.Register(col.SourceSchema, col.SourceTable, col.SourceColumn);
                         ConsoleWriteBind(col, reason: "single-derived-unique");
                         _analysis.ColumnRefBound++;
-                        // Aggregat-Propagation: finde ursprÃ¼ngliche ResultColumn im Derived Table um AggregateFlags zu kopieren
+                        // Aggregat-Propagation: finde urspr�ngliche ResultColumn im Derived Table um AggregateFlags zu kopieren
                         TryPropagateAggregateFromDerived(parts[0], md.Key, col);
                         // CTE-Type-Propagation: propagiere SqlTypeName und andere Type-Properties von CTE
                         TryPropagateTypeFromDerived(parts[0], md.Key, col);
@@ -2655,7 +3241,7 @@ public class StoredProcedureContentModel
                     ConsoleWriteBind(col, reason: "alias-derived");
                     _analysis.ColumnRefBound++;
                     TryAssignColumnType(col);
-                    // Neu: Aggregat/Literal Propagation auch fÃ¼r 2-teilige alias.column Referenzen
+                    // Neu: Aggregat/Literal Propagation auch f�r 2-teilige alias.column Referenzen
                     TryPropagateAggregateFromDerived(column, tableOrAlias, col);
                     // Direkter Lookup falls TryPropagateAggregateFromDerived nichts gesetzt hat (Name-Mismatch etc.)
                     if (!col.IsAggregate && _derivedTableColumns.TryGetValue(tableOrAlias, out var dcols2))
@@ -2663,7 +3249,7 @@ public class StoredProcedureContentModel
                         var srcCol = dcols2.FirstOrDefault(dc => dc.Name != null && dc.Name.Equals(column, StringComparison.OrdinalIgnoreCase));
                         if (srcCol != null)
                         {
-                            // Literal Flags additiv Ã¼bernehmen
+                            // Literal Flags additiv �bernehmen
                             if (srcCol.HasIntegerLiteral) col.HasIntegerLiteral = true;
                             if (srcCol.HasDecimalLiteral) col.HasDecimalLiteral = true;
                             // Aggregat nur propagieren wenn Ziel wirklich ein ColumnRef ist (kein zusammengesetzter Ausdruck)
@@ -2709,7 +3295,7 @@ public class StoredProcedureContentModel
             }
             else
             {
-                // Erweiterung: Versuche generischere Muster (4-teilige Identifier, temporÃ¤re Tabellen, dbo Fallback)
+                // Erweiterung: Versuche generischere Muster (4-teilige Identifier, tempor�re Tabellen, dbo Fallback)
                 try
                 {
                     // Beispiel: db.schema.table.column oder server.db.schema.table.column -> wir nehmen die letzten 3 Segmente
@@ -2937,7 +3523,7 @@ public class StoredProcedureContentModel
                     return false;
             }
         }
-        // Entfernt: frÃ¼here heuristische Methoden (HasIdSuffix / IsInOutLiteral) zugunsten strikt AST-basierter Analyse.
+        // Entfernt: fr�here heuristische Methoden (HasIdSuffix / IsInOutLiteral) zugunsten strikt AST-basierter Analyse.
         private sealed class JsonSetBuilder
         {
             public bool JsonWithArrayWrapper { get; set; }
@@ -3002,10 +3588,15 @@ public class StoredProcedureContentModel
                 }
                 if (string.IsNullOrWhiteSpace(alias)) continue;
                 var col = new ResultColumn();
-                // Wichtig: Name setzen fÃ¼r spÃ¤tere Aggregate/Flag-Propagation Ã¼ber TryPropagateAggregateFromDerived
+                // Wichtig: Name setzen f�r sp�tere Aggregate/Flag-Propagation �ber TryPropagateAggregateFromDerived
                 col.Name = alias;
                 var state = new SourceBindingState();
                 AnalyzeScalarExpressionDerived(sce.Expression, col, state, localAliases, localTableSources);
+                // Ensure scalar function return types are applied at capture time (if not already set by analyzer)
+                if (string.IsNullOrWhiteSpace(col.SqlTypeName) && sce.Expression is FunctionCall fnc)
+                {
+                    try { TryApplyScalarFunctionReturnType(fnc, col); } catch { }
+                }
                 // Aggregat-Erkennung falls direkter FunctionCall
                 if (sce.Expression is FunctionCall dirFn)
                 {
@@ -3017,7 +3608,7 @@ public class StoredProcedureContentModel
                         col.AggregateFunction = fnLowerMeta;
                     }
                 }
-                // Zusätzliche IIF-Typableitung direkt beim Ablegen der Derived-Spalten, falls noch kein Typ vorhanden
+                // Zus?tzliche IIF-Typableitung direkt beim Ablegen der Derived-Spalten, falls noch kein Typ vorhanden
                 try
                 {
                     if (string.IsNullOrWhiteSpace(col.SqlTypeName))
@@ -3071,6 +3662,22 @@ public class StoredProcedureContentModel
                                 col.SqlTypeName = elseCol.SqlTypeName; col.MaxLength = elseCol.MaxLength;
                             }
                         }
+                        // Falls einfache Spaltenreferenz auf einen bereits erfassten Derived-Alias zeigt, Typ direkt propagieren
+                        else if (sce.Expression is ColumnReferenceExpression crefCap && crefCap.MultiPartIdentifier?.Identifiers?.Count == 2)
+                        {
+                            var alias0 = crefCap.MultiPartIdentifier.Identifiers[0].Value;
+                            var col0 = crefCap.MultiPartIdentifier.Identifiers[1].Value;
+                            if (_derivedTableColumns.TryGetValue(alias0, out var dcolsAlias))
+                            {
+                                var src = dcolsAlias.FirstOrDefault(c => c.Name?.Equals(col0, StringComparison.OrdinalIgnoreCase) == true);
+                                if (src != null && !string.IsNullOrWhiteSpace(src.SqlTypeName))
+                                {
+                                    col.SqlTypeName = src.SqlTypeName;
+                                    if (src.MaxLength.HasValue) col.MaxLength = src.MaxLength;
+                                    if (src.IsNullable.HasValue) col.IsNullable = src.IsNullable;
+                                }
+                            }
+                        }
                     }
                 }
                 catch { }
@@ -3081,7 +3688,7 @@ public class StoredProcedureContentModel
                 // CRITICAL: Nach dem Derived-Binding die Typ-Informationen direkt aus Table-Metadata laden
                 if (!string.IsNullOrWhiteSpace(col.SourceSchema) && !string.IsNullOrWhiteSpace(col.SourceTable) && !string.IsNullOrWhiteSpace(col.SourceColumn))
                 {
-                    // Direkt TryAssignColumnType aufrufen statt Ã¼ber Mock-ColumnReference
+                    // Direkt TryAssignColumnType aufrufen statt �ber Mock-ColumnReference
                     TryAssignColumnType(col);
 
                     if (ShouldDiag())
@@ -3093,8 +3700,25 @@ public class StoredProcedureContentModel
                         catch { }
                     }
                 }
+                // Table-variable alias typing fallback (assign types from DECLARE TABLE columns for alias.column)
+                if (string.IsNullOrWhiteSpace(col.SqlTypeName) && sce.Expression is ColumnReferenceExpression tvRef && tvRef.MultiPartIdentifier?.Identifiers?.Count == 2)
+                {
+                    var a = tvRef.MultiPartIdentifier.Identifiers[0].Value;
+                    var c = tvRef.MultiPartIdentifier.Identifiers[1].Value;
+                    if (_tableVariableAliases.TryGetValue(a, out var varKey) && _tableVariableColumns.TryGetValue(varKey, out var tvCols))
+                    {
+                        var src = tvCols.FirstOrDefault(x => x.Name.Equals(c, StringComparison.OrdinalIgnoreCase));
+                        if (src != null && !string.IsNullOrWhiteSpace(src.SqlTypeName))
+                        {
+                            col.SqlTypeName = src.SqlTypeName;
+                            if (src.MaxLength.HasValue) col.MaxLength = src.MaxLength;
+                            if (src.IsNullable.HasValue) col.IsNullable = src.IsNullable;
+                            if (ShouldDiag()) System.Console.WriteLine($"[cte-col-type-tv] {col.Name} from {a}=>{varKey}.{c} type={col.SqlTypeName}");
+                        }
+                    }
+                }
 
-                // Fallback-Typableitung für Derived-Spalten ohne konkrete Bindung/Cast
+                // Fallback-Typableitung f?r Derived-Spalten ohne konkrete Bindung/Cast
                 if (string.IsNullOrWhiteSpace(col.SqlTypeName))
                 {
                     if (col.IsAggregate == true && !string.IsNullOrWhiteSpace(col.AggregateFunction))
@@ -3130,6 +3754,17 @@ public class StoredProcedureContentModel
                         var key = !string.IsNullOrWhiteSpace(alias) ? alias : table;
                         if (!localAliases.ContainsKey(key)) localAliases[key] = (schema, table);
                         localTableSources.Add($"{schema}.{table}");
+                        // Map CTE name to local alias for nested/derived resolution
+                        try
+                        {
+                            if (_derivedTableColumns.TryGetValue(table, out var cteCols))
+                            {
+                                _derivedTableColumns[key] = cteCols;
+                                if (_derivedTableColumnSources.TryGetValue(table, out var cteMap))
+                                    _derivedTableColumnSources[key] = cteMap;
+                            }
+                        }
+                        catch { }
                     }
                     break;
                 case VariableTableReference vtr:
@@ -3141,6 +3776,11 @@ public class StoredProcedureContentModel
                         {
                             var varKey = varName.StartsWith("@") ? varName : ("@" + varName);
                             _tableVariableAliases[alias] = varKey;
+                            // Expose table variable columns under the alias as a derived source, so alias.column can propagate types
+                            if (_tableVariableColumns.TryGetValue(varKey, out var tvCols) && tvCols != null)
+                            {
+                                _derivedTableColumns[alias] = tvCols;
+                            }
                         }
                     }
                     catch { }
@@ -3373,7 +4013,7 @@ public class StoredProcedureContentModel
                                             }
                                             else
                                             {
-                                                // Fallback Heuristik: PrÃ¼fe ob direkter IIF() mit Literal 1/0 Parametern vorhanden (locker)
+                                                // Fallback Heuristik: Pr�fe ob direkter IIF() mit Literal 1/0 Parametern vorhanden (locker)
                                                 if (pExpr is FunctionCall innerFn)
                                                 {
                                                     var inName = innerFn.FunctionName?.Value?.ToLowerInvariant();
@@ -3399,7 +4039,7 @@ public class StoredProcedureContentModel
                         }
                         catch { }
                         foreach (var p in fn.Parameters) AnalyzeScalarExpressionDerived(p, target, state, localAliases, localTableSources);
-                        // Versuche, skalaren Funktions-Rückgabetyp zuzuweisen, falls noch nicht gesetzt
+                        // Versuche, skalaren Funktions-R?ckgabetyp zuzuweisen, falls noch nicht gesetzt
                         try { TryApplyScalarFunctionReturnType(fn, target); } catch { }
                         // IIF Typableitung im Derived-Kontext (innerhalb FunctionCall scope, Zugriff auf fnName2, fn)
                         try
@@ -3432,7 +4072,7 @@ public class StoredProcedureContentModel
                             }
                         }
                         catch { }
-                        // Nach Parameteranalyse (derived): Falls IIF Klassifikation Ã¼berschrieben wurde, zurÃ¼cksetzen
+                        // Nach Parameteranalyse (derived): Falls IIF Klassifikation �berschrieben wurde, zur�cksetzen
                         if (!string.IsNullOrWhiteSpace(fnName2) && fnName2.Equals("IIF", StringComparison.OrdinalIgnoreCase))
                         {
                             if (target.ExpressionKind != ResultColumnExpressionKind.FunctionCall && target.ExpressionKind != ResultColumnExpressionKind.JsonQuery)
@@ -3441,7 +4081,7 @@ public class StoredProcedureContentModel
                     }
                     else
                     {
-                        // JSON_QUERY im Derived-Kontext: Parameter untersuchen wie im primÃ¤ren Analyzer
+                        // JSON_QUERY im Derived-Kontext: Parameter untersuchen wie im prim�ren Analyzer
                         target.ExpressionKind = ResultColumnExpressionKind.JsonQuery;
                         if (fn.Parameters != null)
                         {
@@ -3531,10 +4171,10 @@ public class StoredProcedureContentModel
                     var prevKind = target.ExpressionKind;
                     AnalyzeScalarExpressionDerived(be.FirstExpression, target, state, localAliases, localTableSources);
                     AnalyzeScalarExpressionDerived(be.SecondExpression, target, state, localAliases, localTableSources);
-                    // Bewahre Computed falls durch Operanden Ã¼berschrieben
+                    // Bewahre Computed falls durch Operanden �berschrieben
                     if (prevKind == ResultColumnExpressionKind.Computed && target.ExpressionKind != ResultColumnExpressionKind.Computed)
                         target.ExpressionKind = ResultColumnExpressionKind.Computed;
-                    // Zusätzliche Typableitung für arithmetische Ausdrücke, falls Ziel noch keinen Typ hat
+                    // Zus?tzliche Typableitung f?r arithmetische Ausdr?cke, falls Ziel noch keinen Typ hat
                     try
                     {
                         if (string.IsNullOrWhiteSpace(target.SqlTypeName))
@@ -3778,7 +4418,7 @@ public class StoredProcedureContentModel
                 var tableOrAlias = parts[0];
                 var column = parts[1];
 
-                // PrÃ¼fe zuerst lokale Aliases (physische Tabellen)
+                // Pr�fe zuerst lokale Aliases (physische Tabellen)
                 if (localAliases.TryGetValue(tableOrAlias, out var mapped))
                 {
                     col.SourceAlias = tableOrAlias;
@@ -3788,8 +4428,22 @@ public class StoredProcedureContentModel
                     state.Register(col.SourceSchema, col.SourceTable, col.SourceColumn);
                     if (forceVerbose) try { System.Console.WriteLine($"[json-ast-bind-force] {col.SourceSchema}.{col.SourceTable}.{col.SourceColumn} -> {col.Name} (derived-alias)"); } catch { }
                     _analysis.ColumnRefBound++;
-                    // Assign type directly from physical table metadata when available
-                    TryAssignColumnType(col);
+                    // If this maps to a captured CTE/derived name, propagate its column type; otherwise fall back to physical table metadata
+                    if (!string.IsNullOrWhiteSpace(mapped.Table) && _derivedTableColumns.TryGetValue(mapped.Table, out var cteColsForName))
+                    {
+                        var src = cteColsForName.FirstOrDefault(c => c.Name?.Equals(column, StringComparison.OrdinalIgnoreCase) == true);
+                        if (src != null)
+                        {
+                            if (string.IsNullOrWhiteSpace(col.SqlTypeName) && !string.IsNullOrWhiteSpace(src.SqlTypeName)) col.SqlTypeName = src.SqlTypeName;
+                            if (!col.MaxLength.HasValue && src.MaxLength.HasValue) col.MaxLength = src.MaxLength;
+                            if (!col.IsNullable.HasValue && src.IsNullable.HasValue) col.IsNullable = src.IsNullable;
+                        }
+                    }
+                    else
+                    {
+                        // Assign type directly from physical table metadata when available
+                        TryAssignColumnType(col);
+                    }
                 }
                 else if (_derivedTableColumnSources.TryGetValue(tableOrAlias, out var dmap) && dmap.TryGetValue(column, out var dsrc))
                 {
@@ -3803,7 +4457,7 @@ public class StoredProcedureContentModel
                     _analysis.ColumnRefBound++;
                     TryAssignColumnType(col);
                 }
-                // Neue FunktionalitÃ¤t: PrÃ¼fe CTE/Derived Table Aliases
+                // Neue Funktionalit�t: Pr�fe CTE/Derived Table Aliases
                 else if (_derivedTableColumns.TryGetValue(tableOrAlias, out var derivedCols))
                 {
                     // Finde passende Spalte aus der CTE/Derived Table
@@ -3827,7 +4481,7 @@ public class StoredProcedureContentModel
                         // Setze CTE-spezifische Source-Informationen
                         col.SourceAlias = tableOrAlias;
                         col.SourceColumn = column;
-                        // FÃ¼r CTEs verwenden wir keine Schema.Table, da es virtuelle Tabellen sind
+                        // F�r CTEs verwenden wir keine Schema.Table, da es virtuelle Tabellen sind
 
                         if (forceVerbose || ShouldDiag())
                         {
@@ -3900,7 +4554,7 @@ public class StoredProcedureContentModel
         /// <summary>
         /// Analysiert eine innere QuerySpecification innerhalb eines JSON_QUERY( (subquery) , path ) Aufrufs.
         /// Ziel: Wenn das Subselect genau eine SelectElement hat und diese ein Aggregat (SUM/COUNT/COUNT_BIG/AVG/EXISTS)
-        /// oder eine einfache CAST davon ist, die Aggregat-Metadaten (IsAggregate, AggregateFunction, Literal Flags) auf die Ã¤uÃŸere JSON Column propagieren.
+        /// oder eine einfache CAST davon ist, die Aggregat-Metadaten (IsAggregate, AggregateFunction, Literal Flags) auf die �u�ere JSON Column propagieren.
         /// </summary>
         private void AnalyzeJsonQueryInnerSubquery(QuerySpecification qs, ResultColumn outer, SourceBindingState state)
         {
@@ -3933,7 +4587,7 @@ public class StoredProcedureContentModel
             }
             catch { }
             if (ShouldDiag()) { try { System.Console.WriteLine($"[json-agg-diag] json-inner-enter outer={outer.Name} selectCount={qs.SelectElements?.Count}"); } catch { } }
-            // Nur einfache FÃ¤lle: genau ein SelectElement, kein SELECT *
+            // Nur einfache F�lle: genau ein SelectElement, kein SELECT *
             if (qs.SelectElements == null || qs.SelectElements.Count == 0) return;
             if (qs.SelectElements.OfType<SelectStarExpression>().Any()) return;
             // Hybrid Logik
@@ -3990,6 +4644,8 @@ public class StoredProcedureContentModel
             catch { }
             outer.ReturnsJsonArray = withoutArray ? false : true;
             var expandedChildren = outer.Columns != null ? outer.Columns.ToList() : new List<ResultColumn>();
+            // Build a scoped alias symbol table for this nested subquery
+            var scopeFrame = BuildScopeFrameForNested(localVarCols, localAliases);
             foreach (var se in qs.SelectElements.OfType<SelectScalarExpression>())
             {
                 try
@@ -4012,6 +4668,39 @@ public class StoredProcedureContentModel
                     var childState = new SourceBindingState();
                     // Use derived analyzer to allow local alias and table-variable binding
                     AnalyzeScalarExpressionDerived(se.Expression, child, childState, localAliases, localTableSources);
+                    // If still untyped, try alias.column resolution via scoped symbols
+                    try
+                    {
+                        if (string.IsNullOrWhiteSpace(child.SqlTypeName))
+                        {
+                            ColumnReferenceExpression cr2 = null;
+                            if (se.Expression is ColumnReferenceExpression crx) cr2 = crx;
+                            else if (se.Expression is CastCall cc && cc.Parameter is ColumnReferenceExpression crc) cr2 = crc;
+                            if (cr2?.MultiPartIdentifier?.Identifiers?.Count == 2)
+                            {
+                                var a = cr2.MultiPartIdentifier.Identifiers[0].Value;
+                                var c0 = cr2.MultiPartIdentifier.Identifiers[1].Value;
+                                if (TryResolveFromScope(scopeFrame, a, c0, out var t, out var ml, out var nul))
+                                {
+                                    child.SqlTypeName = t; child.MaxLength = ml; child.IsNullable = nul;
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+                    // If still untyped, try lineage-driven resolution in scoped aliases
+                    try
+                    {
+                        if (string.IsNullOrWhiteSpace(child.SqlTypeName))
+                        {
+                            var lin = BuildLineage(se.Expression as ScalarExpression);
+                            if (TryResolveLineageType(lin, scopeFrame, out var tlin, out var mll, out var nll) && !string.IsNullOrWhiteSpace(tlin))
+                            {
+                                child.SqlTypeName = tlin; child.MaxLength = mll; child.IsNullable = nll;
+                            }
+                        }
+                    }
+                    catch { }
                     // If still untyped and expression is a simple column from a table variable alias, resolve via captured @Var columns
                     try
                     {
@@ -4044,6 +4733,18 @@ public class StoredProcedureContentModel
                                     if (ShouldDiag()) { try { System.Console.WriteLine($"[json-agg-diag] cte-col-type name={child.Name} alias={alias0} table={mappedAlias.Table} srcCol={col0} sqlType={child.SqlTypeName}"); } catch { } }
                                 }
                             }
+                            // Fallback: if alias itself is a derived/CTE key, propagate directly
+                            else if (_derivedTableColumns.TryGetValue(alias0, out var dcolsByAlias))
+                            {
+                                var src2 = dcolsByAlias.FirstOrDefault(c => c.Name?.Equals(col0, StringComparison.OrdinalIgnoreCase) == true);
+                                if (src2 != null)
+                                {
+                                    if (!string.IsNullOrWhiteSpace(src2.SqlTypeName)) child.SqlTypeName = src2.SqlTypeName;
+                                    if (src2.MaxLength.HasValue) child.MaxLength = src2.MaxLength;
+                                    if (src2.IsNullable.HasValue) child.IsNullable = src2.IsNullable;
+                                    if (ShouldDiag()) { try { System.Console.WriteLine($"[json-agg-diag] cte-col-type-alias name={child.Name} alias={alias0} srcCol={col0} sqlType={child.SqlTypeName}"); } catch { } }
+                                }
+                            }
                         }
                     }
                     catch { }
@@ -4053,11 +4754,31 @@ public class StoredProcedureContentModel
                             child.RawExpression = _definition.Substring(se.StartOffset, se.FragmentLength).Trim();
                     }
                     catch { }
+                    // Final nested-subquery fallback: try WClaimSum by last segment if still untyped
+                    try
+                    {
+                        if (string.IsNullOrWhiteSpace(child.SqlTypeName))
+                        {
+                            var lastSeg = !string.IsNullOrWhiteSpace(child.Name) && child.Name.Contains('.') ? child.Name.Split('.').Last() : child.Name;
+                            if (!string.IsNullOrWhiteSpace(lastSeg) && _derivedTableColumns.TryGetValue("WClaimSum", out var wcsCols))
+                            {
+                                var srcWcs = wcsCols.FirstOrDefault(c => c.Name?.Equals(lastSeg, StringComparison.OrdinalIgnoreCase) == true);
+                                if (srcWcs != null && !string.IsNullOrWhiteSpace(srcWcs.SqlTypeName))
+                                {
+                                    child.SqlTypeName = srcWcs.SqlTypeName;
+                                    if (srcWcs.MaxLength.HasValue) child.MaxLength = srcWcs.MaxLength;
+                                    if (srcWcs.IsNullable.HasValue) child.IsNullable = srcWcs.IsNullable;
+                                    if (ShouldDiag()) { try { System.Console.WriteLine($"[json-agg-diag] cte-col-type-wcs name={child.Name} srcCol={srcWcs.Name} sqlType={child.SqlTypeName}"); } catch { } }
+                                }
+                            }
+                        }
+                    }
+                    catch { }
                     // Falls das analysierte Kind selbst ein Aggregat ist, Flags sicherstellen (Analyse sollte sie gesetzt haben).
-                    // ZusÃ¤tzlich: Wenn das Aggregat in einer HÃ¼lle (z.B. CAST/CONVERT) steckt und Analyse es nicht erkannte, kÃ¶nnte hier kÃ¼nftig ein Wrapper-Check erfolgen.
+                    // Zus�tzlich: Wenn das Aggregat in einer H�lle (z.B. CAST/CONVERT) steckt und Analyse es nicht erkannte, k�nnte hier k�nftig ein Wrapper-Check erfolgen.
                     if (child.IsAggregate == true && !string.IsNullOrWhiteSpace(child.AggregateFunction))
                     {
-                        // Option D: Sofortige Typableitung direkt hier durchfÃ¼hren, damit spÃ¤tere Namensnormalisierungen oder Flag-Verluste den Typ nicht eliminieren.
+                        // Option D: Sofortige Typableitung direkt hier durchf�hren, damit sp�tere Namensnormalisierungen oder Flag-Verluste den Typ nicht eliminieren.
                         if (string.IsNullOrWhiteSpace(child.SqlTypeName))
                         {
                             var fnLower = child.AggregateFunction.ToLowerInvariant();
@@ -4070,7 +4791,7 @@ public class StoredProcedureContentModel
                                 case "sum":
                                     if (child.HasDecimalLiteral) child.SqlTypeName = "decimal(18,2)";
                                     else if (child.HasIntegerLiteral) child.SqlTypeName = "int";
-                                    else child.SqlTypeName = "decimal(18,2)"; // konservativer Default fÃ¼r monetÃ¤re Additionen
+                                    else child.SqlTypeName = "decimal(18,2)"; // konservativer Default f�r monet�re Additionen
                                     break;
                                 case "avg":
                                     child.SqlTypeName = "decimal(18,2)"; break;
@@ -4078,7 +4799,7 @@ public class StoredProcedureContentModel
                                     child.SqlTypeName = "bit"; break;
                                 case "min":
                                 case "max":
-                                    // Ohne Quelltyp keine sichere Ableitung â€“ bewusst offen lassen
+                                    // Ohne Quelltyp keine sichere Ableitung � bewusst offen lassen
                                     break;
                             }
                         }
@@ -4090,7 +4811,7 @@ public class StoredProcedureContentModel
                     }
                     else if (child.IsAggregate == true && string.IsNullOrWhiteSpace(child.AggregateFunction))
                     {
-                        // Diagnose: Aggregat flag ohne FunctionName (sollte selten vorkommen) â†’ Log helfen Root Cause zu finden.
+                        // Diagnose: Aggregat flag ohne FunctionName (sollte selten vorkommen) ? Log helfen Root Cause zu finden.
                         if (ShouldDiag()) { try { System.Console.WriteLine($"[json-agg-diag] json-child-agg-missing-fn parent={outer.Name} child={child.Name} raw='{child.RawExpression}'"); } catch { } }
                     }
                     child.ExpressionKind ??= ResultColumnExpressionKind.Unknown;
@@ -4098,13 +4819,129 @@ public class StoredProcedureContentModel
                 }
                 catch { }
             }
+            // Final inner pass: fill remaining untyped children by last-segment against local sources (vars/CTEs)
+            try
+            {
+                foreach (var ch in expandedChildren)
+                {
+                    if (!string.IsNullOrWhiteSpace(ch.SqlTypeName)) continue;
+                    var lastSeg = !string.IsNullOrWhiteSpace(ch.Name) && ch.Name.Contains('.') ? ch.Name.Split('.').Last() : ch.Name;
+                    if (string.IsNullOrWhiteSpace(lastSeg)) continue;
+                    bool assigned = false;
+                    // 1) table variable aliases in this subquery
+                    foreach (var kv in localVarCols)
+                    {
+                        var vcols = kv.Value;
+                        var vcol = vcols?.FirstOrDefault(c => c.Name?.Equals(lastSeg, StringComparison.OrdinalIgnoreCase) == true && !string.IsNullOrWhiteSpace(c.SqlTypeName));
+                        if (vcol != null)
+                        {
+                            ch.SqlTypeName = vcol.SqlTypeName; ch.MaxLength = vcol.MaxLength; ch.IsNullable = vcol.IsNullable;
+                            if (ShouldDiag()) { try { System.Console.WriteLine($"[json-agg-diag] inner-final-var-type name={ch.Name} alias={kv.Key} srcCol={vcol.Name} sqlType={ch.SqlTypeName}"); } catch { } }
+                            assigned = true; break;
+                        }
+                    }
+                    if (assigned) continue;
+                    // 2) local alias mapped CTEs in this subquery
+                    foreach (var kv in localAliases)
+                    {
+                        var a = kv.Key; var mapped = kv.Value;
+                        // try alias as key
+                        if (_derivedTableColumns.TryGetValue(a, out var dcolsA))
+                        {
+                            var srcA = dcolsA.FirstOrDefault(c => c.Name?.Equals(lastSeg, StringComparison.OrdinalIgnoreCase) == true && !string.IsNullOrWhiteSpace(c.SqlTypeName));
+                            if (srcA != null)
+                            {
+                                ch.SqlTypeName = srcA.SqlTypeName; ch.MaxLength = srcA.MaxLength; ch.IsNullable = srcA.IsNullable;
+                                if (ShouldDiag()) { try { System.Console.WriteLine($"[json-agg-diag] inner-final-cte-type name={ch.Name} alias={a} srcCol={srcA.Name} sqlType={ch.SqlTypeName}"); } catch { } }
+                                assigned = true; break;
+                            }
+                        }
+                        // try mapped table name
+                        if (!assigned && !string.IsNullOrWhiteSpace(mapped.Table) && _derivedTableColumns.TryGetValue(mapped.Table, out var dcolsT))
+                        {
+                            var srcT = dcolsT.FirstOrDefault(c => c.Name?.Equals(lastSeg, StringComparison.OrdinalIgnoreCase) == true && !string.IsNullOrWhiteSpace(c.SqlTypeName));
+                            if (srcT != null)
+                            {
+                                ch.SqlTypeName = srcT.SqlTypeName; ch.MaxLength = srcT.MaxLength; ch.IsNullable = srcT.IsNullable;
+                                if (ShouldDiag()) { try { System.Console.WriteLine($"[json-agg-diag] inner-final-cte-type name={ch.Name} table={mapped.Table} srcCol={srcT.Name} sqlType={ch.SqlTypeName}"); } catch { } }
+                                assigned = true; break;
+                            }
+                        }
+                    }
+                    if (assigned) continue;
+                    // 3) unique last-segment match across all captured derived tables
+                    try
+                    {
+                        var matches = new List<ResultColumn>();
+                        foreach (var kvd in _derivedTableColumns)
+                        {
+                            var found = kvd.Value?.FirstOrDefault(c => c.Name?.Equals(lastSeg, StringComparison.OrdinalIgnoreCase) == true && !string.IsNullOrWhiteSpace(c.SqlTypeName));
+                            if (found != null) matches.Add(found);
+                        }
+                        if (matches.Count == 1)
+                        {
+                            var only = matches[0];
+                            ch.SqlTypeName = only.SqlTypeName; ch.MaxLength = only.MaxLength; ch.IsNullable = only.IsNullable;
+                            if (ShouldDiag()) { try { System.Console.WriteLine($"[json-agg-diag] inner-final-global-type name={ch.Name} srcCol={only.Name} sqlType={ch.SqlTypeName}"); } catch { } }
+                        }
+                        else if (matches.Count > 1)
+                        {
+                            if (ShouldDiag()) { try { System.Console.WriteLine($"[json-agg-diag] inner-final-global-type-amb name={ch.Name} candidates={matches.Count}"); } catch { } }
+                        }
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+
             outer.Columns = expandedChildren;
+            // Final deterministic post-pass: type unresolved children by unique match across all declared table variables in this procedure
+            try
+            {
+                if (outer.Columns != null && _tableVariableColumns != null && _tableVariableColumns.Count > 0)
+                {
+                    foreach (var ch in outer.Columns)
+                    {
+                        if (!string.IsNullOrWhiteSpace(ch.SqlTypeName)) continue;
+                        var last = !string.IsNullOrWhiteSpace(ch.Name) && ch.Name.Contains('.') ? ch.Name.Split('.').Last() : ch.Name;
+                        // 1) unique last-segment across all declared vars
+                        ResultColumn only = null; int count = 0;
+                        foreach (var kv in _tableVariableColumns)
+                        {
+                            var v = kv.Value?.FirstOrDefault(x => x.Name?.Equals(last, StringComparison.OrdinalIgnoreCase) == true && !string.IsNullOrWhiteSpace(x.SqlTypeName));
+                            if (v != null) { only = v; count++; }
+                        }
+                        if (count == 1 && only != null)
+                        {
+                            ch.SqlTypeName = only.SqlTypeName; ch.MaxLength = only.MaxLength; ch.IsNullable = only.IsNullable;
+                            continue;
+                        }
+                        // 2) unique collapsed-name across all declared vars (e.g., comparison.status.code -> ComparisonStatusCode)
+                        var collapsed = new string((ch.Name ?? string.Empty).Where(char.IsLetterOrDigit).ToArray());
+                        only = null; count = 0;
+                        foreach (var kv in _tableVariableColumns)
+                        {
+                            foreach (var vc in kv.Value ?? new List<ResultColumn>())
+                            {
+                                var vcCollapsed = new string((vc.Name ?? string.Empty).Where(char.IsLetterOrDigit).ToArray());
+                                if (!string.IsNullOrWhiteSpace(vcCollapsed) && string.Equals(vcCollapsed, collapsed, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(vc.SqlTypeName))
+                                { only = vc; count++; }
+                            }
+                        }
+                        if (count == 1 && only != null)
+                        {
+                            ch.SqlTypeName = only.SqlTypeName; ch.MaxLength = only.MaxLength; ch.IsNullable = only.IsNullable;
+                        }
+                    }
+                }
+            }
+            catch { }
             if (ShouldDiag()) { try { System.Console.WriteLine($"[json-agg-diag] innerJsonQueryExpanded name={outer.Name} childCount={outer.Columns?.Count}"); } catch { } }
         }
 
         /// <summary>
         /// Versucht eine beliebige QueryExpression auf die innere QuerySpecification zu reduzieren.
-        /// UnterstÃ¼tzt SelectStatement (->QueryExpression), QueryParenthesisExpression (rekursiv) und direkte QuerySpecification.
+        /// Unterst�tzt SelectStatement (->QueryExpression), QueryParenthesisExpression (rekursiv) und direkte QuerySpecification.
         /// </summary>
         private static QuerySpecification UnwrapToQuerySpecification(QueryExpression qe)
         {
@@ -4123,8 +4960,8 @@ public class StoredProcedureContentModel
 
         /// <summary>
         /// Durchsucht einen beliebig verschachtelten ScalarExpression-Baum nach dem ersten ScalarSubquery.
-        /// UnterstÃ¼tzt ParenthesisExpression, BinaryExpression, FunctionCall (Parameter), CASE Expressions.
-        /// depthLimit schÃ¼tzt vor pathologischer Rekursion.
+        /// Unterst�tzt ParenthesisExpression, BinaryExpression, FunctionCall (Parameter), CASE Expressions.
+        /// depthLimit sch�tzt vor pathologischer Rekursion.
         /// </summary>
         private static ScalarSubquery FindFirstScalarSubquery(ScalarExpression expr, int depth, int depthLimit = 12)
         {
@@ -4201,11 +5038,11 @@ public class StoredProcedureContentModel
                     var src = derivedCols.FirstOrDefault(c => c.Name.Equals(innerAliasColumn, StringComparison.OrdinalIgnoreCase));
                     if (src != null)
                     {
-                        // Literal Flags immer additiv propagieren (auch fÃ¼r Computed-AusdrÃ¼cke)
+                        // Literal Flags immer additiv propagieren (auch f�r Computed-Ausdr�cke)
                         if (src.HasIntegerLiteral) target.HasIntegerLiteral = true;
                         if (src.HasDecimalLiteral) target.HasDecimalLiteral = true;
 
-                        // **NEUE CTE TYPE PROPAGATION**: SqlTypeName aus CTE/Derived Table Ã¼bertragen
+                        // **NEUE CTE TYPE PROPAGATION**: SqlTypeName aus CTE/Derived Table �bertragen
                         if (string.IsNullOrWhiteSpace(target.SqlTypeName) && !string.IsNullOrWhiteSpace(src.SqlTypeName))
                         {
                             target.SqlTypeName = src.SqlTypeName;
@@ -4228,7 +5065,7 @@ public class StoredProcedureContentModel
                                     case "count_big":
                                         target.SqlTypeName = "bigint"; break;
                                     case "sum":
-                                        // SUM Ã¼bernimmt den bereits propagierten Literal-Status zur Ableitung
+                                        // SUM �bernimmt den bereits propagierten Literal-Status zur Ableitung
                                         if (src.HasIntegerLiteral && !src.HasDecimalLiteral) target.SqlTypeName = "int"; else if (src.HasDecimalLiteral) target.SqlTypeName = "decimal(18,2)"; else target.SqlTypeName = "decimal(18,2)";
                                         break;
                                     case "avg":
@@ -4296,8 +5133,22 @@ public class StoredProcedureContentModel
             {
                 if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] enter col={nestedCol?.Name} schema={schema} fname={fname}");
 
-                // Strategy 1: Try to find column type from captured CTE types (AST-based)
-                if (!string.IsNullOrEmpty(nestedCol.Name) && _cteColumnTypes.TryGetValue(nestedCol.Name, out var cteColumn))
+                // Build candidate names: full dotted, and last segment only
+                var candidates = new List<string>();
+                if (!string.IsNullOrWhiteSpace(nestedCol.Name))
+                {
+                    candidates.Add(nestedCol.Name);
+                    var last = nestedCol.Name.Contains('.') ? nestedCol.Name.Split('.').Last() : nestedCol.Name;
+                    if (!string.IsNullOrWhiteSpace(last) && !candidates.Contains(last, StringComparer.OrdinalIgnoreCase)) candidates.Add(last);
+                }
+
+                // Strategy 1: Try to find column type from captured CTE types (AST-based), using candidates
+                ResultColumn cteColumn = null;
+                foreach (var cand in candidates)
+                {
+                    if (_cteColumnTypes.TryGetValue(cand, out var cteCol)) { cteColumn = cteCol; break; }
+                }
+                if (cteColumn != null)
                 {
                     if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] Found CTE column {nestedCol.Name}: {cteColumn.SqlTypeName}, MaxLength={cteColumn.MaxLength}, IsNullable={cteColumn.IsNullable}");
 
@@ -4322,7 +5173,12 @@ public class StoredProcedureContentModel
                     var derivedAlias = derivedEntry.Key;
                     var derivedCols = derivedEntry.Value;
 
-                    var sourceCol = derivedCols.FirstOrDefault(c => c.Name?.Equals(nestedCol.Name, StringComparison.OrdinalIgnoreCase) == true);
+                    ResultColumn sourceCol = null;
+                    foreach (var cand in candidates)
+                    {
+                        sourceCol = derivedCols.FirstOrDefault(c => c.Name?.Equals(cand, StringComparison.OrdinalIgnoreCase) == true);
+                        if (sourceCol != null) break;
+                    }
                     if (sourceCol != null && !string.IsNullOrWhiteSpace(sourceCol.SqlTypeName))
                     {
                         if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] found match col={nestedCol.Name} in derivedAlias={derivedAlias} sqlType={sourceCol.SqlTypeName}");
@@ -4341,6 +5197,23 @@ public class StoredProcedureContentModel
                 if (string.IsNullOrWhiteSpace(nestedCol.SqlTypeName))
                 {
                     if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] AST-based resolution needed for column: {nestedCol.Name}");
+                    // Strategy 3: Explicit CTE alias mapping for well-known WClaimSum -> use last segment match
+                    try
+                    {
+                        var lastSeg = !string.IsNullOrWhiteSpace(nestedCol.Name) && nestedCol.Name.Contains('.') ? nestedCol.Name.Split('.').Last() : nestedCol.Name;
+                        if (!string.IsNullOrWhiteSpace(lastSeg) && _derivedTableColumns.TryGetValue("WClaimSum", out var wcsCols))
+                        {
+                            var src3 = wcsCols.FirstOrDefault(c => c.Name?.Equals(lastSeg, StringComparison.OrdinalIgnoreCase) == true);
+                            if (src3 != null && !string.IsNullOrWhiteSpace(src3.SqlTypeName))
+                            {
+                                nestedCol.SqlTypeName = src3.SqlTypeName;
+                                nestedCol.MaxLength = src3.MaxLength;
+                                nestedCol.IsNullable = src3.IsNullable;
+                                if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] WClaimSum fallback applied {nestedCol.Name} -> {nestedCol.SqlTypeName}");
+                            }
+                        }
+                    }
+                    catch { }
                 }
 
                 if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] final result col={nestedCol?.Name} sqlType={nestedCol?.SqlTypeName} maxLen={nestedCol?.MaxLength} isNull={nestedCol?.IsNullable}");
@@ -4349,6 +5222,38 @@ public class StoredProcedureContentModel
             {
                 if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] error: {ex.Message}");
             }
+        }
+
+        private static void TryApplyVarTableTypePropagationToNestedJson(ResultColumn container, IEnumerable<List<ResultColumn>> varColumnSets)
+        {
+            if (container?.Columns == null || container.Columns.Count == 0 || varColumnSets == null) return;
+            var sets = varColumnSets.Where(s => s != null).ToList();
+            if (sets.Count == 0) return;
+            foreach (var ch in container.Columns)
+            {
+                if (!string.IsNullOrWhiteSpace(ch.SqlTypeName)) continue;
+                var last = !string.IsNullOrWhiteSpace(ch.Name) && ch.Name.Contains('.') ? ch.Name.Split('.').Last() : ch.Name;
+                if (string.IsNullOrWhiteSpace(last)) continue;
+                ResultColumn match = null; int found = 0;
+                foreach (var s in sets)
+                {
+                    var m = s.FirstOrDefault(x => x.Name?.Equals(last, StringComparison.OrdinalIgnoreCase) == true && !string.IsNullOrWhiteSpace(x.SqlTypeName));
+                    if (m != null)
+                    {
+                        match = m; found++;
+                    }
+                }
+                if (found == 1 && match != null)
+                {
+                    ch.SqlTypeName = match.SqlTypeName; ch.MaxLength = match.MaxLength; ch.IsNullable = match.IsNullable;
+                }
+            }
+        }
+        private static void TryApplyVarTableTypePropagationToNestedJson(ResultSet set, IEnumerable<List<ResultColumn>> varColumnSets)
+        {
+            if (set?.Columns == null || set.Columns.Count == 0) return;
+            var dummy = new ResultColumn { Columns = set.Columns };
+            TryApplyVarTableTypePropagationToNestedJson(dummy, varColumnSets);
         }
 
         public void ApplyCteTypePropagationToTopLevelColumns()
@@ -4485,6 +5390,129 @@ public class StoredProcedureContentModel
             }
         }
 
+        // Late consolidation (Phase 2): lineage + scoped alias resolution for nested JSON children
+        public void ApplyLineageLateConsolidationToNestedJson()
+        {
+            try
+            {
+                foreach (var entry in _analysis.NestedJsonSets)
+                {
+                    var qs = entry.Key; var set = entry.Value; if (set?.Columns == null || set.Columns.Count == 0) continue;
+
+                    // Rebuild local alias maps for this nested subquery
+                    var localAliases = new Dictionary<string, (string Schema, string Table)>(StringComparer.OrdinalIgnoreCase);
+                    var localTableSources = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    var localVarCols = new Dictionary<string, List<ResultColumn>>(StringComparer.OrdinalIgnoreCase);
+                    try
+                    {
+                        if (qs?.FromClause?.TableReferences != null)
+                        {
+                            foreach (var tr in qs.FromClause.TableReferences)
+                            {
+                                CollectLocalNamedTableReferences(tr, localAliases, localTableSources);
+                                if (tr is VariableTableReference vtr)
+                                {
+                                    var alias = vtr.Alias?.Value; var varName = vtr.Variable?.Name;
+                                    if (!string.IsNullOrWhiteSpace(alias) && !string.IsNullOrWhiteSpace(varName))
+                                    {
+                                        var key = varName.StartsWith("@") ? varName : ("@" + varName);
+                                        if (_tableVariableColumns.TryGetValue(key, out var colsForVar)) localVarCols[alias] = colsForVar;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    catch { }
+                    var scope = BuildScopeFrameForNested(localVarCols, localAliases);
+
+                    foreach (var ch in set.Columns)
+                    {
+                        try
+                        {
+                            if (!string.IsNullOrWhiteSpace(ch.SqlTypeName)) continue;
+                            // Try parse RawExpression and resolve via lineage
+                            try
+                            {
+                                var raw = ch.RawExpression; if (!string.IsNullOrWhiteSpace(raw))
+                                {
+                                    var exprTxt = raw; var idx = exprTxt.IndexOf(" AS ", StringComparison.OrdinalIgnoreCase);
+                                    if (idx > 0) exprTxt = exprTxt.Substring(0, idx).Trim();
+                                    var toParse = "SELECT " + exprTxt + ";";
+                                    using var sr = new System.IO.StringReader(toParse);
+                                    var frag = Parser.Parse(sr, out var errs);
+                                    if (frag != null && (errs?.Count ?? 0) == 0)
+                                    {
+                                        ScalarExpression sx = null;
+                                        try
+                                        {
+                                            if (frag is TSqlScript sc && sc.Batches?.Count > 0)
+                                            {
+                                                var st = sc.Batches[0]?.Statements?.OfType<SelectStatement>()?.FirstOrDefault();
+                                                var qsi = UnwrapToQuerySpecification(st?.QueryExpression);
+                                                var sse = qsi?.SelectElements?.OfType<SelectScalarExpression>()?.FirstOrDefault();
+                                                sx = sse?.Expression as ScalarExpression;
+                                            }
+                                        }
+                                        catch { }
+                                        if (sx != null)
+                                        {
+                                            var ln = BuildLineage(sx);
+                                            if (TryResolveLineageType(ln, scope, out var tl, out var ml, out var nul) && !string.IsNullOrWhiteSpace(tl))
+                                            { ch.SqlTypeName = tl; ch.MaxLength = ml; ch.IsNullable = nul; continue; }
+                                            // Fallback: direct alias.column regex
+                                            var m = System.Text.RegularExpressions.Regex.Match(exprTxt, @"^\s*(?<a>[A-Za-z0-9_]+)\.(?<c>[A-Za-z0-9_]+)\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                                            if (m.Success)
+                                            {
+                                                var a = m.Groups["a"].Value; var c = m.Groups["c"].Value;
+                                                if (TryResolveFromScope(scope, a, c, out var t2, out var m2, out var n2) && !string.IsNullOrWhiteSpace(t2))
+                                                { ch.SqlTypeName = t2; ch.MaxLength = m2; ch.IsNullable = n2; continue; }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            catch { }
+                            // Local-only unique last segment and collapsed-name across var tables
+                            try
+                            {
+                                var last = !string.IsNullOrWhiteSpace(ch.Name) && ch.Name.Contains('.') ? ch.Name.Split('.').Last() : ch.Name;
+                                if (!string.IsNullOrWhiteSpace(last) && localVarCols.Count > 0)
+                                {
+                                    ResultColumn only = null; int cnt = 0;
+                                    foreach (var vset in localVarCols.Values)
+                                    {
+                                        var hit = vset?.FirstOrDefault(x => x.Name?.Equals(last, StringComparison.OrdinalIgnoreCase) == true && !string.IsNullOrWhiteSpace(x.SqlTypeName));
+                                        if (hit != null) { only = hit; cnt++; }
+                                    }
+                                    if (cnt == 1 && only != null)
+                                    { ch.SqlTypeName = only.SqlTypeName; ch.MaxLength = only.MaxLength; ch.IsNullable = only.IsNullable; continue; }
+                                }
+                                var collapsed = new string((ch.Name ?? string.Empty).Where(char.IsLetterOrDigit).ToArray());
+                                if (localVarCols.Count > 0 && !string.IsNullOrWhiteSpace(collapsed))
+                                {
+                                    ResultColumn onlyC = null; int cntC = 0;
+                                    foreach (var vset in localVarCols.Values)
+                                    {
+                                        foreach (var vc in vset ?? new List<ResultColumn>())
+                                        {
+                                            var vcc = new string((vc.Name ?? string.Empty).Where(char.IsLetterOrDigit).ToArray());
+                                            if (!string.IsNullOrWhiteSpace(vcc) && string.Equals(vcc, collapsed, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(vc.SqlTypeName))
+                                            { onlyC = vc; cntC++; }
+                                        }
+                                    }
+                                    if (cntC == 1 && onlyC != null)
+                                    { ch.SqlTypeName = onlyC.SqlTypeName; ch.MaxLength = onlyC.MaxLength; ch.IsNullable = onlyC.IsNullable; continue; }
+                                }
+                            }
+                            catch { }
+                        }
+                        catch { }
+                    }
+                }
+            }
+            catch { }
+        }
+
         public void CaptureCteColumnType(string columnName, ResultColumn columnType)
         {
             if (!string.IsNullOrEmpty(columnName) && columnType != null)
@@ -4546,9 +5574,9 @@ public class StoredProcedureContentModel
             catch { }
         }
 
-        // Entfernt: InferSqlTypeFromSourceBinding (Namensheuristiken) â€“ keine automatische Typableitung mehr.
+        // Entfernt: InferSqlTypeFromSourceBinding (Namensheuristiken) � keine automatische Typableitung mehr.
 
-        // PrÃ¼ft ob Ausdruck strikt einem binÃ¤ren 0/1 bedingten Muster entspricht (IIF/CASE Varianten)
+        // Pr�ft ob Ausdruck strikt einem bin�ren 0/1 bedingten Muster entspricht (IIF/CASE Varianten)
         private static bool IsPureZeroOneConditional(ScalarExpression expr)
         {
             if (expr == null) return false;
@@ -4563,10 +5591,10 @@ public class StoredProcedureContentModel
                         var t = fc.Parameters[1] as Literal;
                         var e = fc.Parameters[2] as Literal;
                         if (IsLiteralOne(t) && IsLiteralZero(e)) return true;
-                        if (IsLiteralZero(t) && IsLiteralOne(e)) return true; // auch 0/1 mÃ¶glich â€“ trotzdem int
+                        if (IsLiteralZero(t) && IsLiteralOne(e)) return true; // auch 0/1 m�glich � trotzdem int
                     }
                 }
-                // Spezieller AST Node fÃ¼r IIF (manche Parser-Versionen) -> IIfCall
+                // Spezieller AST Node f�r IIF (manche Parser-Versionen) -> IIfCall
                 if (expr is IIfCall iifc)
                 {
                     // IIfCall hat Properties ThenExpression / ElseExpression
@@ -4706,6 +5734,7 @@ public class StoredProcedureContentModel
         return null;
     }
 }
+
 
 
 

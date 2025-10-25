@@ -155,6 +155,20 @@ public sealed class JsonResultTypeEnricher
                 // Heuristik entfernt: kein Name-basiertes Typ Raten mehr. Ungebundene / uncasted Spalten behalten leeren Typ.
             }
 
+            // Emit generic warning for unresolved leaf columns (visible even without binding)
+            if (!hasConcrete)
+            {
+                bool isLeaf = col.Columns == null || col.Columns.Count == 0;
+                bool isContainer = col.ReturnsJson == true || col.IsNestedJson == true;
+                if (isLeaf && !isContainer)
+                {
+                    var src = (string.IsNullOrWhiteSpace(col.SourceSchema) && string.IsNullOrWhiteSpace(col.SourceTable) && string.IsNullOrWhiteSpace(col.SourceColumn))
+                        ? "?"
+                        : $"{col.SourceSchema}.{col.SourceTable}.{col.SourceColumn}";
+                    _console.Warn($"[json-type-miss] {sp.SchemaName}.{sp.Name} {col.Name} source={src} unresolved");
+                }
+            }
+
             // Recurse into nested JSON columns
             if ((col.IsNestedJson == true || col.ReturnsJson == true) && col.Columns != null && col.Columns.Count > 0)
             {

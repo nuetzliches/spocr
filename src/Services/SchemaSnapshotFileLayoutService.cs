@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using SpocR.Models;
 
 namespace SpocR.Services;
@@ -93,10 +94,71 @@ public sealed class SchemaSnapshotFileLayoutService
             });
             existingProcFiles.Remove(fileName);
         }
-        // Remove orphaned procedure files
-        foreach (var orphan in existingProcFiles.Values)
+        // Remove orphaned procedure files - but only if no procedure filter is active
+        // When --procedure filter is set, we should not delete other procedures
+        var procedureFilter = Environment.GetEnvironmentVariable("SPOCR_BUILD_PROCEDURES");
+        bool hasProcedureFilter = !string.IsNullOrWhiteSpace(procedureFilter);
+
+        if (!hasProcedureFilter)
         {
-            try { File.Delete(orphan); } catch { }
+            // No filter active - safe to remove all orphaned files
+            foreach (var orphan in existingProcFiles.Values)
+            {
+                try { File.Delete(orphan); } catch { }
+            }
+        }
+        else
+        {
+            // Filter is active - only remove files that match the filter pattern
+            var tokens = procedureFilter.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                                       .Select(p => p.Trim())
+                                       .Where(p => !string.IsNullOrEmpty(p))
+                                       .ToList();
+
+            var procedureFilterExact = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var procedureFilterWildcard = new List<Regex>();
+
+            foreach (var t in tokens)
+            {
+                if (t.Contains('*') || t.Contains('?'))
+                {
+                    // Convert wildcard to Regex: escape, then replace \* -> .*, \? -> .
+                    var escaped = Regex.Escape(t);
+                    var pattern = "^" + escaped.Replace("\\*", ".*").Replace("\\?", ".") + "$";
+                    try { procedureFilterWildcard.Add(new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)); } catch { }
+                }
+                else
+                {
+                    procedureFilterExact.Add(t);
+                }
+            }
+
+            bool MatchesFilter(string fileName)
+            {
+                // Extract schema.name from fileName (remove .json extension and convert back from sanitized names)
+                var nameWithoutExt = Path.GetFileNameWithoutExtension(fileName);
+                var parts = nameWithoutExt.Split('.');
+                if (parts.Length != 2) return false;
+
+                var fqName = $"{parts[0]}.{parts[1]}"; // Note: this assumes sanitized names match original names
+
+                if (procedureFilterExact.Contains(fqName)) return true;
+                foreach (var rx in procedureFilterWildcard)
+                {
+                    if (rx.IsMatch(fqName)) return true;
+                }
+                return false;
+            }
+
+            // Only remove orphaned files that match the active filter
+            foreach (var orphan in existingProcFiles.Values)
+            {
+                var fileName = Path.GetFileName(orphan);
+                if (MatchesFilter(fileName))
+                {
+                    try { File.Delete(orphan); } catch { }
+                }
+            }
         }
 
         var ttDir = Path.Combine(baseDir, "tabletypes");
@@ -264,12 +326,38 @@ public sealed class SchemaSnapshotFileLayoutService
         var typeHashes = new List<FileHashEntry>();
         foreach (var udt in snapshot.UserDefinedTypes ?? Enumerable.Empty<SnapshotUserDefinedType>())
         {
-            var fileName = $"{SpocR.SpocRVNext.Utils.NameSanitizer.SanitizeForFile(udt.Schema)}.{SpocR.SpocRVNext.Utils.NameSanitizer.SanitizeForFile(udt.Name)}.json";
+            var baseName = SpocR.SpocRVNext.Utils.NameSanitizer.SanitizeForFile(udt.Name);
+            var schemaName = SpocR.SpocRVNext.Utils.NameSanitizer.SanitizeForFile(udt.Schema);
+            // Base type file (schema.name.json)
+            var fileName = $"{schemaName}.{baseName}.json";
             var path = Path.Combine(typesDir, fileName);
             var json = JsonSerializer.Serialize(udt, _jsonOptions);
-            var newHash = HashUtils.Sha256Hex(json).Substring(0,16);
+            var newHash = HashUtils.Sha256Hex(json).Substring(0, 16);
             File.WriteAllText(path, json); // keine Delta-Optimierung nötig (klein)
             typeHashes.Add(new FileHashEntry { Schema = udt.Schema, Name = udt.Name, File = fileName, Hash = newHash });
+
+            // Underscore NOT NULL alias (schema._name.json)
+            try
+            {
+                var underscoreName = baseName.StartsWith("_") ? baseName : ("_" + baseName);
+                var udtNotNull = new SnapshotUserDefinedType
+                {
+                    Schema = udt.Schema,
+                    Name = underscoreName,
+                    BaseSqlTypeName = udt.BaseSqlTypeName,
+                    MaxLength = udt.MaxLength,
+                    Precision = udt.Precision,
+                    Scale = udt.Scale,
+                    IsNullable = false
+                };
+                var fileNameUnderscore = $"{schemaName}.{underscoreName}.json";
+                var pathUnderscore = Path.Combine(typesDir, fileNameUnderscore);
+                var jsonUnderscore = JsonSerializer.Serialize(udtNotNull, _jsonOptions);
+                var hashUnderscore = HashUtils.Sha256Hex(jsonUnderscore).Substring(0, 16);
+                File.WriteAllText(pathUnderscore, jsonUnderscore);
+                typeHashes.Add(new FileHashEntry { Schema = udt.Schema, Name = underscoreName, File = fileNameUnderscore, Hash = hashUnderscore });
+            }
+            catch { }
         }
 
         var tableHashes = new List<FileHashEntry>();
@@ -288,7 +376,7 @@ public sealed class SchemaSnapshotFileLayoutService
                 if (c.Scale.HasValue && c.Scale.Value == 0) c.Scale = null;
             }
             var json = JsonSerializer.Serialize(tbl, _jsonOptions);
-            var newHash = HashUtils.Sha256Hex(json).Substring(0,16);
+            var newHash = HashUtils.Sha256Hex(json).Substring(0, 16);
             File.WriteAllText(path, json);
             tableHashes.Add(new FileHashEntry { Schema = tbl.Schema, Name = tbl.Name, File = fileName, Hash = newHash });
         }
@@ -307,7 +395,7 @@ public sealed class SchemaSnapshotFileLayoutService
                 if (c.Scale.HasValue && c.Scale.Value == 0) c.Scale = null;
             }
             var json = JsonSerializer.Serialize(vw, _jsonOptions);
-            var newHash = HashUtils.Sha256Hex(json).Substring(0,16);
+            var newHash = HashUtils.Sha256Hex(json).Substring(0, 16);
             File.WriteAllText(path, json);
             viewHashes.Add(new FileHashEntry { Schema = vw.Schema, Name = vw.Name, File = fileName, Hash = newHash });
         }
@@ -578,8 +666,8 @@ public sealed class SchemaSnapshotFileLayoutService
         public int? FunctionsVersion { get; set; }
         public List<FileHashEntry> Functions { get; set; } = new();
         // Neue Kategorien (optional / leer für Kompatibilität mit älteren index.json Versionen)
-    // Umbenennung: UserDefinedTypes statt Types (alias scalar UDTs)
-    public List<FileHashEntry> UserDefinedTypes { get; set; } = new();
+        // Umbenennung: UserDefinedTypes statt Types (alias scalar UDTs)
+        public List<FileHashEntry> UserDefinedTypes { get; set; } = new();
         public List<FileHashEntry> Tables { get; set; } = new();
         public List<FileHashEntry> Views { get; set; } = new();
     }
