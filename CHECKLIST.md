@@ -53,6 +53,7 @@ Status-Legende:
 - [x] ScalarSubquery Typisierung erweitert (AST-basiert, ohne Namensheuristik): - Einzelnes Select-Element wird vollständig analysiert; erkannter Typ wird übernommen - Aggregatfunktionen in ScalarSubquery: COUNT → int, COUNT_BIG → bigint, AVG → decimal(18,2), EXISTS → bit, SUM → decimal(18,2)
 - [~] Berechnete Felder (arithmetische Ausdrücke) weiter präzisieren (AST-basiert). Noch offen für komplexe mehrstufige Ausdrücke in WCalculation (Net/Success/Gross)
   Die typischen Betrag/Quota‑Berechnungen (Net/Success/Gross) stammen in dieser Prozedur aus mehrstufigen Ausdrücken (IIF, Fensterfunktionen, Kombinationen). Ich kann die AST‑Typableitung noch enger fassen (z. B. arithmetische Kombinationen aus int/decimal konsequent zu decimal(18,2)), rein aus den erkannten Operatoren – ebenfalls ohne Heuristik. Soll ich das für WCalculation konsistent ergänzen?
+- [~] Verschachtelte JSON Child-Spalten (summary._, claims._) erhalten noch keine durchgängigen SqlTypeNames (z. B. `summary.debitorTypeId`). AST-Bindung liefert aktuell nur Root-CTE; ColumnRef → Tabellen/CTE-Source Mapping für Child-Pfade noch ergänzen (Follow-up nötig).
 
 ### Debug Phase (Aggregat & JSON Typisierung Erweiterungen 23.10.2025)
 

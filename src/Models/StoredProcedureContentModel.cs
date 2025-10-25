@@ -3469,6 +3469,37 @@ public class StoredProcedureContentModel
             };
         }
 
+        private ResultColumn FindTableVariableColumn(string candidate)
+        {
+            if (string.IsNullOrWhiteSpace(candidate) || _tableVariableColumns == null || _tableVariableColumns.Count == 0) return null;
+
+            foreach (var cols in _tableVariableColumns.Values)
+            {
+                if (cols == null) continue;
+                var direct = cols.FirstOrDefault(c => c != null
+                    && !string.IsNullOrWhiteSpace(c.Name)
+                    && !string.IsNullOrWhiteSpace(c.SqlTypeName)
+                    && c.Name.Equals(candidate, StringComparison.OrdinalIgnoreCase));
+                if (direct != null) return direct;
+            }
+
+            var collapsed = new string(candidate.Where(char.IsLetterOrDigit).ToArray());
+            if (string.IsNullOrWhiteSpace(collapsed)) return null;
+
+            foreach (var cols in _tableVariableColumns.Values)
+            {
+                if (cols == null) continue;
+                foreach (var col in cols)
+                {
+                    if (col == null || string.IsNullOrWhiteSpace(col.Name) || string.IsNullOrWhiteSpace(col.SqlTypeName)) continue;
+                    var colCollapsed = new string(col.Name.Where(char.IsLetterOrDigit).ToArray());
+                    if (string.Equals(colCollapsed, collapsed, StringComparison.OrdinalIgnoreCase)) return col;
+                }
+            }
+
+            return null;
+        }
+
         private void RegisterCteColumnType(string alias, ResultColumn column)
         {
             if (column == null || string.IsNullOrWhiteSpace(column.Name) || string.IsNullOrWhiteSpace(column.SqlTypeName)) return;
@@ -4425,9 +4456,26 @@ public class StoredProcedureContentModel
         {
             try
             {
+                System.Console.WriteLine($"[table-var-entry] diag={ShouldDiag()} len={_definition?.Length ?? 0}");
                 if (string.IsNullOrWhiteSpace(_definition)) return;
                 var rxDecl = new System.Text.RegularExpressions.Regex(@"DECLARE\s+(@\w+)\s+TABLE\s*\((.*?)\)", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
                 var rxCol = new System.Text.RegularExpressions.Regex(@"\[?\s*([A-Za-z0-9_]+)\s*\]?\s+((\[?([A-Za-z0-9_]+)\]?\.)?\[?([A-Za-z0-9_]+)\]?)(\s*\([^\)]*\))?", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                static string ComposeSqlTypeName(string baseType, int? maxLength, int? precision, int? scale)
+                {
+                    if (string.IsNullOrWhiteSpace(baseType)) return string.Empty;
+                    var lower = baseType.Trim().ToLowerInvariant();
+                    if (precision.HasValue)
+                    {
+                        if (scale.HasValue) return $"{lower}({precision.Value},{scale.Value})";
+                        return $"{lower}({precision.Value})";
+                    }
+                    if (maxLength.HasValue)
+                    {
+                        if (maxLength.Value < 0) return $"{lower}(max)";
+                        return $"{lower}({maxLength.Value})";
+                    }
+                    return lower;
+                }
                 foreach (System.Text.RegularExpressions.Match m in rxDecl.Matches(_definition))
                 {
                     var varName = m.Groups[1].Value; var colsText = m.Groups[2].Value;
@@ -4437,7 +4485,10 @@ public class StoredProcedureContentModel
                         var colName = cm.Groups[1].Value;
                         var schema = cm.Groups[4].Success ? cm.Groups[4].Value : null;
                         var typeName = cm.Groups[5].Value;
+                        var suffix = cm.Groups[6].Success ? cm.Groups[6].Value : null;
                         var rc = new ResultColumn { Name = colName };
+                        if (!string.IsNullOrWhiteSpace(schema)) rc.UserTypeSchemaName = schema;
+                        if (!string.IsNullOrWhiteSpace(typeName)) rc.UserTypeName = typeName;
                         if (!string.IsNullOrWhiteSpace(schema) && !string.IsNullOrWhiteSpace(typeName) && ResolveUserDefinedType != null)
                         {
                             try
@@ -4445,18 +4496,52 @@ public class StoredProcedureContentModel
                                 var udt = ResolveUserDefinedType(schema, typeName);
                                 if (!string.IsNullOrWhiteSpace(udt.SqlTypeName))
                                 {
-                                    rc.SqlTypeName = udt.SqlTypeName;
-                                    if (udt.MaxLength.HasValue) rc.MaxLength = udt.MaxLength.Value;
+                                    rc.SqlTypeName = ComposeSqlTypeName(udt.SqlTypeName, udt.MaxLength, udt.Precision, udt.Scale);
+                                    if (udt.MaxLength.HasValue) rc.MaxLength = udt.MaxLength.Value < 0 ? null : udt.MaxLength.Value;
                                     if (udt.IsNullable.HasValue) rc.IsNullable = udt.IsNullable.Value;
                                     if (ShouldDiag()) System.Console.WriteLine($"[table-var-udt] {varName}.{colName} {schema}.{typeName} -> {rc.SqlTypeName} len={rc.MaxLength} nullable={rc.IsNullable}");
                                 }
                             }
                             catch { }
                         }
+                        if (string.IsNullOrWhiteSpace(rc.SqlTypeName) && !string.IsNullOrWhiteSpace(typeName))
+                        {
+                            var parsed = typeName.Trim();
+                            if (!string.IsNullOrWhiteSpace(parsed))
+                            {
+                                var lower = parsed.ToLowerInvariant();
+                                if (!string.IsNullOrWhiteSpace(suffix))
+                                {
+                                    var suffixNormalized = suffix.Trim();
+                                    rc.SqlTypeName = (lower + suffixNormalized).ToLowerInvariant();
+                                    try
+                                    {
+                                        var inner = suffixNormalized.Trim('(', ')');
+                                        var parts = inner.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                                        if (parts.Length == 1 && int.TryParse(parts[0], out var len))
+                                        {
+                                            rc.MaxLength = len < 0 ? null : len;
+                                        }
+                                    }
+                                    catch { }
+                                }
+                                else
+                                {
+                                    rc.SqlTypeName = lower;
+                                }
+                            }
+                        }
+                        if (ShouldDiag())
+                        {
+                            var sqlType = string.IsNullOrWhiteSpace(rc.SqlTypeName) ? "" : rc.SqlTypeName;
+                            System.Console.WriteLine($"[table-var-capture] {varName}.{colName} type={sqlType} len={rc.MaxLength} nullable={rc.IsNullable} utSchema={schema} utName={typeName}");
+                        }
                         cols.Add(rc);
                     }
+                    if (ShouldDiag()) System.Console.WriteLine($"[table-var-decl] {varName} columns={cols.Count} rawLen={(colsText?.Length ?? 0)}");
                     if (cols.Count > 0) _tableVariableColumns[varName] = cols;
                 }
+                if (ShouldDiag()) System.Console.WriteLine($"[table-var-total] captured={_tableVariableColumns.Count}");
             }
             catch { }
         }
@@ -5289,6 +5374,27 @@ public class StoredProcedureContentModel
 
                 if (string.IsNullOrWhiteSpace(nestedCol.SqlTypeName) && ShouldDiag())
                     Console.WriteLine($"[cte-nested-json-type] AST-based resolution still pending for column: {nestedCol.Name}");
+
+                if (string.IsNullOrWhiteSpace(nestedCol.SqlTypeName))
+                {
+                    ResultColumn tableVarColumn = null;
+                    foreach (var cand in candidates)
+                    {
+                        tableVarColumn = FindTableVariableColumn(cand);
+                        if (tableVarColumn != null) break;
+                    }
+                    if (tableVarColumn == null && !string.IsNullOrWhiteSpace(nestedCol.Name))
+                        tableVarColumn = FindTableVariableColumn(nestedCol.Name);
+
+                    if (tableVarColumn != null && !string.IsNullOrWhiteSpace(tableVarColumn.SqlTypeName))
+                    {
+                        nestedCol.SqlTypeName = tableVarColumn.SqlTypeName;
+                        nestedCol.MaxLength = tableVarColumn.MaxLength;
+                        nestedCol.IsNullable = tableVarColumn.IsNullable;
+                        if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] applied table-var type to {nestedCol.Name}: {nestedCol.SqlTypeName}");
+                        return;
+                    }
+                }
 
                 if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] final result col={nestedCol?.Name} sqlType={nestedCol?.SqlTypeName} maxLen={nestedCol?.MaxLength} isNull={nestedCol?.IsNullable}");
             }
