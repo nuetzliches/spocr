@@ -155,40 +155,13 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                 if (!string.IsNullOrWhiteSpace(typeRef))
                 {
                     writer.WriteString("TypeRef", typeRef);
-
-                    if (input.IsTableType)
-                    {
-                        if (!string.IsNullOrWhiteSpace(input.UserTypeSchemaName))
-                        {
-                            writer.WriteString("TableTypeSchema", input.UserTypeSchemaName);
-                        }
-                        if (!string.IsNullOrWhiteSpace(input.UserTypeName))
-                        {
-                            writer.WriteString("TableTypeName", input.UserTypeName);
-                        }
-                    }
-                    else
-                    {
-                        var typeSchema = input.UserTypeSchemaName;
-                        var typeName = input.UserTypeName;
-                        if (string.IsNullOrWhiteSpace(typeSchema) || string.IsNullOrWhiteSpace(typeName))
-                        {
-                            var (schemaFromRef, nameFromRef) = SplitTypeRef(typeRef);
-                            typeSchema ??= schemaFromRef;
-                            typeName ??= nameFromRef;
-                        }
-
-                        if (!string.IsNullOrWhiteSpace(typeSchema))
-                        {
-                            writer.WriteString("TypeSchema", typeSchema);
-                        }
-                        if (!string.IsNullOrWhiteSpace(typeName))
-                        {
-                            writer.WriteString("TypeName", typeName);
-                        }
-                    }
                 }
-                if (!input.IsTableType)
+
+                if (input.IsTableType)
+                {
+                    writer.WriteBoolean("IsTableType", true);
+                }
+                else
                 {
                     if (input.IsNullable)
                     {
@@ -1127,11 +1100,12 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                     {
                         writer.WriteString("TypeRef", columnTypeRef);
                     }
-
-                    if (!string.IsNullOrWhiteSpace(column.SqlTypeName))
+                    else if (!string.IsNullOrWhiteSpace(column.SqlTypeName))
                     {
+                        // Fallback for legacy materialized snapshots without TypeRef information.
                         writer.WriteString("SqlTypeName", column.SqlTypeName);
                     }
+
                     if (column.IsNullable)
                     {
                         writer.WriteBoolean("IsNullable", true);
@@ -1139,18 +1113,6 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                     if (column.MaxLength > 0)
                     {
                         writer.WriteNumber("MaxLength", column.MaxLength);
-                    }
-                    if (!string.IsNullOrWhiteSpace(column.UserTypeSchemaName))
-                    {
-                        writer.WriteString("UserTypeSchemaName", column.UserTypeSchemaName);
-                    }
-                    if (!string.IsNullOrWhiteSpace(column.UserTypeName))
-                    {
-                        writer.WriteString("UserTypeName", column.UserTypeName);
-                    }
-                    if (!string.IsNullOrWhiteSpace(column.BaseSqlTypeName) && !string.Equals(column.BaseSqlTypeName, column.SqlTypeName, StringComparison.OrdinalIgnoreCase))
-                    {
-                        writer.WriteString("BaseSqlTypeName", column.BaseSqlTypeName);
                     }
                     if (column.Precision.HasValue && column.Precision.Value > 0)
                     {

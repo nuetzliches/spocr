@@ -25,19 +25,25 @@ public sealed class TableTypeInfo
 public sealed class ColumnInfo
 {
     public string Name { get; init; } = string.Empty;
+    public string TypeRef { get; init; } = string.Empty;
     public string SqlType { get; init; } = string.Empty;
     public bool IsNullable { get; init; }
     public int? MaxLength { get; init; }
+    public int? Precision { get; init; }
+    public int? Scale { get; init; }
+    public bool IsIdentity { get; init; }
 }
 
 internal sealed class TableTypeMetadataProvider : ITableTypeMetadataProvider
 {
     private IReadOnlyList<TableTypeInfo>? _cache;
     private readonly string _projectRoot;
+    private readonly TypeMetadataResolver _typeResolver;
 
     public TableTypeMetadataProvider(string? projectRoot = null)
     {
         _projectRoot = string.IsNullOrWhiteSpace(projectRoot) ? Directory.GetCurrentDirectory() : Path.GetFullPath(projectRoot!);
+        _typeResolver = new TypeMetadataResolver(_projectRoot);
     }
 
     public IReadOnlyList<TableTypeInfo> GetAll()
@@ -111,12 +117,21 @@ internal sealed class TableTypeMetadataProvider : ITableTypeMetadataProvider
                         {
                             foreach (var c in colsEl.EnumerateArray())
                             {
+                                var typeRef = c.GetPropertyOrDefault("TypeRef");
+                                var maxLen = c.GetPropertyOrDefaultInt("MaxLength");
+                                var prec = c.GetPropertyOrDefaultInt("Precision");
+                                var scale = c.GetPropertyOrDefaultInt("Scale");
+                                var resolved = _typeResolver.Resolve(typeRef, maxLen, prec, scale);
                                 cols.Add(new ColumnInfo
                                 {
                                     Name = c.GetPropertyOrDefault("Name") ?? string.Empty,
-                                    SqlType = c.GetPropertyOrDefault("SqlTypeName") ?? string.Empty,
+                                    TypeRef = typeRef ?? string.Empty,
+                                    SqlType = resolved?.SqlType ?? c.GetPropertyOrDefault("SqlTypeName") ?? string.Empty,
                                     IsNullable = c.GetPropertyOrDefaultBool("IsNullable"),
-                                    MaxLength = c.GetPropertyOrDefaultInt("MaxLength")
+                                    MaxLength = resolved?.MaxLength ?? maxLen,
+                                    Precision = resolved?.Precision ?? prec,
+                                    Scale = resolved?.Scale ?? scale,
+                                    IsIdentity = c.GetPropertyOrDefaultBool("IsIdentity")
                                 });
                             }
                         }
@@ -177,12 +192,21 @@ internal sealed class TableTypeMetadataProvider : ITableTypeMetadataProvider
             {
                 foreach (var c in colsEl.EnumerateArray())
                 {
+                    var typeRef = c.GetPropertyOrDefault("TypeRef");
+                    var maxLen = c.GetPropertyOrDefaultInt("MaxLength");
+                    var prec = c.GetPropertyOrDefaultInt("Precision");
+                    var scale = c.GetPropertyOrDefaultInt("Scale");
+                    var resolved = _typeResolver.Resolve(typeRef, maxLen, prec, scale);
                     cols.Add(new ColumnInfo
                     {
                         Name = c.GetPropertyOrDefault("Name") ?? string.Empty,
-                        SqlType = c.GetPropertyOrDefault("SqlTypeName") ?? string.Empty,
+                        TypeRef = typeRef ?? string.Empty,
+                        SqlType = resolved?.SqlType ?? c.GetPropertyOrDefault("SqlTypeName") ?? string.Empty,
                         IsNullable = c.GetPropertyOrDefaultBool("IsNullable"),
-                        MaxLength = c.GetPropertyOrDefaultInt("MaxLength")
+                        MaxLength = resolved?.MaxLength ?? maxLen,
+                        Precision = resolved?.Precision ?? prec,
+                        Scale = resolved?.Scale ?? scale,
+                        IsIdentity = c.GetPropertyOrDefaultBool("IsIdentity")
                     });
                 }
             }

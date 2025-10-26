@@ -164,6 +164,16 @@ namespace SpocR.SpocRVNext.Metadata
             var resultDescriptors = new List<ResultDescriptor>();
             var functionDescriptors = new List<FunctionDescriptor>();
 
+            var tableTypeProvider = new TableTypeMetadataProvider(_projectRoot);
+            var tableTypeInfos = tableTypeProvider.GetAll();
+            var tableTypeRefs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var tt in tableTypeInfos)
+            {
+                if (tt == null || string.IsNullOrWhiteSpace(tt.Schema) || string.IsNullOrWhiteSpace(tt.Name)) continue;
+                tableTypeRefs.Add(tt.Schema + "." + tt.Name);
+            }
+            var typeResolver = new TypeMetadataResolver(_projectRoot);
+
             // Enricher vorbereiten (AST + Tabellen-Metadaten)
             var jsonTypeEnricher = new JsonResultSetTypeEnricher(_projectRoot);
 
@@ -190,28 +200,54 @@ namespace SpocR.SpocRVNext.Metadata
                         var raw = ip.GetPropertyOrDefault("Name") ?? string.Empty;
                         if (string.IsNullOrWhiteSpace(raw)) continue;
                         var clean = raw.TrimStart('@');
-                        var sqlType = ip.GetPropertyOrDefault("SqlTypeName") ?? string.Empty;
+                        var typeRef = ip.GetPropertyOrDefault("TypeRef");
                         var maxLen = ip.GetPropertyOrDefaultInt("MaxLength");
-                        var isNullable = SpocR.SpocRVNext.Metadata.SchemaMetadataProviderJsonExtensions.GetPropertyOrDefaultBoolStrict(ip, "IsNullable");
+                        var precision = ip.GetPropertyOrDefaultInt("Precision");
+                        var scale = ip.GetPropertyOrDefaultInt("Scale");
+                        var isNullable = SchemaMetadataProviderJsonExtensions.GetPropertyOrDefaultBoolStrict(ip, "IsNullable");
                         var isOutput = ip.GetPropertyOrDefaultBool("IsOutput");
-                        bool isTableType = ip.GetPropertyOrDefaultBool("IsTableType");
-                        var ttSchema = ip.GetPropertyOrDefault("TableTypeSchema");
-                        var ttName = ip.GetPropertyOrDefault("TableTypeName");
-                        FieldDescriptor fd;
-                        // Treat parameter as table type if either explicit flag set OR TableTypeName provided
-                        if ((isTableType || !string.IsNullOrWhiteSpace(ttName)) && !string.IsNullOrWhiteSpace(ttName))
+                        var explicitTableType = ip.GetPropertyOrDefaultBool("IsTableType");
+                        var legacyTtSchema = ip.GetPropertyOrDefault("TableTypeSchema");
+                        var legacyTtName = ip.GetPropertyOrDefault("TableTypeName");
+
+                        if (string.IsNullOrWhiteSpace(typeRef) && !string.IsNullOrWhiteSpace(legacyTtSchema) && !string.IsNullOrWhiteSpace(legacyTtName))
                         {
-                            // Direkte UDTT-Zuordnung: CLR-Typ = Pascal(TableTypeName) (kein Renaming, nur Sonderzeichen bereinigen)
+                            typeRef = legacyTtSchema + "." + legacyTtName;
+                        }
+
+                        var resolved = typeResolver.Resolve(typeRef, maxLen, precision, scale);
+                        var sqlType = resolved?.SqlType ?? ip.GetPropertyOrDefault("SqlTypeName") ?? string.Empty;
+                        var effectiveMaxLen = resolved?.MaxLength ?? maxLen;
+                        bool isTableType = explicitTableType || (!string.IsNullOrWhiteSpace(typeRef) && tableTypeRefs.Contains(typeRef));
+
+                        string? ttSchema = legacyTtSchema;
+                        string? ttName = legacyTtName;
+                        if (isTableType)
+                        {
+                            var split = TypeMetadataResolver.SplitTypeRef(typeRef);
+                            if (string.IsNullOrWhiteSpace(ttSchema)) ttSchema = split.Schema ?? schema;
+                            if (string.IsNullOrWhiteSpace(ttName)) ttName = split.Name ?? clean;
+                        }
+                        else if (string.IsNullOrWhiteSpace(sqlType) && !string.IsNullOrWhiteSpace(typeRef))
+                        {
+                            sqlType = typeRef;
+                        }
+
+                        FieldDescriptor fd;
+                        if (isTableType && !string.IsNullOrWhiteSpace(ttName))
+                        {
                             var pascal = NamePolicy.Sanitize(ttName!);
                             var attrs = new List<string> { "[TableType]" };
                             if (!string.IsNullOrWhiteSpace(ttSchema)) attrs.Add($"[TableTypeSchema({ttSchema})]");
-                            fd = new FieldDescriptor(clean, NamePolicy.Sanitize(clean), pascal, false, sqlType, maxLen, Documentation: null, Attributes: attrs);
+                            var sqlIdentifier = string.IsNullOrWhiteSpace(typeRef) ? ttName! : typeRef!;
+                            fd = new FieldDescriptor(clean, NamePolicy.Sanitize(clean), pascal, false, sqlIdentifier, null, Documentation: null, Attributes: attrs);
                         }
                         else
                         {
                             var clr = MapSqlToClr(sqlType, isNullable);
-                            fd = new FieldDescriptor(clean, NamePolicy.Sanitize(clean), clr, isNullable, sqlType, maxLen);
+                            fd = new FieldDescriptor(clean, NamePolicy.Sanitize(clean), clr, isNullable, sqlType, effectiveMaxLen);
                         }
+
                         if (isOutput) outputParams.Add(fd); else inputParams.Add(fd);
                     }
                 }
@@ -223,11 +259,17 @@ namespace SpocR.SpocRVNext.Metadata
                         if (string.IsNullOrWhiteSpace(raw)) continue;
                         var clean = raw.TrimStart('@');
                         if (outputParams.Any(o => o.Name.Equals(clean, StringComparison.OrdinalIgnoreCase))) continue;
-                        var sqlType = opEl.GetPropertyOrDefault("SqlTypeName") ?? string.Empty;
+                        var typeRef = opEl.GetPropertyOrDefault("TypeRef");
                         var maxLen = opEl.GetPropertyOrDefaultInt("MaxLength");
+                        var precision = opEl.GetPropertyOrDefaultInt("Precision");
+                        var scale = opEl.GetPropertyOrDefaultInt("Scale");
+                        var resolved = typeResolver.Resolve(typeRef, maxLen, precision, scale);
+                        var sqlType = resolved?.SqlType ?? opEl.GetPropertyOrDefault("SqlTypeName") ?? string.Empty;
+                        var effectiveMaxLen = resolved?.MaxLength ?? maxLen;
                         var isNullable = SpocR.SpocRVNext.Metadata.SchemaMetadataProviderJsonExtensions.GetPropertyOrDefaultBoolStrict(opEl, "IsNullable");
+                        if (string.IsNullOrWhiteSpace(sqlType) && !string.IsNullOrWhiteSpace(typeRef)) sqlType = typeRef;
                         var clr = MapSqlToClr(sqlType, isNullable);
-                        var fd = new FieldDescriptor(clean, NamePolicy.Sanitize(clean), clr, isNullable, sqlType, maxLen);
+                        var fd = new FieldDescriptor(clean, NamePolicy.Sanitize(clean), clr, isNullable, sqlType, effectiveMaxLen);
                         outputParams.Add(fd);
                     }
                 }
@@ -247,9 +289,15 @@ namespace SpocR.SpocRVNext.Metadata
                             {
                                 var colName = c.GetPropertyOrDefault("Name") ?? string.Empty;
                                 if (string.IsNullOrWhiteSpace(colName)) continue;
-                                var sqlType = c.GetPropertyOrDefault("SqlTypeName") ?? string.Empty;
+                                var typeRef = c.GetPropertyOrDefault("TypeRef");
                                 var maxLen = c.GetPropertyOrDefaultInt("MaxLength");
+                                var precision = c.GetPropertyOrDefaultInt("Precision");
+                                var scale = c.GetPropertyOrDefaultInt("Scale");
+                                var resolved = typeResolver.Resolve(typeRef, maxLen, precision, scale);
+                                var sqlType = resolved?.SqlType ?? c.GetPropertyOrDefault("SqlTypeName") ?? string.Empty;
+                                var effectiveMaxLen = resolved?.MaxLength ?? maxLen;
                                 var isNullable = SpocR.SpocRVNext.Metadata.SchemaMetadataProviderJsonExtensions.GetPropertyOrDefaultBoolStrict(c, "IsNullable");
+                                if (string.IsNullOrWhiteSpace(sqlType) && !string.IsNullOrWhiteSpace(typeRef)) sqlType = typeRef;
                                 var clr = MapSqlToClr(sqlType, isNullable);
                                 ColumnReferenceInfo? refInfo = null;
                                 bool? deferred = null;
@@ -271,7 +319,7 @@ namespace SpocR.SpocRVNext.Metadata
                                     }
                                 }
                                 catch { }
-                                columns.Add(new FieldDescriptor(colName, NamePolicy.Sanitize(colName), clr, isNullable, sqlType, maxLen, Reference: refInfo, DeferredJsonExpansion: deferred));
+                                columns.Add(new FieldDescriptor(colName, NamePolicy.Sanitize(colName), clr, isNullable, sqlType, effectiveMaxLen, Reference: refInfo, DeferredJsonExpansion: deferred));
                             }
                         }
                         var rsName = ResultSetNaming.DeriveName(idx, columns, usedNames);
@@ -461,11 +509,16 @@ namespace SpocR.SpocRVNext.Metadata
                                                 var raw = pe.GetPropertyOrDefault("Name") ?? string.Empty;
                                                 if (string.IsNullOrWhiteSpace(raw)) continue;
                                                 var clean = raw.TrimStart('@');
-                                                var sqlType = pe.GetPropertyOrDefault("SqlTypeName") ?? pe.GetPropertyOrDefault("SqlType") ?? string.Empty;
+                                                var typeRef = pe.GetPropertyOrDefault("TypeRef");
                                                 var maxLenVal = pe.GetPropertyOrDefaultInt("MaxLength");
-                                                int maxLen = maxLenVal ?? 0;
+                                                var precisionVal = pe.GetPropertyOrDefaultInt("Precision");
+                                                var scaleVal = pe.GetPropertyOrDefaultInt("Scale");
+                                                var resolved = typeResolver.Resolve(typeRef, maxLenVal, precisionVal, scaleVal);
+                                                var sqlType = resolved?.SqlType ?? pe.GetPropertyOrDefault("SqlTypeName") ?? pe.GetPropertyOrDefault("SqlType") ?? string.Empty;
+                                                int maxLen = (resolved?.MaxLength ?? maxLenVal) ?? 0;
                                                 bool isNullable = SpocR.SpocRVNext.Metadata.SchemaMetadataProviderJsonExtensions.GetPropertyOrDefaultBoolStrict(pe, "IsNullable");
                                                 bool isOutput = pe.GetPropertyOrDefaultBool("IsOutput");
+                                                if (string.IsNullOrWhiteSpace(sqlType) && !string.IsNullOrWhiteSpace(typeRef)) sqlType = typeRef;
                                                 var clr = SqlClrTypeMapper.Map(sqlType, isNullable);
                                                 paramDescriptors.Add(new FunctionParameterDescriptor(clean, sqlType, clr, isNullable, maxLen <= 0 ? null : maxLen, isOutput));
                                             }
@@ -478,10 +531,15 @@ namespace SpocR.SpocRVNext.Metadata
                                             {
                                                 var colName = ce.GetPropertyOrDefault("Name") ?? string.Empty;
                                                 if (string.IsNullOrWhiteSpace(colName)) continue;
-                                                var sqlType = ce.GetPropertyOrDefault("SqlTypeName") ?? ce.GetPropertyOrDefault("SqlType") ?? string.Empty;
+                                                var typeRef = ce.GetPropertyOrDefault("TypeRef");
                                                 bool isNullable = SpocR.SpocRVNext.Metadata.SchemaMetadataProviderJsonExtensions.GetPropertyOrDefaultBoolStrict(ce, "IsNullable");
                                                 var maxLenVal = ce.GetPropertyOrDefaultInt("MaxLength");
-                                                int maxLen = maxLenVal ?? 0;
+                                                var precisionVal = ce.GetPropertyOrDefaultInt("Precision");
+                                                var scaleVal = ce.GetPropertyOrDefaultInt("Scale");
+                                                var resolved = typeResolver.Resolve(typeRef, maxLenVal, precisionVal, scaleVal);
+                                                var sqlType = resolved?.SqlType ?? ce.GetPropertyOrDefault("SqlTypeName") ?? ce.GetPropertyOrDefault("SqlType") ?? string.Empty;
+                                                int maxLen = (resolved?.MaxLength ?? maxLenVal) ?? 0;
+                                                if (string.IsNullOrWhiteSpace(sqlType) && !string.IsNullOrWhiteSpace(typeRef)) sqlType = typeRef;
                                                 var clr = SqlClrTypeMapper.Map(sqlType, isNullable);
                                                 colDescriptors.Add(new TableValuedFunctionColumnDescriptor(colName, sqlType, clr, isNullable, maxLen <= 0 ? null : maxLen));
                                             }

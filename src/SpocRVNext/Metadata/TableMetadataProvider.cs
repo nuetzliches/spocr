@@ -42,10 +42,12 @@ internal sealed class TableMetadataProvider : ITableMetadataProvider
     private readonly string _projectRoot;
     private IReadOnlyList<TableInfo>? _cache;
     private Dictionary<string, TableInfo>? _map;
+    private readonly TypeMetadataResolver _typeResolver;
 
     public TableMetadataProvider(string? projectRoot = null)
     {
         _projectRoot = string.IsNullOrWhiteSpace(projectRoot) ? Directory.GetCurrentDirectory() : Path.GetFullPath(projectRoot!);
+        _typeResolver = new TypeMetadataResolver(_projectRoot);
     }
 
     public IReadOnlyList<TableInfo> GetAll()
@@ -70,30 +72,24 @@ internal sealed class TableMetadataProvider : ITableMetadataProvider
                 {
                     foreach (var c in colsEl.EnumerateArray())
                     {
-                        var baseType = (c.GetPropertyOrDefault("SqlTypeName") ?? c.GetPropertyOrDefault("SqlType") ?? string.Empty).Trim();
-                        var baseLower = baseType.ToLowerInvariant();
+                        var typeRef = c.GetPropertyOrDefault("TypeRef");
                         var maxLen = c.GetPropertyOrDefaultInt("MaxLength");
                         var prec = c.GetPropertyOrDefaultInt("Precision");
                         var scale = c.GetPropertyOrDefaultInt("Scale");
-                        string typeString = baseType;
-                        try
-                        {
-                            if (baseLower == "decimal" || baseLower == "numeric")
-                            {
-                                if (prec.HasValue && scale.HasValue) typeString = $"{baseLower}({prec.Value},{scale.Value})";
-                            }
-                            else if (baseLower == "varchar" || baseLower == "nvarchar" || baseLower == "varbinary" || baseLower == "char" || baseLower == "nchar")
-                            {
-                                if (maxLen.HasValue && maxLen.Value > 0) typeString = $"{baseLower}({maxLen.Value})";
-                            }
-                        }
-                        catch { }
+                        var resolved = _typeResolver.Resolve(typeRef, maxLen, prec, scale);
+                        var baseType = (c.GetPropertyOrDefault("SqlTypeName") ?? c.GetPropertyOrDefault("SqlType") ?? string.Empty).Trim();
+                        string typeString = resolved?.SqlType ?? baseType;
+                        var effectiveMaxLen = resolved?.MaxLength ?? maxLen;
                         cols.Add(new ColumnInfo
                         {
                             Name = c.GetPropertyOrDefault("Name") ?? string.Empty,
-                            SqlType = typeString,
+                            TypeRef = typeRef ?? string.Empty,
+                            SqlType = string.IsNullOrWhiteSpace(typeString) && !string.IsNullOrWhiteSpace(typeRef) ? typeRef! : typeString,
                             IsNullable = SpocR.SpocRVNext.Metadata.TableMetadataProviderJsonExtensions.GetPropertyOrDefaultBoolStrict(c, "IsNullable"),
-                            MaxLength = maxLen
+                            MaxLength = effectiveMaxLen,
+                            Precision = resolved?.Precision ?? prec,
+                            Scale = resolved?.Scale ?? scale,
+                            IsIdentity = c.GetPropertyOrDefaultBool("IsIdentity")
                         });
                     }
                 }
