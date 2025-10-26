@@ -139,7 +139,7 @@ internal sealed class DatabaseDependencyMetadataProvider : IDependencyMetadataPr
             new("@name", name)
         };
 
-        const string query = @"SELECT TOP 1 COALESCE(o.modify_date, t.create_date) AS Modified
+        const string query = @"SELECT TOP 1 COALESCE(o.modify_date, o.create_date) AS Modified
                 FROM sys.types AS t
                 INNER JOIN sys.schemas AS s ON s.schema_id = t.schema_id
                 LEFT JOIN sys.objects AS o ON o.object_id = t.user_type_id

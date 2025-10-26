@@ -91,8 +91,18 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
             {
                 foreach (var input in inputs)
                 {
-                    if (input == null || !input.IsTableType) continue;
-                    AddDependency(ProcedureDependencyKind.UserDefinedTableType, input.UserTypeSchemaName, input.UserTypeName);
+                    if (input == null) continue;
+
+                    if (input.IsTableType)
+                    {
+                        AddDependency(ProcedureDependencyKind.UserDefinedTableType, input.UserTypeSchemaName, input.UserTypeName);
+                        continue;
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(input.UserTypeSchemaName) && !string.IsNullOrWhiteSpace(input.UserTypeName))
+                    {
+                        AddDependency(ProcedureDependencyKind.UserDefinedType, input.UserTypeSchemaName, input.UserTypeName);
+                    }
                 }
             }
 

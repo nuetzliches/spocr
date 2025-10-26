@@ -7,7 +7,9 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using SpocR.DataContext;
 using SpocR.DataContext.Models;
+using SpocR.DataContext.Queries;
 using SpocR.Models;
 using SpocR.Services;
 using SpocR.SpocRVNext.SnapshotBuilder.Models;
@@ -21,19 +23,22 @@ namespace SpocR.SpocRVNext.SnapshotBuilder.Writers;
 internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
 {
     private readonly IConsoleService _console;
+    private readonly DbContext _dbContext;
     private static readonly JsonSerializerOptions IndexSerializerOptions = new()
     {
         WriteIndented = true
     };
 
-    public ExpandedSnapshotWriter(IConsoleService console)
+    public ExpandedSnapshotWriter(IConsoleService console, DbContext dbContext)
     {
         _console = console ?? throw new ArgumentNullException(nameof(console));
+        _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
     }
 
     public async Task<SnapshotWriteResult> WriteAsync(IReadOnlyList<ProcedureAnalysisResult> analyzedProcedures, SnapshotBuildOptions options, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        options ??= SnapshotBuildOptions.Default;
         if (analyzedProcedures == null || analyzedProcedures.Count == 0)
         {
             return new SnapshotWriteResult
@@ -66,29 +71,9 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
             var filePath = Path.Combine(proceduresRoot, fileName);
 
             var jsonBytes = BuildProcedureJson(descriptor, item.Inputs, item.Ast);
-            var hash = ComputeHash(jsonBytes);
-            var shouldWrite = true;
-
-            if (File.Exists(filePath))
+            var writeOutcome = await WriteArtifactAsync(filePath, jsonBytes, cancellationToken).ConfigureAwait(false);
+            if (writeOutcome.Wrote)
             {
-                try
-                {
-                    var existingBytes = await File.ReadAllBytesAsync(filePath, cancellationToken).ConfigureAwait(false);
-                    var existingHash = ComputeHash(existingBytes);
-                    if (string.Equals(existingHash, hash, StringComparison.OrdinalIgnoreCase))
-                    {
-                        shouldWrite = false;
-                    }
-                }
-                catch (Exception readEx)
-                {
-                    _console.Verbose($"[snapshot-write] failed to read existing snapshot for {descriptor}: {readEx.Message}");
-                }
-            }
-
-            if (shouldWrite)
-            {
-                await PersistSnapshotAsync(filePath, jsonBytes, cancellationToken).ConfigureAwait(false);
                 filesWritten++;
                 if (verbose)
                 {
@@ -107,13 +92,17 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                 WasReusedFromCache = item.WasReusedFromCache,
                 SourceLastModifiedUtc = item.SourceLastModifiedUtc,
                 SnapshotFile = fileName,
-                SnapshotHash = hash,
+                SnapshotHash = writeOutcome.Hash,
                 Inputs = item.Inputs,
                 Dependencies = item.Dependencies
             });
         }
 
-        await UpdateIndexAsync(schemaRoot, updated, cancellationToken).ConfigureAwait(false);
+        var schemaArtifacts = await WriteSchemaArtifactsAsync(schemaRoot, options!, updated, cancellationToken).ConfigureAwait(false);
+        filesWritten += schemaArtifacts.FilesWritten;
+        filesUnchanged += schemaArtifacts.FilesUnchanged;
+
+        await UpdateIndexAsync(schemaRoot, updated, schemaArtifacts, cancellationToken).ConfigureAwait(false);
 
         return new SnapshotWriteResult
         {
@@ -275,6 +264,179 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         writer.WriteEndArray();
     }
 
+    private async Task<SchemaArtifactSummary> WriteSchemaArtifactsAsync(string schemaRoot, SnapshotBuildOptions options, IReadOnlyList<ProcedureAnalysisResult> updatedProcedures, CancellationToken cancellationToken)
+    {
+        var summary = new SchemaArtifactSummary();
+        var schemaSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (options?.Schemas != null)
+        {
+            foreach (var schema in options.Schemas)
+            {
+                if (!string.IsNullOrWhiteSpace(schema))
+                {
+                    schemaSet.Add(schema);
+                }
+            }
+        }
+
+        if (updatedProcedures != null)
+        {
+            foreach (var proc in updatedProcedures)
+            {
+                var schema = proc?.Descriptor?.Schema;
+                if (!string.IsNullOrWhiteSpace(schema))
+                {
+                    schemaSet.Add(schema);
+                }
+            }
+        }
+
+        if (schemaSet.Count == 0)
+        {
+            return summary;
+        }
+
+        var escapedSchemas = schemaSet
+            .Select(s => $"'{s.Replace("'", "''")}'")
+            .ToArray();
+        var schemaListString = string.Join(',', escapedSchemas);
+
+        List<TableType> tableTypes = new();
+        try
+        {
+            var list = await _dbContext.TableTypeListAsync(schemaListString, cancellationToken).ConfigureAwait(false);
+            if (list != null)
+            {
+                tableTypes = list;
+            }
+        }
+        catch (Exception ex)
+        {
+            _console.Verbose($"[snapshot-tabletype] failed to enumerate table types: {ex.Message}");
+        }
+
+        var tableTypeRoot = Path.Combine(schemaRoot, "tabletypes");
+        Directory.CreateDirectory(tableTypeRoot);
+        var validTableTypeFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var tableType in tableTypes)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (tableType == null || string.IsNullOrWhiteSpace(tableType.SchemaName) || string.IsNullOrWhiteSpace(tableType.Name))
+            {
+                continue;
+            }
+
+            List<Column> columns = new();
+            if (tableType.UserTypeId.HasValue)
+            {
+                try
+                {
+                    var columnList = await _dbContext.TableTypeColumnListAsync(tableType.UserTypeId.Value, cancellationToken).ConfigureAwait(false);
+                    if (columnList != null)
+                    {
+                        columns = columnList;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _console.Verbose($"[snapshot-tabletype] failed to load columns for {tableType.SchemaName}.{tableType.Name}: {ex.Message}");
+                }
+            }
+
+            var jsonBytes = BuildTableTypeJson(tableType, columns);
+            var fileName = BuildArtifactFileName(tableType.SchemaName, tableType.Name);
+            var filePath = Path.Combine(tableTypeRoot, fileName);
+            var outcome = await WriteArtifactAsync(filePath, jsonBytes, cancellationToken).ConfigureAwait(false);
+            if (outcome.Wrote)
+            {
+                summary.FilesWritten++;
+            }
+            else
+            {
+                summary.FilesUnchanged++;
+            }
+
+            validTableTypeFiles.Add(fileName);
+            summary.TableTypes.Add(new IndexTableTypeEntry
+            {
+                Schema = tableType.SchemaName,
+                Name = tableType.Name,
+                File = fileName,
+                Hash = outcome.Hash
+            });
+        }
+
+        PruneExtraneousFiles(tableTypeRoot, validTableTypeFiles);
+
+        List<UserDefinedTypeRow> scalarTypes = new();
+        try
+        {
+            var list = await _dbContext.UserDefinedScalarTypesAsync(cancellationToken).ConfigureAwait(false);
+            if (list != null)
+            {
+                scalarTypes = list
+                    .Where(t => t != null && !string.IsNullOrWhiteSpace(t.schema_name) && schemaSet.Contains(t.schema_name))
+                    .ToList();
+            }
+        }
+        catch (Exception ex)
+        {
+            _console.Verbose($"[snapshot-udt] failed to enumerate user-defined types: {ex.Message}");
+        }
+
+        var scalarRoot = Path.Combine(schemaRoot, "types");
+        Directory.CreateDirectory(scalarRoot);
+        var validScalarFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var type in scalarTypes)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (type == null || string.IsNullOrWhiteSpace(type.schema_name) || string.IsNullOrWhiteSpace(type.user_type_name))
+            {
+                continue;
+            }
+
+            var jsonBytes = BuildScalarTypeJson(type);
+            var fileName = BuildArtifactFileName(type.schema_name, type.user_type_name);
+            var filePath = Path.Combine(scalarRoot, fileName);
+            var outcome = await WriteArtifactAsync(filePath, jsonBytes, cancellationToken).ConfigureAwait(false);
+            if (outcome.Wrote)
+            {
+                summary.FilesWritten++;
+            }
+            else
+            {
+                summary.FilesUnchanged++;
+            }
+
+            validScalarFiles.Add(fileName);
+            summary.UserDefinedTypes.Add(new IndexUserDefinedTypeEntry
+            {
+                Schema = type.schema_name,
+                Name = type.user_type_name,
+                File = fileName,
+                Hash = outcome.Hash
+            });
+        }
+
+        PruneExtraneousFiles(scalarRoot, validScalarFiles);
+
+        summary.TableTypes.Sort((a, b) =>
+        {
+            var schemaCompare = string.Compare(a.Schema, b.Schema, StringComparison.OrdinalIgnoreCase);
+            return schemaCompare != 0 ? schemaCompare : string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
+        });
+        summary.UserDefinedTypes.Sort((a, b) =>
+        {
+            var schemaCompare = string.Compare(a.Schema, b.Schema, StringComparison.OrdinalIgnoreCase);
+            return schemaCompare != 0 ? schemaCompare : string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
+        });
+
+        return summary;
+    }
+
     private static void WriteResultColumn(Utf8JsonWriter writer, StoredProcedureContentModel.ResultColumn column)
     {
         writer.WriteStartObject();
@@ -396,7 +558,11 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         return Convert.ToHexString(hashBytes).Substring(0, 16);
     }
 
-    private static async Task UpdateIndexAsync(string schemaRoot, IReadOnlyList<ProcedureAnalysisResult> updated, CancellationToken cancellationToken)
+    private static async Task UpdateIndexAsync(
+        string schemaRoot,
+        IReadOnlyList<ProcedureAnalysisResult> updated,
+        SchemaArtifactSummary schemaArtifacts,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         Directory.CreateDirectory(schemaRoot);
@@ -448,7 +614,69 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
             };
         }
 
+        var tableTypeEntries = new Dictionary<string, IndexTableTypeEntry>(StringComparer.OrdinalIgnoreCase);
+        if ((schemaArtifacts?.TableTypes == null || schemaArtifacts.TableTypes.Count == 0) && existing?.TableTypes != null)
+        {
+            foreach (var entry in existing.TableTypes)
+            {
+                if (entry == null || string.IsNullOrWhiteSpace(entry.Schema) || string.IsNullOrWhiteSpace(entry.Name))
+                {
+                    continue;
+                }
+                tableTypeEntries[BuildKey(entry.Schema, entry.Name)] = entry;
+            }
+        }
+
+        if (schemaArtifacts?.TableTypes != null)
+        {
+            foreach (var entry in schemaArtifacts.TableTypes)
+            {
+                if (entry == null || string.IsNullOrWhiteSpace(entry.Schema) || string.IsNullOrWhiteSpace(entry.Name))
+                {
+                    continue;
+                }
+                tableTypeEntries[BuildKey(entry.Schema, entry.Name)] = entry;
+            }
+        }
+
+        var userDefinedTypeEntries = new Dictionary<string, IndexUserDefinedTypeEntry>(StringComparer.OrdinalIgnoreCase);
+        if ((schemaArtifacts?.UserDefinedTypes == null || schemaArtifacts.UserDefinedTypes.Count == 0) && existing?.UserDefinedTypes != null)
+        {
+            foreach (var entry in existing.UserDefinedTypes)
+            {
+                if (entry == null || string.IsNullOrWhiteSpace(entry.Schema) || string.IsNullOrWhiteSpace(entry.Name))
+                {
+                    continue;
+                }
+                userDefinedTypeEntries[BuildKey(entry.Schema, entry.Name)] = entry;
+            }
+        }
+
+        if (schemaArtifacts?.UserDefinedTypes != null)
+        {
+            foreach (var entry in schemaArtifacts.UserDefinedTypes)
+            {
+                if (entry == null || string.IsNullOrWhiteSpace(entry.Schema) || string.IsNullOrWhiteSpace(entry.Name))
+                {
+                    continue;
+                }
+                userDefinedTypeEntries[BuildKey(entry.Schema, entry.Name)] = entry;
+            }
+        }
+
         var procedureList = entries.Values
+            .Where(e => !string.IsNullOrWhiteSpace(e.File))
+            .OrderBy(e => e.Schema, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var tableTypeList = tableTypeEntries.Values
+            .Where(e => !string.IsNullOrWhiteSpace(e.File))
+            .OrderBy(e => e.Schema, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var userDefinedTypeList = userDefinedTypeEntries.Values
             .Where(e => !string.IsNullOrWhiteSpace(e.File))
             .OrderBy(e => e.Schema, StringComparer.OrdinalIgnoreCase)
             .ThenBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
@@ -464,8 +692,14 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         var loaded = updated?.Count ?? 0;
         stats.ProcedureLoaded = loaded;
         stats.ProcedureSkipped = Math.Max(0, stats.ProcedureTotal - stats.ProcedureLoaded);
+        stats.UdttTotal = tableTypeList.Count;
+        stats.UserDefinedTypeTotal = userDefinedTypeList.Count;
 
-        var fingerprintSource = string.Join("|", procedureList.Select(p => $"{p.Schema}.{p.Name}:{p.Hash}"));
+        var fingerprintParts = new List<string>();
+        fingerprintParts.AddRange(procedureList.Select(p => $"proc:{p.Schema}.{p.Name}:{p.Hash}"));
+        fingerprintParts.AddRange(tableTypeList.Select(t => $"tt:{t.Schema}.{t.Name}:{t.Hash}"));
+        fingerprintParts.AddRange(userDefinedTypeList.Select(t => $"udt:{t.Schema}.{t.Name}:{t.Hash}"));
+        var fingerprintSource = string.Join("|", fingerprintParts);
         var fingerprint = string.IsNullOrEmpty(fingerprintSource) ? string.Empty : ComputeHash(fingerprintSource);
 
         var document = new IndexDocument
@@ -474,36 +708,28 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
             Fingerprint = fingerprint,
             Parser = parser,
             Stats = stats,
-            Procedures = procedureList
+            Procedures = procedureList,
+            TableTypes = tableTypeList,
+            UserDefinedTypes = userDefinedTypeList
         };
 
-        var tempPath = indexPath + ".tmp";
-        await using (var stream = File.Create(tempPath))
-        {
-            await JsonSerializer.SerializeAsync(stream, document, IndexSerializerOptions, cancellationToken).ConfigureAwait(false);
-        }
+        await using var memoryStream = new MemoryStream();
+        await JsonSerializer.SerializeAsync(memoryStream, document, IndexSerializerOptions, cancellationToken).ConfigureAwait(false);
+        var newBytes = memoryStream.ToArray();
+        var newContent = Encoding.UTF8.GetString(newBytes);
 
         string? existingContent = null;
         if (File.Exists(indexPath))
         {
             existingContent = await File.ReadAllTextAsync(indexPath, cancellationToken).ConfigureAwait(false);
         }
-        var newContent = await File.ReadAllTextAsync(tempPath, cancellationToken).ConfigureAwait(false);
-        if (!string.Equals(existingContent, newContent, StringComparison.Ordinal))
+
+        if (string.Equals(existingContent, newContent, StringComparison.Ordinal))
         {
-            if (File.Exists(indexPath))
-            {
-                File.Replace(tempPath, indexPath, null);
-            }
-            else
-            {
-                File.Move(tempPath, indexPath);
-            }
+            return;
         }
-        else
-        {
-            File.Delete(tempPath);
-        }
+
+        await PersistSnapshotAsync(indexPath, newBytes, cancellationToken).ConfigureAwait(false);
     }
 
     private static async Task PersistSnapshotAsync(string filePath, byte[] content, CancellationToken cancellationToken)
@@ -554,6 +780,201 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         return $"{schema}.{name}";
     }
 
+    private static byte[] BuildTableTypeJson(TableType tableType, IReadOnlyList<Column> columns)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true }))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("Schema", tableType?.SchemaName ?? string.Empty);
+            writer.WriteString("Name", tableType?.Name ?? string.Empty);
+            if (tableType?.UserTypeId.HasValue == true)
+            {
+                writer.WriteNumber("UserTypeId", tableType.UserTypeId.Value);
+            }
+
+            writer.WritePropertyName("Columns");
+            writer.WriteStartArray();
+            if (columns != null)
+            {
+                foreach (var column in columns)
+                {
+                    if (column == null) continue;
+
+                    writer.WriteStartObject();
+                    if (!string.IsNullOrWhiteSpace(column.Name))
+                    {
+                        writer.WriteString("Name", column.Name);
+                    }
+                    if (!string.IsNullOrWhiteSpace(column.SqlTypeName))
+                    {
+                        writer.WriteString("SqlTypeName", column.SqlTypeName);
+                    }
+                    if (column.IsNullable)
+                    {
+                        writer.WriteBoolean("IsNullable", true);
+                    }
+                    if (column.MaxLength > 0)
+                    {
+                        writer.WriteNumber("MaxLength", column.MaxLength);
+                    }
+                    if (!string.IsNullOrWhiteSpace(column.UserTypeSchemaName))
+                    {
+                        writer.WriteString("UserTypeSchemaName", column.UserTypeSchemaName);
+                    }
+                    if (!string.IsNullOrWhiteSpace(column.UserTypeName))
+                    {
+                        writer.WriteString("UserTypeName", column.UserTypeName);
+                    }
+                    if (!string.IsNullOrWhiteSpace(column.BaseSqlTypeName) && !string.Equals(column.BaseSqlTypeName, column.SqlTypeName, StringComparison.OrdinalIgnoreCase))
+                    {
+                        writer.WriteString("BaseSqlTypeName", column.BaseSqlTypeName);
+                    }
+                    if (column.Precision.HasValue && column.Precision.Value > 0)
+                    {
+                        writer.WriteNumber("Precision", column.Precision.Value);
+                    }
+                    if (column.Scale.HasValue && column.Scale.Value > 0)
+                    {
+                        writer.WriteNumber("Scale", column.Scale.Value);
+                    }
+                    if (column.IsIdentityRaw.HasValue && column.IsIdentityRaw.Value == 1)
+                    {
+                        writer.WriteBoolean("IsIdentity", true);
+                    }
+                    writer.WriteEndObject();
+                }
+            }
+            writer.WriteEndArray();
+
+            writer.WriteEndObject();
+        }
+
+        return stream.ToArray();
+    }
+
+    private static byte[] BuildScalarTypeJson(UserDefinedTypeRow type)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true }))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("Schema", type?.schema_name ?? string.Empty);
+            writer.WriteString("Name", type?.user_type_name ?? string.Empty);
+            if (!string.IsNullOrWhiteSpace(type?.base_type_name))
+            {
+                writer.WriteString("BaseSqlTypeName", type.base_type_name);
+            }
+            if (type?.max_length > 0)
+            {
+                writer.WriteNumber("MaxLength", type.max_length);
+            }
+            if (type?.precision > 0)
+            {
+                writer.WriteNumber("Precision", type.precision);
+            }
+            if (type?.scale > 0)
+            {
+                writer.WriteNumber("Scale", type.scale);
+            }
+            writer.WriteEndObject();
+        }
+
+        return stream.ToArray();
+    }
+
+    private static string BuildArtifactFileName(string schema, string name)
+    {
+        var schemaSafe = NameSanitizer.SanitizeForFile(schema ?? string.Empty);
+        var nameSafe = NameSanitizer.SanitizeForFile(name ?? string.Empty);
+        if (string.IsNullOrWhiteSpace(schemaSafe))
+        {
+            return string.IsNullOrWhiteSpace(nameSafe) ? "artifact.json" : $"{nameSafe}.json";
+        }
+
+        if (string.IsNullOrWhiteSpace(nameSafe))
+        {
+            return $"{schemaSafe}.json";
+        }
+
+        return $"{schemaSafe}.{nameSafe}.json";
+    }
+
+    private async Task<ArtifactWriteOutcome> WriteArtifactAsync(string filePath, byte[] content, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var hash = ComputeHash(content);
+        var shouldWrite = true;
+
+        if (File.Exists(filePath))
+        {
+            try
+            {
+                var existingBytes = await File.ReadAllBytesAsync(filePath, cancellationToken).ConfigureAwait(false);
+                var existingHash = ComputeHash(existingBytes);
+                if (string.Equals(existingHash, hash, StringComparison.OrdinalIgnoreCase))
+                {
+                    shouldWrite = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                _console.Verbose($"[snapshot-write] failed to read existing snapshot at {filePath}: {ex.Message}");
+            }
+        }
+
+        if (shouldWrite)
+        {
+            await PersistSnapshotAsync(filePath, content, cancellationToken).ConfigureAwait(false);
+        }
+
+        return new ArtifactWriteOutcome(shouldWrite, hash);
+    }
+
+    private static void PruneExtraneousFiles(string directory, HashSet<string> validFileNames)
+    {
+        if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
+        {
+            return;
+        }
+
+        try
+        {
+            var existingFiles = Directory.GetFiles(directory, "*.json", SearchOption.TopDirectoryOnly);
+            foreach (var path in existingFiles)
+            {
+                var fileName = Path.GetFileName(path);
+                if (validFileNames != null && validFileNames.Contains(fileName))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    File.Delete(path);
+                }
+                catch
+                {
+                    // best effort cleanup
+                }
+            }
+        }
+        catch
+        {
+            // ignore cleanup failures
+        }
+    }
+
+    private sealed record ArtifactWriteOutcome(bool Wrote, string Hash);
+
+    private sealed class SchemaArtifactSummary
+    {
+        public int FilesWritten { get; set; }
+        public int FilesUnchanged { get; set; }
+        public List<IndexTableTypeEntry> TableTypes { get; } = new();
+        public List<IndexUserDefinedTypeEntry> UserDefinedTypes { get; } = new();
+    }
+
     private sealed class IndexDocument
     {
         public int SchemaVersion { get; set; } = 1;
@@ -561,6 +982,8 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         public IndexParser Parser { get; set; } = new();
         public IndexStats Stats { get; set; } = new();
         public List<IndexProcedureEntry> Procedures { get; set; } = new();
+        public List<IndexTableTypeEntry> TableTypes { get; set; } = new();
+        public List<IndexUserDefinedTypeEntry> UserDefinedTypes { get; set; } = new();
     }
 
     private sealed class IndexParser
@@ -581,6 +1004,22 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
     }
 
     private sealed class IndexProcedureEntry
+    {
+        public string Schema { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string File { get; set; } = string.Empty;
+        public string Hash { get; set; } = string.Empty;
+    }
+
+    private sealed class IndexTableTypeEntry
+    {
+        public string Schema { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string File { get; set; } = string.Empty;
+        public string Hash { get; set; } = string.Empty;
+    }
+
+    private sealed class IndexUserDefinedTypeEntry
     {
         public string Schema { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;

@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Text;
 
 namespace SpocR.SpocRVNext.Utils;
 
@@ -21,12 +22,24 @@ public static class NameSanitizer
     public static string SanitizeForFile(string raw)
     {
         if (string.IsNullOrWhiteSpace(raw)) return "_";
-        var transformed = raw.Select(c => char.IsLetterOrDigit(c) || c is '.' or '_' or '-' ? c : '-').ToArray();
-        var s = new string(transformed);
-        foreach (var sep in new[] {"..", "__", "--"})
-            while (s.Contains(sep)) s = s.Replace(sep, sep.Substring(0,1));
-        s = s.Trim('.', '_', '-');
-        return string.IsNullOrEmpty(s) ? "_" : s;
+
+        var builder = new StringBuilder(raw.Length);
+        char? lastAppended = null;
+
+        foreach (var c in raw)
+        {
+            var sanitized = char.IsLetterOrDigit(c) || c is '.' or '_' or '-' ? c : '-';
+            if (lastAppended.HasValue && lastAppended.Value == sanitized && sanitized is '.' or '_' or '-')
+            {
+                continue;
+            }
+
+            builder.Append(sanitized);
+            lastAppended = sanitized;
+        }
+
+        var result = builder.ToString().Trim('.', '-');
+        return string.IsNullOrEmpty(result) ? "_" : result;
     }
 
     /// <summary>

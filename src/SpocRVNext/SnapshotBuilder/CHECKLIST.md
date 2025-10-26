@@ -66,9 +66,12 @@
 
 ## Offene Fragen / Entscheidungsbedarf
 
-- Persistenzformat Cache (JSON vs. simple key/value).
-- Umgang mit Prozedur-Abhängigkeiten (Exec-Forwarding) in neuer Pipeline.
-- Einbettung von Function/UDTT-Analyzern in Phase 1 oder spätere Iteration?
+- Persistenzformat Cache (JSON vs. simple key/value). _Entscheidung: weiter JSON-Datei pro Cache-Segment (menschlich lesbar, diffbar), strukturierte Map im selben Dokument statt separatem KV-Store._
+- Umgang mit Prozedur-Abhängigkeiten (Exec-Forwarding) in neuer Pipeline. _Entscheidung: AST + Dependency-Metadata bleiben Quelle, Referenzliste wird zusätzlich im Index abgelegt; keine heuristische Auflösung._
+- Einbettung von Function/UDTT-Analyzern in Phase 1 oder spätere Iteration? _Entscheidung: UDTTs sind abgedeckt; Functions/Views/Tables folgen nach Collector-Erweiterung als nächste Iteration._
+- debug\.spocr\schema\procedures\cluster.ClusterAddNode.json: Sollten die `Inputs` nicht besser `Parameters` heißen? _Entscheidung: SnapshotBuilder vNext schreibt `Parameters`; Legacy-Consumer erhalten einen Alias, sodass bestehende Parser ohne Breaking Change weiterlaufen._
+- Sollten wir die DataTypes bereits auflösen oder einfach nur referenzieren und im Output erst auflösen (Vor/Nachteile ...)? _Entscheidung: Snapshots referenzieren Schemanamen/Typnamen, die eigentliche Auflösung passiert erst in den Konsumenten (auch für JSON/No-JSON Procs, Functions, Views, Tables)._
+- Legacy Output Anbindung. _Entscheidung: Output-Bridge bereitstellen, die neue Artefakte auf das bisherige Layout mappt, bis alle Downstream-Abhängigkeiten auf vNext migriert sind._
 
 ## Artefakte
 
