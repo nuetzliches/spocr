@@ -3,7 +3,7 @@
 // Changes may be overwritten. For customization extend generated partials.
 
 #nullable enable
-namespace TestNs.SpocR;
+namespace RestApi.SpocR;
 
 using System;
 using System.Collections.Generic;

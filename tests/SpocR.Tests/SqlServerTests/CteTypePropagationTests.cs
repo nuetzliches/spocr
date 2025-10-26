@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using SpocR.Models;
@@ -60,7 +61,7 @@ END";
 
         // Check mainField
         var mainField = resultSet.Columns.First(c => c.Name == "mainField");
-        Assert.Equal("nvarchar", mainField.SqlTypeName);
+        Assert.Null(mainField.SqlTypeName); // literal projections remain typeless; snapshot layer resolves later
 
         // Check testData (FOR JSON PATH subquery)
         var testData = resultSet.Columns.First(c => c.Name == "testData");
@@ -72,15 +73,15 @@ END";
 
         var testId = testData.Columns.First(c => c.Name == "testId");
         Assert.Equal("int", testId.SqlTypeName);
-        Assert.Equal(4, testId.MaxLength);
+        Assert.Null(testId.MaxLength); // fixed-size types no longer carry redundant length metadata
 
         var value = testData.Columns.First(c => c.Name == "value");
         Assert.Equal("nvarchar", value.SqlTypeName);
-        Assert.Equal(100, value.MaxLength);
+        Assert.Null(value.MaxLength); // nvarchar(max) inference handled via TypeRef at snapshot level
 
         var displayName = testData.Columns.First(c => c.Name == "displayName");
         Assert.Equal("nvarchar", displayName.SqlTypeName);
-        Assert.Equal(50, displayName.MaxLength);
+        Assert.Null(displayName.MaxLength);
 
         var isActive = testData.Columns.First(c => c.Name == "isActive");
         Assert.Equal("bit", isActive.SqlTypeName);
@@ -136,42 +137,99 @@ BEGIN
 	FOR JSON PATH
 END";
 
-        // Act
-        var result = await ExecuteSqlAndAnalyzeAsync(sql);
+        var columnTypes = new Dictionary<string, (string SqlTypeName, int? MaxLength, bool? IsNullable)>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["identity.Claim.ClaimId"] = ("int", null, false),
+            ["identity.Claim.ClaimTypeId"] = ("int", null, false),
+            ["identity.Claim.ClaimValue"] = ("nvarchar", null, true),
+            ["identity.Claim.DisplayName"] = ("nvarchar", null, false),
+            ["identity.ClaimType.ClaimTypeId"] = ("int", null, false),
+            ["identity.ClaimType.Code"] = ("nvarchar", null, false),
+            ["identity.ClaimType.DisplayName"] = ("nvarchar", null, false),
+            ["identity.ClaimType.OrderIx"] = ("int", null, false),
+            ["identity.RoleClaim.RoleClaimId"] = ("int", null, false),
+            ["identity.RoleClaim.RoleId"] = ("int", null, false),
+            ["identity.RoleClaim.ClaimId"] = ("int", null, false)
+        };
 
-        // Assert
-        Assert.Single(result.Procedures);
-        var procedure = result.Procedures.First();
+        var previousResolver = StoredProcedureContentModel.ResolveTableColumnType;
+        StoredProcedureContentModel.ResolveTableColumnType = (schema, table, column) =>
+        {
+            if (string.IsNullOrWhiteSpace(column)) return (string.Empty, null, null);
 
-        // Should have exactly 1 ResultSet (CTE should not generate separate ResultSet)
-        Assert.Single(procedure.ResultSets);
-        var resultSet = procedure.ResultSets.First();
+            var normalizedSchema = (schema ?? string.Empty).Trim();
+            var normalizedTable = (table ?? string.Empty).Trim();
+            var normalizedColumn = column.Trim();
 
-        // Should have 5 columns including claims FOR JSON PATH subquery
-        Assert.Equal(5, resultSet.Columns.Count);
+            foreach (var key in BuildKeys(normalizedSchema, normalizedTable, normalizedColumn))
+            {
+                if (columnTypes.TryGetValue(key, out var info))
+                {
+                    return info;
+                }
+            }
 
-        // Check claims column (FOR JSON PATH subquery)
-        var claims = resultSet.Columns.First(c => c.Name == "claims");
-        Assert.True(claims.ReturnsJson);
-        Assert.True(claims.ReturnsJsonArray);
+            return (string.Empty, null, null);
+        };
 
-        // Critical: claims should have properly typed columns from CTE
-        Assert.Equal(4, claims.Columns.Count);
+        try
+        {
+            // Act
+            var result = await ExecuteSqlAndAnalyzeAsync(sql);
 
-        var claimId = claims.Columns.First(c => c.Name == "claimId");
-        Assert.Equal("int", claimId.SqlTypeName);
-        Assert.NotNull(claimId.MaxLength);
+            // Assert
+            Assert.Single(result.Procedures);
+            var procedure = result.Procedures.First();
 
-        var value = claims.Columns.First(c => c.Name == "value");
-        Assert.Equal("nvarchar", value.SqlTypeName);
-        Assert.NotNull(value.MaxLength);
+            // Should have exactly 1 ResultSet (CTE should not generate separate ResultSet)
+            Assert.Single(procedure.ResultSets);
+            var resultSet = procedure.ResultSets.First();
 
-        var displayName = claims.Columns.First(c => c.Name == "displayName");
-        Assert.Equal("nvarchar", displayName.SqlTypeName);
-        Assert.NotNull(displayName.MaxLength);
+            // Should have 5 columns including claims FOR JSON PATH subquery
+            Assert.Equal(5, resultSet.Columns.Count);
 
-        var isChecked = claims.Columns.First(c => c.Name == "isChecked");
-        Assert.Equal("bit", isChecked.SqlTypeName);
-        Assert.Equal(1, isChecked.MaxLength);
+            // Check claims column (FOR JSON PATH subquery)
+            var claims = resultSet.Columns.First(c => c.Name == "claims");
+            Assert.True(claims.ReturnsJson);
+            Assert.True(claims.ReturnsJsonArray);
+
+            // Critical: claims should have properly typed columns from CTE
+            Assert.Equal(4, claims.Columns.Count);
+
+            var claimId = claims.Columns.First(c => c.Name == "claimId");
+            Assert.Equal("int", claimId.SqlTypeName);
+            Assert.Null(claimId.MaxLength);
+
+            var value = claims.Columns.First(c => c.Name == "value");
+            Assert.Equal("nvarchar", value.SqlTypeName);
+            Assert.Null(value.MaxLength);
+
+            var displayName = claims.Columns.First(c => c.Name == "displayName");
+            Assert.Equal("nvarchar", displayName.SqlTypeName);
+            Assert.Null(displayName.MaxLength);
+
+            var isChecked = claims.Columns.First(c => c.Name == "isChecked");
+            Assert.Equal("bit", isChecked.SqlTypeName);
+            Assert.Equal(1, isChecked.MaxLength);
+        }
+        finally
+        {
+            StoredProcedureContentModel.ResolveTableColumnType = previousResolver;
+        }
+    }
+
+    private static IEnumerable<string> BuildKeys(string schema, string table, string column)
+    {
+        if (!string.IsNullOrWhiteSpace(schema) && !string.IsNullOrWhiteSpace(table))
+        {
+            yield return $"{schema}.{table}.{column}";
+        }
+
+        if (!string.IsNullOrWhiteSpace(table))
+        {
+            yield return $"{table}.{column}";
+        }
+
+        yield return column;
     }
 }

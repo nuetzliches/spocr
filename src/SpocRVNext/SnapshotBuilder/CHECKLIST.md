@@ -86,6 +86,8 @@
   - [x] MaxLength/Precision/Scale bei TypeRef → UDTT oder konstanten sys-Typen unterdrücken.
   - [x] `IsNullable`-Spiegelung zum zugrunde liegenden TypeRef auflösen (nur Fälle mit abweichender Semantik beibehalten).
   - [ ] Weitere sys-Typen mit festen Längen prüfen und ggf. streichen.
+  - [x] `"IsTableType": true` brauchen wir auch nicht, wenn TypeRef auf eine UDTT zeigt, oder?
+- [ ] debug\.spocr\schema\procedures\workflow.ActionFindAsJson.json: Das Feld `"Name": "record"` sollte, wie alle anderen Felder eine `TypeRef` haben (ist das konsistent / korrekt?).
 
 ## Artefakte
 

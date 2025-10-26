@@ -179,11 +179,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                     writer.WriteString("TypeRef", typeRef);
                 }
 
-                if (input.IsTableType)
-                {
-                    writer.WriteBoolean("IsTableType", true);
-                }
-                else
+                if (!input.IsTableType)
                 {
                     if (ShouldEmitIsNullable(input.IsNullable, typeRef))
                     {
