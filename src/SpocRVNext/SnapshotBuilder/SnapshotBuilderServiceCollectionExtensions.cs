@@ -15,6 +15,7 @@ public static class SnapshotBuilderServiceCollectionExtensions
     public static IServiceCollection AddSnapshotBuilder(this IServiceCollection services)
     {
         services.AddSingleton<IDependencyMetadataProvider, DatabaseDependencyMetadataProvider>();
+        services.AddSingleton<IFunctionJsonMetadataProvider, DatabaseFunctionJsonMetadataProvider>();
         services.AddSingleton<IProcedureCollector, DatabaseProcedureCollector>();
         services.AddSingleton<IProcedureAnalyzer, DatabaseProcedureAnalyzer>();
         services.AddSingleton<ISnapshotWriter>(provider =>

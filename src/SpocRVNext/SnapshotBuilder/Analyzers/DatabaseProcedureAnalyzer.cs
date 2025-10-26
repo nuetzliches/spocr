@@ -23,12 +23,18 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
     private readonly DbContext _dbContext;
     private readonly IConsoleService _console;
     private readonly IDependencyMetadataProvider _dependencyMetadataProvider;
+    private readonly IFunctionJsonMetadataProvider _functionJsonMetadataProvider;
 
-    public DatabaseProcedureAnalyzer(DbContext dbContext, IConsoleService console, IDependencyMetadataProvider dependencyMetadataProvider)
+    public DatabaseProcedureAnalyzer(
+        DbContext dbContext,
+        IConsoleService console,
+        IDependencyMetadataProvider dependencyMetadataProvider,
+        IFunctionJsonMetadataProvider functionJsonMetadataProvider)
     {
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
         _console = console ?? throw new ArgumentNullException(nameof(console));
         _dependencyMetadataProvider = dependencyMetadataProvider ?? throw new ArgumentNullException(nameof(dependencyMetadataProvider));
+        _functionJsonMetadataProvider = functionJsonMetadataProvider ?? throw new ArgumentNullException(nameof(functionJsonMetadataProvider));
     }
 
     public async Task<IReadOnlyList<ProcedureAnalysisResult>> AnalyzeAsync(
@@ -261,6 +267,11 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
             }
         }
 
+        if (column.Reference != null && string.Equals(column.Reference.Kind, "Function", StringComparison.OrdinalIgnoreCase))
+        {
+            await ApplyFunctionJsonMetadataAsync(column, cancellationToken).ConfigureAwait(false);
+        }
+
         if (column.ReturnsJson == true) return;
 
         var metadata = await ResolveColumnMetadataAsync(column, tableCache, cancellationToken).ConfigureAwait(false);
@@ -285,6 +296,27 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
         if (!string.IsNullOrWhiteSpace(metadata.UserTypeName) && string.IsNullOrWhiteSpace(column.UserTypeName))
         {
             column.UserTypeName = metadata.UserTypeName;
+        }
+    }
+
+    private async Task ApplyFunctionJsonMetadataAsync(StoredProcedureContentModel.ResultColumn column, CancellationToken cancellationToken)
+    {
+        if (column?.Reference == null) return;
+
+        var name = column.Reference.Name;
+        if (string.IsNullOrWhiteSpace(name)) return;
+
+        var schema = string.IsNullOrWhiteSpace(column.Reference.Schema) ? null : column.Reference.Schema;
+        var metadata = await _functionJsonMetadataProvider.ResolveAsync(schema, name, cancellationToken).ConfigureAwait(false);
+        if (metadata == null || !metadata.ReturnsJson) return;
+
+        column.ReturnsJson = true;
+        column.IsNestedJson = column.IsNestedJson ?? true;
+        column.ReturnsJsonArray = metadata.ReturnsJsonArray;
+
+        if (string.IsNullOrWhiteSpace(column.JsonRootProperty) && !string.IsNullOrWhiteSpace(metadata.RootProperty))
+        {
+            column.JsonRootProperty = metadata.RootProperty;
         }
     }
 
