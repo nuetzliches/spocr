@@ -135,7 +135,6 @@ public class SchemaSnapshotService : ISchemaSnapshotService
                 {
                     Schema = u.Schema,
                     Name = u.Name,
-                    UserTypeId = u.UserTypeId,
                     Columns = u.Columns?.Select(c => new SnapshotUdttColumn
                     {
                         Name = c.Name,
@@ -199,6 +198,8 @@ public class SchemaSnapshotService : ISchemaSnapshotService
         catch { /* swallow snapshot write errors */ }
     }
 
+    // Legacy layout: deterministic artefacts continue to live in .spocr/schema for git tracking.
+    // We still probe that directory when upgrading older snapshots or bridging consumers that expect the historical layout.
     private static string ResolveLegacySchemaDir()
     {
         var working = Utils.DirectoryUtils.GetWorkingDirectory();

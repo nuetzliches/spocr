@@ -1215,10 +1215,6 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
             writer.WriteStartObject();
             writer.WriteString("Schema", tableType?.SchemaName ?? string.Empty);
             writer.WriteString("Name", tableType?.Name ?? string.Empty);
-            if (tableType?.UserTypeId.HasValue == true)
-            {
-                writer.WriteNumber("UserTypeId", tableType.UserTypeId.Value);
-            }
 
             writer.WritePropertyName("Columns");
             writer.WriteStartArray();
@@ -1235,9 +1231,19 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                     }
 
                     var columnTypeRef = BuildTypeRef(column);
-                    if (!string.IsNullOrWhiteSpace(columnTypeRef))
+                    var effectiveTypeRef = columnTypeRef;
+                    if (string.IsNullOrWhiteSpace(effectiveTypeRef) && !string.IsNullOrWhiteSpace(column.SqlTypeName))
                     {
-                        writer.WriteString("TypeRef", columnTypeRef);
+                        var normalized = NormalizeSqlTypeName(column.SqlTypeName);
+                        if (!string.IsNullOrWhiteSpace(normalized))
+                        {
+                            effectiveTypeRef = BuildTypeRef("sys", normalized);
+                        }
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(effectiveTypeRef))
+                    {
+                        writer.WriteString("TypeRef", effectiveTypeRef);
                     }
                     else if (!string.IsNullOrWhiteSpace(column.SqlTypeName))
                     {
@@ -1245,21 +1251,23 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                         writer.WriteString("SqlTypeName", column.SqlTypeName);
                     }
 
-                    if (ShouldEmitIsNullable(column.IsNullable, columnTypeRef ?? column.SqlTypeName))
+                    if (ShouldEmitIsNullable(column.IsNullable, effectiveTypeRef ?? column.SqlTypeName))
                     {
                         writer.WriteBoolean("IsNullable", true);
                     }
-                    if (column.MaxLength > 0)
+                    if (ShouldEmitMaxLength(column.MaxLength, effectiveTypeRef))
                     {
                         writer.WriteNumber("MaxLength", column.MaxLength);
                     }
-                    if (column.Precision.HasValue && column.Precision.Value > 0)
+                    var columnPrecision = column.Precision;
+                    if (ShouldEmitPrecision(columnPrecision, effectiveTypeRef))
                     {
-                        writer.WriteNumber("Precision", column.Precision.Value);
+                        writer.WriteNumber("Precision", columnPrecision.GetValueOrDefault());
                     }
-                    if (column.Scale.HasValue && column.Scale.Value > 0)
+                    var columnScale = column.Scale;
+                    if (ShouldEmitScale(columnScale, effectiveTypeRef))
                     {
-                        writer.WriteNumber("Scale", column.Scale.Value);
+                        writer.WriteNumber("Scale", columnScale.GetValueOrDefault());
                     }
                     if (column.IsIdentityRaw.HasValue && column.IsIdentityRaw.Value == 1)
                     {

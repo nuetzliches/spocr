@@ -175,7 +175,6 @@ public sealed class SchemaSnapshotFileLayoutService
             {
                 Schema = udtt.Schema,
                 Name = udtt.Name,
-                UserTypeId = udtt.UserTypeId,
                 Columns = (udtt.Columns ?? new List<SnapshotUdttColumn>()).Select(c => new SnapshotUdttColumn
                 {
                     Name = c.Name,

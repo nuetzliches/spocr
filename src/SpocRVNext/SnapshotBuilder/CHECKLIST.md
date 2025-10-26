@@ -87,14 +87,14 @@
   - [x] `IsNullable`-Spiegelung zum zugrunde liegenden TypeRef auflösen (nur Fälle mit abweichender Semantik beibehalten).
   - [ ] Weitere sys-Typen mit festen Längen prüfen und ggf. streichen.
   - [x] `"IsTableType": true` brauchen wir auch nicht, wenn TypeRef auf eine UDTT zeigt, oder?
-- [x] debug\.spocr\schema\procedures\workflow.ActionFindAsJson.json: Das Feld `"Name": "record"` sollte, wie alle anderen Felder eine `TypeRef` haben. _(Writer unterdrückt `TypeRef` für JSON-Payloads; kein `sys.nvarchar` Fallback mehr.)_
+- [x] debug\.spocr\schema\procedures\workflow.ActionFindAsJson.json: Das Feld `"Name": "record"` sollte, wie alle anderen Felder eine `TypeRef` haben. _(Writer unterdrückt `TypeRef` für JSON-Payloads)_
 - [x] debug\.spocr\schema\FE4854D2932B7F32.json: Legacy-Fingerprint-Snapshots liegen nun unter `.spocr/cache/schema`, `schema/` trägt nur noch deterministische Artefakte (inkl. `index.json`).
-- [ ] debug\.spocr\schema\tabletypes\core.ComparisonCalculationType.json: TableTypes besitzen auch noch redundante Properties (warum nicht dasselbe Verhalten wie in StoredProcedures, müssen wir hier noch zentralisieren?) [ ] Ist `"UserTypeId": 364` in allen DBs dieselbe ID (Ansonsten darf sie nicht in den Snapshot - nur wenn erforderlich, dann in den Cache verschieben)?
+- [x] debug\.spocr\schema\tabletypes\core.ComparisonCalculationType.json: TableTypes prunen jetzt MaxLength/Precision/Scale analog zu StoredProcedures; `UserTypeId` wird nicht mehr persistiert.
 - [ ] Die SQL-Queries (Abfragen für den Snapshot) auf die Felder (und Joins) reduzieren, die erforderlich sind.
 - [ ] Sollten wir nur die Types laden (oder im Snapshot speichern), die auch über die `TypeRef`s benötigt werden? Passt das in unser Konzept oder eher nachteilhaft?
 - [ ] JsonResultSetTypeEnricher von `StoredProcedureContentModel` entkoppeln (neue Parser-Outputs verwenden).
 - [ ] Column-Level JSON-Emission prüfen (`Json`-Block vs. Flattening), sobald Konsumenten aktualisiert sind.
-- [ ] C:\Projekte\GitHub\spocr\src\Services\SchemaSnapshotService.cs:ResolveLegacySchemaDir(): Warum wird hier von `Legacy` ausgegangen (wird hier was verschoben, oder wird die Funktion nur von der legacy Ebene aufgerufen)?
+- [x] C:\Projekte\GitHub\spocr\src\Services\SchemaSnapshotService.cs:ResolveLegacySchemaDir(): Kommentar ergänzt – Pfad bleibt für deterministische Artefakte/Legacy-Fallback erhalten.
 
 ## Artefakte
 
