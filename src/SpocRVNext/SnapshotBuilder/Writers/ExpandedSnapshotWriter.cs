@@ -72,6 +72,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         };
 
         var writeResults = new ConcurrentBag<ProcedureWriteRecord>();
+        var requiredTypeRefs = new ConcurrentDictionary<string, byte>(StringComparer.OrdinalIgnoreCase);
 
         await Parallel.ForEachAsync(
             analyzedProcedures.Select((item, index) => (item, index)),
@@ -92,7 +93,8 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                     : item.SnapshotFile;
                 var filePath = Path.Combine(proceduresRoot, fileName);
 
-                var jsonBytes = BuildProcedureJson(descriptor, item.Parameters, item.Ast);
+                var localTypeRefs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var jsonBytes = BuildProcedureJson(descriptor, item.Parameters, item.Ast, localTypeRefs);
                 var writeOutcome = await WriteArtifactAsync(filePath, jsonBytes, ct).ConfigureAwait(false);
                 if (writeOutcome.Wrote && verbose)
                 {
@@ -112,6 +114,14 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                 };
 
                 writeResults.Add(new ProcedureWriteRecord(index, result, writeOutcome.Wrote));
+
+                foreach (var typeRef in localTypeRefs)
+                {
+                    if (!string.IsNullOrWhiteSpace(typeRef))
+                    {
+                        requiredTypeRefs.TryAdd(typeRef, 0);
+                    }
+                }
             }).ConfigureAwait(false);
 
         var orderedWrites = writeResults
@@ -122,7 +132,12 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         filesUnchanged = orderedWrites.Count - filesWritten;
         updated.AddRange(orderedWrites.Select(static record => record.Result));
 
-        var schemaArtifacts = await WriteSchemaArtifactsAsync(schemaRoot, options!, updated, cancellationToken).ConfigureAwait(false);
+        var schemaArtifacts = await WriteSchemaArtifactsAsync(
+            schemaRoot,
+            options!,
+            updated,
+            new HashSet<string>(requiredTypeRefs.Keys, StringComparer.OrdinalIgnoreCase),
+            cancellationToken).ConfigureAwait(false);
         filesWritten += schemaArtifacts.FilesWritten;
         filesUnchanged += schemaArtifacts.FilesUnchanged;
 
@@ -138,7 +153,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         };
     }
 
-    private static byte[] BuildProcedureJson(ProcedureDescriptor descriptor, IReadOnlyList<StoredProcedureInput> parameters, StoredProcedureContentModel? ast)
+    private static byte[] BuildProcedureJson(ProcedureDescriptor descriptor, IReadOnlyList<StoredProcedureInput> parameters, StoredProcedureContentModel? ast, ISet<string>? requiredTypeRefs)
     {
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true }))
@@ -147,15 +162,15 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
             writer.WriteString("Schema", descriptor?.Schema ?? string.Empty);
             writer.WriteString("Name", descriptor?.Name ?? string.Empty);
 
-            WriteParameters(writer, parameters);
-            WriteResultSets(writer, ast?.ResultSets);
+            WriteParameters(writer, parameters, requiredTypeRefs);
+            WriteResultSets(writer, ast?.ResultSets, requiredTypeRefs);
 
             writer.WriteEndObject();
         }
         return stream.ToArray();
     }
 
-    private static void WriteParameters(Utf8JsonWriter writer, IReadOnlyList<StoredProcedureInput> parameters)
+    private static void WriteParameters(Utf8JsonWriter writer, IReadOnlyList<StoredProcedureInput> parameters, ISet<string>? requiredTypeRefs)
     {
         writer.WritePropertyName("Parameters");
         writer.WriteStartArray();
@@ -177,6 +192,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                 if (!string.IsNullOrWhiteSpace(typeRef))
                 {
                     writer.WriteString("TypeRef", typeRef);
+                    RegisterTypeRef(requiredTypeRefs, typeRef);
                 }
 
                 if (!input.IsTableType)
@@ -216,7 +232,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         writer.WriteEndArray();
     }
 
-    private static void WriteResultSets(Utf8JsonWriter writer, IReadOnlyList<StoredProcedureContentModel.ResultSet>? resultSets)
+    private static void WriteResultSets(Utf8JsonWriter writer, IReadOnlyList<StoredProcedureContentModel.ResultSet>? resultSets, ISet<string>? requiredTypeRefs)
     {
         writer.WritePropertyName("ResultSets");
         writer.WriteStartArray();
@@ -266,7 +282,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                     foreach (var column in set.Columns)
                     {
                         if (column == null) continue;
-                        WriteResultColumn(writer, column);
+                        WriteResultColumn(writer, column, requiredTypeRefs);
                     }
                 }
                 writer.WriteEndArray();
@@ -277,7 +293,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         writer.WriteEndArray();
     }
 
-    private async Task<SchemaArtifactSummary> WriteSchemaArtifactsAsync(string schemaRoot, SnapshotBuildOptions options, IReadOnlyList<ProcedureAnalysisResult> updatedProcedures, CancellationToken cancellationToken)
+    private async Task<SchemaArtifactSummary> WriteSchemaArtifactsAsync(string schemaRoot, SnapshotBuildOptions options, IReadOnlyList<ProcedureAnalysisResult> updatedProcedures, ISet<string> requiredTypeRefs, CancellationToken cancellationToken)
     {
         var summary = new SchemaArtifactSummary();
         var schemaSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -358,7 +374,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                 }
             }
 
-            var jsonBytes = BuildTableTypeJson(tableType, columns);
+            var jsonBytes = BuildTableTypeJson(tableType, columns, requiredTypeRefs);
             var fileName = BuildArtifactFileName(tableType.SchemaName, tableType.Name);
             var filePath = Path.Combine(tableTypeRoot, fileName);
             var outcome = await WriteArtifactAsync(filePath, jsonBytes, cancellationToken).ConfigureAwait(false);
@@ -403,10 +419,19 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         Directory.CreateDirectory(scalarRoot);
         var validScalarFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
+        var filterActive = requiredTypeRefs.Count > 0;
+
         foreach (var type in scalarTypes)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (type == null || string.IsNullOrWhiteSpace(type.schema_name) || string.IsNullOrWhiteSpace(type.user_type_name))
+            {
+                continue;
+            }
+
+            var baseKey = BuildKey(type.schema_name, type.user_type_name);
+            var notNullKey = BuildKey(type.schema_name, "_" + type.user_type_name);
+            if (filterActive && !requiredTypeRefs.Contains(baseKey) && !requiredTypeRefs.Contains(notNullKey))
             {
                 continue;
             }
@@ -450,7 +475,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         return summary;
     }
 
-    private static void WriteResultColumn(Utf8JsonWriter writer, StoredProcedureContentModel.ResultColumn column)
+    private static void WriteResultColumn(Utf8JsonWriter writer, StoredProcedureContentModel.ResultColumn column, ISet<string>? requiredTypeRefs)
     {
         writer.WriteStartObject();
         if (!string.IsNullOrWhiteSpace(column.Name))
@@ -461,6 +486,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         if (!string.IsNullOrWhiteSpace(typeRef) && column.ReturnsJson != true && column.IsNestedJson != true)
         {
             writer.WriteString("TypeRef", typeRef);
+            RegisterTypeRef(requiredTypeRefs, typeRef);
         }
         if (ShouldEmitIsNullable(column.IsNullable, typeRef))
         {
@@ -478,7 +504,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
             foreach (var child in column.Columns)
             {
                 if (child == null) continue;
-                WriteResultColumn(writer, child);
+                WriteResultColumn(writer, child, requiredTypeRefs);
             }
             writer.WriteEndArray();
         }
@@ -632,6 +658,17 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
 
         var single = string.IsNullOrWhiteSpace(parts[0]) ? null : parts[0];
         return (null, single);
+    }
+
+    private static void RegisterTypeRef(ISet<string>? collector, string? typeRef)
+    {
+        if (collector == null) return;
+        if (string.IsNullOrWhiteSpace(typeRef)) return;
+        var (schema, name) = SplitTypeRef(typeRef);
+        if (string.IsNullOrWhiteSpace(schema) || string.IsNullOrWhiteSpace(name)) return;
+        if (string.Equals(schema, "sys", StringComparison.OrdinalIgnoreCase)) return;
+
+        collector.Add(BuildKey(schema, name));
     }
 
     private static string? NormalizeSqlTypeName(string? sqlTypeName)
@@ -1207,7 +1244,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         return $"{schema}.{name}";
     }
 
-    private static byte[] BuildTableTypeJson(TableType tableType, IReadOnlyList<Column> columns)
+    private static byte[] BuildTableTypeJson(TableType tableType, IReadOnlyList<Column> columns, ISet<string>? requiredTypeRefs)
     {
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true }))
@@ -1244,6 +1281,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                     if (!string.IsNullOrWhiteSpace(effectiveTypeRef))
                     {
                         writer.WriteString("TypeRef", effectiveTypeRef);
+                        RegisterTypeRef(requiredTypeRefs, effectiveTypeRef);
                     }
                     else if (!string.IsNullOrWhiteSpace(column.SqlTypeName))
                     {

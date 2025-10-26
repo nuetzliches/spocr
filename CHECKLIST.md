@@ -280,6 +280,8 @@ EPICS Übersicht (oberste Steuerungsebene)
 - [x] TableTypes: Timestamp `<remarks>` Zeile eingefügt und beim Hashing ignoriert (DirectoryHasher Filter)
 - [x] TableTypes: Original Snapshot Namen vollständig beibehalten (nur Sanitizing) – keine erzwungene \*TableType Suffix Ergänzung
       note: Nested JSON Sub-Struct Generation aktiv (immer an) – künftige Doku: Segment Case-Preservation / Mapping Regeln
+- [ ] TableType Snapshot-Prüfung: Weitere Schemas stichprobenartig validieren (Pruning der UDTT-Artefakte nachvollziehen).
+- [x] Snapshot SQL-Abfragen minimieren (Parameters/UDTT) – nur benötigte Spalten/Joins im Einsatz.
 
 Streaming & Invocation (vNext API / Verschoben zu v5)
 
