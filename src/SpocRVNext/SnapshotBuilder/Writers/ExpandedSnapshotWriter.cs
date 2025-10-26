@@ -157,7 +157,8 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                     writer.WriteString("Name", name);
                 }
 
-                if (input.IsTableType || (!string.IsNullOrWhiteSpace(input.UserTypeSchemaName) && !string.IsNullOrWhiteSpace(input.UserTypeName)))
+                var hasUserDefinedType = !string.IsNullOrWhiteSpace(input.UserTypeSchemaName) && !string.IsNullOrWhiteSpace(input.UserTypeName);
+                if (input.IsTableType)
                 {
                     if (!string.IsNullOrWhiteSpace(input.UserTypeSchemaName))
                     {
@@ -168,7 +169,19 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                         writer.WriteString("TableTypeName", input.UserTypeName);
                     }
                 }
-                else
+                else if (hasUserDefinedType)
+                {
+                    if (!string.IsNullOrWhiteSpace(input.UserTypeSchemaName))
+                    {
+                        writer.WriteString("TypeSchema", input.UserTypeSchemaName);
+                    }
+                    if (!string.IsNullOrWhiteSpace(input.UserTypeName))
+                    {
+                        writer.WriteString("TypeName", input.UserTypeName);
+                    }
+                }
+
+                if (!input.IsTableType)
                 {
                     if (!string.IsNullOrWhiteSpace(input.SqlTypeName))
                     {
