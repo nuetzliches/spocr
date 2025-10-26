@@ -98,6 +98,7 @@
 - [x] debug\.spocr\schema\procedures\workflow-state.TransitionFindAsJson.json `SqlTypeName` scheint redundant zu sein, können wir die Property komplett entfernen, da alles über `TypeRef` ableitbar? [x] leeres `"Json": {},` vermeiden.
 - [x] debug\.spocr\schema\procedures\workflow.NodeListAsJson.json: "FunctionRef": "identity.RecordAsJson" dürfte kein Array sein, da die referenzierte Funktion kein Array liefert. Siehe debug\[workflow]_[NodeListAsJson].sql und debug\[identity]_[RecordAsJson].sql (benötigen wir hier die `Json` Property überhaupt, wenn wir `FunctionRef` haben? Oder kann diese Eigenschaft in anderen Fällen abweichen?)
 - [ ] debug\.spocr\schema\procedures\workflow.NodeFindAsJson.json: `"FunctionRef": "workflow.StatusFindAsJson"` existiert noch nicht in debug\.spocr\schema\functions
+- [ ] src\SpocRVNext\SnapshotBuilder\Metadata hier wurden bereits einige Queries hin verschoben. Es fehlen aber m.E. noch die Queries der Types und StoreProcedures (weitere?) oder ist bereits alles im neuen SpocRVNext vorhanden?
 
 ## Artefakte
 

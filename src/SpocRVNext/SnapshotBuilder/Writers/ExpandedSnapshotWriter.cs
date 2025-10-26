@@ -324,6 +324,22 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
             return summary;
         }
 
+        var functionSummary = await WriteFunctionArtifactsAsync(
+            schemaRoot,
+            schemaSet,
+            requiredTypeRefs,
+            cancellationToken).ConfigureAwait(false);
+        summary.FilesWritten += functionSummary.FilesWritten;
+        summary.FilesUnchanged += functionSummary.FilesUnchanged;
+        if (functionSummary.FunctionsVersion > 0)
+        {
+            summary.FunctionsVersion = functionSummary.FunctionsVersion;
+        }
+        if (functionSummary.Functions.Count > 0)
+        {
+            summary.Functions.AddRange(functionSummary.Functions);
+        }
+
         var escapedSchemas = schemaSet
             .Select(s => $"'{s.Replace("'", "''")}'")
             .ToArray();
@@ -471,6 +487,576 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         });
 
         return summary;
+    }
+
+    private async Task<FunctionArtifactSummary> WriteFunctionArtifactsAsync(
+        string schemaRoot,
+        ISet<string> schemaSet,
+        ISet<string> requiredTypeRefs,
+        CancellationToken cancellationToken)
+    {
+        var summary = new FunctionArtifactSummary();
+
+        List<FunctionRow> functionRows = new();
+        try
+        {
+            var list = await _dbContext.FunctionListAsync(cancellationToken).ConfigureAwait(false);
+            if (list != null)
+            {
+                functionRows = list;
+            }
+        }
+        catch (Exception ex)
+        {
+            _console.Verbose($"[snapshot-function] failed to enumerate functions: {ex.Message}");
+            return summary;
+        }
+
+        var functionRoot = Path.Combine(schemaRoot, "functions");
+        Directory.CreateDirectory(functionRoot);
+        var validFunctionFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        List<FunctionParamRow> parameterRows = new();
+        List<FunctionColumnRow> columnRows = new();
+        List<FunctionDependencyRow> dependencyRows = new();
+
+        if (functionRows.Count > 0)
+        {
+            try
+            {
+                var list = await _dbContext.FunctionParametersAsync(cancellationToken).ConfigureAwait(false);
+                if (list != null)
+                {
+                    parameterRows = list;
+                }
+            }
+            catch (Exception ex)
+            {
+                _console.Verbose($"[snapshot-function] failed to load function parameters: {ex.Message}");
+            }
+
+            try
+            {
+                var list = await _dbContext.FunctionTvfColumnsAsync(cancellationToken).ConfigureAwait(false);
+                if (list != null)
+                {
+                    columnRows = list;
+                }
+            }
+            catch (Exception ex)
+            {
+                _console.Verbose($"[snapshot-function] failed to load function columns: {ex.Message}");
+            }
+
+            try
+            {
+                var list = await _dbContext.FunctionDependenciesAsync(cancellationToken).ConfigureAwait(false);
+                if (list != null)
+                {
+                    dependencyRows = list;
+                }
+            }
+            catch (Exception ex)
+            {
+                _console.Verbose($"[snapshot-function] failed to load function dependencies: {ex.Message}");
+            }
+        }
+
+        var parameterLookup = parameterRows
+            .GroupBy(row => row.object_id)
+            .ToDictionary(group => group.Key, group => group.OrderBy(row => row.ordinal).ToList());
+        var columnLookup = columnRows
+            .GroupBy(row => row.object_id)
+            .ToDictionary(group => group.Key, group => group.OrderBy(row => row.ordinal).ToList());
+        var dependencyLookup = BuildFunctionDependencyLookup(functionRows, dependencyRows);
+
+        var astExtractor = new JsonFunctionAstExtractor();
+
+        foreach (var function in functionRows)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (function == null || string.IsNullOrWhiteSpace(function.schema_name) || string.IsNullOrWhiteSpace(function.function_name))
+            {
+                continue;
+            }
+
+            var schema = function.schema_name;
+            var name = function.function_name;
+            schemaSet.Add(schema);
+
+            parameterLookup.TryGetValue(function.object_id, out var rawParameters);
+            rawParameters ??= new List<FunctionParamRow>();
+
+            var isTableValued = string.Equals(function.type_code, "IF", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(function.type_code, "TF", StringComparison.OrdinalIgnoreCase);
+
+            var returnInfo = ExtractFunctionReturnInfo(rawParameters, isTableValued);
+            var parameters = rawParameters
+                .Where(row => !IsReturnParameter(row))
+                .OrderBy(row => row.ordinal)
+                .ToList();
+
+            List<FunctionColumnRow> columns = new();
+            if (isTableValued && columnLookup.TryGetValue(function.object_id, out var mappedColumns))
+            {
+                columns = mappedColumns;
+            }
+
+            dependencyLookup.TryGetValue(function.object_id, out var dependencies);
+            dependencies ??= new List<string>();
+
+            JsonFunctionAstResult? astResult = null;
+            if (!isTableValued && !string.IsNullOrWhiteSpace(function.definition))
+            {
+                try
+                {
+                    astResult = astExtractor.Parse(function.definition);
+                }
+                catch (Exception ex)
+                {
+                    _console.Verbose($"[snapshot-function] AST parse failed for {schema}.{name}: {ex.Message}");
+                }
+            }
+
+            var jsonBytes = BuildFunctionJson(
+                function,
+                parameters,
+                columns,
+                dependencies,
+                returnInfo.SqlType,
+                returnInfo.MaxLength,
+                returnInfo.IsNullable,
+                astResult,
+                requiredTypeRefs);
+
+            var fileName = BuildArtifactFileName(schema, name);
+            var filePath = Path.Combine(functionRoot, fileName);
+            var outcome = await WriteArtifactAsync(filePath, jsonBytes, cancellationToken).ConfigureAwait(false);
+            if (outcome.Wrote)
+            {
+                summary.FilesWritten++;
+            }
+            else
+            {
+                summary.FilesUnchanged++;
+            }
+
+            validFunctionFiles.Add(fileName);
+            summary.Functions.Add(new IndexFunctionEntry
+            {
+                Schema = schema,
+                Name = name,
+                File = fileName,
+                Hash = outcome.Hash
+            });
+        }
+
+        summary.FunctionsVersion = 2;
+        PruneExtraneousFiles(functionRoot, validFunctionFiles);
+
+        return summary;
+    }
+
+    private static Dictionary<int, List<string>> BuildFunctionDependencyLookup(
+        IReadOnlyList<FunctionRow> functions,
+        IReadOnlyList<FunctionDependencyRow> dependencies)
+    {
+        var result = new Dictionary<int, List<string>>();
+        if (functions == null || functions.Count == 0 || dependencies == null || dependencies.Count == 0)
+        {
+            return result;
+        }
+
+        var map = new Dictionary<int, (string Schema, string Name)>();
+        foreach (var function in functions)
+        {
+            if (function == null) continue;
+            if (string.IsNullOrWhiteSpace(function.schema_name) || string.IsNullOrWhiteSpace(function.function_name)) continue;
+            map[function.object_id] = (function.schema_name, function.function_name);
+        }
+
+        if (map.Count == 0)
+        {
+            return result;
+        }
+
+        foreach (var group in dependencies.GroupBy(d => d.referencing_id))
+        {
+            if (!map.ContainsKey(group.Key)) continue;
+            var refs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in group)
+            {
+                if (entry == null) continue;
+                if (entry.referenced_id == entry.referencing_id) continue;
+                if (!map.TryGetValue(entry.referenced_id, out var target)) continue;
+                var key = BuildKey(target.Schema, target.Name);
+                if (!string.IsNullOrWhiteSpace(key))
+                {
+                    refs.Add(key);
+                }
+            }
+
+            if (refs.Count > 0)
+            {
+                result[group.Key] = refs.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+            }
+        }
+
+        return result;
+    }
+
+    private static FunctionReturnInfo ExtractFunctionReturnInfo(IReadOnlyList<FunctionParamRow> parameters, bool isTableValued)
+    {
+        if (isTableValued || parameters == null)
+        {
+            return new FunctionReturnInfo(null, null, null);
+        }
+
+        foreach (var parameter in parameters)
+        {
+            if (parameter == null) continue;
+            if (!IsReturnParameter(parameter)) continue;
+
+            var sqlType = BuildSqlTypeName(parameter);
+            int? maxLength = null;
+            if (parameter.normalized_length > 0)
+            {
+                maxLength = parameter.normalized_length;
+            }
+            else if (parameter.max_length > 0)
+            {
+                maxLength = parameter.max_length;
+            }
+
+            var isNullable = parameter.is_nullable == 1 ? true : (bool?)null;
+            return new FunctionReturnInfo(sqlType, maxLength, isNullable);
+        }
+
+        return new FunctionReturnInfo(null, null, null);
+    }
+
+    private static bool IsReturnParameter(FunctionParamRow parameter)
+        => parameter != null && string.IsNullOrWhiteSpace(parameter.param_name);
+
+    private static byte[] BuildFunctionJson(
+        FunctionRow function,
+        IReadOnlyList<FunctionParamRow> parameters,
+        IReadOnlyList<FunctionColumnRow> columns,
+        IReadOnlyList<string> dependencies,
+        string? returnSqlType,
+        int? returnMaxLength,
+        bool? returnIsNullable,
+        JsonFunctionAstResult? astResult,
+        ISet<string>? requiredTypeRefs)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true }))
+        {
+            writer.WriteStartObject();
+            var schema = function?.schema_name ?? string.Empty;
+            var name = function?.function_name ?? string.Empty;
+            writer.WriteString("Schema", schema);
+            writer.WriteString("Name", name);
+
+            var isTableValued = string.Equals(function?.type_code, "IF", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(function?.type_code, "TF", StringComparison.OrdinalIgnoreCase);
+            if (isTableValued)
+            {
+                writer.WriteBoolean("IsTableValued", true);
+            }
+
+            if (string.IsNullOrWhiteSpace(function?.definition))
+            {
+                writer.WriteBoolean("IsEncrypted", true);
+            }
+
+            if (!string.IsNullOrWhiteSpace(returnSqlType))
+            {
+                writer.WriteString("ReturnSqlType", returnSqlType);
+            }
+            if (returnMaxLength.HasValue)
+            {
+                writer.WriteNumber("ReturnMaxLength", returnMaxLength.Value);
+            }
+            if (returnIsNullable == true)
+            {
+                writer.WriteBoolean("ReturnIsNullable", true);
+            }
+
+            if (astResult?.ReturnsJson == true)
+            {
+                writer.WritePropertyName("Json");
+                writer.WriteStartObject();
+                writer.WriteBoolean("IsArray", astResult.ReturnsJsonArray);
+                if (!string.IsNullOrWhiteSpace(astResult.JsonRoot))
+                {
+                    writer.WriteString("RootProperty", astResult.JsonRoot);
+                }
+                writer.WriteEndObject();
+                writer.WriteBoolean("ReturnsJson", true);
+                if (astResult.ReturnsJsonArray)
+                {
+                    writer.WriteBoolean("ReturnsJsonArray", true);
+                }
+                if (!string.IsNullOrWhiteSpace(astResult.JsonRoot))
+                {
+                    writer.WriteString("JsonRootProperty", astResult.JsonRoot);
+                }
+            }
+
+            if (dependencies != null && dependencies.Count > 0)
+            {
+                writer.WritePropertyName("Dependencies");
+                writer.WriteStartArray();
+                foreach (var dep in dependencies)
+                {
+                    if (string.IsNullOrWhiteSpace(dep)) continue;
+                    writer.WriteStringValue(dep);
+                }
+                writer.WriteEndArray();
+            }
+
+            writer.WritePropertyName("Parameters");
+            writer.WriteStartArray();
+            if (parameters != null)
+            {
+                foreach (var parameter in parameters)
+                {
+                    if (parameter == null) continue;
+                    var rawName = parameter.param_name ?? string.Empty;
+                    var cleanName = rawName.TrimStart('@');
+                    if (string.IsNullOrWhiteSpace(cleanName)) continue;
+
+                    writer.WriteStartObject();
+                    writer.WriteString("Name", cleanName);
+
+                    var typeRef = BuildTypeRef(parameter);
+                    if (!string.IsNullOrWhiteSpace(typeRef))
+                    {
+                        writer.WriteString("TypeRef", typeRef);
+                        RegisterTypeRef(requiredTypeRefs, typeRef);
+                    }
+                    else
+                    {
+                        var sqlTypeName = BuildSqlTypeName(parameter);
+                        if (!string.IsNullOrWhiteSpace(sqlTypeName))
+                        {
+                            writer.WriteString("SqlTypeName", sqlTypeName);
+                        }
+                    }
+
+                    if (ShouldEmitIsNullable(parameter.is_nullable == 1, typeRef))
+                    {
+                        writer.WriteBoolean("IsNullable", true);
+                    }
+
+                    int? maxLength = null;
+                    if (parameter.normalized_length > 0)
+                    {
+                        maxLength = parameter.normalized_length;
+                    }
+                    else if (parameter.max_length > 0)
+                    {
+                        maxLength = parameter.max_length;
+                    }
+                    if (parameter.max_length == -1)
+                    {
+                        maxLength = null;
+                    }
+                    if (maxLength.HasValue && ShouldEmitMaxLength(maxLength.Value, typeRef))
+                    {
+                        writer.WriteNumber("MaxLength", maxLength.Value);
+                    }
+
+                    if (ShouldEmitPrecision(parameter.precision, typeRef))
+                    {
+                        writer.WriteNumber("Precision", parameter.precision);
+                    }
+                    if (ShouldEmitScale(parameter.scale, typeRef))
+                    {
+                        writer.WriteNumber("Scale", parameter.scale);
+                    }
+
+                    if (parameter.is_output == 1)
+                    {
+                        writer.WriteBoolean("IsOutput", true);
+                    }
+                    if (parameter.has_default_value == 1)
+                    {
+                        writer.WriteBoolean("HasDefaultValue", true);
+                    }
+
+                    writer.WriteEndObject();
+                }
+            }
+            writer.WriteEndArray();
+
+            if (isTableValued && columns != null && columns.Count > 0)
+            {
+                writer.WritePropertyName("Columns");
+                writer.WriteStartArray();
+                foreach (var column in columns)
+                {
+                    if (column == null) continue;
+                    writer.WriteStartObject();
+                    if (!string.IsNullOrWhiteSpace(column.column_name))
+                    {
+                        writer.WriteString("Name", column.column_name);
+                    }
+
+                    var columnTypeRef = BuildTypeRef(column);
+                    if (!string.IsNullOrWhiteSpace(columnTypeRef))
+                    {
+                        writer.WriteString("TypeRef", columnTypeRef);
+                        RegisterTypeRef(requiredTypeRefs, columnTypeRef);
+                    }
+                    else
+                    {
+                        var sqlTypeName = BuildSqlTypeName(column);
+                        if (!string.IsNullOrWhiteSpace(sqlTypeName))
+                        {
+                            writer.WriteString("SqlTypeName", sqlTypeName);
+                        }
+                    }
+
+                    if (ShouldEmitIsNullable(column.is_nullable == 1, columnTypeRef))
+                    {
+                        writer.WriteBoolean("IsNullable", true);
+                    }
+
+                    int? maxLength = null;
+                    if (column.normalized_length > 0)
+                    {
+                        maxLength = column.normalized_length;
+                    }
+                    else if (column.max_length > 0)
+                    {
+                        maxLength = column.max_length;
+                    }
+                    if (column.max_length == -1)
+                    {
+                        maxLength = null;
+                    }
+                    if (maxLength.HasValue && ShouldEmitMaxLength(maxLength.Value, columnTypeRef))
+                    {
+                        writer.WriteNumber("MaxLength", maxLength.Value);
+                    }
+
+                    if (ShouldEmitPrecision(column.precision, columnTypeRef))
+                    {
+                        writer.WriteNumber("Precision", column.precision);
+                    }
+                    if (ShouldEmitScale(column.scale, columnTypeRef))
+                    {
+                        writer.WriteNumber("Scale", column.scale);
+                    }
+
+                    writer.WriteEndObject();
+                }
+                writer.WriteEndArray();
+            }
+
+            writer.WriteEndObject();
+        }
+
+        return stream.ToArray();
+    }
+
+    private static string? BuildTypeRef(FunctionParamRow parameter)
+    {
+        if (parameter == null) return null;
+
+        if (!string.IsNullOrWhiteSpace(parameter.user_type_schema_name) && !string.IsNullOrWhiteSpace(parameter.user_type_name))
+        {
+            return BuildTypeRef(parameter.user_type_schema_name, parameter.user_type_name);
+        }
+
+        var sqlType = parameter.system_type_name ?? parameter.base_type_name;
+        if (!string.IsNullOrWhiteSpace(sqlType))
+        {
+            var normalized = NormalizeSqlTypeName(sqlType);
+            if (!string.IsNullOrWhiteSpace(normalized))
+            {
+                return BuildTypeRef("sys", normalized);
+            }
+        }
+
+        return null;
+    }
+
+    private static string? BuildTypeRef(FunctionColumnRow column)
+    {
+        if (column == null) return null;
+
+        if (!string.IsNullOrWhiteSpace(column.user_type_schema_name) && !string.IsNullOrWhiteSpace(column.user_type_name))
+        {
+            return BuildTypeRef(column.user_type_schema_name, column.user_type_name);
+        }
+
+        var sqlType = column.system_type_name ?? column.base_type_name;
+        if (!string.IsNullOrWhiteSpace(sqlType))
+        {
+            var normalized = NormalizeSqlTypeName(sqlType);
+            if (!string.IsNullOrWhiteSpace(normalized))
+            {
+                return BuildTypeRef("sys", normalized);
+            }
+        }
+
+        return null;
+    }
+
+    private static string? BuildSqlTypeName(FunctionParamRow parameter)
+    {
+        if (parameter == null) return null;
+        return BuildSqlTypeNameCore(parameter.system_type_name ?? parameter.base_type_name, parameter.precision, parameter.scale, parameter.max_length, parameter.normalized_length);
+    }
+
+    private static string? BuildSqlTypeName(FunctionColumnRow column)
+    {
+        if (column == null) return null;
+        return BuildSqlTypeNameCore(column.system_type_name ?? column.base_type_name, column.precision, column.scale, column.max_length, column.normalized_length);
+    }
+
+    private static string? BuildSqlTypeNameCore(string? rawType, int precision, int scale, int maxLength, int normalizedLength)
+    {
+        var normalized = NormalizeSqlTypeName(rawType);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return null;
+        }
+
+        if (normalized is "decimal" or "numeric")
+        {
+            if (precision > 0)
+            {
+                return string.Concat(normalized, "(", precision.ToString(), ",", Math.Max(0, scale).ToString(), ")");
+            }
+        }
+
+        if (normalized is "datetime2" or "datetimeoffset" or "time")
+        {
+            if (scale > 0)
+            {
+                return string.Concat(normalized, "(", Math.Max(0, scale).ToString(), ")");
+            }
+        }
+
+        if (normalized is "binary" or "varbinary" or "char" or "nchar" or "varchar" or "nvarchar")
+        {
+            if (maxLength == -1)
+            {
+                return string.Concat(normalized, "(max)");
+            }
+
+            var length = normalizedLength > 0 ? normalizedLength : maxLength;
+            if (length > 0)
+            {
+                return string.Concat(normalized, "(", length.ToString(), ")");
+            }
+        }
+
+        return normalized;
     }
 
     private static void WriteResultColumn(Utf8JsonWriter writer, StoredProcedureContentModel.ResultColumn column, ISet<string>? requiredTypeRefs)
@@ -1009,6 +1595,39 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
             }
         }
 
+        var functionEntries = new Dictionary<string, IndexFunctionEntry>(StringComparer.OrdinalIgnoreCase);
+        var functionsVersion = existing?.FunctionsVersion ?? 0;
+        var hasNewFunctionData = (schemaArtifacts?.FunctionsVersion ?? 0) > 0;
+
+        if (!hasNewFunctionData && (schemaArtifacts?.Functions == null || schemaArtifacts.Functions.Count == 0) && existing?.Functions != null)
+        {
+            foreach (var entry in existing.Functions)
+            {
+                if (entry == null || string.IsNullOrWhiteSpace(entry.Schema) || string.IsNullOrWhiteSpace(entry.Name))
+                {
+                    continue;
+                }
+                functionEntries[BuildKey(entry.Schema, entry.Name)] = entry;
+            }
+        }
+
+        if (schemaArtifacts?.Functions != null)
+        {
+            foreach (var entry in schemaArtifacts.Functions)
+            {
+                if (entry == null || string.IsNullOrWhiteSpace(entry.Schema) || string.IsNullOrWhiteSpace(entry.Name))
+                {
+                    continue;
+                }
+                functionEntries[BuildKey(entry.Schema, entry.Name)] = entry;
+            }
+        }
+
+        if (hasNewFunctionData)
+        {
+            functionsVersion = schemaArtifacts!.FunctionsVersion;
+        }
+
         var procedureList = entries.Values
             .Where(e => !string.IsNullOrWhiteSpace(e.File))
             .OrderBy(e => e.Schema, StringComparer.OrdinalIgnoreCase)
@@ -1027,6 +1646,12 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
             .ThenBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+        var functionList = functionEntries.Values
+            .Where(e => !string.IsNullOrWhiteSpace(e.File))
+            .OrderBy(e => e.Schema, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
         var parser = existing?.Parser ?? new IndexParser
         {
             ToolVersion = "net9.0",
@@ -1039,11 +1664,13 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         stats.ProcedureSkipped = Math.Max(0, stats.ProcedureTotal - stats.ProcedureLoaded);
         stats.UdttTotal = tableTypeList.Count;
         stats.UserDefinedTypeTotal = userDefinedTypeList.Count;
+        stats.FunctionTotal = functionList.Count;
 
         var fingerprintParts = new List<string>();
         fingerprintParts.AddRange(procedureList.Select(p => $"proc:{p.Schema}.{p.Name}:{p.Hash}"));
         fingerprintParts.AddRange(tableTypeList.Select(t => $"tt:{t.Schema}.{t.Name}:{t.Hash}"));
         fingerprintParts.AddRange(userDefinedTypeList.Select(t => $"udt:{t.Schema}.{t.Name}:{t.Hash}"));
+        fingerprintParts.AddRange(functionList.Select(f => $"fn:{f.Schema}.{f.Name}:{f.Hash}"));
         var fingerprintSource = string.Join("|", fingerprintParts);
         var fingerprint = string.IsNullOrEmpty(fingerprintSource) ? string.Empty : ComputeHash(fingerprintSource);
 
@@ -1055,7 +1682,9 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
             Stats = stats,
             Procedures = procedureList,
             TableTypes = tableTypeList,
-            UserDefinedTypes = userDefinedTypeList
+            UserDefinedTypes = userDefinedTypeList,
+            FunctionsVersion = functionsVersion,
+            Functions = functionList
         };
 
         await using var memoryStream = new MemoryStream();
@@ -1553,7 +2182,19 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         public int FilesUnchanged { get; set; }
         public List<IndexTableTypeEntry> TableTypes { get; } = new();
         public List<IndexUserDefinedTypeEntry> UserDefinedTypes { get; } = new();
+        public int FunctionsVersion { get; set; }
+        public List<IndexFunctionEntry> Functions { get; } = new();
     }
+
+    private sealed class FunctionArtifactSummary
+    {
+        public int FilesWritten { get; set; }
+        public int FilesUnchanged { get; set; }
+        public int FunctionsVersion { get; set; }
+        public List<IndexFunctionEntry> Functions { get; } = new();
+    }
+
+    private sealed record FunctionReturnInfo(string? SqlType, int? MaxLength, bool? IsNullable);
 
     private sealed class LegacySnapshotDocument
     {
@@ -1578,6 +2219,8 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         public List<IndexProcedureEntry> Procedures { get; set; } = new();
         public List<IndexTableTypeEntry> TableTypes { get; set; } = new();
         public List<IndexUserDefinedTypeEntry> UserDefinedTypes { get; set; } = new();
+        public int FunctionsVersion { get; set; }
+        public List<IndexFunctionEntry> Functions { get; set; } = new();
     }
 
     private sealed class IndexParser
@@ -1595,6 +2238,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         public int TableTotal { get; set; }
         public int ViewTotal { get; set; }
         public int UserDefinedTypeTotal { get; set; }
+        public int FunctionTotal { get; set; }
     }
 
     private sealed class IndexProcedureEntry
@@ -1614,6 +2258,14 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
     }
 
     private sealed class IndexUserDefinedTypeEntry
+    {
+        public string Schema { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string File { get; set; } = string.Empty;
+        public string Hash { get; set; } = string.Empty;
+    }
+
+    private sealed class IndexFunctionEntry
     {
         public string Schema { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
