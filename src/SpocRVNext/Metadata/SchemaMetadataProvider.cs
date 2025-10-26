@@ -33,7 +33,7 @@ namespace SpocR.SpocRVNext.Metadata
         private List<OutputDescriptor> _outputs = new();
         private List<ResultSetDescriptor> _resultSets = new();
         private List<ResultDescriptor> _results = new();
-    private List<FunctionDescriptor> _functions = new();
+        private List<FunctionDescriptor> _functions = new();
 
         public SchemaMetadataProvider(string? projectRoot = null)
         {
@@ -45,7 +45,7 @@ namespace SpocR.SpocRVNext.Metadata
         public IReadOnlyList<OutputDescriptor> GetOutputs() { EnsureLoaded(); return _outputs; }
         public IReadOnlyList<ResultSetDescriptor> GetResultSets() { EnsureLoaded(); return _resultSets; }
         public IReadOnlyList<ResultDescriptor> GetResults() { EnsureLoaded(); return _results; }
-    public IReadOnlyList<FunctionDescriptor> GetFunctions() { EnsureLoaded(); return _functions; }
+        public IReadOnlyList<FunctionDescriptor> GetFunctions() { EnsureLoaded(); return _functions; }
 
         private void EnsureLoaded()
         {
@@ -182,7 +182,8 @@ namespace SpocR.SpocRVNext.Metadata
                 // Inputs & outputs (output params marked IsOutput or separate array)
                 var inputParams = new List<FieldDescriptor>();
                 var outputParams = new List<FieldDescriptor>();
-                if (p.TryGetProperty("Inputs", out var inputsEl) && inputsEl.ValueKind == JsonValueKind.Array)
+                if ((p.TryGetProperty("Parameters", out var inputsEl) && inputsEl.ValueKind == JsonValueKind.Array) ||
+                    (p.TryGetProperty("Inputs", out inputsEl) && inputsEl.ValueKind == JsonValueKind.Array))
                 {
                     foreach (var ip in inputsEl.EnumerateArray())
                     {

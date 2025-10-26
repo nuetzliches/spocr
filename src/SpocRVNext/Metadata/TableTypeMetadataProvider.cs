@@ -143,7 +143,8 @@ internal sealed class TableTypeMetadataProvider : ITableTypeMetadataProvider
                     using var pdoc = JsonDocument.Parse(pfs);
                     var root = pdoc.RootElement;
                     var procSchema = root.GetPropertyOrDefault("Schema") ?? "dbo";
-                    if (root.TryGetProperty("Inputs", out var inputsEl) && inputsEl.ValueKind == JsonValueKind.Array)
+                    if ((root.TryGetProperty("Parameters", out var inputsEl) && inputsEl.ValueKind == JsonValueKind.Array) ||
+                        (root.TryGetProperty("Inputs", out inputsEl) && inputsEl.ValueKind == JsonValueKind.Array))
                     {
                         foreach (var ip in inputsEl.EnumerateArray())
                         {

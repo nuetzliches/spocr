@@ -24,15 +24,17 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
 {
     private readonly IConsoleService _console;
     private readonly DbContext _dbContext;
+    private readonly ISchemaSnapshotService? _legacySnapshotService;
     private static readonly JsonSerializerOptions IndexSerializerOptions = new()
     {
         WriteIndented = true
     };
 
-    public ExpandedSnapshotWriter(IConsoleService console, DbContext dbContext)
+    public ExpandedSnapshotWriter(IConsoleService console, DbContext dbContext, ISchemaSnapshotService? legacySnapshotService)
     {
         _console = console ?? throw new ArgumentNullException(nameof(console));
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
+        _legacySnapshotService = legacySnapshotService;
     }
 
     public async Task<SnapshotWriteResult> WriteAsync(IReadOnlyList<ProcedureAnalysisResult> analyzedProcedures, SnapshotBuildOptions options, CancellationToken cancellationToken)
@@ -70,7 +72,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                 : item.SnapshotFile;
             var filePath = Path.Combine(proceduresRoot, fileName);
 
-            var jsonBytes = BuildProcedureJson(descriptor, item.Inputs, item.Ast);
+            var jsonBytes = BuildProcedureJson(descriptor, item.Parameters, item.Ast);
             var writeOutcome = await WriteArtifactAsync(filePath, jsonBytes, cancellationToken).ConfigureAwait(false);
             if (writeOutcome.Wrote)
             {
@@ -93,7 +95,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                 SourceLastModifiedUtc = item.SourceLastModifiedUtc,
                 SnapshotFile = fileName,
                 SnapshotHash = writeOutcome.Hash,
-                Inputs = item.Inputs,
+                Parameters = item.Parameters,
                 Dependencies = item.Dependencies
             });
         }
@@ -102,7 +104,9 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         filesWritten += schemaArtifacts.FilesWritten;
         filesUnchanged += schemaArtifacts.FilesUnchanged;
 
-        await UpdateIndexAsync(schemaRoot, updated, schemaArtifacts, cancellationToken).ConfigureAwait(false);
+        var indexDocument = await UpdateIndexAsync(schemaRoot, updated, schemaArtifacts, cancellationToken).ConfigureAwait(false);
+
+        await WriteLegacySnapshotAsync(indexDocument, cancellationToken).ConfigureAwait(false);
 
         return new SnapshotWriteResult
         {
@@ -112,7 +116,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         };
     }
 
-    private static byte[] BuildProcedureJson(ProcedureDescriptor descriptor, IReadOnlyList<StoredProcedureInput> inputs, StoredProcedureContentModel? ast)
+    private static byte[] BuildProcedureJson(ProcedureDescriptor descriptor, IReadOnlyList<StoredProcedureInput> parameters, StoredProcedureContentModel? ast)
     {
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true }))
@@ -121,7 +125,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
             writer.WriteString("Schema", descriptor?.Schema ?? string.Empty);
             writer.WriteString("Name", descriptor?.Name ?? string.Empty);
 
-            WriteInputs(writer, inputs);
+            WriteParameters(writer, parameters);
             WriteResultSets(writer, ast?.ResultSets);
 
             writer.WriteEndObject();
@@ -129,13 +133,13 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         return stream.ToArray();
     }
 
-    private static void WriteInputs(Utf8JsonWriter writer, IReadOnlyList<StoredProcedureInput> inputs)
+    private static void WriteParameters(Utf8JsonWriter writer, IReadOnlyList<StoredProcedureInput> parameters)
     {
-        writer.WritePropertyName("Inputs");
+        writer.WritePropertyName("Parameters");
         writer.WriteStartArray();
-        if (inputs != null)
+        if (parameters != null)
         {
-            foreach (var input in inputs)
+            foreach (var input in parameters)
             {
                 if (input == null) continue;
 
@@ -558,7 +562,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         return Convert.ToHexString(hashBytes).Substring(0, 16);
     }
 
-    private static async Task UpdateIndexAsync(
+    private static async Task<IndexDocument> UpdateIndexAsync(
         string schemaRoot,
         IReadOnlyList<ProcedureAnalysisResult> updated,
         SchemaArtifactSummary schemaArtifacts,
@@ -726,10 +730,53 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
 
         if (string.Equals(existingContent, newContent, StringComparison.Ordinal))
         {
-            return;
+            return document;
         }
 
         await PersistSnapshotAsync(indexPath, newBytes, cancellationToken).ConfigureAwait(false);
+
+        return document;
+    }
+
+    private Task WriteLegacySnapshotAsync(IndexDocument? indexDocument, CancellationToken cancellationToken)
+    {
+        if (_legacySnapshotService == null)
+        {
+            return Task.CompletedTask;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+
+        try
+        {
+            var layoutService = new SchemaSnapshotFileLayoutService();
+            var snapshot = layoutService.LoadExpanded();
+            if (snapshot == null)
+            {
+                _console.Verbose("[legacy-bridge] expanded snapshot load returned null; skipping legacy snapshot write");
+                return Task.CompletedTask;
+            }
+
+            if (string.IsNullOrWhiteSpace(snapshot.Fingerprint) && !string.IsNullOrWhiteSpace(indexDocument?.Fingerprint))
+            {
+                snapshot.Fingerprint = indexDocument!.Fingerprint;
+            }
+
+            if (string.IsNullOrWhiteSpace(snapshot.Fingerprint))
+            {
+                _console.Verbose("[legacy-bridge] snapshot fingerprint missing; skipping legacy snapshot write");
+                return Task.CompletedTask;
+            }
+
+            _legacySnapshotService.Save(snapshot);
+            _console.Verbose("[legacy-bridge] legacy snapshot persisted");
+        }
+        catch (Exception ex)
+        {
+            _console.Verbose($"[legacy-bridge] failed to persist legacy snapshot: {ex.Message}");
+        }
+
+        return Task.CompletedTask;
     }
 
     private static async Task PersistSnapshotAsync(string filePath, byte[] content, CancellationToken cancellationToken)

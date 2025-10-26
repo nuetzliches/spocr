@@ -13,6 +13,6 @@ public sealed class ProcedureAnalysisResult
     public DateTime? SourceLastModifiedUtc { get; init; }
     public string? SnapshotHash { get; init; }
     public string? SnapshotFile { get; init; }
-    public IReadOnlyList<StoredProcedureInput> Inputs { get; init; } = Array.Empty<StoredProcedureInput>();
+    public IReadOnlyList<StoredProcedureInput> Parameters { get; init; } = Array.Empty<StoredProcedureInput>();
     public IReadOnlyList<ProcedureDependency> Dependencies { get; init; } = Array.Empty<ProcedureDependency>();
 }

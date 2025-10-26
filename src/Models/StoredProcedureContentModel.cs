@@ -4456,7 +4456,10 @@ public class StoredProcedureContentModel
         {
             try
             {
-                System.Console.WriteLine($"[table-var-entry] diag={ShouldDiag()} len={_definition?.Length ?? 0}");
+                if (ShouldDiag())
+                {
+                    System.Console.WriteLine($"[table-var-entry] diag={ShouldDiag()} len={_definition?.Length ?? 0}");
+                }
                 if (string.IsNullOrWhiteSpace(_definition)) return;
                 var rxDecl = new System.Text.RegularExpressions.Regex(@"DECLARE\s+(@\w+)\s+TABLE\s*\((.*?)\)", System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
                 var rxCol = new System.Text.RegularExpressions.Regex(@"\[?\s*([A-Za-z0-9_]+)\s*\]?\s+((\[?([A-Za-z0-9_]+)\]?\.)?\[?([A-Za-z0-9_]+)\]?)(\s*\([^\)]*\))?", System.Text.RegularExpressions.RegexOptions.IgnoreCase);

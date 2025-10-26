@@ -74,22 +74,22 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
             }
 
             // Gather table type dependencies via parameter metadata
-            List<StoredProcedureInput>? inputs = null;
+            List<StoredProcedureInput>? parameters = null;
             if (!string.IsNullOrWhiteSpace(descriptor.Schema) && !string.IsNullOrWhiteSpace(descriptor.Name))
             {
                 try
                 {
-                    inputs = await _dbContext.StoredProcedureInputListAsync(descriptor.Schema, descriptor.Name, cancellationToken).ConfigureAwait(false);
+                    parameters = await _dbContext.StoredProcedureInputListAsync(descriptor.Schema, descriptor.Name, cancellationToken).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
-                    _console.Verbose($"[snapshot-analyze] Failed to load inputs for {descriptor}: {ex.Message}");
+                    _console.Verbose($"[snapshot-analyze] Failed to load parameters for {descriptor}: {ex.Message}");
                 }
             }
 
-            if (inputs != null)
+            if (parameters != null)
             {
-                foreach (var input in inputs)
+                foreach (var input in parameters)
                 {
                     if (input == null) continue;
 
@@ -106,7 +106,7 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
                 }
             }
 
-            var inputSnapshot = inputs?.Count > 0 ? inputs.ToList() : new List<StoredProcedureInput>();
+            var parameterSnapshot = parameters?.Count > 0 ? parameters.ToList() : new List<StoredProcedureInput>();
 
             StoredProcedureContentModel? ast = null;
             if (!string.IsNullOrWhiteSpace(descriptor.Schema) && !string.IsNullOrWhiteSpace(descriptor.Name))
@@ -162,7 +162,7 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
                 WasReusedFromCache = false,
                 SourceLastModifiedUtc = item?.LastModifiedUtc,
                 SnapshotFile = snapshotFile,
-                Inputs = inputSnapshot,
+                Parameters = parameterSnapshot,
                 Dependencies = enrichedDependencies
             });
         }

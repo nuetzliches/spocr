@@ -1,4 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
+using SpocR.DataContext;
+using SpocR.Services;
 using SpocR.SpocRVNext.SnapshotBuilder.Analyzers;
 using SpocR.SpocRVNext.SnapshotBuilder.Cache;
 using SpocR.SpocRVNext.SnapshotBuilder.Collectors;
@@ -15,7 +17,13 @@ public static class SnapshotBuilderServiceCollectionExtensions
         services.AddSingleton<IDependencyMetadataProvider, DatabaseDependencyMetadataProvider>();
         services.AddSingleton<IProcedureCollector, DatabaseProcedureCollector>();
         services.AddSingleton<IProcedureAnalyzer, DatabaseProcedureAnalyzer>();
-        services.AddSingleton<ISnapshotWriter, ExpandedSnapshotWriter>();
+        services.AddSingleton<ISnapshotWriter>(provider =>
+        {
+            var console = provider.GetRequiredService<IConsoleService>();
+            var dbContext = provider.GetRequiredService<DbContext>();
+            var legacySnapshotService = provider.GetService<ISchemaSnapshotService>();
+            return new ExpandedSnapshotWriter(console, dbContext, legacySnapshotService);
+        });
         services.AddSingleton<ISnapshotCache, FileSnapshotCache>();
         services.AddSingleton<ISnapshotDiagnostics, NullSnapshotDiagnostics>();
         services.AddSingleton<SnapshotBuildOrchestrator>();

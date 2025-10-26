@@ -597,8 +597,19 @@ public sealed class SchemaSnapshotFileLayoutService
             if (!File.Exists(path)) continue;
             try
             {
-                var proc = JsonSerializer.Deserialize<SnapshotProcedure>(File.ReadAllText(path), _jsonOptions);
-                if (proc != null) snapshot.Procedures.Add(proc);
+                var json = File.ReadAllText(path);
+                var model = JsonSerializer.Deserialize<ProcedureFileModel>(json, _jsonOptions);
+                if (model == null) continue;
+
+                var parameterList = model.Parameters ?? model.Inputs ?? new List<SnapshotInput>();
+                var procedure = new SnapshotProcedure
+                {
+                    Schema = model.Schema,
+                    Name = model.Name,
+                    Inputs = parameterList,
+                    ResultSets = model.ResultSets ?? new List<SnapshotResultSet>()
+                };
+                snapshot.Procedures.Add(procedure);
             }
             catch { /* ignore single file errors */ }
         }
@@ -653,6 +664,15 @@ public sealed class SchemaSnapshotFileLayoutService
     }
 
     // File-level sanitization now centralized in NameSanitizer.SanitizeForFile
+
+    private sealed class ProcedureFileModel
+    {
+        public string Schema { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public List<SnapshotInput>? Inputs { get; set; }
+        public List<SnapshotInput>? Parameters { get; set; }
+        public List<SnapshotResultSet>? ResultSets { get; set; }
+    }
 
     #region Index Models
     public sealed class ExpandedSnapshotIndex
