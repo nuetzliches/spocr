@@ -73,10 +73,18 @@ public sealed class JsonResultTypeEnricher
             // Removed UDTT 'record' mapping heuristic: Only AST-bound table metadata allowed. Leaving UserType* empty unless future AST capture implemented.
             // JSON_QUERY heuristic
             // Kein Fallback auf nvarchar: fehlende Typinformationen müssen als null im Snapshot verbleiben
-            if (col.ExpressionKind == StoredProcedureContentModel.ResultColumnExpressionKind.JsonQuery && col.IsNullable == null)
+            if (col.ExpressionKind == StoredProcedureContentModel.ResultColumnExpressionKind.JsonQuery)
             {
-                col.IsNullable = true;
-                modifiedLocal = true;
+                if (col.IsNullable == null)
+                {
+                    col.IsNullable = true;
+                    modifiedLocal = true;
+                }
+                if (string.IsNullOrWhiteSpace(col.SqlTypeName))
+                {
+                    col.SqlTypeName = "nvarchar(max)"; // FOR JSON payload is nvarchar(max) by contract
+                    modifiedLocal = true;
+                }
             }
             // Forced nullable adjustment (outer join heuristic)
             if (col.ForcedNullable == true && (col.IsNullable == false || col.IsNullable == null))

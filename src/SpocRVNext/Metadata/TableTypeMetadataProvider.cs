@@ -166,10 +166,32 @@ internal sealed class TableTypeMetadataProvider : ITableTypeMetadataProvider
                     {
                         foreach (var ip in inputsEl.EnumerateArray())
                         {
+                            var typeRef = ip.GetPropertyOrDefault("TypeRef");
                             bool isTt = ip.GetPropertyOrDefaultBool("IsTableType");
+                            var ttSchema = ip.GetPropertyOrDefault("TableTypeSchema");
+                            var ttName = ip.GetPropertyOrDefault("TableTypeName") ?? ip.GetPropertyOrDefault("Name")?.TrimStart('@') ?? string.Empty;
+
+                            if (!isTt && !string.IsNullOrWhiteSpace(ttName))
+                            {
+                                isTt = true;
+                            }
+
+                            if (!isTt && !string.IsNullOrWhiteSpace(typeRef))
+                            {
+                                var (schemaFromRef, nameFromRef) = SplitTypeRef(typeRef);
+                                if (!string.IsNullOrWhiteSpace(schemaFromRef) && !string.Equals(schemaFromRef, "sys", StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(nameFromRef))
+                                {
+                                    isTt = true;
+                                    ttSchema ??= schemaFromRef;
+                                    if (string.IsNullOrWhiteSpace(ttName))
+                                    {
+                                        ttName = nameFromRef;
+                                    }
+                                }
+                            }
+
                             if (!isTt) continue;
-                            var ttSchema = ip.GetPropertyOrDefault("TableTypeSchema") ?? procSchema;
-                            var ttName = ip.GetPropertyOrDefault("TableTypeName") ?? ip.GetPropertyOrDefault("Name")?.TrimStart('@') ?? "";
+                            ttSchema ??= procSchema;
                             if (string.IsNullOrWhiteSpace(ttName)) continue;
                             var key = ttSchema + "." + ttName;
                             if (!inferred.ContainsKey(key))
@@ -232,6 +254,17 @@ internal sealed class TableTypeMetadataProvider : ITableTypeMetadataProvider
         udttsDocument?.Dispose();
         _cache = ordered;
         return _cache;
+    }
+
+    private static (string? Schema, string? Name) SplitTypeRef(string? typeRef)
+    {
+        if (string.IsNullOrWhiteSpace(typeRef)) return (null, null);
+        var parts = typeRef.Trim().Split('.', 2, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (parts.Length == 2)
+        {
+            return (parts[0], parts[1]);
+        }
+        return (null, parts.Length == 1 ? parts[0] : null);
     }
 }
 

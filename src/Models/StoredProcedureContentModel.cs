@@ -1782,7 +1782,6 @@ public class StoredProcedureContentModel
                         {
                             typeName = typeName.ToLowerInvariant();
                             target.CastTargetType = typeName;
-                            if (string.IsNullOrWhiteSpace(target.SqlTypeName)) target.SqlTypeName = typeName;
                         }
                         TryExtractTypeParameters(castCall.DataType, target);
                         if (string.Equals(target.CastTargetType, "bit", StringComparison.OrdinalIgnoreCase))
@@ -1805,7 +1804,6 @@ public class StoredProcedureContentModel
                         {
                             typeName = typeName.ToLowerInvariant();
                             target.CastTargetType = typeName;
-                            if (string.IsNullOrWhiteSpace(target.SqlTypeName)) target.SqlTypeName = typeName;
                         }
                         TryExtractTypeParameters(convertCall.DataType, target);
                         if (string.Equals(target.CastTargetType, "bit", StringComparison.OrdinalIgnoreCase))

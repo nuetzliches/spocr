@@ -52,28 +52,108 @@ public class WrapperForwardingMixedTests
     private sealed class FakeDbContext : SpocR.DataContext.DbContext
     {
         private readonly List<StoredProcedure> _procedures;
-        private readonly Dictionary<string,string> _definitions;
+        private readonly Dictionary<string, string> _definitions;
         private readonly List<SpocR.DataContext.Models.Schema> _schemas;
 
-        public FakeDbContext(IConsoleService console, List<StoredProcedure> procedures, Dictionary<string,string> definitions)
-            : base(console)
-        { 
-            _procedures = procedures; 
-            _definitions = definitions; 
-            _schemas = procedures.Select(p => p.SchemaName).Distinct(StringComparer.OrdinalIgnoreCase).Select(s => new SpocR.DataContext.Models.Schema { Name = s }).ToList();
+        public FakeDbContext(IConsoleService console, List<StoredProcedure> procedures, Dictionary<string, string> definitions)
+                : base(console)
+        {
+            _procedures = procedures;
+            _definitions = definitions;
+            _schemas = procedures
+                .Select(p => p.SchemaName)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Select(s => new SpocR.DataContext.Models.Schema { Name = s })
+                .ToList();
         }
 
         public Task<List<StoredProcedure>> StoredProcedureListAsync(string schemaListCsv, CancellationToken cancellationToken = default)
             => Task.FromResult(_procedures);
         public Task<StoredProcedureDefinition> StoredProcedureDefinitionAsync(string schemaName, string procedureName, CancellationToken cancellationToken = default)
-        { _definitions.TryGetValue($"{schemaName}.{procedureName}", out var sql); return Task.FromResult(new StoredProcedureDefinition { SchemaName = schemaName, Name = procedureName, Definition = sql }); }
+        {
+            _definitions.TryGetValue($"{schemaName}.{procedureName}", out var sql);
+            return Task.FromResult(new StoredProcedureDefinition
+            {
+                SchemaName = schemaName,
+                Name = procedureName,
+                Definition = sql
+            });
+        }
         public Task<List<StoredProcedureOutput>> StoredProcedureOutputListRawAsync(string schemaName, string procedureName, CancellationToken cancellationToken = default)
             => Task.FromResult(new List<StoredProcedureOutput>()); // no OUTPUT params for this test
         public Task<List<StoredProcedureInput>> StoredProcedureInputListAsync(string schemaName, string procedureName, CancellationToken cancellationToken = default)
             => Task.FromResult(new List<StoredProcedureInput>());
         public Task<List<string>> SchemaListRawAsync() => Task.FromResult(_procedures.Select(p => p.SchemaName).Distinct(StringComparer.OrdinalIgnoreCase).ToList());
         protected override Task<List<T>> OnListAsync<T>(string queryString, List<Microsoft.Data.SqlClient.SqlParameter> parameters, CancellationToken cancellationToken, AppSqlTransaction transaction)
-            => Task.FromResult<List<T>>(null);
+        {
+            if (typeof(T) == typeof(SpocR.DataContext.Models.Schema) && queryString != null && queryString.Contains("sys.schemas", StringComparison.OrdinalIgnoreCase))
+            {
+                // Return deterministic schema list for SchemaManager queries
+                var typed = _schemas.Cast<T>().ToList();
+                return Task.FromResult(typed);
+            }
+            if (typeof(T) == typeof(StoredProcedure) && queryString != null && queryString.Contains("sys.objects", StringComparison.OrdinalIgnoreCase))
+            {
+                return Task.FromResult(_procedures.Cast<T>().ToList());
+            }
+            if (typeof(T) == typeof(SpocR.DataContext.Models.DbObject) && queryString != null && queryString.Contains("sys.objects", StringComparison.OrdinalIgnoreCase))
+            {
+                var schemaParam = parameters?.FirstOrDefault(p => string.Equals(p.ParameterName, "@schemaName", StringComparison.OrdinalIgnoreCase));
+                var nameParam = parameters?.FirstOrDefault(p => string.Equals(p.ParameterName, "@name", StringComparison.OrdinalIgnoreCase));
+                var schema = schemaParam?.Value?.ToString();
+                var procName = nameParam?.Value?.ToString();
+                var match = _procedures.FirstOrDefault(p => p.SchemaName.Equals(schema, StringComparison.OrdinalIgnoreCase) && p.Name.Equals(procName, StringComparison.OrdinalIgnoreCase));
+                var list = new List<T>();
+                if (match != null)
+                {
+                    list.Add((T)(object)new SpocR.DataContext.Models.DbObject { Id = match.Id });
+                }
+                return Task.FromResult(list);
+            }
+            if (typeof(T) == typeof(StoredProcedureDefinition) && queryString != null && queryString.Contains("sys.sql_modules", StringComparison.OrdinalIgnoreCase))
+            {
+                var objIdParam = parameters?.FirstOrDefault(p => string.Equals(p.ParameterName, "@objectId", StringComparison.OrdinalIgnoreCase));
+                var list = new List<T>();
+                if (objIdParam?.Value is int objectId)
+                {
+                    var match = _procedures.FirstOrDefault(p => p.Id == objectId);
+                    if (match != null && _definitions.TryGetValue($"{match.SchemaName}.{match.Name}", out var sql))
+                    {
+                        list.Add((T)(object)new StoredProcedureDefinition
+                        {
+                            SchemaName = match.SchemaName,
+                            Name = match.Name,
+                            Id = objectId,
+                            Definition = sql
+                        });
+                    }
+                }
+                return Task.FromResult(list);
+            }
+            if (typeof(T) == typeof(StoredProcedureOutput) && queryString != null && queryString.Contains("sys.dm_exec_describe_first_result_set_for_object", StringComparison.OrdinalIgnoreCase))
+            {
+                var objIdParam = parameters?.FirstOrDefault(p => string.Equals(p.ParameterName, "@objectId", StringComparison.OrdinalIgnoreCase));
+                var list = new List<T>();
+                if (objIdParam?.Value is int objectId)
+                {
+                    var match = _procedures.FirstOrDefault(p => p.Id == objectId);
+                    if (match != null && match.Name.Equals("WrapperProc", StringComparison.OrdinalIgnoreCase))
+                    {
+                        list.Add((T)(object)new StoredProcedureOutput
+                        {
+                            Name = "LocalValue",
+                            IsNullable = false,
+                            SqlTypeName = "int",
+                            MaxLength = 0,
+                            IsIdentityColumn = false
+                        });
+                    }
+                }
+                return Task.FromResult(list);
+            }
+            // Default fallback: avoid hitting real database by returning empty list
+            return Task.FromResult(new List<T>());
+        }
     }
 
     private static async Task<List<SchemaModel>> RunSchemaManagerAsync(FakeDbContext db)
@@ -101,43 +181,48 @@ public class WrapperForwardingMixedTests
 
         var procedures = new List<StoredProcedure>
         {
-            new StoredProcedure { SchemaName = "dbo", Name = "TargetProc" },
-            new StoredProcedure { SchemaName = "dbo", Name = "WrapperProc" }
+            new StoredProcedure { SchemaName = "dbo", Name = "TargetProc", Id = 1, Modified = DateTime.UtcNow },
+            new StoredProcedure { SchemaName = "dbo", Name = "WrapperProc", Id = 2, Modified = DateTime.UtcNow }
         };
-        var definitions = new Dictionary<string,string>
+        var definitions = new Dictionary<string, string>
         {
             ["dbo.TargetProc"] = targetSql,
             ["dbo.WrapperProc"] = wrapperSql
         };
         var db = new FakeDbContext(new TestConsole(), procedures, definitions);
+        var initialProcedures = await db.StoredProcedureListAsync(string.Empty, CancellationToken.None);
+        Assert.Equal(2, initialProcedures.Count);
         var schemas = await RunSchemaManagerAsync(db);
 
-        var dbo = schemas.Single(s => s.Name == "dbo");
-    var targetSp = dbo.StoredProcedures.Single(sp => sp.Name == "TargetProc");
-    var wrapperSp = dbo.StoredProcedures.Single(sp => sp.Name == "WrapperProc");
+        var allProcedures = schemas
+            .SelectMany(s => s.StoredProcedures ?? Enumerable.Empty<StoredProcedureModel>())
+            .ToList();
+        Assert.Equal(2, allProcedures.Count);
+        var targetSp = allProcedures.Single(sp => sp.Name == "TargetProc");
+        var wrapperSp = allProcedures.Single(sp => sp.Name == "WrapperProc");
 
-    // SchemaManager hat Definitions geparst → StoredProcedureDefinition nicht mehr direkt hier sichtbar; wir prüfen über Snapshot SchemaManager Content Mapping.
-    // Hole interne Snapshot-Modelle über Reflection (SchemaModel.StoredProcedures[*].Content)
-    var spType = targetSp.GetType();
-    var contentProp = spType.Assembly.GetTypes().FirstOrDefault(t => t.Name == "StoredProcedureContentModel");
-    // Zugriff auf Content via dynamic (vereinfachter Ansatz):
-    dynamic targetDyn = targetSp; dynamic wrapperDyn = wrapperSp;
-    var targetContent = targetDyn.Content as StoredProcedureContentModel;
-    var wrapperContent = wrapperDyn.Content as StoredProcedureContentModel;
-    Assert.NotNull(targetContent);
-    Assert.NotNull(wrapperContent);
-    Assert.Single(targetContent!.ResultSets);
-    Assert.True(targetContent.ResultSets[0].ReturnsJson);
-    Assert.Equal(2, wrapperContent!.ResultSets.Count);
-    var placeholder = wrapperContent.ResultSets.FirstOrDefault(rs => rs.Columns != null && rs.Columns.Count == 0 && !string.IsNullOrEmpty(rs.ExecSourceProcedureName));
-    Assert.NotNull(placeholder);
-    Assert.Equal("TargetProc", placeholder!.ExecSourceProcedureName);
-    Assert.True(placeholder.ReturnsJson);
-    var local = wrapperContent.ResultSets.FirstOrDefault(rs => string.IsNullOrEmpty(rs.ExecSourceProcedureName) && (rs.Columns?.Count ?? 0) > 0);
-    Assert.NotNull(local);
-    Assert.False(local!.ReturnsJson);
+        // SchemaManager hat Definitions geparst → StoredProcedureDefinition nicht mehr direkt hier sichtbar; wir prüfen über Snapshot SchemaManager Content Mapping.
+        // Hole interne Snapshot-Modelle über Reflection (SchemaModel.StoredProcedures[*].Content)
+        var spType = targetSp.GetType();
+        // Zugriff auf Content via dynamic (vereinfachter Ansatz):
+        dynamic targetDyn = targetSp;
+        dynamic wrapperDyn = wrapperSp;
+        var targetContent = targetDyn.Content as StoredProcedureContentModel;
+        var wrapperContent = wrapperDyn.Content as StoredProcedureContentModel;
+        Assert.NotNull(targetContent);
+        Assert.NotNull(wrapperContent);
+        Assert.Single(targetContent!.ResultSets);
+        Assert.True(targetContent.ResultSets[0].ReturnsJson);
+        Assert.Equal(2, wrapperContent!.ResultSets.Count);
+        var placeholder = wrapperContent.ResultSets.FirstOrDefault(rs => rs.Columns != null && rs.Columns.Count == 0 && !string.IsNullOrEmpty(rs.ExecSourceProcedureName));
+        Assert.NotNull(placeholder);
+        Assert.Equal("TargetProc", placeholder!.ExecSourceProcedureName);
+        Assert.True(placeholder.ReturnsJson);
+        var local = wrapperContent.ResultSets.FirstOrDefault(rs => string.IsNullOrEmpty(rs.ExecSourceProcedureName) && (rs.Columns?.Count ?? 0) > 0);
+        Assert.NotNull(local);
+        Assert.False(local!.ReturnsJson);
 
-    // Keine direkte JSON ResultSet Struktur vorhanden (nur Placeholder) → primaryDirectJson wäre null → Deserialize würde nicht erzeugt.
-    Assert.Null(wrapperContent.ResultSets.FirstOrDefault(rs => string.IsNullOrEmpty(rs.ExecSourceProcedureName) && rs.ReturnsJson));
+        // Keine direkte JSON ResultSet Struktur vorhanden (nur Placeholder) → primaryDirectJson wäre null → Deserialize würde nicht erzeugt.
+        Assert.Null(wrapperContent.ResultSets.FirstOrDefault(rs => string.IsNullOrEmpty(rs.ExecSourceProcedureName) && rs.ReturnsJson));
     }
 }

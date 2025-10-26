@@ -316,9 +316,11 @@ public sealed class ProceduresGenerator
                                 }
 
                                 // Virtuelle Projektion: benutze Ziel-Felder & JSON Flags, setze ExecSource* auf Platzhalter Herkunft
+                                var baseName = string.IsNullOrWhiteSpace(tSet.Name) ? "ResultSet" : tSet.Name;
+                                var forwardedName = !string.IsNullOrWhiteSpace(targetProcName) ? targetProcName + "_" + baseName : baseName;
                                 var virtualRs = new ResultSetDescriptor(
                                     Index: rsIdx,
-                                    Name: tSet.Name,
+                                    Name: forwardedName,
                                     Fields: tSet.Fields,
                                     IsScalar: tSet.IsScalar,
                                     Optional: tSet.Optional,

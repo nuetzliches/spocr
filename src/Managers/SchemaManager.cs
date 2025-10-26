@@ -479,6 +479,7 @@ public class SchemaManager(
         }
         var updatedSnapshot = new ProcedureCacheSnapshot { Fingerprint = fingerprint };
         var tableTypes = await dbContext.TableTypeListAsync(schemaListString, cancellationToken);
+        var procedureOutputs = new Dictionary<string, List<StoredProcedureOutputModel>>(StringComparer.OrdinalIgnoreCase);
 
         var totalSpCount = storedProcedures.Count;
         var processed = 0;
@@ -710,6 +711,7 @@ public class SchemaManager(
 
                     var outputsFull = await dbContext.StoredProcedureOutputListAsync(storedProcedure.SchemaName, storedProcedure.Name, cancellationToken);
                     var outputModels = outputsFull?.Select(i => new StoredProcedureOutputModel(i)).ToList() ?? new List<StoredProcedureOutputModel>();
+                    procedureOutputs[$"{storedProcedure.SchemaName}.{storedProcedure.Name}"] = outputModels;
 
                     // Synthesize ResultSet if no JSON sets and none parsed
                     var anyJson = storedProcedure.Content?.ResultSets?.Any(r => r.ReturnsJson) == true;
@@ -802,16 +804,53 @@ public class SchemaManager(
                 var localSets = c.ResultSets?.Where(rs => string.IsNullOrEmpty(rs.ExecSourceProcedureName)).ToList() ?? new List<StoredProcedureContentModel.ResultSet>();
                 var placeholders = c.ExecutedProcedures
                     .Where(e => e != null)
-                    .Select(e => new StoredProcedureContentModel.ResultSet
+                    .Select(e =>
                     {
-                        ExecSourceSchemaName = e.Schema,
-                        ExecSourceProcedureName = e.Name,
-                        Columns = Array.Empty<StoredProcedureContentModel.ResultColumn>()
+                        var target = allProcedures.FirstOrDefault(p =>
+                            p.SchemaName.Equals(e.Schema, StringComparison.OrdinalIgnoreCase) &&
+                            p.Name.Equals(e.Name, StringComparison.OrdinalIgnoreCase));
+                        var forwardsJson = target?.Content?.ResultSets?.Any(rs => rs.ReturnsJson) == true;
+                        var forwardsJsonArray = target?.Content?.ResultSets?.Any(rs => rs.ReturnsJsonArray) == true;
+                        return new StoredProcedureContentModel.ResultSet
+                        {
+                            ExecSourceSchemaName = e.Schema,
+                            ExecSourceProcedureName = e.Name,
+                            ReturnsJson = forwardsJson,
+                            ReturnsJsonArray = forwardsJsonArray,
+                            Columns = Array.Empty<StoredProcedureContentModel.ResultColumn>()
+                        };
                     }).ToList();
                 // Reihenfolge aktuell: alle Platzhalter vor lokale Sets (vereinfachte Annahme); kann später durch Positionsdaten verfeinert werden.
+                var augmentedLocalSets = localSets;
+                if (localSets.Count > 0 && procedureOutputs.TryGetValue($"{proc.SchemaName}.{proc.Name}", out var outputs) && outputs.Count > 0)
+                {
+                    augmentedLocalSets = localSets.Select(rs =>
+                    {
+                        if (rs.Columns != null && rs.Columns.Count > 0) return rs;
+                        var cols = outputs.Select(o => new StoredProcedureContentModel.ResultColumn
+                        {
+                            Name = o.Name,
+                            SqlTypeName = o.SqlTypeName,
+                            IsNullable = o.IsNullable,
+                            MaxLength = o.MaxLength
+                        }).ToArray();
+                        return new StoredProcedureContentModel.ResultSet
+                        {
+                            ReturnsJson = rs.ReturnsJson,
+                            ReturnsJsonArray = rs.ReturnsJsonArray,
+                            JsonRootProperty = rs.JsonRootProperty,
+                            ExecSourceSchemaName = rs.ExecSourceSchemaName,
+                            ExecSourceProcedureName = rs.ExecSourceProcedureName,
+                            HasSelectStar = rs.HasSelectStar,
+                            Reference = rs.Reference,
+                            Columns = cols
+                        };
+                    }).ToList();
+                }
+
                 var combined = new List<StoredProcedureContentModel.ResultSet>();
                 combined.AddRange(placeholders);
-                combined.AddRange(localSets);
+                combined.AddRange(augmentedLocalSets);
                 proc.Content = new StoredProcedureContentModel
                 {
                     Definition = c.Definition,

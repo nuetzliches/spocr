@@ -218,7 +218,33 @@ namespace SpocR.SpocRVNext.Metadata
                         var resolved = typeResolver.Resolve(typeRef, maxLen, precision, scale);
                         var sqlType = resolved?.SqlType ?? ip.GetPropertyOrDefault("SqlTypeName") ?? string.Empty;
                         var effectiveMaxLen = resolved?.MaxLength ?? maxLen;
-                        bool isTableType = explicitTableType || (!string.IsNullOrWhiteSpace(typeRef) && tableTypeRefs.Contains(typeRef));
+                        bool isTableType = explicitTableType;
+
+                        if (!isTableType && !string.IsNullOrWhiteSpace(legacyTtSchema) && !string.IsNullOrWhiteSpace(legacyTtName))
+                        {
+                            isTableType = true;
+                        }
+
+                        if (!isTableType && !string.IsNullOrWhiteSpace(typeRef))
+                        {
+                            if (tableTypeRefs.Contains(typeRef))
+                            {
+                                isTableType = true;
+                            }
+                            else
+                            {
+                                var (schemaFromRef, nameFromRef) = TypeMetadataResolver.SplitTypeRef(typeRef);
+                                if (!string.IsNullOrWhiteSpace(schemaFromRef)
+                                    && !string.IsNullOrWhiteSpace(nameFromRef)
+                                    && !string.Equals(schemaFromRef, "sys", StringComparison.OrdinalIgnoreCase)
+                                    && resolved == null)
+                                {
+                                    isTableType = true;
+                                    legacyTtSchema ??= schemaFromRef;
+                                    legacyTtName ??= nameFromRef;
+                                }
+                            }
+                        }
 
                         string? ttSchema = legacyTtSchema;
                         string? ttName = legacyTtName;

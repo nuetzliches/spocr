@@ -88,6 +88,10 @@
   - [ ] Weitere sys-Typen mit festen Längen prüfen und ggf. streichen.
   - [x] `"IsTableType": true` brauchen wir auch nicht, wenn TypeRef auf eine UDTT zeigt, oder?
 - [ ] debug\.spocr\schema\procedures\workflow.ActionFindAsJson.json: Das Feld `"Name": "record"` sollte, wie alle anderen Felder eine `TypeRef` haben (ist das konsistent / korrekt?).
+- [ ] debug\.spocr\schema\FE4854D2932B7F32.json: ist es korrekt, dass wir hier mit einem fingerprint arbeiten? Merke: schema/ wird (git-)getracked, cache/ nicht. [ ] auch debug\.spocr\schema\index.json berücksichtigen.
+- [ ] debug\.spocr\schema\tabletypes\core.ComparisonCalculationType.json: TableTypes besitzen auch noch redundante Properties (warum nicht dasselbe Verhalten wie in StoredProcedures, müssen wir hier noch zentralisieren?) [ ] Ist `"UserTypeId": 364` in allen DBs dieselbe ID (Ansonsten darf sie nicht in den Snapshot - nur wenn erforderlich, dann in den Cache verschieben)?
+- [ ] Die SQL-Queries (Abfragen für den Snapshot) auf die Felder (und Joins) reduzieren, die erforderlich sind.
+- [ ] Sollten wir nur die Types laden (oder im Snapshot speichern), die auch über die `TypeRef`s benötigt werden? Passt das in unser Konzept oder eher nachteilhaft?
 
 ## Artefakte
 
