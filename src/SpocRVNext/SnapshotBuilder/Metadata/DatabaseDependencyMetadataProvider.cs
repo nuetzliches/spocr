@@ -121,10 +121,11 @@ internal sealed class DatabaseDependencyMetadataProvider : IDependencyMetadataPr
             new("@name", name)
         };
 
-        const string query = @"SELECT TOP 1 tt.modify_date AS Modified
-                                FROM sys.table_types AS tt
-                                INNER JOIN sys.schemas AS s ON s.schema_id = tt.schema_id
-                                WHERE s.name = @schema AND tt.name = @name";
+        const string query = @"SELECT TOP 1 o.modify_date AS Modified
+                FROM sys.table_types AS tt
+                INNER JOIN sys.schemas AS s ON s.schema_id = tt.schema_id
+                INNER JOIN sys.objects AS o ON o.object_id = tt.type_table_object_id
+                WHERE s.name = @schema AND tt.name = @name";
 
         var record = await _dbContext.SingleAsync<ObjectModifyDateRecord>(query, parameters, cancellationToken).ConfigureAwait(false);
         return record?.Modified?.ToUniversalTime();
@@ -138,10 +139,11 @@ internal sealed class DatabaseDependencyMetadataProvider : IDependencyMetadataPr
             new("@name", name)
         };
 
-        const string query = @"SELECT TOP 1 t.modify_date AS Modified
-                                FROM sys.types AS t
-                                INNER JOIN sys.schemas AS s ON s.schema_id = t.schema_id
-                                WHERE s.name = @schema AND t.name = @name AND t.is_user_defined = 1 AND t.is_table_type = 0";
+        const string query = @"SELECT TOP 1 COALESCE(o.modify_date, t.create_date) AS Modified
+                FROM sys.types AS t
+                INNER JOIN sys.schemas AS s ON s.schema_id = t.schema_id
+                LEFT JOIN sys.objects AS o ON o.object_id = t.user_type_id
+                WHERE s.name = @schema AND t.name = @name AND t.is_user_defined = 1 AND t.is_table_type = 0";
 
         var record = await _dbContext.SingleAsync<ObjectModifyDateRecord>(query, parameters, cancellationToken).ConfigureAwait(false);
         return record?.Modified?.ToUniversalTime();
