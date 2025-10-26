@@ -243,6 +243,16 @@ EPICS Übersicht (oberste Steuerungsebene)
 
 ### Codegenerierung / SpocRVNext
 
+#### Snapshot Builder vNext (EPIC-E015)
+
+- [x] Orchestrator-Skelett + DI Registrierung aktiv (`AddSnapshotBuilder`, `SpocrManager.PullAsync` ruft neue Pipeline)
+- [~] ProcedureCollector Phase 1 (DB-Enumeration produktiv, Reuse-Entscheid via FileSnapshotCache; Skip/Hash-Persistenz offen)
+- [~] ProcedureAnalyzer implementieren (`StoredProcedureContentModel` AST, DTO Projektion, TableVar Propagation)
+  note: DatabaseProcedureAnalyzer zieht Definition + Inputs aus DB, parsed AST und liefert Dependency-Liste; DTO-Aufbereitung & TableVar/JSON Postprocessing noch offen
+- [ ] ExpandedSnapshotWriter + IndexWriter (Streaming, Hash-Vergleich, `index.json` Aktualisierung)
+- [ ] Cache-Modul & Telemetrie (Persistenz, shared table metadata, Laufzeitmetriken)
+- [ ] README/Docs Abschnitt & Artefakte aktualisieren (Verweis auf `src/SpocRVNext/SnapshotBuilder/CHECKLIST.md`)
+
 - [x] Template Engine Grundgerüst fertig (ohne Roslyn Abhängigkeiten)
 - [x] Ermittlung des Namespaces automatisiert und dokumentierte Fallback-Strategie vorhanden
 - [x] Zentrale Positive Schema Allow-List (SPOCR_BUILD_SCHEMAS) für Procedures & TableTypes implementiert
@@ -731,6 +741,8 @@ Status-Legende: [>] deferred (v5 Ziel) – Querverweis auf README / Roadmap Absc
          "MaxLength": 9
        },
 ```
+
+- [ ] Haben wir einen C# Linter im Projekt?
 
 ### 0. AST-basierte Typ-Inferenz Verbesserungen (P1 - Kritisch)
 

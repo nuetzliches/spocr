@@ -12,6 +12,7 @@ using SpocR.Models;
 using SpocR.Services;
 using SpocR.Utils;
 using SpocRVNext.Configuration;
+using SpocR.SpocRVNext.SnapshotBuilder;
 
 namespace SpocR.Extensions
 {
@@ -54,6 +55,8 @@ namespace SpocR.Extensions
 
             // Code generation services
             AddCodeGenerators(services);
+
+            services.AddSnapshotBuilder();
 
             return services;
         }

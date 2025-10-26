@@ -44,7 +44,22 @@ public sealed class SnapshotBuildOrchestrator
 
         var stopwatch = Stopwatch.StartNew();
         var collectionResult = await _collector.CollectAsync(options, cancellationToken).ConfigureAwait(false);
+        var selectedDescriptors = collectionResult.Items
+            .Where(static i => i.Decision == ProcedureCollectionDecision.Analyze || i.Decision == ProcedureCollectionDecision.Reuse)
+            .Select(static i => new ProcedureDescriptor
+            {
+                Schema = i.Descriptor.Schema,
+                Name = i.Descriptor.Name
+            })
+            .ToArray();
         stopwatch.Stop();
+        var reusedItems = collectionResult.Items
+            .Where(static i => i.Decision == ProcedureCollectionDecision.Reuse)
+            .ToArray();
+        foreach (var reused in reusedItems)
+        {
+            await _cache.RecordReuseAsync(reused, cancellationToken).ConfigureAwait(false);
+        }
         await _diagnostics.OnCollectionCompletedAsync(collectionResult, cancellationToken).ConfigureAwait(false);
         await _diagnostics.OnTelemetryAsync(new SnapshotPhaseTelemetry
         {
@@ -60,10 +75,6 @@ public sealed class SnapshotBuildOrchestrator
         stopwatch.Restart();
         var analysisResults = await _analyzer.AnalyzeAsync(itemsToAnalyze, options, cancellationToken).ConfigureAwait(false);
         stopwatch.Stop();
-        foreach (var result in analysisResults)
-        {
-            await _cache.RecordAnalysisAsync(result, cancellationToken).ConfigureAwait(false);
-        }
         await _diagnostics.OnAnalysisCompletedAsync(analysisResults.Count, cancellationToken).ConfigureAwait(false);
         await _diagnostics.OnTelemetryAsync(new SnapshotPhaseTelemetry
         {
@@ -75,6 +86,15 @@ public sealed class SnapshotBuildOrchestrator
         stopwatch.Restart();
         var writeResult = await _writer.WriteAsync(analysisResults, options, cancellationToken).ConfigureAwait(false);
         stopwatch.Stop();
+        var updatedProcedures = writeResult.UpdatedProcedures ?? Array.Empty<ProcedureAnalysisResult>();
+        if (updatedProcedures.Count == 0 && analysisResults.Count > 0)
+        {
+            updatedProcedures = analysisResults;
+        }
+        foreach (var updated in updatedProcedures)
+        {
+            await _cache.RecordAnalysisAsync(updated, cancellationToken).ConfigureAwait(false);
+        }
         await _cache.FlushAsync(cancellationToken).ConfigureAwait(false);
         await _diagnostics.OnWriteCompletedAsync(writeResult, cancellationToken).ConfigureAwait(false);
         await _diagnostics.OnTelemetryAsync(new SnapshotPhaseTelemetry
@@ -87,10 +107,12 @@ public sealed class SnapshotBuildOrchestrator
 
         return new SnapshotBuildResult
         {
-            ProceduresAnalyzed = analysisResults.Count,
-            ProceduresSkipped = collectionResult.Items.Count - itemsToAnalyze.Length,
+            ProceduresAnalyzed = updatedProcedures.Count,
+            ProceduresSkipped = collectionResult.Items.Count(i => i.Decision == ProcedureCollectionDecision.Skip),
+            ProceduresReused = reusedItems.Length,
             FilesWritten = writeResult.FilesWritten,
-            FilesUnchanged = writeResult.FilesUnchanged
+            FilesUnchanged = writeResult.FilesUnchanged,
+            ProceduresSelected = selectedDescriptors
         };
     }
 }

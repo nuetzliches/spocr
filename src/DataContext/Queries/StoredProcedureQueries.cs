@@ -14,7 +14,7 @@ public static class StoredProcedureQueries
         string queryString;
         if (string.IsNullOrWhiteSpace(schemaList))
         {
-            queryString = @"SELECT s.name AS schema_name, o.name, o.modify_date
+            queryString = @"SELECT s.name AS schema_name, o.name, o.modify_date, o.object_id
                                FROM sys.objects AS o
                                INNER JOIN sys.schemas AS s ON s.schema_id = o.schema_id
                                WHERE o.type = N'P'
@@ -23,13 +23,32 @@ public static class StoredProcedureQueries
         else
         {
             // Expecting input like 'dbo','foo'; caller ensures quoting
-            queryString = $@"SELECT s.name AS schema_name, o.name, o.modify_date
+            queryString = $@"SELECT s.name AS schema_name, o.name, o.modify_date, o.object_id
                                FROM sys.objects AS o
                                INNER JOIN sys.schemas AS s ON s.schema_id = o.schema_id
                                WHERE o.type = N'P' AND s.name IN({schemaList})
                                ORDER BY s.name, o.name;";
         }
         return context.ListAsync<StoredProcedure>(queryString, new List<SqlParameter>(), cancellationToken);
+    }
+
+    public static Task<List<StoredProcedureDependencyEdge>> StoredProcedureDependencyListAsync(this DbContext context, CancellationToken cancellationToken)
+    {
+        const string queryString = @"SELECT
+                                        src.object_id AS referencing_id,
+                                        src_schema.name AS referencing_schema_name,
+                                        src.name AS referencing_name,
+                                        ref.object_id AS referenced_id,
+                                        ref_schema.name AS referenced_schema_name,
+                                        ref.name AS referenced_name
+                                    FROM sys.sql_expression_dependencies AS d
+                                    INNER JOIN sys.objects AS src ON src.object_id = d.referencing_id AND src.type = N'P'
+                                    INNER JOIN sys.schemas AS src_schema ON src_schema.schema_id = src.schema_id
+                                    INNER JOIN sys.objects AS ref ON ref.object_id = d.referenced_id AND ref.type = N'P'
+                                    INNER JOIN sys.schemas AS ref_schema ON ref_schema.schema_id = ref.schema_id
+                                    ORDER BY src_schema.name, src.name, ref_schema.name, ref.name;";
+
+        return context.ListAsync<StoredProcedureDependencyEdge>(queryString, new List<SqlParameter>(), cancellationToken);
     }
 
     public static async Task<StoredProcedureDefinition> StoredProcedureDefinitionAsync(this DbContext context, string schemaName, string name, CancellationToken cancellationToken)

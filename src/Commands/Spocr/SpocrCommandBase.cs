@@ -24,7 +24,10 @@ public class SpocrCommandBase(
         else if (!string.IsNullOrEmpty(Path) && !DirectoryUtils.IsPath(Path))
         {
             var project = spocrProjectManager.FindByName(Path);
-            Path = project.ConfigFile;
+            if (project != null)
+            {
+                Path = project.ConfigFile;
+            }
         }
 
         return await base.OnExecuteAsync();

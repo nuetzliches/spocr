@@ -29,23 +29,23 @@
 
 ## Arbeitspakete
 
-- [ ] Skeleton & DI
+- [x] Skeleton & DI
   - Projektstruktur anlegen (`Orchestrator.cs`, Unterordner, Interfaces). _(Stage-Skelette + Placeholder-Stages registriert; Implementierungen folgen)_
-  - Dienstregistrierung in `SpocRVNext` ergänzen. _(Extension `AddSnapshotBuilder` angelegt; Integration in CLI steht aus)_
-- [ ] ProcedureCollector
-  - DB-Enumeration (Schema-Filter, Wildcards).
-  - Cache-Entscheid (ModifyDate + Content-Hash persistieren).
-  - Ausgabe: Liste verarbeitbarer Prozeduren mit Status (Reuse, Refresh, Skip).
-- [ ] ProcedureAnalyzer
-  - Integration `StoredProcedureContentModel` (AST only).
+  - Dienstregistrierung in `SpocRVNext` ergänzen. _(Extension `AddSnapshotBuilder` registriert und via CLI aktiviert)_
+- [~] ProcedureCollector
+  - DB-Enumeration (Schema-Filter, Wildcards). _(Implemented via `DatabaseProcedureCollector`; cache/decision logic aktiv)_
+  - Cache-Entscheid (ModifyDate + Content-Hash persistieren). _(File-basiertes Cache `FileSnapshotCache` entscheidet Analyze/Reuse; Hash-Persistenz folgt Autor-Writer)_
+  - Ausgabe: Liste verarbeitbarer Prozeduren mit Status (Reuse, Refresh, Skip). _(Reuse/Analyze umgesetzt; Skip noch offen)_
+- [~] ProcedureAnalyzer
+  - Integration `StoredProcedureContentModel` (AST only). _(DatabaseProcedureAnalyzer zieht Definition aus DB, parsed AST & extrahiert Dependencies)_
   - Übergabe an Postprocessor (CTE/TableVar/JSON Binding).
   - Rückgabe: `AnalyzedProcedure` DTO inkl. Typinformationen.
-- [ ] Writer: Procedures + Index
-  - Streaming-Write mit `Utf8JsonWriter`.
-  - Hash-basierte Change Detection (temp-Datei → swap).
+- [~] Writer: Procedures + Index
+  - Streaming-Write mit `Utf8JsonWriter`. _(ExpandedSnapshotWriter erzeugt deterministische Procedure-Dateien)_
+  - Hash-basierte Change Detection (temp-Datei → swap). _(Hash wird via SHA256 berechnet; Index-Integration noch ausstehend)_
   - Index-Aktualisierung nur bei Änderungen.
-- [ ] Cache-Modul
-  - Persistenter Cache (z. B. `.spocr/cache/procedures.json`).
+- [~] Cache-Modul
+  - Persistenter Cache (z. B. `debug/.spocr/cache/procedures.json`). _(FileSnapshotCache speichert Fingerprints & ModifyDate nur lokal pro Entwickler; Schema-Artefakte bleiben diff-frei)_
   - Shared Table-Metadata Cache (Thread-safe, lazy load, TTL).
 - [ ] Parallelisierung
   - Konfigurierbare MaxDegreeOfParallelism.
@@ -53,15 +53,16 @@
 - [ ] Telemetrie & Logging
   - Laufzeiten (Collect, Analyze, Write) und Spaltenmetriken.
   - Aggregierte Summary nach Run; Persistenz optional.
-- [ ] Config-Übergang
-  - ENV-only Pfad sicherstellen, `spocr.json` nur für Warnung/Kompat.
+- [~] Config-Übergang
+  - ENV-only Pfad sicherstellen, `spocr.json` nur für Warnung/Kompat. _(Pull-Flow nutzt jetzt `EnvConfiguration` als Primärquelle; Warnung beim Fallback bleibt aktiv)_
   - Bootstrapper anpassen (Inputs aus `.env` priorisieren).
-- [ ] Legacy Cleanup
-  - Snapshot-Code aus `SpocrManager` entfernen/weiterleiten.
+- [~] Legacy Cleanup
+  - Snapshot-Code aus `SpocrManager` entfernen/weiterleiten. _(CLI `pull` ruft ausschließlich `SnapshotBuildOrchestrator` auf)_
   - Tests aktualisieren (`SpocR.Tests`, Golden Snapshots).
 - [ ] Performance-Baseline & Tests
   - Szenarien definieren (Warm/Cold Cache, diffierende Schemas).
   - Ergebnisse dokumentieren (README, Metrics-Tabelle).
+  - Testlauf-Befehl: `dotnet run --project src/SpocR.csproj -- pull -p debug`
 
 ## Offene Fragen / Entscheidungsbedarf
 

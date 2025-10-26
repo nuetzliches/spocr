@@ -15,6 +15,14 @@ internal sealed class NoopSnapshotCache : ISnapshotCache
         return Task.CompletedTask;
     }
 
+    public ProcedureCacheEntry? TryGetProcedure(ProcedureDescriptor descriptor) => null;
+
+    public Task RecordReuseAsync(ProcedureCollectionItem item, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.CompletedTask;
+    }
+
     public Task RecordAnalysisAsync(ProcedureAnalysisResult result, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();

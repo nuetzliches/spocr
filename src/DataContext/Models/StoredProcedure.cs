@@ -5,9 +5,11 @@ namespace SpocR.DataContext.Models;
 
 public class StoredProcedure
 {
-    // [SqlFieldName("object_id")]
-    // public int Id { get; set; }
+    [SqlFieldName("object_id")]
+    public int Id { get; set; }
+
     public string Name { get; set; }
+
     [SqlFieldName("modify_date")]
     public DateTime Modified { get; set; }
 
