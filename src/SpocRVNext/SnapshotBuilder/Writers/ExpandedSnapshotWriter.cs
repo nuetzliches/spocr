@@ -6,6 +6,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using SpocR.DataContext;
@@ -488,11 +489,16 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
             writer.WriteString("TypeRef", typeRef);
             RegisterTypeRef(requiredTypeRefs, typeRef);
         }
+        var sqlTypeName = DeriveSqlTypeName(column, typeRef);
+        if (!string.IsNullOrWhiteSpace(sqlTypeName))
+        {
+            writer.WriteString("SqlTypeName", sqlTypeName);
+        }
         if (ShouldEmitIsNullable(column.IsNullable, typeRef))
         {
             writer.WriteBoolean("IsNullable", true);
         }
-        var columnMaxLength = column.MaxLength;
+        var columnMaxLength = column.MaxLength ?? column.CastTargetLength;
         if (ShouldEmitMaxLength(columnMaxLength, typeRef))
         {
             writer.WriteNumber("MaxLength", columnMaxLength.GetValueOrDefault());
@@ -520,6 +526,92 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         }
 
         writer.WriteEndObject();
+    }
+
+    private static string? DeriveSqlTypeName(StoredProcedureContentModel.ResultColumn column, string? typeRef)
+    {
+        if (column == null) return null;
+
+        if (column.ReturnsJson == true || column.IsNestedJson == true)
+        {
+            return null;
+        }
+
+        // If we already have a non-sys TypeRef we can resolve via resolver later.
+        if (!string.IsNullOrWhiteSpace(typeRef) && !typeRef.StartsWith("sys.", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        static string? NormalizeCandidate(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return null;
+            return NormalizeSqlTypeName(raw);
+        }
+
+        var candidate = NormalizeCandidate(column.SqlTypeName);
+        if (!string.IsNullOrWhiteSpace(candidate)) return candidate;
+
+        candidate = NormalizeCandidate(column.CastTargetType);
+        if (!string.IsNullOrWhiteSpace(candidate)) return candidate;
+
+        // Aggregates / scalar functions
+        var aggregate = column.AggregateFunction;
+        if (string.IsNullOrWhiteSpace(aggregate))
+        {
+            aggregate = TryExtractFunctionName(column.RawExpression);
+        }
+        if (!string.IsNullOrWhiteSpace(aggregate))
+        {
+            switch (aggregate.Trim().ToLowerInvariant())
+            {
+                case "count":
+                    return "int";
+                case "count_big":
+                    return "bigint";
+                case "sum":
+                case "avg":
+                    return "decimal(18,2)";
+                case "min":
+                case "max":
+                    if (column.HasIntegerLiteral) return "int";
+                    if (column.HasDecimalLiteral) return "decimal(18,2)";
+                    break;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(column.RawExpression))
+        {
+            var raw = column.RawExpression.Trim();
+            if (raw.StartsWith("EXISTS", StringComparison.OrdinalIgnoreCase))
+            {
+                return "bit";
+            }
+            if (LooksLikeBooleanCase(raw))
+            {
+                return "bit";
+            }
+        }
+
+        return null;
+    }
+
+    private static bool LooksLikeBooleanCase(string rawExpression)
+    {
+        if (string.IsNullOrWhiteSpace(rawExpression)) return false;
+        if (!rawExpression.StartsWith("CASE", StringComparison.OrdinalIgnoreCase)) return false;
+        static bool ContainsPattern(string source, string pattern) => source.IndexOf(pattern, StringComparison.OrdinalIgnoreCase) >= 0;
+        var text = rawExpression;
+        var hasThenOneElseZero = ContainsPattern(text, " THEN 1") && ContainsPattern(text, " ELSE 0");
+        var hasThenZeroElseOne = ContainsPattern(text, " THEN 0") && ContainsPattern(text, " ELSE 1");
+        return hasThenOneElseZero || hasThenZeroElseOne;
+    }
+
+    private static string? TryExtractFunctionName(string? rawExpression)
+    {
+        if (string.IsNullOrWhiteSpace(rawExpression)) return null;
+        var match = Regex.Match(rawExpression, "^\\s*([A-Za-z0-9_]+)\\s*\\(");
+        return match.Success ? match.Groups[1].Value : null;
     }
 
     private static bool ShouldIncludeResultSet(StoredProcedureContentModel.ResultSet set)

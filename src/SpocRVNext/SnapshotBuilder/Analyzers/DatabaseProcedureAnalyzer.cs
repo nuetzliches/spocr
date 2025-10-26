@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 using SpocR.DataContext;
 using SpocR.DataContext.Models;
 using SpocR.DataContext.Queries;
@@ -131,6 +132,15 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
 
             if (ast != null)
             {
+                try
+                {
+                    await EnrichJsonResultSetMetadataAsync(ast, cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    _console.Verbose($"[snapshot-analyze] JSON enrichment failed for {descriptor}: {ex.Message}");
+                }
+
                 // Explicit EXEC dependencies (resolved by AST resolver)
                 foreach (var exec in ast.ExecutedProcedures ?? Array.Empty<StoredProcedureContentModel.ExecutedProcedureCall>())
                 {
@@ -214,4 +224,255 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
 
         return $"{schema}.{name}.json";
     }
+
+    private async Task EnrichJsonResultSetMetadataAsync(StoredProcedureContentModel ast, CancellationToken cancellationToken)
+    {
+        if (ast?.ResultSets == null || ast.ResultSets.Count == 0) return;
+
+        var tableCache = new Dictionary<string, Dictionary<string, Column>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var resultSet in ast.ResultSets)
+        {
+            if (resultSet == null) continue;
+            if (resultSet.ReturnsJson != true && !(resultSet.Columns?.Any(c => c?.IsNestedJson == true || c?.ReturnsJson == true) ?? false))
+            {
+                continue;
+            }
+
+            foreach (var column in resultSet.Columns ?? Array.Empty<StoredProcedureContentModel.ResultColumn>())
+            {
+                await EnrichColumnRecursiveAsync(column, tableCache, cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    private async Task EnrichColumnRecursiveAsync(
+        StoredProcedureContentModel.ResultColumn? column,
+        Dictionary<string, Dictionary<string, Column>> tableCache,
+        CancellationToken cancellationToken)
+    {
+        if (column == null) return;
+
+        if (column.Columns != null && column.Columns.Count > 0)
+        {
+            foreach (var child in column.Columns)
+            {
+                await EnrichColumnRecursiveAsync(child, tableCache, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        if (column.ReturnsJson == true) return;
+
+        var metadata = await ResolveColumnMetadataAsync(column, tableCache, cancellationToken).ConfigureAwait(false);
+        if (metadata == null) return;
+
+        if (!string.IsNullOrWhiteSpace(metadata.SqlType))
+        {
+            column.SqlTypeName = metadata.SqlType;
+        }
+        if (!column.MaxLength.HasValue && metadata.MaxLength.HasValue)
+        {
+            column.MaxLength = metadata.MaxLength;
+        }
+        if (!column.IsNullable.HasValue && metadata.IsNullable.HasValue)
+        {
+            column.IsNullable = metadata.IsNullable;
+        }
+        if (!string.IsNullOrWhiteSpace(metadata.UserTypeSchema) && string.IsNullOrWhiteSpace(column.UserTypeSchemaName))
+        {
+            column.UserTypeSchemaName = metadata.UserTypeSchema;
+        }
+        if (!string.IsNullOrWhiteSpace(metadata.UserTypeName) && string.IsNullOrWhiteSpace(column.UserTypeName))
+        {
+            column.UserTypeName = metadata.UserTypeName;
+        }
+    }
+
+    private async Task<ColumnMetadata?> ResolveColumnMetadataAsync(
+        StoredProcedureContentModel.ResultColumn column,
+        Dictionary<string, Dictionary<string, Column>> tableCache,
+        CancellationToken cancellationToken)
+    {
+        if (column == null) return null;
+
+        if (!string.IsNullOrWhiteSpace(column.SqlTypeName))
+        {
+            return new ColumnMetadata(column.SqlTypeName.Trim(), column.MaxLength, null, null, column.IsNullable, column.UserTypeSchemaName, column.UserTypeName);
+        }
+
+        if (!string.IsNullOrWhiteSpace(column.CastTargetType))
+        {
+            var normalized = NormalizeSqlType(column.CastTargetType);
+            var maxLen = NormalizeLength(column.CastTargetLength);
+            return new ColumnMetadata(normalized, maxLen, column.CastTargetPrecision, column.CastTargetScale, column.IsNullable, column.UserTypeSchemaName, column.UserTypeName);
+        }
+
+        if (!string.IsNullOrWhiteSpace(column.SourceSchema) && !string.IsNullOrWhiteSpace(column.SourceTable) && !string.IsNullOrWhiteSpace(column.SourceColumn))
+        {
+            var meta = await GetTableColumnAsync(column.SourceSchema, column.SourceTable, column.SourceColumn, tableCache, cancellationToken).ConfigureAwait(false);
+            if (meta != null)
+            {
+                var baseType = !string.IsNullOrWhiteSpace(meta.BaseSqlTypeName) ? meta.BaseSqlTypeName : meta.SqlTypeName;
+                var formatted = FormatSqlType(baseType, NormalizeLength(meta.MaxLength), NormalizePrecision(meta.Precision), NormalizePrecision(meta.Scale));
+                var isNullable = meta.IsNullable;
+                var maxLen = NormalizeLength(meta.MaxLength);
+                return new ColumnMetadata(formatted, maxLen, meta.Precision, meta.Scale, isNullable, meta.UserTypeSchemaName, meta.UserTypeName);
+            }
+        }
+
+        var heuristic = ResolveHeuristic(column);
+        if (heuristic != null)
+        {
+            return heuristic;
+        }
+
+        return new ColumnMetadata("nvarchar(max)", null, null, null, column.IsNullable ?? true, column.UserTypeSchemaName, column.UserTypeName);
+    }
+
+    private async Task<Column?> GetTableColumnAsync(
+        string schema,
+        string table,
+        string columnName,
+        Dictionary<string, Dictionary<string, Column>> tableCache,
+        CancellationToken cancellationToken)
+    {
+        var key = $"{schema}.{table}";
+        if (!tableCache.TryGetValue(key, out var map))
+        {
+            var list = await _dbContext.TableColumnsListAsync(schema, table, cancellationToken).ConfigureAwait(false) ?? new List<Column>();
+            map = list.Where(c => c != null).ToDictionary(c => c.Name, StringComparer.OrdinalIgnoreCase);
+            tableCache[key] = map;
+        }
+
+        return map.TryGetValue(columnName, out var column) ? column : null;
+    }
+
+    private static ColumnMetadata? ResolveHeuristic(StoredProcedureContentModel.ResultColumn column)
+    {
+        var aggregate = column.AggregateFunction;
+        if (string.IsNullOrWhiteSpace(aggregate))
+        {
+            aggregate = TryExtractFunctionName(column.RawExpression);
+        }
+        if (!string.IsNullOrWhiteSpace(aggregate))
+        {
+            switch (aggregate.Trim().ToLowerInvariant())
+            {
+                case "count":
+                    return new ColumnMetadata("int", null, null, null, column.IsNullable ?? false, null, null);
+                case "count_big":
+                    return new ColumnMetadata("bigint", null, null, null, column.IsNullable ?? false, null, null);
+                case "sum":
+                case "avg":
+                    return new ColumnMetadata("decimal(18,2)", null, 18, 2, column.IsNullable ?? true, null, null);
+                case "min":
+                case "max":
+                    if (column.HasIntegerLiteral) return new ColumnMetadata("int", null, null, null, column.IsNullable ?? true, null, null);
+                    if (column.HasDecimalLiteral) return new ColumnMetadata("decimal(18,2)", null, 18, 2, column.IsNullable ?? true, null, null);
+                    break;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(column.RawExpression))
+        {
+            var raw = column.RawExpression.Trim();
+            if (raw.StartsWith("EXISTS", StringComparison.OrdinalIgnoreCase))
+            {
+                return new ColumnMetadata("bit", null, null, null, false, null, null);
+            }
+            if (LooksLikeBooleanCase(raw))
+            {
+                return new ColumnMetadata("bit", null, null, null, true, null, null);
+            }
+        }
+
+        return null;
+    }
+
+    private static string NormalizeSqlType(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return string.Empty;
+        return raw.Trim().ToLowerInvariant();
+    }
+
+    private static int? NormalizeLength(int? value)
+    {
+        if (!value.HasValue) return null;
+        var val = value.Value;
+        if (val <= 0) return null;
+        if (val == int.MaxValue) return -1;
+        return val;
+    }
+
+    private static int? NormalizePrecision(int? value)
+    {
+        if (!value.HasValue) return null;
+        var val = value.Value;
+        return val <= 0 ? null : val;
+    }
+
+    private static string FormatSqlType(string baseType, int? maxLength, int? precision, int? scale)
+    {
+        if (string.IsNullOrWhiteSpace(baseType)) return string.Empty;
+        var normalized = baseType.Trim().ToLowerInvariant();
+        switch (normalized)
+        {
+            case "decimal":
+            case "numeric":
+                if (precision.HasValue)
+                {
+                    return $"{normalized}({precision.Value},{(scale ?? 0)})";
+                }
+                return normalized;
+            case "varchar":
+            case "nvarchar":
+            case "varbinary":
+            case "char":
+            case "nchar":
+            case "binary":
+                if (maxLength.HasValue)
+                {
+                    if (maxLength.Value < 0) return $"{normalized}(max)";
+                    return $"{normalized}({maxLength.Value})";
+                }
+                return $"{normalized}(max)";
+            case "datetime2":
+            case "datetimeoffset":
+            case "time":
+                if (scale.HasValue)
+                {
+                    return $"{normalized}({scale.Value})";
+                }
+                return normalized;
+            default:
+                return normalized;
+        }
+    }
+
+    private static bool LooksLikeBooleanCase(string rawExpression)
+    {
+        if (string.IsNullOrWhiteSpace(rawExpression)) return false;
+        if (!rawExpression.StartsWith("CASE", StringComparison.OrdinalIgnoreCase)) return false;
+        var text = rawExpression;
+        var hasThenOneElseZero = text.IndexOf(" THEN 1", StringComparison.OrdinalIgnoreCase) >= 0 && text.IndexOf(" ELSE 0", StringComparison.OrdinalIgnoreCase) >= 0;
+        var hasThenZeroElseOne = text.IndexOf(" THEN 0", StringComparison.OrdinalIgnoreCase) >= 0 && text.IndexOf(" ELSE 1", StringComparison.OrdinalIgnoreCase) >= 0;
+        return hasThenOneElseZero || hasThenZeroElseOne;
+    }
+
+    private static string? TryExtractFunctionName(string? rawExpression)
+    {
+        if (string.IsNullOrWhiteSpace(rawExpression)) return null;
+        var match = Regex.Match(rawExpression, "^\\s*([A-Za-z0-9_]+)\\s*\\(");
+        return match.Success ? match.Groups[1].Value : null;
+    }
+
+    private sealed record ColumnMetadata(
+        string SqlType,
+        int? MaxLength,
+        int? Precision,
+        int? Scale,
+        bool? IsNullable,
+        string? UserTypeSchema,
+        string? UserTypeName
+    );
 }

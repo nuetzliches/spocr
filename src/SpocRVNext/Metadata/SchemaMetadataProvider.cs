@@ -174,9 +174,6 @@ namespace SpocR.SpocRVNext.Metadata
             }
             var typeResolver = new TypeMetadataResolver(_projectRoot);
 
-            // Enricher vorbereiten (AST + Tabellen-Metadaten)
-            var jsonTypeEnricher = new JsonResultSetTypeEnricher(_projectRoot);
-
             foreach (var p in procsEl.EnumerateArray())
             {
                 var schema = p.GetPropertyOrDefault("Schema") ?? "dbo";
@@ -449,13 +446,6 @@ namespace SpocR.SpocRVNext.Metadata
                         idx++;
                     }
                 }
-
-                // AST-basierte Typableitung für JSON ResultSets mit fehlenden SqlTypeName Werten
-                try
-                {
-                    jsonTypeEnricher.Enrich(rawSql, resultSetDescriptors);
-                }
-                catch { /* defensiv: Enricher darf Ladeprozess nicht unterbrechen */ }
 
                 var procDescriptor = new ProcedureDescriptor(
                     ProcedureName: name,
