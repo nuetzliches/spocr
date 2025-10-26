@@ -44,9 +44,10 @@
   - Streaming-Write mit `Utf8JsonWriter`. _(ExpandedSnapshotWriter erzeugt deterministische Procedure-Dateien)_
   - Hash-basierte Change Detection (temp-Datei → swap). _(Hash-Vergleich + `File.Replace`/Fallback aktiv, 16-Byte Fingerprint für Cache)_
   - Index-Aktualisierung nur bei Änderungen. _(Index-Hash & Fingerprint werden nur bei Delta geschrieben)_
-- [~] Cache-Modul
+- [x] Cache-Modul
   - Persistenter Cache (z. B. `debug/.spocr/cache/procedures.json`). _(FileSnapshotCache speichert Fingerprints & ModifyDate nur lokal pro Entwickler; Schema-Artefakte bleiben diff-frei)_
   - [x] Shared Table-Metadata Cache (Thread-safe, lazy load, TTL). _(Gemeinsamer `TableMetadataCache` liefert lazy geladene Tabellenmetadaten mit Änderungsüberwachung und TTL-Invalidierung, Provider teilen sich denselben Snapshot.)_
+  - Cache pruned stale procedure entries on flush when running ungefilterte Pulls; gefilterte Läufe behalten Bestand.
 - [x] Parallelisierung
   - Konfigurierbare MaxDegreeOfParallelism.
   - Thread-sichere Nutzung von Analyzer/Writers (z. B. `SemaphoreSlim`).

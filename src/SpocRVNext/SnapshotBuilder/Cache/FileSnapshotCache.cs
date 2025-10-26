@@ -21,12 +21,14 @@ internal sealed class FileSnapshotCache : ISnapshotCache
     private readonly IConsoleService _console;
     private readonly object _sync = new();
     private readonly Dictionary<string, SnapshotProcedureCacheEntry> _entries = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> _touchedKeys = new(StringComparer.OrdinalIgnoreCase);
 
     private bool _initialized;
     private bool _enabled;
     private bool _dirty;
     private string _cacheDirectory = string.Empty;
     private string _cacheFilePath = string.Empty;
+    private bool _pruneOnFlush;
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
@@ -49,6 +51,13 @@ internal sealed class FileSnapshotCache : ISnapshotCache
         if (!_enabled)
         {
             return;
+        }
+
+        _pruneOnFlush = ShouldPruneEntries(options);
+
+        lock (_sync)
+        {
+            _touchedKeys.Clear();
         }
 
         var projectRoot = ProjectRootResolver.ResolveCurrent();
@@ -148,6 +157,7 @@ internal sealed class FileSnapshotCache : ISnapshotCache
             };
             _entries[key] = entry;
             _dirty = true;
+            _touchedKeys.Add(key);
         }
 
         return Task.CompletedTask;
@@ -180,6 +190,7 @@ internal sealed class FileSnapshotCache : ISnapshotCache
             };
             _entries[key] = entry;
             _dirty = true;
+            _touchedKeys.Add(key);
         }
 
         return Task.CompletedTask;
@@ -196,6 +207,24 @@ internal sealed class FileSnapshotCache : ISnapshotCache
         List<ProcedureCacheEntryRecord> entries;
         lock (_sync)
         {
+            if (_pruneOnFlush)
+            {
+                if (_touchedKeys.Count == 0)
+                {
+                    _entries.Clear();
+                }
+                else
+                {
+                    var keysToRemove = _entries.Keys
+                        .Where(key => !_touchedKeys.Contains(key))
+                        .ToList();
+                    foreach (var key in keysToRemove)
+                    {
+                        _entries.Remove(key);
+                    }
+                }
+            }
+
             entries = _entries.Values
                 .Select(e => new ProcedureCacheEntryRecord
                 {
@@ -221,6 +250,8 @@ internal sealed class FileSnapshotCache : ISnapshotCache
                 .OrderBy(e => e.Schema, StringComparer.OrdinalIgnoreCase)
                 .ThenBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
+
+            _touchedKeys.Clear();
         }
 
         try
@@ -256,6 +287,26 @@ internal sealed class FileSnapshotCache : ISnapshotCache
         }
 
         return Task.CompletedTask;
+    }
+
+    private static bool ShouldPruneEntries(SnapshotBuildOptions? options)
+    {
+        if (options == null)
+        {
+            return true;
+        }
+
+        if (options.Schemas != null && options.Schemas.Count > 0)
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(options.ProcedureWildcard))
+        {
+            return false;
+        }
+
+        return true;
     }
 
     private static string BuildKey(string schema, string name)
