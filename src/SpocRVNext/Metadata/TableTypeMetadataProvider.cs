@@ -57,6 +57,7 @@ internal sealed class TableTypeMetadataProvider : ITableTypeMetadataProvider
         // 2. Fallback to latest monolith json containing UserDefinedTableTypes.
         // 3. If none found -> empty.
         JsonElement udtts = default;
+        JsonDocument? udttsDocument = null;
         bool found = false;
         var indexPath = Path.Combine(schemaDir, "index.json");
         if (File.Exists(indexPath))
@@ -67,7 +68,8 @@ internal sealed class TableTypeMetadataProvider : ITableTypeMetadataProvider
                 using var idoc = JsonDocument.Parse(ifs);
                 if (idoc.RootElement.TryGetProperty("UserDefinedTableTypes", out var idxUdtts) && idxUdtts.ValueKind == JsonValueKind.Array)
                 {
-                    udtts = idxUdtts;
+                    udttsDocument = JsonDocument.Parse(idxUdtts.GetRawText());
+                    udtts = udttsDocument.RootElement;
                     found = true;
                 }
             }
@@ -86,7 +88,8 @@ internal sealed class TableTypeMetadataProvider : ITableTypeMetadataProvider
                     using var doc = JsonDocument.Parse(fs);
                     if (doc.RootElement.TryGetProperty("UserDefinedTableTypes", out var monolithUdtts) && monolithUdtts.ValueKind == JsonValueKind.Array)
                     {
-                        udtts = monolithUdtts;
+                        udttsDocument = JsonDocument.Parse(monolithUdtts.GetRawText());
+                        udtts = udttsDocument.RootElement;
                         found = true;
                         break;
                     }
@@ -178,9 +181,14 @@ internal sealed class TableTypeMetadataProvider : ITableTypeMetadataProvider
                 }
                 catch { }
             }
-            if (inferred.Count == 0) return _cache = Array.Empty<TableTypeInfo>();
-            _cache = inferred.Values.OrderBy(t => t.Schema).ThenBy(t => t.Name).ToList();
-            return _cache;
+            if (inferred.Count == 0)
+            {
+                udttsDocument?.Dispose();
+                return _cache = Array.Empty<TableTypeInfo>();
+            }
+            var result = inferred.Values.OrderBy(t => t.Schema).ThenBy(t => t.Name).ToList();
+            udttsDocument?.Dispose();
+            return _cache = result;
         }
         var list = new List<TableTypeInfo>();
         foreach (var tt in udtts.EnumerateArray())
@@ -220,7 +228,9 @@ internal sealed class TableTypeMetadataProvider : ITableTypeMetadataProvider
                 });
             }
         }
-        _cache = list.OrderBy(t => t.Schema).ThenBy(t => t.Name).ToList();
+        var ordered = list.OrderBy(t => t.Schema).ThenBy(t => t.Name).ToList();
+        udttsDocument?.Dispose();
+        _cache = ordered;
         return _cache;
     }
 }

@@ -59,6 +59,9 @@
 - [~] Legacy Cleanup
   - Snapshot-Code aus `SpocrManager` entfernen/weiterleiten. _(CLI `pull` ruft ausschließlich `SnapshotBuildOrchestrator` auf)_
   - Tests aktualisieren (`SpocR.Tests`, Golden Snapshots).
+- [x] TableType Normalisierung
+  - Expanded SnapshotWriter reduziert TableType/Parameter Felder auf `TypeRef` + relevante Metadaten.
+  - TableTypeMetadataProvider/TableTypesGenerator nutzen Resolver für SQL-Signaturen (JsonDocument-Dispose Bug gefixt).
 - [ ] Performance-Baseline & Tests
   - Szenarien definieren (Warm/Cold Cache, diffierende Schemas).
   - Ergebnisse dokumentieren (README, Metrics-Tabelle).
