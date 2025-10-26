@@ -90,7 +90,7 @@
 - [x] debug\.spocr\schema\procedures\workflow.ActionFindAsJson.json: Das Feld `"Name": "record"` sollte, wie alle anderen Felder eine `TypeRef` haben. _(Writer unterdrückt `TypeRef` für JSON-Payloads)_
 - [x] debug\.spocr\schema\FE4854D2932B7F32.json: Legacy-Fingerprint-Snapshots liegen nun unter `.spocr/cache/schema`, `schema/` trägt nur noch deterministische Artefakte (inkl. `index.json`).
 - [x] debug\.spocr\schema\tabletypes\core.ComparisonCalculationType.json: TableTypes prunen jetzt MaxLength/Precision/Scale analog zu StoredProcedures; `UserTypeId` wird nicht mehr persistiert.
-- [ ] Die SQL-Queries (Abfragen für den Snapshot) auf die Felder (und Joins) reduzieren, die erforderlich sind.
+- [x] Die SQL-Queries (Abfragen für den Snapshot) auf die Felder (und Joins) reduzieren, die erforderlich sind. _(Parameter-/UDTT-Abfragen liefern jetzt nur noch benötigte Spalten, überflüssige Joins entfernt.)_
 - [ ] Sollten wir nur die Types laden (oder im Snapshot speichern), die auch über die `TypeRef`s benötigt werden? Passt das in unser Konzept oder eher nachteilhaft?
 - [ ] JsonResultSetTypeEnricher von `StoredProcedureContentModel` entkoppeln (neue Parser-Outputs verwenden).
 - [ ] Column-Level JSON-Emission prüfen (`Json`-Block vs. Flattening), sobald Konsumenten aktualisiert sind.

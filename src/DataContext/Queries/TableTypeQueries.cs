@@ -32,19 +32,17 @@ public static class TableTypeQueries
 
         // ! the ORDER BY is important
         // max_length see: https://www.sqlservercentral.com/forums/topic/sql-server-max_lenght-returns-double-the-actual-size#unicode
-        var queryString = @"SELECT c.name, 
-                                    t1.is_nullable, 
-                                    t.name AS system_type_name, 
+        var queryString = @"SELECT c.name,
+                    CAST(c.is_nullable AS bit) AS is_nullable,
+                                    t.name AS system_type_name,
                                     IIF(t.name LIKE 'nvarchar%', c.max_length / 2, c.max_length) AS max_length,
                                     t_alias.name AS user_type_name,
                                     s_alias.name AS user_type_schema_name,
-                                    t.name AS base_type_name,
-                                    CAST(t.precision AS int) AS precision,
-                                    CAST(t.scale AS int) AS scale
+                                    CAST(c.precision AS int) AS precision,
+                                    CAST(c.scale AS int) AS scale
                                 FROM sys.table_types AS tt
                                 INNER JOIN sys.columns c ON c.object_id = tt.type_table_object_id
                                 INNER JOIN sys.types t ON t.system_type_id = c.system_type_id AND t.user_type_id = c.system_type_id
-                                INNER JOIN sys.types AS t1 ON t1.system_type_id = c.system_type_id AND t1.user_type_id = c.user_type_id  
                                 LEFT JOIN sys.types AS t_alias ON t_alias.system_type_id = c.system_type_id AND t_alias.user_type_id = c.user_type_id AND t_alias.is_user_defined = 1 AND t_alias.is_table_type = 0
                                 LEFT JOIN sys.schemas AS s_alias ON s_alias.schema_id = t_alias.schema_id
                                 WHERE tt.user_type_id = @userTypeId

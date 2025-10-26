@@ -101,23 +101,20 @@ public static class StoredProcedureQueries
         };
         // is_nullable can only be defined through user-defined types when used as input
         // max_length see: https://www.sqlservercentral.com/forums/topic/sql-server-max_lenght-returns-double-the-actual-size#unicode
-        var queryString = @"SELECT p.name, 
-                                    t1.is_nullable, 
-                                    t.name AS system_type_name, 
-                                    IIF(t.name LIKE 'nvarchar%', p.max_length / 2, p.max_length) AS max_length,  
-                                    p.is_output, 
-                                    t1.is_table_type, 
-                                    t1.name AS user_type_name, 
-                                    t1.user_type_id,
+        var queryString = @"SELECT p.name,
+                                    CAST(p.is_nullable AS bit) AS is_nullable,
+                                    t.name AS system_type_name,
+                                    IIF(t.name LIKE 'nvarchar%', p.max_length / 2, p.max_length) AS max_length,
+                                    CAST(p.is_output AS bit) AS is_output,
+                                    t1.is_table_type,
+                                    t1.name AS user_type_name,
                                     t1s.name AS user_type_schema_name,
-                                    t.name AS base_type_name,
-                                    CAST(t.precision AS int) AS precision,
-                                    CAST(t.scale AS int) AS scale,
-                                    CAST(p.has_default_value AS BIT) AS has_default_value
-                                FROM sys.parameters AS p 
-                                LEFT OUTER JOIN sys.types t ON t.system_type_id = p.system_type_id AND t.user_type_id = p.system_type_id 
+                                    CAST(p.precision AS int) AS precision,
+                                    CAST(p.scale AS int) AS scale,
+                                    CAST(p.has_default_value AS bit) AS has_default_value
+                                FROM sys.parameters AS p
+                                LEFT OUTER JOIN sys.types t ON t.system_type_id = p.system_type_id AND t.user_type_id = p.system_type_id
                                 LEFT OUTER JOIN sys.types AS t1 ON t1.system_type_id = p.system_type_id AND t1.user_type_id = p.user_type_id
-                                LEFT OUTER JOIN sys.table_types AS tt ON tt.user_type_id = p.user_type_id
                                 LEFT OUTER JOIN sys.schemas AS t1s ON t1s.schema_id = t1.schema_id
                                 WHERE p.object_id = @objectId ORDER BY p.parameter_id;";
 
