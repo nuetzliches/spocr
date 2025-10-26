@@ -248,10 +248,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                 {
                     writer.WritePropertyName("Json");
                     writer.WriteStartObject();
-                    if (set.ReturnsJsonArray)
-                    {
-                        writer.WriteBoolean("IsArray", true);
-                    }
+                    writer.WriteBoolean("IsArray", set.ReturnsJsonArray);
                     if (!string.IsNullOrWhiteSpace(set.JsonRootProperty))
                     {
                         writer.WriteString("RootProperty", set.JsonRootProperty);
@@ -493,10 +490,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         {
             writer.WritePropertyName("Json");
             writer.WriteStartObject();
-            if (column.ReturnsJsonArray == true)
-            {
-                writer.WriteBoolean("IsArray", true);
-            }
+            writer.WriteBoolean("IsArray", column.ReturnsJsonArray == true);
             if (!string.IsNullOrWhiteSpace(column.JsonRootProperty))
             {
                 writer.WriteString("RootProperty", column.JsonRootProperty);
@@ -552,7 +546,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         }
 
         // If we already have a non-sys TypeRef we can resolve via resolver later.
-        if (!string.IsNullOrWhiteSpace(typeRef) && !typeRef.StartsWith("sys.", StringComparison.OrdinalIgnoreCase))
+        if (!string.IsNullOrWhiteSpace(typeRef))
         {
             return null;
         }

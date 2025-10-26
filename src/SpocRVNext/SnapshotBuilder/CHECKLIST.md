@@ -95,7 +95,8 @@
 - [x] JsonResultSetTypeEnricher von `StoredProcedureContentModel` entkoppeln (neue Parser-Outputs verwenden).
 - [x] Column-Level JSON-Emission prüfen (`Json`-Block vs. Flattening), sobald Konsumenten aktualisiert sind.
 - [x] C:\Projekte\GitHub\spocr\src\Services\SchemaSnapshotService.cs:ResolveLegacySchemaDir(): Kommentar ergänzt – Pfad bleibt für deterministische Artefakte/Legacy-Fallback erhalten.
-- [ ] debug\.spocr\schema\procedures\workflow-state.TransitionFindAsJson.json `SqlTypeName` scheint redundant zu sein, können wir die Property komplett entfernen, da alles über `TypeRef` ableitbar? [ ] leeres `"Json": {},` vermeiden.
+- [x] debug\.spocr\schema\procedures\workflow-state.TransitionFindAsJson.json `SqlTypeName` scheint redundant zu sein, können wir die Property komplett entfernen, da alles über `TypeRef` ableitbar? [x] leeres `"Json": {},` vermeiden.
+- [ ] debug\.spocr\schema\procedures\workflow.NodeListAsJson.json: "FunctionRef": "identity.RecordAsJson" dürfte kein Array sein, da die referenzierte Funktion kein Array liefert. Siehe debug\[workflow]_[NodeListAsJson].sql und debug\[identity]_[RecordAsJson].sql
 - [ ] debug\.spocr\schema\procedures\workflow.NodeFindAsJson.json: `"FunctionRef": "workflow.StatusFindAsJson"` existiert noch nicht in debug\.spocr\schema\functions
 
 ## Artefakte
