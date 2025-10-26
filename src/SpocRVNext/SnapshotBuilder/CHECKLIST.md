@@ -32,10 +32,10 @@
 - [x] Skeleton & DI
   - Projektstruktur anlegen (`Orchestrator.cs`, Unterordner, Interfaces). _(Stage-Skelette + Placeholder-Stages registriert; Implementierungen folgen)_
   - Dienstregistrierung in `SpocRVNext` ergänzen. _(Extension `AddSnapshotBuilder` registriert und via CLI aktiviert)_
-- [~] ProcedureCollector
+- [x] ProcedureCollector
   - DB-Enumeration (Schema-Filter, Wildcards). _(Implemented via `DatabaseProcedureCollector`; cache/decision logic aktiv)_
   - Cache-Entscheid (ModifyDate + Content-Hash persistieren). _(File-basiertes Cache `FileSnapshotCache` entscheidet Analyze/Reuse; Hash-Persistenz folgt Autor-Writer)_
-  - Ausgabe: Liste verarbeitbarer Prozeduren mit Status (Reuse, Refresh, Skip). _(Reuse/Analyze umgesetzt; Skip noch offen)_
+  - Ausgabe: Liste verarbeitbarer Prozeduren mit Status (Reuse, Refresh, Skip). _(Skip-Tracking ergänzt; Filter-treffer außerhalb Seeds werden jetzt als `Decision=Skip` protokolliert)_
 - [~] ProcedureAnalyzer
   - Integration `StoredProcedureContentModel` (AST only). _(DatabaseProcedureAnalyzer zieht Definition aus DB, parsed AST & extrahiert Dependencies)_
   - Übergabe an Postprocessor (CTE/TableVar/JSON Binding). _(Dependency-Metadaten-Queries korrigiert; `modify_date`-freie Pfade validiert)_

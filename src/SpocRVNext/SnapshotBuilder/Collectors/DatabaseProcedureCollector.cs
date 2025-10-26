@@ -185,12 +185,43 @@ internal sealed class DatabaseProcedureCollector : IProcedureCollector
             });
         }
 
-        var reuseCount = items.Count(static i => i.Decision == ProcedureCollectionDecision.Reuse);
-        var analyzeCount = items.Count - reuseCount;
-
-        if (reuseCount > 0)
+        var applySkipTracking = (schemaFilter != null && schemaFilter.Count > 0) || matcher != null;
+        if (applySkipTracking)
         {
-            _console.Verbose($"[snapshot-collect] Collected {items.Count} procedure(s); seeds={seedKeys.Count}; deps={dependencyCount}; reuse={reuseCount}; analyze={analyzeCount}");
+            var includedKeys = new HashSet<string>(items
+                .Select(static i => BuildProcedureKey(i.Descriptor?.Schema, i.Descriptor?.Name))
+                .Where(static key => !string.IsNullOrWhiteSpace(key)), StringComparer.OrdinalIgnoreCase);
+
+            foreach (var procedure in allProcedures)
+            {
+                var key = BuildProcedureKey(procedure.SchemaName, procedure.Name);
+                if (string.IsNullOrWhiteSpace(key) || selectedKeys.Contains(key) || includedKeys.Contains(key))
+                {
+                    continue;
+                }
+
+                items.Add(new ProcedureCollectionItem
+                {
+                    Descriptor = new ProcedureDescriptor
+                    {
+                        Schema = procedure.SchemaName,
+                        Name = procedure.Name
+                    },
+                    Decision = ProcedureCollectionDecision.Skip,
+                    LastModifiedUtc = NormalizeUtc(procedure.Modified)
+                });
+            }
+        }
+
+        var reuseCount = items.Count(static i => i.Decision == ProcedureCollectionDecision.Reuse);
+        var analyzeCount = items.Count(static i => i.Decision == ProcedureCollectionDecision.Analyze);
+        var skipCount = items.Count(static i => i.Decision == ProcedureCollectionDecision.Skip);
+
+        if (reuseCount > 0 || skipCount > 0)
+        {
+            var tagReuse = reuseCount > 0 ? $"; reuse={reuseCount}" : string.Empty;
+            var tagSkip = skipCount > 0 ? $"; skip={skipCount}" : string.Empty;
+            _console.Verbose($"[snapshot-collect] Collected {items.Count} procedure(s); seeds={seedKeys.Count}; deps={dependencyCount}{tagReuse}{tagSkip}; analyze={analyzeCount}");
         }
         else
         {

@@ -12,16 +12,16 @@ All runs were executed with `SPOCR_LOG_LEVEL=info` to surface per-phase timings.
 
 ### Scenarios
 
-| Scenario        | Description                                                                   | Command                                                                 |
-|-----------------|--------------------------------------------------------------------------------|-------------------------------------------------------------------------|
-| Cold Cache      | End-to-end run without cache reuse; forces full analysis and artifact hashing | `dotnet run --project src/SpocR.csproj -- pull -p debug --no-cache`     |
-| Warm Cache      | Repeated run leveraging cached analysis results                               | `dotnet run --project src/SpocR.csproj -- pull -p debug`                |
-| Procedure Delta | Targeted refresh for a single procedure to validate incremental behavior       | `dotnet run --project src/SpocR.csproj -- pull -p debug --procedure workflow.WorkflowListAsJson --no-cache` |
+| Scenario        | Description                                                                   | Command                                                                                                     |
+| --------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Cold Cache      | End-to-end run without cache reuse; forces full analysis and artifact hashing | `dotnet run --project src/SpocR.csproj -- pull -p debug --no-cache`                                         |
+| Warm Cache      | Repeated run leveraging cached analysis results                               | `dotnet run --project src/SpocR.csproj -- pull -p debug`                                                    |
+| Procedure Delta | Targeted refresh for a single procedure to validate incremental behavior      | `dotnet run --project src/SpocR.csproj -- pull -p debug --procedure workflow.WorkflowListAsJson --no-cache` |
 
 ### Metrics Snapshot
 
 | Scenario        | Analyzed | Reused | Written | Unchanged | Total (ms) | Collect (ms) | Analyze (ms) | Write (ms) |
-|-----------------|----------|--------|---------|-----------|------------|--------------|--------------|------------|
+| --------------- | -------- | ------ | ------- | --------- | ---------- | ------------ | ------------ | ---------- |
 | Cold Cache      | 55       | 0      | 0       | 146       | 7832       | 260          | 7319         | 242        |
 | Warm Cache      | 50       | 5      | 0       | 141       | 9238       | 3465         | 5493         | 227        |
 | Procedure Delta | 1        | 0      | 0       | 3         | 645        | 246          | 185          | 202        |
