@@ -3,9 +3,8 @@
 // Changes may be overwritten. For customization extend generated partials.
 
 #nullable enable
-namespace RestApi.SpocR.Samples;
+namespace TestNs.SpocR.Samples;
 
-using RestApi.SpocR;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -13,9 +12,10 @@ using System.Data.Common;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using TestNs.SpocR;
 
-public readonly record struct OrderListAsJsonResult(
-    int UserId,
+public readonly record struct OrderListAsJsonResultSet1Result(
+    string UserId,
     string DisplayName,
     string Email,
     string OrderId,
@@ -24,11 +24,11 @@ public readonly record struct OrderListAsJsonResult(
     string Notes
 );
 
-public sealed class OrderListAsJsonAggregate
+public sealed class OrderListAsJsonResult
 {
 	public bool Success { get; init; }
 	public string? Error { get; init; }
-	public IReadOnlyList<OrderListAsJsonResult> Result { get; init; } = Array.Empty<OrderListAsJsonResult>();
+	public IReadOnlyList<OrderListAsJsonResultSet1Result> Result { get; init; } = Array.Empty<OrderListAsJsonResultSet1Result>();
 	
 }
 
@@ -45,7 +45,7 @@ internal static partial class OrderListAsJsonPlan
 	{
             new("ResultSet1", async (r, ct) =>
     {
-		var list = new System.Collections.Generic.List<object>(); { if (await r.ReadAsync(ct).ConfigureAwait(false) && !r.IsDBNull(0)) { var __raw = r.GetString(0); try { var __list = System.Text.Json.JsonSerializer.Deserialize<System.Collections.Generic.List<OrderListAsJsonResult>>(__raw, JsonSupport.Options); if (__list != null) foreach (var __e in __list) list.Add(__e); } catch { } } } return list;
+		var list = new System.Collections.Generic.List<object>(); { if (await r.ReadAsync(ct).ConfigureAwait(false) && !r.IsDBNull(0)) { var __raw = r.GetString(0); try { var __list = System.Text.Json.JsonSerializer.Deserialize<System.Collections.Generic.List<OrderListAsJsonResultSet1Result>>(__raw, JsonSupport.Options); if (__list != null) foreach (var __e in __list) list.Add(__e); } catch { } } } return list;
     }),
 
         };
@@ -53,12 +53,12 @@ internal static partial class OrderListAsJsonPlan
 		object? OutputFactory(IReadOnlyDictionary<string, object?> values) => null;
 		object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs)
 		{
-			return new OrderListAsJsonAggregate
+			return new OrderListAsJsonResult
 			{
 				Success = success,
 				Error = error,
 				// ResultSet 0 → Result (robust list/array handling)
-				Result = rs.Length > 0 && rs[0] is object[] rows0 ? Array.ConvertAll(rows0, o => (OrderListAsJsonResult)o).ToList() : (rs.Length > 0 && rs[0] is System.Collections.Generic.List<object> list0 ? Array.ConvertAll(list0.ToArray(), o => (OrderListAsJsonResult)o).ToList() : Array.Empty<OrderListAsJsonResult>())
+				Result = rs.Length > 0 && rs[0] is object[] rows0 ? Array.ConvertAll(rows0, o => (OrderListAsJsonResultSet1Result)o).ToList() : (rs.Length > 0 && rs[0] is System.Collections.Generic.List<object> list0 ? Array.ConvertAll(list0.ToArray(), o => (OrderListAsJsonResultSet1Result)o).ToList() : Array.Empty<OrderListAsJsonResultSet1Result>())
 			};
 		};
 		void Binder(DbCommand cmd, object? state)
@@ -73,7 +73,7 @@ internal static partial class OrderListAsJsonPlan
 /// <summary>Convenience extension for executing '[samples].[OrderListAsJson]' via an <see cref="ISpocRDbContext"/>.</summary>
 public static class OrderListAsJsonExtensions
 {
-	public static async Task<OrderListAsJsonAggregate> OrderListAsJsonAsync(this ISpocRDbContext db, CancellationToken cancellationToken = default)
+	public static async Task<OrderListAsJsonResult> OrderListAsJsonAsync(this ISpocRDbContext db, CancellationToken cancellationToken = default)
 	{
 		await using var conn = await db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 		return await OrderListAsJsonProcedure.ExecuteAsync(conn, cancellationToken).ConfigureAwait(false);
@@ -84,8 +84,8 @@ public static class OrderListAsJsonExtensions
 public static class OrderListAsJsonProcedure
 {
 	public const string Name = "[samples].[OrderListAsJson]";
-	public static Task<OrderListAsJsonAggregate> ExecuteAsync(DbConnection connection, CancellationToken cancellationToken = default)
+	public static Task<OrderListAsJsonResult> ExecuteAsync(DbConnection connection, CancellationToken cancellationToken = default)
 	{
-		return ProcedureExecutor.ExecuteAsync<OrderListAsJsonAggregate>(connection, OrderListAsJsonPlan.Instance, null, cancellationToken);
+		return ProcedureExecutor.ExecuteAsync<OrderListAsJsonResult>(connection, OrderListAsJsonPlan.Instance, null, cancellationToken);
 	}
 }

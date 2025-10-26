@@ -1,37 +1,25 @@
 {
   "Schema": "samples",
   "Name": "CreateUserWithOutput",
-  "Inputs": [
+  "Parameters": [
     {
       "Name": "DisplayName",
-      "SqlTypeName": "nvarchar",
+      "TypeRef": "samples.DisplayNameType",
       "MaxLength": 128
     },
     {
       "Name": "Email",
-      "SqlTypeName": "nvarchar",
+      "TypeRef": "samples.EmailAddressType",
       "MaxLength": 256
     },
     {
       "Name": "UserId",
-      "IsOutput": true,
-      "SqlTypeName": "int",
+      "TypeRef": "sys.int",
       "IsNullable": true,
-      "MaxLength": 4
+      "MaxLength": 4,
+      "Precision": 10,
+      "IsOutput": true
     }
   ],
-  "ResultSets": [
-    {
-      "ReturnsJson": false,
-      "ReturnsJsonArray": false,
-      "Columns": [
-        {
-          "Name": "CreatedUserId",
-          "SqlTypeName": "int",
-          "IsNullable": true,
-          "MaxLength": 4
-        }
-      ]
-    }
-  ]
+  "ResultSets": []
 }

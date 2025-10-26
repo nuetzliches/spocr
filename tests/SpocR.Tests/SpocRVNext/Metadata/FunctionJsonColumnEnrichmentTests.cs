@@ -19,7 +19,7 @@ public class FunctionJsonColumnEnrichmentTests
     {
         // Arrange: fake DbContext returning one scalar JSON function with parameters
         var fake = new FakeDbContext();
-    var layout = new SchemaSnapshotFileLayoutService();
+        var layout = new SchemaSnapshotFileLayoutService();
         var console = new NullConsoleService();
         var collector = new FunctionSnapshotCollector(fake, layout, console);
         var snapshot = new SchemaSnapshot
@@ -32,8 +32,8 @@ public class FunctionJsonColumnEnrichmentTests
                     Name = "User",
                     Columns = new List<SnapshotTableColumn>
                     {
-                        new SnapshotTableColumn { Name = "UserName", SqlTypeName = "nvarchar(200)", IsNullable = false },
-                        new SnapshotTableColumn { Name = "Initials", SqlTypeName = "nvarchar(10)", IsNullable = false }
+                        new SnapshotTableColumn { Name = "UserName", TypeRef = "sys.nvarchar", MaxLength = 200, IsNullable = false },
+                        new SnapshotTableColumn { Name = "Initials", TypeRef = "sys.nvarchar", MaxLength = 10, IsNullable = false }
                     }
                 }
             }
@@ -52,35 +52,39 @@ public class FunctionJsonColumnEnrichmentTests
 
         // recordId -> from parameter RecordId (int)
         Assert.True(colMap.ContainsKey("recordId"));
-        Assert.Equal("int", colMap["recordId"].SqlTypeName);
+        Assert.Equal("sys.int", colMap["recordId"].TypeRef);
 
         // rowVersion -> from parameter RowVersion (bigint) (enrichment prefers param over fallback binary(8))
         Assert.True(colMap.ContainsKey("rowVersion"));
-        Assert.Equal("bigint", colMap["rowVersion"].SqlTypeName);
+        Assert.Equal("sys.bigint", colMap["rowVersion"].TypeRef);
 
         // created.user.userId -> suffix match CreatedUserId (int)
         Assert.True(colMap.ContainsKey("created.user.userId"));
-        Assert.Equal("int", colMap["created.user.userId"].SqlTypeName);
+        Assert.Equal("core._id", colMap["created.user.userId"].TypeRef);
 
         // updated.user.userId -> UpdatedUserId (int)
         Assert.True(colMap.ContainsKey("updated.user.userId"));
-        Assert.Equal("int", colMap["updated.user.userId"].SqlTypeName);
+        Assert.Equal("sys.int", colMap["updated.user.userId"].TypeRef);
 
         // created.user.displayName -> table mapping UserName
         Assert.True(colMap.ContainsKey("created.user.displayName"));
-        Assert.Equal("nvarchar(200)", colMap["created.user.displayName"].SqlTypeName);
+        Assert.Equal("sys.nvarchar", colMap["created.user.displayName"].TypeRef);
+        Assert.Equal(200, colMap["created.user.displayName"].MaxLength);
 
         // created.user.initials -> table mapping Initials
         Assert.True(colMap.ContainsKey("created.user.initials"));
-        Assert.Equal("nvarchar(10)", colMap["created.user.initials"].SqlTypeName);
+        Assert.Equal("sys.nvarchar", colMap["created.user.initials"].TypeRef);
+        Assert.Equal(10, colMap["created.user.initials"].MaxLength);
 
         // updated.user.displayName -> also mapped
         Assert.True(colMap.ContainsKey("updated.user.displayName"));
-        Assert.Equal("nvarchar(200)", colMap["updated.user.displayName"].SqlTypeName);
+        Assert.Equal("sys.nvarchar", colMap["updated.user.displayName"].TypeRef);
+        Assert.Equal(200, colMap["updated.user.displayName"].MaxLength);
 
         // updated.user.initials -> mapped
         Assert.True(colMap.ContainsKey("updated.user.initials"));
-        Assert.Equal("nvarchar(10)", colMap["updated.user.initials"].SqlTypeName);
+        Assert.Equal("sys.nvarchar", colMap["updated.user.initials"].TypeRef);
+        Assert.Equal(10, colMap["updated.user.initials"].MaxLength);
     }
 
     [Fact]
@@ -101,8 +105,8 @@ public class FunctionJsonColumnEnrichmentTests
                     Name = "User",
                     Columns = new List<SnapshotTableColumn>
                     {
-                        new SnapshotTableColumn { Name = "UserName", SqlTypeName = "nvarchar(200)", IsNullable = false },
-                        new SnapshotTableColumn { Name = "Initials", SqlTypeName = "nvarchar(10)", IsNullable = false }
+                        new SnapshotTableColumn { Name = "UserName", TypeRef = "sys.nvarchar", MaxLength = 200, IsNullable = false },
+                        new SnapshotTableColumn { Name = "Initials", TypeRef = "sys.nvarchar", MaxLength = 10, IsNullable = false }
                     }
                 }
             }

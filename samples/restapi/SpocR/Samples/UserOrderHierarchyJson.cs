@@ -3,9 +3,8 @@
 // Changes may be overwritten. For customization extend generated partials.
 
 #nullable enable
-namespace RestApi.SpocR.Samples;
+namespace TestNs.SpocR.Samples;
 
-using RestApi.SpocR;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -13,19 +12,20 @@ using System.Data.Common;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using TestNs.SpocR;
 
-public readonly record struct UserOrderHierarchyJsonResult(
-    int UserId,
+public readonly record struct UserOrderHierarchyJsonResultSet1Result(
+    string UserId,
     string DisplayName,
     string Email,
     string Orders
 );
 
-public sealed class UserOrderHierarchyJsonAggregate
+public sealed class UserOrderHierarchyJsonResult
 {
 	public bool Success { get; init; }
 	public string? Error { get; init; }
-	public IReadOnlyList<UserOrderHierarchyJsonResult> Result { get; init; } = Array.Empty<UserOrderHierarchyJsonResult>();
+	public IReadOnlyList<UserOrderHierarchyJsonResultSet1Result> Result { get; init; } = Array.Empty<UserOrderHierarchyJsonResultSet1Result>();
 	
 }
 
@@ -42,7 +42,7 @@ internal static partial class UserOrderHierarchyJsonPlan
 	{
             new("ResultSet1", async (r, ct) =>
     {
-		var list = new System.Collections.Generic.List<object>(); { if (await r.ReadAsync(ct).ConfigureAwait(false) && !r.IsDBNull(0)) { var __raw = r.GetString(0); try { var __list = System.Text.Json.JsonSerializer.Deserialize<System.Collections.Generic.List<UserOrderHierarchyJsonResult>>(__raw, JsonSupport.Options); if (__list != null) foreach (var __e in __list) list.Add(__e); } catch { } } } return list;
+		var list = new System.Collections.Generic.List<object>(); { if (await r.ReadAsync(ct).ConfigureAwait(false) && !r.IsDBNull(0)) { var __raw = r.GetString(0); try { var __list = System.Text.Json.JsonSerializer.Deserialize<System.Collections.Generic.List<UserOrderHierarchyJsonResultSet1Result>>(__raw, JsonSupport.Options); if (__list != null) foreach (var __e in __list) list.Add(__e); } catch { } } } return list;
     }),
 
         };
@@ -50,12 +50,12 @@ internal static partial class UserOrderHierarchyJsonPlan
 		object? OutputFactory(IReadOnlyDictionary<string, object?> values) => null;
 		object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs)
 		{
-			return new UserOrderHierarchyJsonAggregate
+			return new UserOrderHierarchyJsonResult
 			{
 				Success = success,
 				Error = error,
 				// ResultSet 0 → Result (robust list/array handling)
-				Result = rs.Length > 0 && rs[0] is object[] rows0 ? Array.ConvertAll(rows0, o => (UserOrderHierarchyJsonResult)o).ToList() : (rs.Length > 0 && rs[0] is System.Collections.Generic.List<object> list0 ? Array.ConvertAll(list0.ToArray(), o => (UserOrderHierarchyJsonResult)o).ToList() : Array.Empty<UserOrderHierarchyJsonResult>())
+				Result = rs.Length > 0 && rs[0] is object[] rows0 ? Array.ConvertAll(rows0, o => (UserOrderHierarchyJsonResultSet1Result)o).ToList() : (rs.Length > 0 && rs[0] is System.Collections.Generic.List<object> list0 ? Array.ConvertAll(list0.ToArray(), o => (UserOrderHierarchyJsonResultSet1Result)o).ToList() : Array.Empty<UserOrderHierarchyJsonResultSet1Result>())
 			};
 		};
 		void Binder(DbCommand cmd, object? state)
@@ -70,7 +70,7 @@ internal static partial class UserOrderHierarchyJsonPlan
 /// <summary>Convenience extension for executing '[samples].[UserOrderHierarchyJson]' via an <see cref="ISpocRDbContext"/>.</summary>
 public static class UserOrderHierarchyJsonExtensions
 {
-	public static async Task<UserOrderHierarchyJsonAggregate> UserOrderHierarchyJsonAsync(this ISpocRDbContext db, CancellationToken cancellationToken = default)
+	public static async Task<UserOrderHierarchyJsonResult> UserOrderHierarchyJsonAsync(this ISpocRDbContext db, CancellationToken cancellationToken = default)
 	{
 		await using var conn = await db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 		return await UserOrderHierarchyJsonProcedure.ExecuteAsync(conn, cancellationToken).ConfigureAwait(false);
@@ -81,8 +81,8 @@ public static class UserOrderHierarchyJsonExtensions
 public static class UserOrderHierarchyJsonProcedure
 {
 	public const string Name = "[samples].[UserOrderHierarchyJson]";
-	public static Task<UserOrderHierarchyJsonAggregate> ExecuteAsync(DbConnection connection, CancellationToken cancellationToken = default)
+	public static Task<UserOrderHierarchyJsonResult> ExecuteAsync(DbConnection connection, CancellationToken cancellationToken = default)
 	{
-		return ProcedureExecutor.ExecuteAsync<UserOrderHierarchyJsonAggregate>(connection, UserOrderHierarchyJsonPlan.Instance, null, cancellationToken);
+		return ProcedureExecutor.ExecuteAsync<UserOrderHierarchyJsonResult>(connection, UserOrderHierarchyJsonPlan.Instance, null, cancellationToken);
 	}
 }

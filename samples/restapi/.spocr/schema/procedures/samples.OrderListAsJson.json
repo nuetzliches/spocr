@@ -1,7 +1,7 @@
 {
   "Schema": "samples",
   "Name": "OrderListAsJson",
-  "Inputs": [],
+  "Parameters": [],
   "ResultSets": [
     {
       "ReturnsJson": true,
@@ -9,19 +9,13 @@
       "JsonRootProperty": "OrderSummaries",
       "Columns": [
         {
-          "Name": "UserId",
-          "SqlTypeName": "int",
-          "MaxLength": 4
+          "Name": "UserId"
         },
         {
-          "Name": "DisplayName",
-          "SqlTypeName": "nvarchar",
-          "MaxLength": 128
+          "Name": "DisplayName"
         },
         {
-          "Name": "Email",
-          "SqlTypeName": "nvarchar",
-          "MaxLength": 256
+          "Name": "Email"
         },
         {
           "Name": "OrderId"

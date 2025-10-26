@@ -118,6 +118,7 @@ public class DbContextGeneratorTests
         public bool NoAutoUpdate { get; set; }
         public bool Debug { get; set; }
         public bool NoCache { get; set; }
+        public string Procedure { get; set; } = string.Empty;
     }
 
 }

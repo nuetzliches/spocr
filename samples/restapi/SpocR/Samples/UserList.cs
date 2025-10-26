@@ -3,9 +3,8 @@
 // Changes may be overwritten. For customization extend generated partials.
 
 #nullable enable
-namespace RestApi.SpocR.Samples;
+namespace TestNs.SpocR.Samples;
 
-using RestApi.SpocR;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -13,20 +12,12 @@ using System.Data.Common;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using TestNs.SpocR;
 
-public readonly record struct UserListResult(
-    int UserId,
-    string Email,
-    string DisplayName,
-    DateTime CreatedAt,
-    string Bio
-);
-
-public sealed class UserListAggregate
+public sealed class UserListResult
 {
 	public bool Success { get; init; }
 	public string? Error { get; init; }
-	public IReadOnlyList<UserListResult> Result { get; init; } = Array.Empty<UserListResult>();
 	
 }
 
@@ -39,24 +30,15 @@ internal static partial class UserListPlan
 
 	var parameters = Array.Empty<ProcedureParameter>();
 
-	var resultSets = new ResultSetMapping[]
-	{
-            new("ResultSet1", async (r, ct) =>
-    {
-		var list = new System.Collections.Generic.List<object>(); int o0=ReaderUtil.TryGetOrdinal(r, "UserId"); int o1=ReaderUtil.TryGetOrdinal(r, "Email"); int o2=ReaderUtil.TryGetOrdinal(r, "DisplayName"); int o3=ReaderUtil.TryGetOrdinal(r, "CreatedAt"); int o4=ReaderUtil.TryGetOrdinal(r, "Bio"); while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new UserListResult(o0 < 0 ? default(int) : r.GetInt32(o0), o1 < 0 ? string.Empty : (r.IsDBNull(o1) ? string.Empty : r.GetString(o1)), o2 < 0 ? string.Empty : (r.IsDBNull(o2) ? string.Empty : r.GetString(o2)), o3 < 0 ? default(DateTime) : r.GetDateTime(o3), o4 < 0 ? string.Empty : (r.IsDBNull(o4) ? string.Empty : r.GetString(o4)))); } return list;
-    }),
-
-        };
+	var resultSets = Array.Empty<ResultSetMapping>();
 
 		object? OutputFactory(IReadOnlyDictionary<string, object?> values) => null;
 		object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs)
 		{
-			return new UserListAggregate
+			return new UserListResult
 			{
 				Success = success,
-				Error = error,
-				// ResultSet 0 → Result (robust list/array handling)
-				Result = rs.Length > 0 && rs[0] is object[] rows0 ? Array.ConvertAll(rows0, o => (UserListResult)o).ToList() : (rs.Length > 0 && rs[0] is System.Collections.Generic.List<object> list0 ? Array.ConvertAll(list0.ToArray(), o => (UserListResult)o).ToList() : Array.Empty<UserListResult>())
+				Error = error
 			};
 		};
 		void Binder(DbCommand cmd, object? state)
@@ -71,7 +53,7 @@ internal static partial class UserListPlan
 /// <summary>Convenience extension for executing '[samples].[UserList]' via an <see cref="ISpocRDbContext"/>.</summary>
 public static class UserListExtensions
 {
-	public static async Task<UserListAggregate> UserListAsync(this ISpocRDbContext db, CancellationToken cancellationToken = default)
+	public static async Task<UserListResult> UserListAsync(this ISpocRDbContext db, CancellationToken cancellationToken = default)
 	{
 		await using var conn = await db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 		return await UserListProcedure.ExecuteAsync(conn, cancellationToken).ConfigureAwait(false);
@@ -82,8 +64,8 @@ public static class UserListExtensions
 public static class UserListProcedure
 {
 	public const string Name = "[samples].[UserList]";
-	public static Task<UserListAggregate> ExecuteAsync(DbConnection connection, CancellationToken cancellationToken = default)
+	public static Task<UserListResult> ExecuteAsync(DbConnection connection, CancellationToken cancellationToken = default)
 	{
-		return ProcedureExecutor.ExecuteAsync<UserListAggregate>(connection, UserListPlan.Instance, null, cancellationToken);
+		return ProcedureExecutor.ExecuteAsync<UserListResult>(connection, UserListPlan.Instance, null, cancellationToken);
 	}
 }

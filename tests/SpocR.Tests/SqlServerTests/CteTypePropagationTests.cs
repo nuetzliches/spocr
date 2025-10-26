@@ -1,7 +1,7 @@
 using System.Linq;
 using System.Threading.Tasks;
 using SpocR.Models;
-using SpocR.Tests.TestFramework;
+using SpocR.TestFramework;
 using Xunit;
 using Xunit.Abstractions;
 

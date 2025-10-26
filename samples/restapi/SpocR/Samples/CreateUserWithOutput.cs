@@ -3,9 +3,8 @@
 // Changes may be overwritten. For customization extend generated partials.
 
 #nullable enable
-namespace RestApi.SpocR.Samples;
+namespace TestNs.SpocR.Samples;
 
-using RestApi.SpocR;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -13,6 +12,7 @@ using System.Data.Common;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using TestNs.SpocR;
 
 public readonly record struct CreateUserWithOutputInput(
     string DisplayName,
@@ -23,16 +23,11 @@ public readonly record struct CreateUserWithOutputOutput(
     int? UserId
 );
 
-public readonly record struct CreateUserWithOutputResult(
-    int? CreatedUserId
-);
-
-public sealed class CreateUserWithOutputAggregate
+public sealed class CreateUserWithOutputResult
 {
 	public bool Success { get; init; }
 	public string? Error { get; init; }
 	public CreateUserWithOutputOutput? Output { get; init; }
-	public IReadOnlyList<CreateUserWithOutputResult> Result { get; init; } = Array.Empty<CreateUserWithOutputResult>();
 	
 }
 
@@ -50,25 +45,16 @@ internal static partial class CreateUserWithOutputPlan
             new("@UserId", System.Data.DbType.Int32, 4, true, true),
         };
 
-	var resultSets = new ResultSetMapping[]
-	{
-            new("ResultSet1", async (r, ct) =>
-    {
-		var list = new System.Collections.Generic.List<object>(); int o0=ReaderUtil.TryGetOrdinal(r, "CreatedUserId"); while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new CreateUserWithOutputResult(o0 < 0 ? null : (r.IsDBNull(o0) ? null : (int?)r.GetInt32(o0)))); } return list;
-    }),
-
-        };
+	var resultSets = Array.Empty<ResultSetMapping>();
 
 		object? OutputFactory(IReadOnlyDictionary<string, object?> values) => new CreateUserWithOutputOutput(values.TryGetValue("UserId", out var v_UserId) ? (int?)v_UserId : default);
 		object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs)
 		{
-			return new CreateUserWithOutputAggregate
+			return new CreateUserWithOutputResult
 			{
 				Success = success,
 				Error = error,
-				Output = (CreateUserWithOutputOutput?)output,
-				// ResultSet 0 → Result (robust list/array handling)
-				Result = rs.Length > 0 && rs[0] is object[] rows0 ? Array.ConvertAll(rows0, o => (CreateUserWithOutputResult)o).ToList() : (rs.Length > 0 && rs[0] is System.Collections.Generic.List<object> list0 ? Array.ConvertAll(list0.ToArray(), o => (CreateUserWithOutputResult)o).ToList() : Array.Empty<CreateUserWithOutputResult>())
+				Output = (CreateUserWithOutputOutput?)output
 			};
 		};
 		void Binder(DbCommand cmd, object? state)
@@ -86,7 +72,7 @@ internal static partial class CreateUserWithOutputPlan
 /// <summary>Convenience extension for executing '[samples].[CreateUserWithOutput]' via an <see cref="ISpocRDbContext"/>.</summary>
 public static class CreateUserWithOutputExtensions
 {
-	public static async Task<CreateUserWithOutputAggregate> CreateUserWithOutputAsync(this ISpocRDbContext db, CreateUserWithOutputInput input, CancellationToken cancellationToken = default)
+	public static async Task<CreateUserWithOutputResult> CreateUserWithOutputAsync(this ISpocRDbContext db, CreateUserWithOutputInput input, CancellationToken cancellationToken = default)
 	{
 		await using var conn = await db.OpenConnectionAsync(cancellationToken).ConfigureAwait(false);
 		return await CreateUserWithOutputProcedure.ExecuteAsync(conn, input, cancellationToken).ConfigureAwait(false);
@@ -97,8 +83,8 @@ public static class CreateUserWithOutputExtensions
 public static class CreateUserWithOutputProcedure
 {
 	public const string Name = "[samples].[CreateUserWithOutput]";
-	public static Task<CreateUserWithOutputAggregate> ExecuteAsync(DbConnection connection, CreateUserWithOutputInput input, CancellationToken cancellationToken = default)
+	public static Task<CreateUserWithOutputResult> ExecuteAsync(DbConnection connection, CreateUserWithOutputInput input, CancellationToken cancellationToken = default)
 	{
-		return ProcedureExecutor.ExecuteAsync<CreateUserWithOutputAggregate>(connection, CreateUserWithOutputPlan.Instance, input, cancellationToken);
+		return ProcedureExecutor.ExecuteAsync<CreateUserWithOutputResult>(connection, CreateUserWithOutputPlan.Instance, input, cancellationToken);
 	}
 }

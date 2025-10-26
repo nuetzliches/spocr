@@ -5,26 +5,22 @@
   "Columns": [
     {
       "Name": "UserId",
-      "SqlTypeName": "int",
+      "TypeRef": "sys.int",
       "IsNullable": true,
       "MaxLength": 4,
       "Precision": 10
     },
     {
       "Name": "TotalAmount",
-      "SqlTypeName": "decimal",
+      "TypeRef": "samples.MoneyAmountType",
       "MaxLength": 9,
-      "UserTypeSchemaName": "samples",
-      "UserTypeName": "MoneyAmountType",
       "Precision": 38,
       "Scale": 38
     },
     {
       "Name": "PlacedAt",
-      "SqlTypeName": "datetime2",
+      "TypeRef": "samples.UtcDateTimeType",
       "MaxLength": 8,
-      "UserTypeSchemaName": "samples",
-      "UserTypeName": "UtcDateTimeType",
       "Precision": 27,
       "Scale": 7
     }

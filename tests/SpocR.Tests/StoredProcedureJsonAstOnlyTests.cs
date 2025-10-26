@@ -48,16 +48,16 @@ public class StoredProcedureJsonAstOnlyTests
     private sealed class FakeDbContext : SpocR.DataContext.DbContext
     {
         private readonly List<StoredProcedure> _procedures;
-        private readonly List<(string Schema,string Proc, StoredProcedureOutput Output)> _outputs;
-        private readonly Dictionary<string,string> _definitions;
+        private readonly List<(string Schema, string Proc, StoredProcedureOutput Output)> _outputs;
+        private readonly Dictionary<string, string> _definitions;
         private readonly List<SpocR.DataContext.Models.Schema> _schemas;
 
-        public FakeDbContext(IConsoleService console, List<StoredProcedure> procedures, List<(string Schema,string Proc, StoredProcedureOutput Output)> outputs, Dictionary<string,string> definitions)
+        public FakeDbContext(IConsoleService console, List<StoredProcedure> procedures, List<(string Schema, string Proc, StoredProcedureOutput Output)> outputs, Dictionary<string, string> definitions)
             : base(console)
-        { 
-            _procedures = procedures; 
-            _outputs = outputs; 
-            _definitions = definitions; 
+        {
+            _procedures = procedures;
+            _outputs = outputs;
+            _definitions = definitions;
             _schemas = procedures.Select(p => p.SchemaName).Distinct(StringComparer.OrdinalIgnoreCase).Select(s => new SpocR.DataContext.Models.Schema { Name = s }).ToList();
         }
 
@@ -120,7 +120,7 @@ public class StoredProcedureJsonAstOnlyTests
     }
 
     [Fact]
-    public async Task Legacy_Single_Column_Sentinel_Not_Upgraded_By_Default()
+    public void Legacy_Single_Column_Sentinel_Not_Upgraded_By_Default()
     {
         Environment.SetEnvironmentVariable("SPOCR_JSON_LEGACY_SINGLE", null);
         try
@@ -139,7 +139,7 @@ public class StoredProcedureJsonAstOnlyTests
     }
 
     [Fact]
-    public async Task Legacy_Single_Column_Sentinel_Upgraded_With_Flag()
+    public void Legacy_Single_Column_Sentinel_Upgraded_With_Flag()
     {
         Environment.SetEnvironmentVariable("SPOCR_JSON_LEGACY_SINGLE", "1");
         try

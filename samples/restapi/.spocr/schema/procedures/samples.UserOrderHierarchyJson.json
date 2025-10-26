@@ -1,7 +1,7 @@
 {
   "Schema": "samples",
   "Name": "UserOrderHierarchyJson",
-  "Inputs": [],
+  "Parameters": [],
   "ResultSets": [
     {
       "ReturnsJson": true,
@@ -9,9 +9,7 @@
       "JsonRootProperty": "Users",
       "Columns": [
         {
-          "Name": "UserId",
-          "SqlTypeName": "int",
-          "MaxLength": 4
+          "Name": "UserId"
         },
         {
           "Name": "DisplayName"
@@ -20,7 +18,23 @@
           "Name": "Email"
         },
         {
-          "Name": "Orders"
+          "Name": "Orders",
+          "ReturnsJson": true,
+          "ReturnsJsonArray": true,
+          "Columns": [
+            {
+              "Name": "OrderId"
+            },
+            {
+              "Name": "TotalAmount"
+            },
+            {
+              "Name": "PlacedAt"
+            },
+            {
+              "Name": "Notes"
+            }
+          ]
         }
       ]
     }

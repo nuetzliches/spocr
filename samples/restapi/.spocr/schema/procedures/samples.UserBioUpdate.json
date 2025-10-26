@@ -1,37 +1,20 @@
 {
   "Schema": "samples",
   "Name": "UserBioUpdate",
-  "Inputs": [
+  "Parameters": [
     {
       "Name": "UserId",
-      "SqlTypeName": "int",
+      "TypeRef": "sys.int",
       "IsNullable": true,
-      "MaxLength": 4
+      "MaxLength": 4,
+      "Precision": 10
     },
     {
       "Name": "Bio",
-      "SqlTypeName": "nvarchar",
+      "TypeRef": "samples.UserBioType",
       "IsNullable": true,
       "MaxLength": 512
     }
   ],
-  "ResultSets": [
-    {
-      "ReturnsJson": false,
-      "ReturnsJsonArray": false,
-      "Columns": [
-        {
-          "Name": "UserId",
-          "SqlTypeName": "int",
-          "MaxLength": 4
-        },
-        {
-          "Name": "Bio",
-          "SqlTypeName": "nvarchar(512)",
-          "IsNullable": true,
-          "MaxLength": 512
-        }
-      ]
-    }
-  ]
+  "ResultSets": []
 }

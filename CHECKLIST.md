@@ -226,6 +226,7 @@ EPICS Übersicht (oberste Steuerungsebene)
 ### Qualität & Tests (Update 2025-10-19)
 
 - [x] Alle bestehenden Unit- & Integrationstests grün (Tests.sln)
+- [x] Regressionstest: FileSnapshotCache bewahrt Null Dependency-Timestamps (SpocRVNext) – 26.10.2025
 - [~] Neue Tests für SpocRVNext (Happy Path + Fehlerfälle + Regression für entfernte Heuristiken) – erste Typisierungs- und Aggregat-Tests aktiv
 - [>] (Optional) Info-Diff zwischen Legacy und neuem Output generiert (kein Paritäts-Zwang) – DEFERRED v5
 - [~] Automatisierte Qualitäts-Gates (eng/quality-gates.ps1) vorhanden (Script aktiv; CI Integration & README Verlinkung offen)
@@ -242,6 +243,7 @@ EPICS Übersicht (oberste Steuerungsebene)
       note: Abgedeckt durch `Filters_TableTypes_By_BuildSchemas_AllowList` in `TableTypesGeneratorTests` (prüft Interface + gefilterte Schema-Ausgabe)
 - [x] Golden Hash CLI Commands Tests (`GoldenHashCommandsTests`) – Write & Verify & Strict-Verhalten (Exit Codes reserviert) validiert
 - [x] Integration Test: `UserListProcedure` Roundtrip – stabiler End-to-End Aufruf bestätigt
+- [x] Testframework aktualisiert (SqlServerTestBase, ICommandOptions Procedure Property) – SpocRVNext Tests bauen wieder
 - [>] Erweiterte Golden Hash Tests: Multi-File Änderungen + Allow-List Interplay (`.spocr-diff-allow`) – DEFERRED v5.0
 - [>] Negative Golden Hash Verify Test: Manipulierte Datei → erwartete Diff-Meldung (Relaxed Mode) – DEFERRED v5.0
 

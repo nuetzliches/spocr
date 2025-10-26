@@ -28,6 +28,7 @@ public class StoredProcedureListTests
         public bool NoAutoUpdate { get; set; }
         public bool Debug { get; set; }
         public bool NoCache { get; set; }
+        public string Procedure { get; set; } = string.Empty;
     }
 
     private class CaptureConsole : IConsoleService
@@ -113,8 +114,8 @@ public class StoredProcedureListTests
     public void Schema_Not_Found_Returns_Empty_Array()
     {
         var console = new CaptureConsole();
-    var fm = new FakeFileManager(null, canOpen: false);
-    var manager = new SpocrStoredProcedureManager(console, fm);
+        var fm = new FakeFileManager(null, canOpen: false);
+        var manager = new SpocrStoredProcedureManager(console, fm);
 
         // Workaround: create empty temporary config file so TryOpen returns false and manager outputs []
         var tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());

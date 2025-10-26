@@ -5,7 +5,7 @@
   "Columns": [
     {
       "Name": "UserId",
-      "SqlTypeName": "int",
+      "TypeRef": "sys.int",
       "IsNullable": true,
       "MaxLength": 4,
       "Precision": 10

@@ -10,6 +10,7 @@ namespace RestApi.DataContext.StoredProcedures.Samples
 {
     public static class OrderListAsJsonExtensions
     {
+        /// <summary>Executes stored procedure '[samples].[OrderListAsJson]' and returns the raw JSON string.</summary>
         public static Task<string> OrderListAsJsonAsync(this IAppDbContextPipe context, CancellationToken cancellationToken)
         {
             if (context == null)
@@ -23,6 +24,7 @@ namespace RestApi.DataContext.StoredProcedures.Samples
             return context.ReadJsonAsync("[samples].[OrderListAsJson]", parameters, cancellationToken);
         }
 
+        /// <summary>Executes stored procedure '[samples].[OrderListAsJson]' and returns the raw JSON string.</summary>
         public static Task<string> OrderListAsJsonAsync(this IAppDbContext context, CancellationToken cancellationToken)
         {
             return context.CreatePipe().OrderListAsJsonAsync(cancellationToken);

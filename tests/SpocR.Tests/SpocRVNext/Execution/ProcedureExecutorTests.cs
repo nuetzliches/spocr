@@ -57,23 +57,23 @@ public class ProcedureExecutorTests
             new[] { new object?[] { 10, 99.5m }, new object?[] { 11, 123.0m } }
         );
 
-        var rs1 = new ResultSetMapping("Users", async (r, ct) =>
+        var rs1 = new ResultSetMapping("Users", (r, ct) =>
         {
             var list = new List<object>();
             while (r.Read())
             {
                 list.Add(new UserRow(r.GetInt32(0), r.GetString(1)));
             }
-            return list;
+            return Task.FromResult<IReadOnlyList<object>>(list);
         });
-        var rs2 = new ResultSetMapping("Orders", async (r, ct) =>
+        var rs2 = new ResultSetMapping("Orders", (r, ct) =>
         {
             var list = new List<object>();
             while (r.Read())
             {
                 list.Add(new OrderRow(r.GetInt32(0), r.GetDecimal(1)));
             }
-            return list;
+            return Task.FromResult<IReadOnlyList<object>>(list);
         });
 
         var plan = new ProcedureExecutionPlan(
@@ -227,7 +227,6 @@ public class ProcedureExecutorTests
         private readonly FakeParameterCollection _parameters = new();
         public IEnumerable<object?[]> First { get; set; } = Array.Empty<object?[]>();
         public IEnumerable<object?[]> Second { get; set; } = Array.Empty<object?[]>();
-        private bool _yieldedFirst;
         public override string CommandText { get; set; } = string.Empty; public override int CommandTimeout { get; set; }
         public override CommandType CommandType { get; set; }
         public override UpdateRowSource UpdatedRowSource { get; set; }

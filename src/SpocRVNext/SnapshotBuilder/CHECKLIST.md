@@ -52,10 +52,10 @@
   - Konfigurierbare MaxDegreeOfParallelism.
   - Thread-sichere Nutzung von Analyzer/Writers (z. B. `SemaphoreSlim`).
   - `ExpandedSnapshotWriter` nutzt `Parallel.ForEachAsync` mit deterministischer Ergebnisreihenfolge und konsolidierter Fehlerbehandlung.
-- [~] Telemetrie & Logging
+- [x] Telemetrie & Logging
   - [x] Laufzeiten (Collect, Analyze, Write). _(Per-Phase-Laufzeiten werden via Diagnostics & CLI ausgewiesen.)_
   - [x] Spaltenmetriken. _(Parameter-/ResultSet-Kennzahlen werden gesammelt und als CLI-Metrik ausgegeben.)_
-  - [x] Aggregierte Summary nach Run; Persistenz optional. _(CLI-Ausgabe enthält per-Phase-Laufzeiten, Diagnostics geben Timing-Übersicht aus.)_
+  - [x] Aggregierte Summary nach Run; Persistenz optional. _(CLI-Ausgabe enthält per-Phase-Laufzeiten, Diagnostics geben Timing-Übersicht aus; optionaler JSON Export via `SPOCR_SNAPSHOT_SUMMARY[_PATH]` umgesetzt.)_
 - [~] Config-Übergang
   - ENV-only Pfad sicherstellen, `spocr.json` nur für Warnung/Kompat. _(Pull-Flow nutzt jetzt `EnvConfiguration` als Primärquelle; Warnung beim Fallback bleibt aktiv)_
   - Bootstrapper anpassen (Inputs aus `.env` priorisieren).

@@ -167,10 +167,19 @@ internal sealed class DatabaseProcedureCollector : IProcedureCollector
                             var currentDeps = await _dependencyMetadataProvider.ResolveAsync(cachedDependencies, cancellationToken).ConfigureAwait(false);
                             if (HasDependencyChanged(cachedDependencies, currentDeps))
                             {
+                                _console.Verbose($"[snapshot-collect] dependency delta detected for {descriptor.Schema}.{descriptor.Name}");
                                 decision = ProcedureCollectionDecision.Analyze;
                             }
                         }
                     }
+                    else
+                    {
+                        _console.Verbose($"[snapshot-collect] lastModified mismatch for {descriptor.Schema}.{descriptor.Name}: cached={cachedEntry.LastModifiedUtc:O}, current={lastModifiedUtc:O}");
+                    }
+                }
+                else
+                {
+                    _console.Verbose($"[snapshot-collect] cache miss for {descriptor.Schema}.{descriptor.Name}");
                 }
             }
 

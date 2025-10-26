@@ -43,24 +43,14 @@ public class JsonParserV5InferenceTests
         public void UpdateProgressStatus(string status, bool success = true, int? percentage = null) { }
     }
 
-    private sealed class FakeDbContext : SpocR.DataContext.DbContext
-    {
-        public FakeDbContext() : base(new TestConsole()) { }
-        public Task<List<SpocR.DataContext.Models.Column>> TableColumnsListAsync(string schema, string table, System.Threading.CancellationToken ct)
-            => Task.FromResult(new List<SpocR.DataContext.Models.Column>()); // no metadata needed for tests
-    }
-
     private static async Task EnrichAsync(StoredProcedureContentModel content)
     {
         var spModel = new SpocR.Models.StoredProcedureModel(new SpocR.DataContext.Models.StoredProcedure { Name = "Test", SchemaName = "dbo", Modified = DateTime.UtcNow })
         {
             Content = content
         };
-        var enricher = new SpocR.Managers.JsonResultTypeEnricher(new FakeDbContext(), new TestConsole());
-        await enricher.EnrichAsync(new SpocR.Models.StoredProcedureModel(new SpocR.DataContext.Models.StoredProcedure { Name = spModel.Name, SchemaName = "dbo", Modified = spModel.Modified })
-        {
-            Content = content
-        }, verbose: false, JsonTypeLogLevel.Detailed, new SpocR.Managers.JsonTypeEnrichmentStats(), System.Threading.CancellationToken.None);
+        var enricher = new SpocR.Managers.JsonResultTypeEnricher(new TestConsole());
+        await enricher.EnrichAsync(spModel, verbose: false, JsonTypeLogLevel.Detailed, new SpocR.Managers.JsonTypeEnrichmentStats(), System.Threading.CancellationToken.None);
     }
 
     [Fact]

@@ -1,6 +1,6 @@
 {
   "SchemaVersion": 1,
-  "Fingerprint": "872849885BD89C88",
+  "Fingerprint": "D4E97BFFB1240080",
   "Parser": {
     "ToolVersion": "net9.0",
     "ResultSetParserVersion": 8
@@ -19,61 +19,61 @@
       "Schema": "samples",
       "Name": "CreateUserWithOutput",
       "File": "samples.CreateUserWithOutput.json",
-      "Hash": "799BB8A26DE25093"
+      "Hash": "579742B6B5F24183"
     },
     {
       "Schema": "samples",
       "Name": "OrderListAsJson",
       "File": "samples.OrderListAsJson.json",
-      "Hash": "BA10C5DC63DB5966"
+      "Hash": "AE8C376CA225670F"
     },
     {
       "Schema": "samples",
       "Name": "OrderListByUserAsJson",
       "File": "samples.OrderListByUserAsJson.json",
-      "Hash": "99696CC77956F4CF"
+      "Hash": "6A8484E5921785BD"
     },
     {
       "Schema": "samples",
       "Name": "SumWithOutput",
       "File": "samples.SumWithOutput.json",
-      "Hash": "5A59A9C1697CEBDA"
+      "Hash": "53E4BA6224024F61"
     },
     {
       "Schema": "samples",
       "Name": "UserBioUpdate",
       "File": "samples.UserBioUpdate.json",
-      "Hash": "DA96D1A64B8A0D5B"
+      "Hash": "6ECC69DA7511B15B"
     },
     {
       "Schema": "samples",
       "Name": "UserContactSync",
       "File": "samples.UserContactSync.json",
-      "Hash": "7123A69AB826191A"
+      "Hash": "F2A82F9DE0D66329"
     },
     {
       "Schema": "samples",
       "Name": "UserDetailsWithOrders",
       "File": "samples.UserDetailsWithOrders.json",
-      "Hash": "762AD6E7C673EAAA"
+      "Hash": "1265037876D6885B"
     },
     {
       "Schema": "samples",
       "Name": "UserFind",
       "File": "samples.UserFind.json",
-      "Hash": "5851A031B26A333F"
+      "Hash": "B19B24249C853BC1"
     },
     {
       "Schema": "samples",
       "Name": "UserList",
       "File": "samples.UserList.json",
-      "Hash": "1E7E9688CB09CD60"
+      "Hash": "7D2CE9D8BD480D9A"
     },
     {
       "Schema": "samples",
       "Name": "UserOrderHierarchyJson",
       "File": "samples.UserOrderHierarchyJson.json",
-      "Hash": "289FB572B3E3A7A7"
+      "Hash": "0DC5F8ED146E2A69"
     }
   ],
   "TableTypes": [
@@ -81,22 +81,21 @@
       "Schema": "samples",
       "Name": "OrderImportTableType",
       "File": "samples.OrderImportTableType.json",
-      "Hash": "2D548AD89EB14FEF"
+      "Hash": "F081E59246BE4F5F"
     },
     {
       "Schema": "samples",
       "Name": "UserContactTableType",
       "File": "samples.UserContactTableType.json",
-      "Hash": "3DDC665CD6F09CFD"
+      "Hash": "DAF28E9E4241908F"
     },
     {
       "Schema": "samples",
       "Name": "UserIdListTableType",
       "File": "samples.UserIdListTableType.json",
-      "Hash": "84F54F60DAFE2F67"
+      "Hash": "173D7F93D8A827BB"
     }
   ],
-  "Functions": [],
   "UserDefinedTypes": [
     {
       "Schema": "samples",
@@ -134,20 +133,5 @@
       "File": "samples.UtcDateTimeType.json",
       "Hash": "65AEB166FF8C7F5E"
     }
-  ],
-  "Tables": [
-    {
-      "Schema": "samples",
-      "Name": "Orders",
-      "File": "samples.Orders.json",
-      "Hash": "10983EEE4CE06492"
-    },
-    {
-      "Schema": "samples",
-      "Name": "Users",
-      "File": "samples.Users.json",
-      "Hash": "2B29F24033F872E0"
-    }
-  ],
-  "Views": []
+  ]
 }

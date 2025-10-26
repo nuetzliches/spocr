@@ -1,12 +1,13 @@
 {
   "Schema": "samples",
   "Name": "OrderListByUserAsJson",
-  "Inputs": [
+  "Parameters": [
     {
       "Name": "UserId",
-      "SqlTypeName": "int",
+      "TypeRef": "sys.int",
       "IsNullable": true,
-      "MaxLength": 4
+      "MaxLength": 4,
+      "Precision": 10
     }
   ],
   "ResultSets": [
@@ -15,19 +16,13 @@
       "ReturnsJsonArray": false,
       "Columns": [
         {
-          "Name": "UserId",
-          "SqlTypeName": "int",
-          "MaxLength": 4
+          "Name": "UserId"
         },
         {
-          "Name": "DisplayName",
-          "SqlTypeName": "nvarchar",
-          "MaxLength": 128
+          "Name": "DisplayName"
         },
         {
-          "Name": "Email",
-          "SqlTypeName": "nvarchar",
-          "MaxLength": 256
+          "Name": "Email"
         },
         {
           "Name": "OrderId"

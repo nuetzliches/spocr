@@ -35,3 +35,5 @@ All runs were executed with `SPOCR_LOG_LEVEL=info` to surface per-phase timings.
 - The procedure delta scenario highlights the expected sub-second update cost when
   refreshing a single procedure after cache invalidation.
 - Re-run the commands after significant pipeline changes to keep the table current.
+- Set `SPOCR_SNAPSHOT_SUMMARY_PATH=<file>` (or `SPOCR_SNAPSHOT_SUMMARY=1` to use `snapshot-summary.json`)
+  to persist per-run metrics alongside console output.

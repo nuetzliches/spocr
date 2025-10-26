@@ -5,24 +5,20 @@
   "Columns": [
     {
       "Name": "UserId",
-      "SqlTypeName": "int",
+      "TypeRef": "sys.int",
       "IsNullable": true,
       "MaxLength": 4,
       "Precision": 10
     },
     {
       "Name": "Email",
-      "SqlTypeName": "nvarchar",
-      "MaxLength": 256,
-      "UserTypeSchemaName": "samples",
-      "UserTypeName": "EmailAddressType"
+      "TypeRef": "samples.EmailAddressType",
+      "MaxLength": 256
     },
     {
       "Name": "DisplayName",
-      "SqlTypeName": "nvarchar",
-      "MaxLength": 128,
-      "UserTypeSchemaName": "samples",
-      "UserTypeName": "DisplayNameType"
+      "TypeRef": "samples.DisplayNameType",
+      "MaxLength": 128
     }
   ]
 }

@@ -1,39 +1,6 @@
 {
   "Schema": "samples",
   "Name": "UserList",
-  "Inputs": [],
-  "ResultSets": [
-    {
-      "ReturnsJson": false,
-      "ReturnsJsonArray": false,
-      "Columns": [
-        {
-          "Name": "UserId",
-          "SqlTypeName": "int",
-          "MaxLength": 4
-        },
-        {
-          "Name": "Email",
-          "SqlTypeName": "nvarchar(256)",
-          "MaxLength": 256
-        },
-        {
-          "Name": "DisplayName",
-          "SqlTypeName": "nvarchar(128)",
-          "MaxLength": 128
-        },
-        {
-          "Name": "CreatedAt",
-          "SqlTypeName": "datetime2(7)",
-          "MaxLength": 8
-        },
-        {
-          "Name": "Bio",
-          "SqlTypeName": "nvarchar(512)",
-          "IsNullable": true,
-          "MaxLength": 512
-        }
-      ]
-    }
-  ]
+  "Parameters": [],
+  "ResultSets": []
 }

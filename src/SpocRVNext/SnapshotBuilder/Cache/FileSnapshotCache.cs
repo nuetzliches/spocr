@@ -103,7 +103,9 @@ internal sealed class FileSnapshotCache : ISnapshotCache
                                 Kind = d.Kind,
                                 Schema = d.Schema,
                                 Name = d.Name,
-                                LastModifiedUtc = NormalizeUtc(d.LastModifiedUtc ?? default)
+                                LastModifiedUtc = d.LastModifiedUtc.HasValue
+                                    ? NormalizeUtc(d.LastModifiedUtc.Value)
+                                    : (DateTime?)null
                             })
                             .ToList() ?? new List<SnapshotProcedureDependency>()
                     };
