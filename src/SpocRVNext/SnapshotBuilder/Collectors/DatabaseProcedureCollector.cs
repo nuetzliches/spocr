@@ -57,7 +57,7 @@ internal sealed class DatabaseProcedureCollector : IProcedureCollector
         }
 
         var schemaFilter = BuildSchemaFilter(options.Schemas);
-        var matcher = BuildProcedureMatcher(options.ProcedureWildcard);
+        var matcher = BuildProcedureMatcher(options.ProcedureWildcard, out var explicitProcedureRequests);
 
         var seedKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var procedure in allProcedures)
@@ -185,31 +185,22 @@ internal sealed class DatabaseProcedureCollector : IProcedureCollector
             });
         }
 
-        var applySkipTracking = (schemaFilter != null && schemaFilter.Count > 0) || matcher != null;
-        if (applySkipTracking)
+        if (explicitProcedureRequests.Count > 0)
         {
-            var includedKeys = new HashSet<string>(items
-                .Select(static i => BuildProcedureKey(i.Descriptor?.Schema, i.Descriptor?.Name))
-                .Where(static key => !string.IsNullOrWhiteSpace(key)), StringComparer.OrdinalIgnoreCase);
-
-            foreach (var procedure in allProcedures)
+            foreach (var requestedKey in explicitProcedureRequests)
             {
-                var key = BuildProcedureKey(procedure.SchemaName, procedure.Name);
-                if (string.IsNullOrWhiteSpace(key) || selectedKeys.Contains(key) || includedKeys.Contains(key))
+                if (procedureMap.ContainsKey(requestedKey))
                 {
                     continue;
                 }
 
+                var descriptor = BuildDescriptorFromKey(requestedKey);
                 items.Add(new ProcedureCollectionItem
                 {
-                    Descriptor = new ProcedureDescriptor
-                    {
-                        Schema = procedure.SchemaName,
-                        Name = procedure.Name
-                    },
-                    Decision = ProcedureCollectionDecision.Skip,
-                    LastModifiedUtc = NormalizeUtc(procedure.Modified)
+                    Descriptor = descriptor,
+                    Decision = ProcedureCollectionDecision.Skip
                 });
+                _console.Verbose($"[snapshot-collect] Requested procedure '{requestedKey}' not found (marked as skip).");
             }
         }
 
@@ -231,6 +222,29 @@ internal sealed class DatabaseProcedureCollector : IProcedureCollector
         return new ProcedureCollectionResult
         {
             Items = items
+        };
+    }
+
+    private static ProcedureDescriptor BuildDescriptorFromKey(string key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return new ProcedureDescriptor();
+        }
+
+        var schema = string.Empty;
+        var name = key;
+        var separatorIndex = key.IndexOf('.');
+        if (separatorIndex >= 0)
+        {
+            schema = key[..separatorIndex];
+            name = key[(separatorIndex + 1)..];
+        }
+
+        return new ProcedureDescriptor
+        {
+            Schema = schema,
+            Name = name
         };
     }
 
@@ -359,16 +373,17 @@ internal sealed class DatabaseProcedureCollector : IProcedureCollector
         return map;
     }
 
-    private static Func<string, string, bool>? BuildProcedureMatcher(string? raw)
+    private static Func<string, string, bool>? BuildProcedureMatcher(string? raw, out HashSet<string> explicitRequests)
     {
+        explicitRequests = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (string.IsNullOrWhiteSpace(raw)) return null;
+
         var tokens = raw.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
                         .Select(t => t.Trim())
                         .Where(t => t.Length > 0)
                         .ToList();
         if (tokens.Count == 0) return null;
 
-        var exact = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var regexes = new List<Regex>();
         foreach (var token in tokens)
         {
@@ -381,21 +396,44 @@ internal sealed class DatabaseProcedureCollector : IProcedureCollector
             }
             else
             {
-                exact.Add(token);
+                var (schema, name) = ParseProcedureToken(token);
+                var key = BuildProcedureKey(schema, name);
+                if (!string.IsNullOrWhiteSpace(key))
+                {
+                    explicitRequests.Add(key);
+                }
             }
         }
-        if (exact.Count == 0 && regexes.Count == 0) return null;
+        if (explicitRequests.Count == 0 && regexes.Count == 0) return null;
 
+        var exactRequests = explicitRequests;
         return (schema, name) =>
         {
-            var fq = string.IsNullOrWhiteSpace(schema) ? name : $"{schema}.{name}";
-            if (exact.Contains(fq)) return true;
+            var key = BuildProcedureKey(schema, name);
+            if (!string.IsNullOrWhiteSpace(key) && exactRequests.Contains(key)) return true;
             if (regexes.Count == 0) return false;
+            var fq = string.IsNullOrWhiteSpace(schema) ? name : $"{schema}.{name}";
             foreach (var rx in regexes)
             {
                 if (rx.IsMatch(fq)) return true;
             }
             return false;
         };
+    }
+
+    private static (string Schema, string Name) ParseProcedureToken(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return (string.Empty, string.Empty);
+        }
+
+        var parts = token.Split('.', 2, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 2)
+        {
+            return (parts[0], parts[1]);
+        }
+
+        return (string.Empty, parts.Length == 1 ? parts[0] : string.Empty);
     }
 }

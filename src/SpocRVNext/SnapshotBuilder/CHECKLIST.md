@@ -36,10 +36,10 @@
   - DB-Enumeration (Schema-Filter, Wildcards). _(Implemented via `DatabaseProcedureCollector`; cache/decision logic aktiv)_
   - Cache-Entscheid (ModifyDate + Content-Hash persistieren). _(File-basiertes Cache `FileSnapshotCache` entscheidet Analyze/Reuse; Hash-Persistenz folgt Autor-Writer)_
   - Ausgabe: Liste verarbeitbarer Prozeduren mit Status (Reuse, Refresh, Skip). _(Skip-Tracking ergänzt; Filter-treffer außerhalb Seeds werden jetzt als `Decision=Skip` protokolliert)_
-- [~] ProcedureAnalyzer
+- [x] ProcedureAnalyzer
   - Integration `StoredProcedureContentModel` (AST only). _(DatabaseProcedureAnalyzer zieht Definition aus DB, parsed AST & extrahiert Dependencies)_
   - Übergabe an Postprocessor (CTE/TableVar/JSON Binding). _(Dependency-Metadaten-Queries korrigiert; `modify_date`-freie Pfade validiert)_
-  - Rückgabe: `AnalyzedProcedure` DTO inkl. Typinformationen.
+  - Rückgabe: `AnalyzedProcedure` DTO inkl. Typinformationen. _(Dependency-Erkennung deckt jetzt auch Tabellen-Referenzen ab; fehlende `--procedure` Treffer werden als Skip markiert.)_
 - [x] Writer: Procedures + Index
   - Streaming-Write mit `Utf8JsonWriter`. _(ExpandedSnapshotWriter erzeugt deterministische Procedure-Dateien)_
   - Hash-basierte Change Detection (temp-Datei → swap). _(Hash-Vergleich + `File.Replace`/Fallback aktiv, 16-Byte Fingerprint für Cache)_

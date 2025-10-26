@@ -187,9 +187,13 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
                     "procedure" => ProcedureDependencyKind.Procedure,
                     "function" => ProcedureDependencyKind.Function,
                     "view" => ProcedureDependencyKind.View,
+                    "table" => ProcedureDependencyKind.Table,
                     _ => ProcedureDependencyKind.Unknown
                 };
-                add(kind, column.Reference.Schema, column.Reference.Name);
+                if (kind != ProcedureDependencyKind.Unknown)
+                {
+                    add(kind, column.Reference.Schema, column.Reference.Name);
+                }
             }
 
             if (column.Columns != null && column.Columns.Count > 0)
