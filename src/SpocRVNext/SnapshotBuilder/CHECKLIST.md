@@ -64,10 +64,11 @@
 - [x] TableType Normalisierung
   - Expanded SnapshotWriter reduziert TableType/Parameter Felder auf `TypeRef` + relevante Metadaten.
   - TableTypeMetadataProvider/TableTypesGenerator nutzen Resolver für SQL-Signaturen (JsonDocument-Dispose Bug gefixt).
-- [ ] Performance-Baseline & Tests
+- [x] Performance-Baseline & Tests
   - Szenarien definieren (Warm/Cold Cache, diffierende Schemas).
   - Ergebnisse dokumentieren (README, Metrics-Tabelle).
   - Testlauf-Befehl: `dotnet run --project src/SpocR.csproj -- pull -p debug`
+  - Baseline unter `src/SpocRVNext/SnapshotBuilder/README.md` mit Messwerten vom 2025-10-26 hinterlegt.
 
 ## Offene Fragen / Entscheidungsbedarf
 
