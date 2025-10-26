@@ -106,7 +106,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
 
         var indexDocument = await UpdateIndexAsync(schemaRoot, updated, schemaArtifacts, cancellationToken).ConfigureAwait(false);
 
-        await WriteLegacySnapshotAsync(indexDocument, cancellationToken).ConfigureAwait(false);
+        await WriteLegacySnapshotAsync(indexDocument, updated, cancellationToken).ConfigureAwait(false);
 
         return new SnapshotWriteResult
         {
@@ -151,15 +151,42 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                 }
 
                 var hasUserDefinedType = !string.IsNullOrWhiteSpace(input.UserTypeSchemaName) && !string.IsNullOrWhiteSpace(input.UserTypeName);
-                if (input.IsTableType)
+                var typeRef = BuildTypeRef(input);
+
+                if (!string.IsNullOrWhiteSpace(typeRef))
                 {
-                    if (!string.IsNullOrWhiteSpace(input.UserTypeSchemaName))
+                    writer.WriteString("TypeRef", typeRef);
+
+                    if (input.IsTableType)
                     {
-                        writer.WriteString("TableTypeSchema", input.UserTypeSchemaName);
+                        if (!string.IsNullOrWhiteSpace(input.UserTypeSchemaName))
+                        {
+                            writer.WriteString("TableTypeSchema", input.UserTypeSchemaName);
+                        }
+                        if (!string.IsNullOrWhiteSpace(input.UserTypeName))
+                        {
+                            writer.WriteString("TableTypeName", input.UserTypeName);
+                        }
                     }
-                    if (!string.IsNullOrWhiteSpace(input.UserTypeName))
+                    else
                     {
-                        writer.WriteString("TableTypeName", input.UserTypeName);
+                        var typeSchema = input.UserTypeSchemaName;
+                        var typeName = input.UserTypeName;
+                        if (string.IsNullOrWhiteSpace(typeSchema) || string.IsNullOrWhiteSpace(typeName))
+                        {
+                            var (schemaFromRef, nameFromRef) = SplitTypeRef(typeRef);
+                            typeSchema ??= schemaFromRef;
+                            typeName ??= nameFromRef;
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(typeSchema))
+                        {
+                            writer.WriteString("TypeSchema", typeSchema);
+                        }
+                        if (!string.IsNullOrWhiteSpace(typeName))
+                        {
+                            writer.WriteString("TypeName", typeName);
+                        }
                     }
                 }
                 else if (hasUserDefinedType)
@@ -539,6 +566,85 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         return raw.TrimStart('@');
     }
 
+    private static string? BuildTypeRef(StoredProcedureInput input)
+    {
+        if (input == null) return null;
+
+        if (input.IsTableType && !string.IsNullOrWhiteSpace(input.UserTypeSchemaName) && !string.IsNullOrWhiteSpace(input.UserTypeName))
+        {
+            return BuildTypeRef(input.UserTypeSchemaName, input.UserTypeName);
+        }
+
+        if (!string.IsNullOrWhiteSpace(input.UserTypeSchemaName) && !string.IsNullOrWhiteSpace(input.UserTypeName))
+        {
+            return BuildTypeRef(input.UserTypeSchemaName, input.UserTypeName);
+        }
+
+        if (!string.IsNullOrWhiteSpace(input.SqlTypeName))
+        {
+            var normalized = NormalizeSqlTypeName(input.SqlTypeName);
+            if (!string.IsNullOrWhiteSpace(normalized))
+            {
+                return BuildTypeRef("sys", normalized);
+            }
+        }
+
+        return null;
+    }
+
+    private static string? BuildTypeRef(Column column)
+    {
+        if (column == null) return null;
+        if (!string.IsNullOrWhiteSpace(column.UserTypeSchemaName) && !string.IsNullOrWhiteSpace(column.UserTypeName))
+        {
+            return BuildTypeRef(column.UserTypeSchemaName, column.UserTypeName);
+        }
+
+        if (!string.IsNullOrWhiteSpace(column.SqlTypeName))
+        {
+            var normalized = NormalizeSqlTypeName(column.SqlTypeName);
+            if (!string.IsNullOrWhiteSpace(normalized))
+            {
+                return BuildTypeRef("sys", normalized);
+            }
+        }
+
+        return null;
+    }
+
+    private static string? BuildTypeRef(string? schema, string? name)
+    {
+        if (string.IsNullOrWhiteSpace(schema) || string.IsNullOrWhiteSpace(name)) return null;
+        return string.Concat(schema.Trim(), ".", name.Trim());
+    }
+
+    private static (string? Schema, string? Name) SplitTypeRef(string? typeRef)
+    {
+        if (string.IsNullOrWhiteSpace(typeRef)) return (null, null);
+        var parts = typeRef.Trim().Split('.', 2, StringSplitOptions.TrimEntries);
+        if (parts.Length == 2)
+        {
+            var schema = string.IsNullOrWhiteSpace(parts[0]) ? null : parts[0];
+            var name = string.IsNullOrWhiteSpace(parts[1]) ? null : parts[1];
+            return (schema, name);
+        }
+
+        var single = string.IsNullOrWhiteSpace(parts[0]) ? null : parts[0];
+        return (null, single);
+    }
+
+    private static string? NormalizeSqlTypeName(string? sqlTypeName)
+    {
+        if (string.IsNullOrWhiteSpace(sqlTypeName)) return null;
+        return sqlTypeName.Trim().ToLowerInvariant();
+    }
+
+    private static bool HasUserDefinedType(Column column)
+    {
+        if (column == null) return false;
+        return !string.IsNullOrWhiteSpace(column.UserTypeSchemaName) && !string.IsNullOrWhiteSpace(column.UserTypeName);
+    }
+
     private static string BuildDefaultSnapshotFile(ProcedureDescriptor descriptor)
     {
         var schema = string.IsNullOrWhiteSpace(descriptor?.Schema) ? "unknown" : descriptor.Schema;
@@ -738,7 +844,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         return document;
     }
 
-    private Task WriteLegacySnapshotAsync(IndexDocument? indexDocument, CancellationToken cancellationToken)
+    private Task WriteLegacySnapshotAsync(IndexDocument? indexDocument, IReadOnlyList<ProcedureAnalysisResult> updatedProcedures, CancellationToken cancellationToken)
     {
         if (_legacySnapshotService == null)
         {
@@ -768,6 +874,38 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                 return Task.CompletedTask;
             }
 
+            var updatedLookup = BuildUpdatedParameterLookup(updatedProcedures);
+            var fallbackLookup = LoadLegacyFallbackSnapshot(snapshot.Fingerprint);
+
+            if (snapshot.Procedures != null)
+            {
+                foreach (var procedure in snapshot.Procedures)
+                {
+                    if (procedure == null) continue;
+                    var key = BuildKey(procedure.Schema ?? string.Empty, procedure.Name ?? string.Empty);
+
+                    List<SnapshotInput> inputs;
+                    if (updatedLookup.TryGetValue(key, out var parameterList))
+                    {
+                        inputs = ConvertParameters(parameterList);
+                    }
+                    else if (fallbackLookup.TryGetValue(key, out var legacyInputs))
+                    {
+                        inputs = legacyInputs.Select(CloneSnapshotInput).ToList();
+                    }
+                    else if (procedure.Inputs != null && procedure.Inputs.Count > 0)
+                    {
+                        inputs = procedure.Inputs.Select(CloneSnapshotInput).ToList();
+                    }
+                    else
+                    {
+                        inputs = new List<SnapshotInput>();
+                    }
+
+                    procedure.Inputs = inputs;
+                }
+            }
+
             _legacySnapshotService.Save(snapshot);
             _console.Verbose("[legacy-bridge] legacy snapshot persisted");
         }
@@ -777,6 +915,136 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         }
 
         return Task.CompletedTask;
+    }
+
+    private static Dictionary<string, IReadOnlyList<StoredProcedureInput>> BuildUpdatedParameterLookup(IReadOnlyList<ProcedureAnalysisResult> updatedProcedures)
+    {
+        var lookup = new Dictionary<string, IReadOnlyList<StoredProcedureInput>>(StringComparer.OrdinalIgnoreCase);
+        if (updatedProcedures == null) return lookup;
+
+        foreach (var proc in updatedProcedures)
+        {
+            var descriptor = proc?.Descriptor;
+            if (descriptor == null || string.IsNullOrWhiteSpace(descriptor.Schema) || string.IsNullOrWhiteSpace(descriptor.Name))
+            {
+                continue;
+            }
+
+            var key = BuildKey(descriptor.Schema, descriptor.Name);
+            lookup[key] = proc?.Parameters ?? Array.Empty<StoredProcedureInput>();
+        }
+
+        return lookup;
+    }
+
+    private Dictionary<string, List<SnapshotInput>> LoadLegacyFallbackSnapshot(string currentFingerprint)
+    {
+        var result = new Dictionary<string, List<SnapshotInput>>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            var projectRoot = ProjectRootResolver.ResolveCurrent();
+            var schemaRoot = Path.Combine(projectRoot, ".spocr", "schema");
+            if (!Directory.Exists(schemaRoot)) return result;
+
+            var legacyFiles = Directory.GetFiles(schemaRoot, "*.json", SearchOption.TopDirectoryOnly)
+                .Where(f => !string.Equals(Path.GetFileName(f), "index.json", StringComparison.OrdinalIgnoreCase))
+                .Where(f => !string.Equals(Path.GetFileNameWithoutExtension(f), currentFingerprint, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(f => File.GetLastWriteTimeUtc(f))
+                .ToList();
+
+            foreach (var file in legacyFiles)
+            {
+                try
+                {
+                    var json = File.ReadAllText(file);
+                    var fallback = JsonSerializer.Deserialize<LegacySnapshotDocument>(json, IndexSerializerOptions);
+                    if (fallback?.Procedures == null) continue;
+
+                    foreach (var proc in fallback.Procedures)
+                    {
+                        if (proc == null || string.IsNullOrWhiteSpace(proc.Schema) || string.IsNullOrWhiteSpace(proc.Name)) continue;
+                        var key = BuildKey(proc.Schema, proc.Name);
+                        if (!result.ContainsKey(key) && proc.Inputs != null)
+                        {
+                            result[key] = proc.Inputs.Select(CloneSnapshotInput).ToList();
+                        }
+                    }
+
+                    if (result.Count > 0)
+                    {
+                        break;
+                    }
+                }
+                catch
+                {
+                    // continue to next candidate
+                }
+            }
+        }
+        catch
+        {
+            // ignore fallback load errors
+        }
+
+        return result;
+    }
+
+    private static List<SnapshotInput> ConvertParameters(IReadOnlyList<StoredProcedureInput> parameters)
+    {
+        var list = new List<SnapshotInput>();
+        if (parameters == null) return list;
+
+        foreach (var parameter in parameters)
+        {
+            if (parameter == null) continue;
+
+            var snapshotInput = new SnapshotInput
+            {
+                Name = NormalizeParameterName(parameter.Name),
+                IsOutput = parameter.IsOutput ? true : null,
+                HasDefaultValue = parameter.HasDefaultValue ? true : null,
+                SqlTypeName = parameter.IsTableType ? null : parameter.SqlTypeName,
+                IsNullable = parameter.IsNullable ? true : null,
+                MaxLength = parameter.MaxLength > 0 ? parameter.MaxLength : null,
+                TableTypeSchema = parameter.IsTableType ? parameter.UserTypeSchemaName : null,
+                TableTypeName = parameter.IsTableType ? parameter.UserTypeName : null,
+                TypeSchema = !parameter.IsTableType ? parameter.UserTypeSchemaName : null,
+                TypeName = !parameter.IsTableType ? parameter.UserTypeName : null,
+                BaseSqlTypeName = !parameter.IsTableType ? parameter.BaseSqlTypeName : null,
+                Precision = parameter.Precision > 0 ? parameter.Precision : null,
+                Scale = parameter.Scale > 0 ? parameter.Scale : null
+            };
+
+            if (!parameter.IsTableType && string.IsNullOrWhiteSpace(snapshotInput.TypeName))
+            {
+                snapshotInput.TypeSchema = string.IsNullOrWhiteSpace(parameter.SqlTypeName) ? null : "sys";
+                snapshotInput.TypeName = parameter.SqlTypeName;
+            }
+
+            list.Add(snapshotInput);
+        }
+
+        return list;
+    }
+
+    private static SnapshotInput CloneSnapshotInput(SnapshotInput source)
+    {
+        return new SnapshotInput
+        {
+            Name = source?.Name ?? string.Empty,
+            TableTypeSchema = source?.TableTypeSchema,
+            TableTypeName = source?.TableTypeName,
+            SqlTypeName = source?.SqlTypeName,
+            IsNullable = source?.IsNullable,
+            MaxLength = source?.MaxLength,
+            HasDefaultValue = source?.HasDefaultValue,
+            IsOutput = source?.IsOutput,
+            TypeSchema = source?.TypeSchema,
+            TypeName = source?.TypeName,
+            BaseSqlTypeName = source?.BaseSqlTypeName,
+            Precision = source?.Precision,
+            Scale = source?.Scale
+        };
     }
 
     private static async Task PersistSnapshotAsync(string filePath, byte[] content, CancellationToken cancellationToken)
@@ -853,6 +1121,13 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                     {
                         writer.WriteString("Name", column.Name);
                     }
+
+                    var columnTypeRef = BuildTypeRef(column);
+                    if (!string.IsNullOrWhiteSpace(columnTypeRef))
+                    {
+                        writer.WriteString("TypeRef", columnTypeRef);
+                    }
+
                     if (!string.IsNullOrWhiteSpace(column.SqlTypeName))
                     {
                         writer.WriteString("SqlTypeName", column.SqlTypeName);
@@ -1020,6 +1295,20 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         public int FilesUnchanged { get; set; }
         public List<IndexTableTypeEntry> TableTypes { get; } = new();
         public List<IndexUserDefinedTypeEntry> UserDefinedTypes { get; } = new();
+    }
+
+    private sealed class LegacySnapshotDocument
+    {
+        public int SchemaVersion { get; set; }
+        public string Fingerprint { get; set; } = string.Empty;
+        public List<LegacyProcedureDocument> Procedures { get; set; } = new();
+    }
+
+    private sealed class LegacyProcedureDocument
+    {
+        public string Schema { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public List<SnapshotInput> Inputs { get; set; } = new();
     }
 
     private sealed class IndexDocument
