@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text.Json;
 using SpocRVNext.Metadata; // ColumnInfo reuse
 
 namespace SpocR.SpocRVNext.Metadata;
@@ -40,73 +38,29 @@ internal sealed class ColumnInfo
 internal sealed class TableMetadataProvider : ITableMetadataProvider
 {
     private readonly string _projectRoot;
-    private IReadOnlyList<TableInfo>? _cache;
-    private Dictionary<string, TableInfo>? _map;
-    private readonly TypeMetadataResolver _typeResolver;
+    private readonly ITableMetadataCache _cache;
 
-    public TableMetadataProvider(string? projectRoot = null)
+    public TableMetadataProvider(string? projectRoot = null, TimeSpan? ttl = null)
     {
-        _projectRoot = string.IsNullOrWhiteSpace(projectRoot) ? Directory.GetCurrentDirectory() : Path.GetFullPath(projectRoot!);
-        _typeResolver = new TypeMetadataResolver(_projectRoot);
+        _projectRoot = string.IsNullOrWhiteSpace(projectRoot)
+            ? Directory.GetCurrentDirectory()
+            : Path.GetFullPath(projectRoot!);
+        _cache = TableMetadataCacheRegistry.GetOrCreate(_projectRoot, ttl);
     }
 
     public IReadOnlyList<TableInfo> GetAll()
     {
-        if (_cache != null) return _cache;
-        var schemaDir = Path.Combine(_projectRoot, ".spocr", "schema", "tables");
-        if (!Directory.Exists(schemaDir)) return _cache = Array.Empty<TableInfo>();
-        var files = Directory.GetFiles(schemaDir, "*.json");
-        var list = new List<TableInfo>(files.Length);
-        foreach (var f in files)
-        {
-            try
-            {
-                using var fs = File.OpenRead(f);
-                using var doc = JsonDocument.Parse(fs);
-                var root = doc.RootElement;
-                var schema = root.GetPropertyOrDefault("Schema") ?? root.GetPropertyOrDefault("SchemaName") ?? "dbo";
-                var name = root.GetPropertyOrDefault("Name") ?? string.Empty;
-                if (string.IsNullOrWhiteSpace(name)) continue;
-                var cols = new List<ColumnInfo>();
-                if (root.TryGetProperty("Columns", out var colsEl) && colsEl.ValueKind == System.Text.Json.JsonValueKind.Array)
-                {
-                    foreach (var c in colsEl.EnumerateArray())
-                    {
-                        var typeRef = c.GetPropertyOrDefault("TypeRef");
-                        var maxLen = c.GetPropertyOrDefaultInt("MaxLength");
-                        var prec = c.GetPropertyOrDefaultInt("Precision");
-                        var scale = c.GetPropertyOrDefaultInt("Scale");
-                        var resolved = _typeResolver.Resolve(typeRef, maxLen, prec, scale);
-                        var baseType = (c.GetPropertyOrDefault("SqlTypeName") ?? c.GetPropertyOrDefault("SqlType") ?? string.Empty).Trim();
-                        string typeString = resolved?.SqlType ?? baseType;
-                        var effectiveMaxLen = resolved?.MaxLength ?? maxLen;
-                        cols.Add(new ColumnInfo
-                        {
-                            Name = c.GetPropertyOrDefault("Name") ?? string.Empty,
-                            TypeRef = typeRef ?? string.Empty,
-                            SqlType = string.IsNullOrWhiteSpace(typeString) && !string.IsNullOrWhiteSpace(typeRef) ? typeRef! : typeString,
-                            IsNullable = SpocR.SpocRVNext.Metadata.TableMetadataProviderJsonExtensions.GetPropertyOrDefaultBoolStrict(c, "IsNullable"),
-                            MaxLength = effectiveMaxLen,
-                            Precision = resolved?.Precision ?? prec,
-                            Scale = resolved?.Scale ?? scale,
-                            IsIdentity = c.GetPropertyOrDefaultBool("IsIdentity")
-                        });
-                    }
-                }
-                list.Add(new TableInfo { Schema = schema, Name = name, Columns = cols });
-            }
-            catch { /* ignore single file */ }
-        }
-        _cache = list.OrderBy(t => t.Schema).ThenBy(t => t.Name).ToList();
-        _map = _cache.ToDictionary(t => t.Schema + "." + t.Name, StringComparer.OrdinalIgnoreCase);
-        return _cache;
+        return _cache.GetAll();
     }
 
     public TableInfo? TryGet(string schema, string name)
     {
-        if (_map == null) GetAll();
-        var key = schema + "." + name;
-        return _map != null && _map.TryGetValue(key, out var ti) ? ti : null;
+        return _cache.TryGet(schema, name);
+    }
+
+    public void Invalidate()
+    {
+        _cache.Invalidate();
     }
 }
 

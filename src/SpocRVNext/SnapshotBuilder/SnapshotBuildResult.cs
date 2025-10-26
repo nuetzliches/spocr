@@ -13,6 +13,10 @@ public sealed class SnapshotBuildResult
     public int ProceduresReused { get; init; }
     public int FilesWritten { get; init; }
     public int FilesUnchanged { get; init; }
+    public TimeSpan CollectDuration { get; init; }
+    public TimeSpan AnalyzeDuration { get; init; }
+    public TimeSpan WriteDuration { get; init; }
+    public TimeSpan TotalDuration { get; init; }
     public IReadOnlyDictionary<string, string>? Diagnostics { get; init; }
     public IReadOnlyList<Models.ProcedureDescriptor> ProceduresSelected { get; init; } = Array.Empty<Models.ProcedureDescriptor>();
 }

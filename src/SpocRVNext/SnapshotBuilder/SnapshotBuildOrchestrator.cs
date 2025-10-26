@@ -1,8 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using SpocR.DataContext.Models;
+using SpocR.Models;
 using SpocR.SpocRVNext.SnapshotBuilder.Analyzers;
 using SpocR.SpocRVNext.SnapshotBuilder.Cache;
 using SpocR.SpocRVNext.SnapshotBuilder.Collectors;
@@ -42,7 +46,11 @@ public sealed class SnapshotBuildOrchestrator
         options ??= SnapshotBuildOptions.Default;
         await _cache.InitializeAsync(options, cancellationToken).ConfigureAwait(false);
 
+        var totalStopwatch = Stopwatch.StartNew();
         var stopwatch = Stopwatch.StartNew();
+        var collectDuration = TimeSpan.Zero;
+        var analyzeDuration = TimeSpan.Zero;
+        var writeDuration = TimeSpan.Zero;
         var collectionResult = await _collector.CollectAsync(options, cancellationToken).ConfigureAwait(false);
         var selectedDescriptors = collectionResult.Items
             .Where(static i => i.Decision == ProcedureCollectionDecision.Analyze || i.Decision == ProcedureCollectionDecision.Reuse)
@@ -53,6 +61,7 @@ public sealed class SnapshotBuildOrchestrator
             })
             .ToArray();
         stopwatch.Stop();
+        collectDuration = stopwatch.Elapsed;
         var reusedItems = collectionResult.Items
             .Where(static i => i.Decision == ProcedureCollectionDecision.Reuse)
             .ToArray();
@@ -75,6 +84,7 @@ public sealed class SnapshotBuildOrchestrator
         stopwatch.Restart();
         var analysisResults = await _analyzer.AnalyzeAsync(itemsToAnalyze, options, cancellationToken).ConfigureAwait(false);
         stopwatch.Stop();
+        analyzeDuration = stopwatch.Elapsed;
         await _diagnostics.OnAnalysisCompletedAsync(analysisResults.Count, cancellationToken).ConfigureAwait(false);
         await _diagnostics.OnTelemetryAsync(new SnapshotPhaseTelemetry
         {
@@ -104,6 +114,10 @@ public sealed class SnapshotBuildOrchestrator
             ItemsProcessed = writeResult.FilesWritten + writeResult.FilesUnchanged,
             Notes = writeResult.FilesWritten > 0 ? $"written={writeResult.FilesWritten}" : ""
         }, cancellationToken).ConfigureAwait(false);
+        totalStopwatch.Stop();
+        writeDuration = stopwatch.Elapsed;
+
+        var diagnostics = BuildColumnMetrics(updatedProcedures);
 
         return new SnapshotBuildResult
         {
@@ -112,7 +126,139 @@ public sealed class SnapshotBuildOrchestrator
             ProceduresReused = reusedItems.Length,
             FilesWritten = writeResult.FilesWritten,
             FilesUnchanged = writeResult.FilesUnchanged,
-            ProceduresSelected = selectedDescriptors
+            CollectDuration = collectDuration,
+            AnalyzeDuration = analyzeDuration,
+            WriteDuration = writeDuration,
+            TotalDuration = totalStopwatch.Elapsed,
+            ProceduresSelected = selectedDescriptors,
+            Diagnostics = diagnostics
         };
+    }
+
+    private static IReadOnlyDictionary<string, string>? BuildColumnMetrics(IReadOnlyList<ProcedureAnalysisResult> procedures)
+    {
+        if (procedures == null || procedures.Count == 0)
+        {
+            return null;
+        }
+
+        int parameterCount = 0;
+        int outputParameterCount = 0;
+        int tableTypeParameterCount = 0;
+        int resultSetCount = 0;
+        int jsonResultSetCount = 0;
+        int resultColumnsTopLevel = 0;
+        int resultColumnsNested = 0;
+        int jsonColumnCount = 0;
+
+        foreach (var procedure in procedures)
+        {
+            if (procedure == null)
+            {
+                continue;
+            }
+
+            var parameters = procedure.Parameters;
+            if (parameters != null)
+            {
+                foreach (var parameter in parameters)
+                {
+                    if (parameter == null)
+                    {
+                        continue;
+                    }
+
+                    parameterCount++;
+                    if (parameter.IsOutput)
+                    {
+                        outputParameterCount++;
+                    }
+
+                    if (parameter.IsTableType)
+                    {
+                        tableTypeParameterCount++;
+                    }
+                }
+            }
+
+            var ast = procedure.Ast;
+            if (ast?.ResultSets == null || ast.ResultSets.Count == 0)
+            {
+                continue;
+            }
+
+            resultSetCount += ast.ResultSets.Count;
+            foreach (var resultSet in ast.ResultSets)
+            {
+                if (resultSet == null)
+                {
+                    continue;
+                }
+
+                if (resultSet.ReturnsJson == true)
+                {
+                    jsonResultSetCount++;
+                }
+
+                var counts = CountColumns(resultSet.Columns);
+                resultColumnsTopLevel += counts.Direct;
+                resultColumnsNested += counts.Nested;
+                jsonColumnCount += counts.Json;
+            }
+        }
+
+        if (parameterCount == 0 && resultSetCount == 0 && resultColumnsTopLevel == 0 && resultColumnsNested == 0)
+        {
+            return null;
+        }
+
+        var metrics = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["parameters.total"] = parameterCount.ToString(CultureInfo.InvariantCulture),
+            ["parameters.output"] = outputParameterCount.ToString(CultureInfo.InvariantCulture),
+            ["parameters.tableType"] = tableTypeParameterCount.ToString(CultureInfo.InvariantCulture),
+            ["resultSets.total"] = resultSetCount.ToString(CultureInfo.InvariantCulture),
+            ["resultSets.json"] = jsonResultSetCount.ToString(CultureInfo.InvariantCulture),
+            ["resultColumns.topLevel"] = resultColumnsTopLevel.ToString(CultureInfo.InvariantCulture),
+            ["resultColumns.nested"] = resultColumnsNested.ToString(CultureInfo.InvariantCulture),
+            ["resultColumns.json"] = jsonColumnCount.ToString(CultureInfo.InvariantCulture)
+        };
+
+        return metrics;
+    }
+
+    private static (int Direct, int Nested, int Json) CountColumns(IReadOnlyList<StoredProcedureContentModel.ResultColumn> columns)
+    {
+        if (columns == null || columns.Count == 0)
+        {
+            return (0, 0, 0);
+        }
+
+        int direct = 0;
+        int nested = 0;
+        int json = 0;
+
+        foreach (var column in columns)
+        {
+            if (column == null)
+            {
+                continue;
+            }
+
+            direct++;
+            if (column.ReturnsJson == true || column.IsNestedJson == true)
+            {
+                json++;
+            }
+
+            if (column.Columns != null && column.Columns.Count > 0)
+            {
+                var childCounts = CountColumns(column.Columns);
+                nested += childCounts.Direct + childCounts.Nested;
+                json += childCounts.Json;
+            }
+        }
+
+        return (direct, nested, json);
     }
 }

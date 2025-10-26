@@ -24,8 +24,8 @@ public static class SnapshotBuilderServiceCollectionExtensions
             var legacySnapshotService = provider.GetService<ISchemaSnapshotService>();
             return new ExpandedSnapshotWriter(console, dbContext, legacySnapshotService);
         });
-    services.AddSingleton<ISnapshotCache, FileSnapshotCache>();
-    services.AddSingleton<ISnapshotDiagnostics, ConsoleSnapshotDiagnostics>();
+        services.AddSingleton<ISnapshotCache, FileSnapshotCache>();
+        services.AddSingleton<ISnapshotDiagnostics, ConsoleSnapshotDiagnostics>();
         services.AddSingleton<SnapshotBuildOrchestrator>();
         return services;
     }

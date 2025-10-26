@@ -46,13 +46,14 @@
   - Index-Aktualisierung nur bei Änderungen. _(Index-Hash & Fingerprint werden nur bei Delta geschrieben)_
 - [~] Cache-Modul
   - Persistenter Cache (z. B. `debug/.spocr/cache/procedures.json`). _(FileSnapshotCache speichert Fingerprints & ModifyDate nur lokal pro Entwickler; Schema-Artefakte bleiben diff-frei)_
-  - Shared Table-Metadata Cache (Thread-safe, lazy load, TTL).
+  - [x] Shared Table-Metadata Cache (Thread-safe, lazy load, TTL). _(Gemeinsamer `TableMetadataCache` liefert lazy geladene Tabellenmetadaten mit Änderungsüberwachung und TTL-Invalidierung, Provider teilen sich denselben Snapshot.)_
 - [ ] Parallelisierung
   - Konfigurierbare MaxDegreeOfParallelism.
   - Thread-sichere Nutzung von Analyzer/Writers (z. B. `SemaphoreSlim`).
 - [~] Telemetrie & Logging
-  - Laufzeiten (Collect, Analyze, Write) und Spaltenmetriken.
-  - Aggregierte Summary nach Run; Persistenz optional. _(CLI fasst aktuell Analyzed/Reuse/Write zusammen; Timing fehlt noch)_
+  - [x] Laufzeiten (Collect, Analyze, Write). _(Per-Phase-Laufzeiten werden via Diagnostics & CLI ausgewiesen.)_
+  - [x] Spaltenmetriken. _(Parameter-/ResultSet-Kennzahlen werden gesammelt und als CLI-Metrik ausgegeben.)_
+  - [x] Aggregierte Summary nach Run; Persistenz optional. _(CLI-Ausgabe enthält per-Phase-Laufzeiten, Diagnostics geben Timing-Übersicht aus.)_
 - [~] Config-Übergang
   - ENV-only Pfad sicherstellen, `spocr.json` nur für Warnung/Kompat. _(Pull-Flow nutzt jetzt `EnvConfiguration` als Primärquelle; Warnung beim Fallback bleibt aktiv)_
   - Bootstrapper anpassen (Inputs aus `.env` priorisieren).
@@ -75,6 +76,10 @@
 - debug\.spocr\schema\procedures\cluster.ClusterAddNode.json: Sollten die `Inputs` nicht besser `Parameters` heißen? _Entscheidung: SnapshotBuilder vNext schreibt `Parameters`; Legacy-Consumer erhalten einen Alias, sodass bestehende Parser ohne Breaking Change weiterlaufen._
 - Sollten wir die DataTypes bereits auflösen oder einfach nur referenzieren und im Output erst auflösen (Vor/Nachteile ...)? _Entscheidung: Snapshots referenzieren Schemanamen/Typnamen, die eigentliche Auflösung passiert erst in den Konsumenten (auch für JSON/No-JSON Procs, Functions, Views, Tables)._
 - Legacy Output Anbindung. _Entscheidung: Output-Bridge bereitstellen, die neue Artefakte auf das bisherige Layout mappt, bis alle Downstream-Abhängigkeiten auf vNext migriert sind._
+
+## Austeshende Optimierungen
+
+- [ ] debug\.spocr\schema enthält noch viel Redundanz, Wenn Verweise auf sys-types oder udts vorhanden sind, benötigen wir keine MaxLength, Precision, Scale, usw. [ ] `IsNullable` kann überschrieben werden, auch wenn ein zugrunde liegender type eine explizite Definition besitzt (bitte die Annahme validieren - sollte der User explizit IsNullable setzen, gilt dies - nur `true` Fälle in den Snapshot, wenn mit dem (ud)t identisch, dann entfernen). [ ] int und bit Typen benötigen keine MaxLength (bitte validieren und weitere typen prüfen, bei denen die redundanz auch weg kann).
 
 ## Artefakte
 

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Data.SqlClient;
@@ -308,7 +309,32 @@ public class SpocrManager(
             consoleService.Info($"Pulled {selectedProcedures.Count} stored procedures across {groupedBySchema.Count} schema(s): {summary}");
         }
 
-        consoleService.Info($"Analyzed={result.ProceduresAnalyzed} reused={result.ProceduresReused} written={result.FilesWritten} unchanged={result.FilesUnchanged} in {stopwatch.ElapsedMilliseconds} ms.");
+        var collectMs = result.CollectDuration > TimeSpan.Zero ? result.CollectDuration.TotalMilliseconds.ToString("F0", CultureInfo.InvariantCulture) : null;
+        var analyzeMs = result.AnalyzeDuration > TimeSpan.Zero ? result.AnalyzeDuration.TotalMilliseconds.ToString("F0", CultureInfo.InvariantCulture) : null;
+        var writeMs = result.WriteDuration > TimeSpan.Zero ? result.WriteDuration.TotalMilliseconds.ToString("F0", CultureInfo.InvariantCulture) : null;
+        var perPhaseSummary = string.Join(", ", new[]
+        {
+            collectMs is null ? null : $"collect={collectMs}ms",
+            analyzeMs is null ? null : $"analyze={analyzeMs}ms",
+            writeMs is null ? null : $"write={writeMs}ms"
+        }.Where(static segment => segment is not null));
+
+        if (!string.IsNullOrWhiteSpace(perPhaseSummary))
+        {
+            consoleService.Info($"Analyzed={result.ProceduresAnalyzed} reused={result.ProceduresReused} written={result.FilesWritten} unchanged={result.FilesUnchanged} in {stopwatch.ElapsedMilliseconds} ms ({perPhaseSummary}).");
+        }
+        else
+        {
+            consoleService.Info($"Analyzed={result.ProceduresAnalyzed} reused={result.ProceduresReused} written={result.FilesWritten} unchanged={result.FilesUnchanged} in {stopwatch.ElapsedMilliseconds} ms.");
+        }
+
+        if (result.Diagnostics != null && result.Diagnostics.Count > 0)
+        {
+            var metricsSummary = string.Join(", ", result.Diagnostics
+                .OrderBy(static pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+                .Select(static pair => $"{pair.Key}={pair.Value}"));
+            consoleService.Info($"[snapshot] metrics: {metricsSummary}");
+        }
 
         if (options.DryRun)
         {

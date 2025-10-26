@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
@@ -11,6 +12,8 @@ namespace SpocR.SpocRVNext.SnapshotBuilder.Diagnostics;
 internal sealed class ConsoleSnapshotDiagnostics : ISnapshotDiagnostics
 {
     private readonly IConsoleService _console;
+    private readonly Dictionary<string, SnapshotPhaseTelemetry> _phaseTelemetry = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _sync = new();
 
     public ConsoleSnapshotDiagnostics(IConsoleService console)
     {
@@ -95,10 +98,72 @@ internal sealed class ConsoleSnapshotDiagnostics : ISnapshotDiagnostics
             return ValueTask.CompletedTask;
         }
 
+        lock (_sync)
+        {
+            _phaseTelemetry[telemetry.PhaseName] = telemetry;
+        }
+
         var durationMs = telemetry.Duration.TotalMilliseconds.ToString("F0", CultureInfo.InvariantCulture);
         var notes = string.IsNullOrWhiteSpace(telemetry.Notes) ? string.Empty : $" notes={telemetry.Notes}";
 
         _console.Verbose($"[snapshot] phase={telemetry.PhaseName} duration={durationMs}ms items={telemetry.ItemsProcessed}{notes}");
+
+        if (string.Equals(telemetry.PhaseName, "write", StringComparison.OrdinalIgnoreCase))
+        {
+            var phaseSummary = BuildPhaseSummary();
+            if (!string.IsNullOrEmpty(phaseSummary))
+            {
+                _console.Info($"[snapshot] timing: {phaseSummary}");
+            }
+        }
+
         return ValueTask.CompletedTask;
+    }
+
+    private string BuildPhaseSummary()
+    {
+        SnapshotPhaseTelemetry? collect;
+        SnapshotPhaseTelemetry? analyze;
+        SnapshotPhaseTelemetry? write;
+        SnapshotPhaseTelemetry[] additional;
+
+        lock (_sync)
+        {
+            _phaseTelemetry.TryGetValue("collect", out collect);
+            _phaseTelemetry.TryGetValue("analyze", out analyze);
+            _phaseTelemetry.TryGetValue("write", out write);
+            additional = _phaseTelemetry
+                .Where(static pair => pair.Key is not "collect" and not "analyze" and not "write")
+                .Select(static pair => pair.Value)
+                .Where(static t => t is not null)
+                .ToArray();
+        }
+
+        var segments = new List<string>();
+        if (collect != null)
+        {
+            segments.Add(FormatTelemetry(collect));
+        }
+        if (analyze != null)
+        {
+            segments.Add(FormatTelemetry(analyze));
+        }
+        if (write != null)
+        {
+            segments.Add(FormatTelemetry(write));
+        }
+        foreach (var telemetry in additional)
+        {
+            segments.Add(FormatTelemetry(telemetry));
+        }
+
+        return segments.Count == 0 ? string.Empty : string.Join(", ", segments);
+    }
+
+    private static string FormatTelemetry(SnapshotPhaseTelemetry telemetry)
+    {
+        var duration = telemetry.Duration.TotalMilliseconds;
+        var itemsTag = telemetry.ItemsProcessed > 0 ? $" items={telemetry.ItemsProcessed}" : string.Empty;
+        return $"{telemetry.PhaseName}={duration:F0}ms{itemsTag}";
     }
 }
