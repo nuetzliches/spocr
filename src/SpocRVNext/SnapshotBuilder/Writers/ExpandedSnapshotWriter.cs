@@ -189,17 +189,19 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                     {
                         writer.WriteBoolean("IsNullable", true);
                     }
-                    if (input.MaxLength > 0)
+                    if (ShouldEmitMaxLength(input.MaxLength, typeRef))
                     {
                         writer.WriteNumber("MaxLength", input.MaxLength);
                     }
-                    if (input.Precision.HasValue && input.Precision.Value > 0)
+                    var precision = input.Precision;
+                    if (ShouldEmitPrecision(precision, typeRef))
                     {
-                        writer.WriteNumber("Precision", input.Precision.Value);
+                        writer.WriteNumber("Precision", precision.GetValueOrDefault());
                     }
-                    if (input.Scale.HasValue && input.Scale.Value > 0)
+                    var scale = input.Scale;
+                    if (ShouldEmitScale(scale, typeRef))
                     {
-                        writer.WriteNumber("Scale", input.Scale.Value);
+                        writer.WriteNumber("Scale", scale.GetValueOrDefault());
                     }
                 }
 
@@ -458,9 +460,10 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         {
             writer.WriteBoolean("IsNullable", true);
         }
-        if (column.MaxLength.HasValue && column.MaxLength.Value > 0)
+        var columnMaxLength = column.MaxLength;
+        if (ShouldEmitMaxLength(columnMaxLength, typeRef))
         {
-            writer.WriteNumber("MaxLength", column.MaxLength.Value);
+            writer.WriteNumber("MaxLength", columnMaxLength.GetValueOrDefault());
         }
         if (column.ReturnsJson == true || column.IsNestedJson == true)
         {
@@ -625,6 +628,75 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
     {
         if (string.IsNullOrWhiteSpace(sqlTypeName)) return null;
         return sqlTypeName.Trim().ToLowerInvariant();
+    }
+
+    private static bool ShouldEmitMaxLength(int value, string? typeRef)
+    {
+        if (value <= 0) return false;
+        if (string.IsNullOrWhiteSpace(typeRef)) return true;
+        var (schema, name) = SplitTypeRef(typeRef);
+        if (!string.Equals(schema, "sys", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+        return !IsFixedSizeSysType(name);
+    }
+
+    private static bool ShouldEmitMaxLength(int? value, string? typeRef)
+    {
+        if (!value.HasValue) return false;
+        return ShouldEmitMaxLength(value.Value, typeRef);
+    }
+
+    private static bool ShouldEmitPrecision(int? precision, string? typeRef)
+    {
+        if (!precision.HasValue || precision.Value <= 0) return false;
+        if (string.IsNullOrWhiteSpace(typeRef)) return true;
+        var (schema, name) = SplitTypeRef(typeRef);
+        if (!string.Equals(schema, "sys", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+        return name is "decimal" or "numeric" or "datetime2" or "datetimeoffset" or "time";
+    }
+
+    private static bool ShouldEmitScale(int? scale, string? typeRef)
+    {
+        if (!scale.HasValue || scale.Value <= 0) return false;
+        if (string.IsNullOrWhiteSpace(typeRef)) return true;
+        var (schema, name) = SplitTypeRef(typeRef);
+        if (!string.Equals(schema, "sys", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+        return name is "decimal" or "numeric" or "datetime2" or "datetimeoffset" or "time";
+    }
+
+    private static bool IsFixedSizeSysType(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return false;
+        return name switch
+        {
+            "bigint" or
+            "int" or
+            "smallint" or
+            "tinyint" or
+            "bit" or
+            "date" or
+            "datetime" or
+            "datetime2" or
+            "datetimeoffset" or
+            "smalldatetime" or
+            "time" or
+            "float" or
+            "real" or
+            "money" or
+            "smallmoney" or
+            "uniqueidentifier" or
+            "rowversion" or
+            "timestamp" => true,
+            _ => false
+        };
     }
 
     private static bool HasUserDefinedType(Column column)

@@ -82,7 +82,10 @@
 
 ## Austeshende Optimierungen
 
-- [ ] debug\.spocr\schema enthält noch viel Redundanz, Wenn Verweise auf sys-types oder udts vorhanden sind, benötigen wir keine MaxLength, Precision, Scale, usw. [ ] `IsNullable` kann überschrieben werden, auch wenn ein zugrunde liegender type eine explizite Definition besitzt (bitte die Annahme validieren - sollte der User explizit IsNullable setzen, gilt dies - nur `true` Fälle in den Snapshot, wenn mit dem (ud)t identisch, dann entfernen). [ ] int und bit Typen benötigen keine MaxLength (bitte validieren und weitere typen prüfen, bei denen die redundanz auch weg kann).
+- [~] debug\.spocr\schema redundant minimieren
+  - [x] MaxLength/Precision/Scale bei TypeRef → UDTT oder konstanten sys-Typen unterdrücken.
+  - [ ] `IsNullable`-Spiegelung zum zugrunde liegenden TypeRef auflösen (nur Fälle mit abweichender Semantik beibehalten).
+  - [ ] Weitere sys-Typen mit festen Längen prüfen und ggf. streichen.
 
 ## Artefakte
 
