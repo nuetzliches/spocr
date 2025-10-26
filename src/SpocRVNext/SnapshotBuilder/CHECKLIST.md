@@ -40,10 +40,10 @@
   - Integration `StoredProcedureContentModel` (AST only). _(DatabaseProcedureAnalyzer zieht Definition aus DB, parsed AST & extrahiert Dependencies)_
   - Übergabe an Postprocessor (CTE/TableVar/JSON Binding). _(Dependency-Metadaten-Queries korrigiert; `modify_date`-freie Pfade validiert)_
   - Rückgabe: `AnalyzedProcedure` DTO inkl. Typinformationen.
-- [~] Writer: Procedures + Index
+- [x] Writer: Procedures + Index
   - Streaming-Write mit `Utf8JsonWriter`. _(ExpandedSnapshotWriter erzeugt deterministische Procedure-Dateien)_
-  - Hash-basierte Change Detection (temp-Datei → swap). _(Hash wird via SHA256 berechnet; Index-Integration noch ausstehend)_
-  - Index-Aktualisierung nur bei Änderungen.
+  - Hash-basierte Change Detection (temp-Datei → swap). _(Hash-Vergleich + `File.Replace`/Fallback aktiv, 16-Byte Fingerprint für Cache)_
+  - Index-Aktualisierung nur bei Änderungen. _(Index-Hash & Fingerprint werden nur bei Delta geschrieben)_
 - [~] Cache-Modul
   - Persistenter Cache (z. B. `debug/.spocr/cache/procedures.json`). _(FileSnapshotCache speichert Fingerprints & ModifyDate nur lokal pro Entwickler; Schema-Artefakte bleiben diff-frei)_
   - Shared Table-Metadata Cache (Thread-safe, lazy load, TTL).

@@ -65,16 +65,17 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                 : item.SnapshotFile;
             var filePath = Path.Combine(proceduresRoot, fileName);
 
-            var json = BuildProcedureJson(descriptor, item.Inputs, item.Ast);
-            var hash = ComputeHash(json);
+            var jsonBytes = BuildProcedureJson(descriptor, item.Inputs, item.Ast);
+            var hash = ComputeHash(jsonBytes);
             var shouldWrite = true;
 
             if (File.Exists(filePath))
             {
                 try
                 {
-                    var existing = await File.ReadAllTextAsync(filePath, cancellationToken).ConfigureAwait(false);
-                    if (string.Equals(existing, json, StringComparison.Ordinal))
+                    var existingBytes = await File.ReadAllBytesAsync(filePath, cancellationToken).ConfigureAwait(false);
+                    var existingHash = ComputeHash(existingBytes);
+                    if (string.Equals(existingHash, hash, StringComparison.OrdinalIgnoreCase))
                     {
                         shouldWrite = false;
                     }
@@ -87,7 +88,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
 
             if (shouldWrite)
             {
-                await File.WriteAllTextAsync(filePath, json, cancellationToken).ConfigureAwait(false);
+                await PersistSnapshotAsync(filePath, jsonBytes, cancellationToken).ConfigureAwait(false);
                 filesWritten++;
                 if (verbose)
                 {
@@ -122,7 +123,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         };
     }
 
-    private static string BuildProcedureJson(ProcedureDescriptor descriptor, IReadOnlyList<StoredProcedureInput> inputs, StoredProcedureContentModel? ast)
+    private static byte[] BuildProcedureJson(ProcedureDescriptor descriptor, IReadOnlyList<StoredProcedureInput> inputs, StoredProcedureContentModel? ast)
     {
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true }))
@@ -136,7 +137,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
 
             writer.WriteEndObject();
         }
-        return Encoding.UTF8.GetString(stream.ToArray());
+        return stream.ToArray();
     }
 
     private static void WriteInputs(Utf8JsonWriter writer, IReadOnlyList<StoredProcedureInput> inputs)
@@ -368,8 +369,18 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
 
     private static string ComputeHash(string content)
     {
-        var bytes = Encoding.UTF8.GetBytes(content);
-        return Convert.ToHexString(SHA256.HashData(bytes)).Substring(0, 16);
+        return ComputeHash(Encoding.UTF8.GetBytes(content ?? string.Empty));
+    }
+
+    private static string ComputeHash(byte[] content)
+    {
+        return ComputeHash(content.AsSpan());
+    }
+
+    private static string ComputeHash(ReadOnlySpan<byte> content)
+    {
+        var hashBytes = SHA256.HashData(content);
+        return Convert.ToHexString(hashBytes).Substring(0, 16);
     }
 
     private static async Task UpdateIndexAsync(string schemaRoot, IReadOnlyList<ProcedureAnalysisResult> updated, CancellationToken cancellationToken)
@@ -479,6 +490,44 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         else
         {
             File.Delete(tempPath);
+        }
+    }
+
+    private static async Task PersistSnapshotAsync(string filePath, byte[] content, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var tempPath = filePath + ".tmp";
+        await File.WriteAllBytesAsync(tempPath, content, cancellationToken).ConfigureAwait(false);
+
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (File.Exists(filePath))
+            {
+                try
+                {
+                    File.Replace(tempPath, filePath, null);
+                }
+                catch (PlatformNotSupportedException)
+                {
+                    File.Copy(tempPath, filePath, overwrite: true);
+                }
+                catch (IOException)
+                {
+                    File.Copy(tempPath, filePath, overwrite: true);
+                }
+            }
+            else
+            {
+                File.Move(tempPath, filePath);
+            }
+        }
+        finally
+        {
+            if (File.Exists(tempPath))
+            {
+                File.Delete(tempPath);
+            }
         }
     }
 
