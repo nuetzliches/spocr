@@ -760,7 +760,16 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
             "smallmoney" or
             "uniqueidentifier" or
             "rowversion" or
-            "timestamp" => true,
+            "timestamp" or
+            "sql_variant" or
+            "hierarchyid" or
+            "geometry" or
+            "geography" or
+            "xml" or
+            "text" or
+            "ntext" or
+            "image" or
+            "sysname" => true,
             _ => false
         };
     }

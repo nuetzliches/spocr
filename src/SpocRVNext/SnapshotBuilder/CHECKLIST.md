@@ -85,7 +85,7 @@
 - [~] debug\.spocr\schema redundant minimieren
   - [x] MaxLength/Precision/Scale bei TypeRef → UDTT oder konstanten sys-Typen unterdrücken.
   - [x] `IsNullable`-Spiegelung zum zugrunde liegenden TypeRef auflösen (nur Fälle mit abweichender Semantik beibehalten).
-  - [ ] Weitere sys-Typen mit festen Längen prüfen und ggf. streichen.
+  - [x] Weitere sys-Typen mit festen Längen prüfen und ggf. streichen.
   - [x] `"IsTableType": true` brauchen wir auch nicht, wenn TypeRef auf eine UDTT zeigt, oder?
 - [x] debug\.spocr\schema\procedures\workflow.ActionFindAsJson.json: Das Feld `"Name": "record"` sollte, wie alle anderen Felder eine `TypeRef` haben. _(Writer unterdrückt `TypeRef` für JSON-Payloads)_
 - [x] debug\.spocr\schema\FE4854D2932B7F32.json: Legacy-Fingerprint-Snapshots liegen nun unter `.spocr/cache/schema`, `schema/` trägt nur noch deterministische Artefakte (inkl. `index.json`).
