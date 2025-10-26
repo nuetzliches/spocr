@@ -25,7 +25,7 @@ internal sealed class JsonResultSetTypeEnricher
     public void Enrich(string? rawSql, List<ResultSetDescriptor> resultSets)
     {
         if (string.IsNullOrWhiteSpace(rawSql) || resultSets == null || resultSets.Count == 0) return;
-        if (!resultSets.Any(r => r.ReturnsJson)) return; // nichts zu tun
+        if (!resultSets.Any(r => r.JsonPayload != null)) return; // nichts zu tun
 
         StoredProcedureContentModel content;
         try
@@ -43,7 +43,7 @@ internal sealed class JsonResultSetTypeEnricher
         if (astJsonSets.Count == 0) return;
 
         // Match Strategie: gleiche Anzahl strukturierter Columns & gleiche Alias-Namen Menge (case-insensitive)
-        foreach (var snapshotSet in resultSets.Where(r => r.ReturnsJson))
+        foreach (var snapshotSet in resultSets.Where(r => r.JsonPayload != null))
         {
             if (snapshotSet.Fields.Count == 0) continue;
             if (snapshotSet.Fields.All(f => !string.IsNullOrWhiteSpace(f.SqlTypeName))) continue; // bereits befüllt
@@ -82,9 +82,8 @@ internal sealed class JsonResultSetTypeEnricher
                 HasSelectStar: snapshotSet.HasSelectStar,
                 ExecSourceSchemaName: snapshotSet.ExecSourceSchemaName,
                 ExecSourceProcedureName: snapshotSet.ExecSourceProcedureName,
-                ReturnsJson: snapshotSet.ReturnsJson,
-                ReturnsJsonArray: snapshotSet.ReturnsJsonArray,
-                Reference: snapshotSet.Reference // Weiterreichen der Konsolidierungs-Referenz
+                ProcedureRef: snapshotSet.ProcedureRef,
+                JsonPayload: snapshotSet.JsonPayload
             );
             // Ersetze Eintrag in Liste
             var i = resultSets.IndexOf(snapshotSet);
@@ -212,7 +211,7 @@ internal sealed class JsonResultSetTypeEnricher
     {
         if (string.IsNullOrWhiteSpace(raw)) return null;
         // Einfache Regex: führender Funktionsname gefolgt von '('
-    var m = System.Text.RegularExpressions.Regex.Match(raw, @"^\s*([A-Za-z0-9_]+)\s*\(");
+        var m = System.Text.RegularExpressions.Regex.Match(raw, @"^\s*([A-Za-z0-9_]+)\s*\(");
         if (m.Success) return m.Groups[1].Value;
         return null;
     }

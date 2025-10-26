@@ -325,18 +325,22 @@ namespace SpocR.SpocRVNext.Metadata
                                 var isNullable = SpocR.SpocRVNext.Metadata.SchemaMetadataProviderJsonExtensions.GetPropertyOrDefaultBoolStrict(c, "IsNullable");
                                 if (string.IsNullOrWhiteSpace(sqlType) && !string.IsNullOrWhiteSpace(typeRef)) sqlType = typeRef;
                                 var clr = MapSqlToClr(sqlType, isNullable);
-                                ColumnReferenceInfo? refInfo = null;
+                                string? functionRef = null;
                                 bool? deferred = null;
                                 try
                                 {
-                                    if (c.TryGetProperty("Reference", out var refEl) && refEl.ValueKind == JsonValueKind.Object)
+                                    if (c.TryGetProperty("FunctionRef", out var fnEl) && fnEl.ValueKind == JsonValueKind.String)
                                     {
-                                        var kind = refEl.GetPropertyOrDefault("Kind");
-                                        var schemaRef = refEl.GetPropertyOrDefault("Schema");
-                                        var nameRef = refEl.GetPropertyOrDefault("Name");
-                                        if (!string.IsNullOrWhiteSpace(kind) && !string.IsNullOrWhiteSpace(nameRef))
+                                        functionRef = fnEl.GetString();
+                                    }
+                                    if (string.IsNullOrWhiteSpace(functionRef) && c.TryGetProperty("Reference", out var refElLegacy) && refElLegacy.ValueKind == JsonValueKind.Object)
+                                    {
+                                        var kindLegacy = refElLegacy.GetPropertyOrDefault("Kind");
+                                        var schemaLegacy = refElLegacy.GetPropertyOrDefault("Schema");
+                                        var nameLegacy = refElLegacy.GetPropertyOrDefault("Name");
+                                        if (string.Equals(kindLegacy, "Function", StringComparison.OrdinalIgnoreCase))
                                         {
-                                            refInfo = new ColumnReferenceInfo(kind!, schemaRef ?? "dbo", nameRef!);
+                                            functionRef = ComposeSchemaObjectRef(schemaLegacy, nameLegacy);
                                         }
                                     }
                                     if (c.TryGetProperty("DeferredJsonExpansion", out var defEl))
@@ -345,7 +349,7 @@ namespace SpocR.SpocRVNext.Metadata
                                     }
                                 }
                                 catch { }
-                                columns.Add(new FieldDescriptor(colName, NamePolicy.Sanitize(colName), clr, isNullable, sqlType, effectiveMaxLen, Reference: refInfo, DeferredJsonExpansion: deferred));
+                                columns.Add(new FieldDescriptor(colName, NamePolicy.Sanitize(colName), clr, isNullable, sqlType, effectiveMaxLen, FunctionRef: NormalizeSchemaObjectRef(functionRef), DeferredJsonExpansion: deferred));
                             }
                         }
                         var rsName = ResultSetNaming.DeriveName(idx, columns, usedNames);
@@ -386,32 +390,49 @@ namespace SpocR.SpocRVNext.Metadata
                             hasSelectStar = hasStarRaw;
                         }
                         catch { /* best effort; leave null/defaults */ }
-                        bool returnsJson = false;
-                        bool returnsJsonArray = false;
+                        JsonPayloadDescriptor? jsonPayload = null;
                         try
                         {
-                            returnsJson = rse.GetPropertyOrDefaultBool("ReturnsJson");
-                            returnsJsonArray = rse.GetPropertyOrDefaultBool("ReturnsJsonArray");
+                            if (rse.TryGetProperty("Json", out var jsonEl) && jsonEl.ValueKind == JsonValueKind.Object)
+                            {
+                                var isArray = jsonEl.GetPropertyOrDefaultBool("IsArray");
+                                var root = jsonEl.GetPropertyOrDefault("RootProperty");
+                                jsonPayload = new JsonPayloadDescriptor(isArray, string.IsNullOrWhiteSpace(root) ? null : root);
+                            }
+                            else
+                            {
+                                var legacyReturnsJson = rse.GetPropertyOrDefaultBool("ReturnsJson");
+                                var legacyReturnsJsonArray = rse.GetPropertyOrDefaultBool("ReturnsJsonArray");
+                                var legacyRoot = rse.GetPropertyOrDefault("JsonRootProperty");
+                                if (legacyReturnsJson || legacyReturnsJsonArray || !string.IsNullOrWhiteSpace(legacyRoot))
+                                {
+                                    jsonPayload = new JsonPayloadDescriptor(legacyReturnsJsonArray, string.IsNullOrWhiteSpace(legacyRoot) ? null : legacyRoot);
+                                }
+                            }
                         }
                         catch { /* best effort */ }
-                        ColumnReferenceInfo? rsRef = null;
+                        string? procedureRef = null;
                         try
                         {
-                            if (rse.TryGetProperty("Reference", out var rsRefEl) && rsRefEl.ValueKind == JsonValueKind.Object)
+                            if (rse.TryGetProperty("ProcedureRef", out var procRefEl) && procRefEl.ValueKind == JsonValueKind.String)
                             {
-                                var kind = rsRefEl.GetPropertyOrDefault("Kind");
-                                var schemaRef = rsRefEl.GetPropertyOrDefault("Schema");
-                                var nameRef = rsRefEl.GetPropertyOrDefault("Name");
-                                if (!string.IsNullOrWhiteSpace(kind) && !string.IsNullOrWhiteSpace(nameRef))
+                                procedureRef = procRefEl.GetString();
+                            }
+                            else if (rse.TryGetProperty("Reference", out var legacyRefEl) && legacyRefEl.ValueKind == JsonValueKind.Object)
+                            {
+                                var kindLegacy = legacyRefEl.GetPropertyOrDefault("Kind");
+                                var schemaLegacy = legacyRefEl.GetPropertyOrDefault("Schema");
+                                var nameLegacy = legacyRefEl.GetPropertyOrDefault("Name");
+                                if (string.Equals(kindLegacy, "Procedure", StringComparison.OrdinalIgnoreCase))
                                 {
-                                    rsRef = new ColumnReferenceInfo(kind!, schemaRef ?? "dbo", nameRef!);
+                                    procedureRef = ComposeSchemaObjectRef(schemaLegacy, nameLegacy);
                                 }
                             }
                         }
                         catch { }
-                        if (!string.IsNullOrWhiteSpace(execSourceProc))
+                        if (string.IsNullOrWhiteSpace(procedureRef) && !string.IsNullOrWhiteSpace(execSourceProc))
                         {
-                            rsRef ??= new ColumnReferenceInfo("Procedure", execSourceSchema ?? "dbo", execSourceProc!);
+                            procedureRef = ComposeSchemaObjectRef(execSourceSchema, execSourceProc);
                         }
                         resultSetDescriptors.Add(new ResultSetDescriptor(
                             Index: idx,
@@ -422,9 +443,8 @@ namespace SpocR.SpocRVNext.Metadata
                             HasSelectStar: hasSelectStar,
                             ExecSourceSchemaName: execSourceSchema,
                             ExecSourceProcedureName: execSourceProc,
-                            ReturnsJson: returnsJson,
-                            ReturnsJsonArray: returnsJsonArray,
-                            Reference: rsRef
+                            ProcedureRef: NormalizeSchemaObjectRef(procedureRef),
+                            JsonPayload: jsonPayload
                         ));
                         idx++;
                     }
@@ -509,9 +529,23 @@ namespace SpocR.SpocRVNext.Metadata
                                         {
                                             if (rin.ValueKind == JsonValueKind.True) returnIsNullable = true; else if (rin.ValueKind == JsonValueKind.False) returnIsNullable = false; // speichern nur falls vorhanden
                                         }
-                                        bool returnsJson = root.GetPropertyOrDefaultBool("ReturnsJson");
-                                        bool returnsJsonArray = root.GetPropertyOrDefaultBool("ReturnsJsonArray");
-                                        var jsonRoot = root.GetPropertyOrDefault("JsonRootProperty");
+                                        JsonPayloadDescriptor? jsonPayload = null;
+                                        if (root.TryGetProperty("Json", out var jsonEl) && jsonEl.ValueKind == JsonValueKind.Object)
+                                        {
+                                            var isArray = jsonEl.GetPropertyOrDefaultBool("IsArray");
+                                            var jsonRootProp = jsonEl.GetPropertyOrDefault("RootProperty");
+                                            jsonPayload = new JsonPayloadDescriptor(isArray, string.IsNullOrWhiteSpace(jsonRootProp) ? null : jsonRootProp);
+                                        }
+                                        else
+                                        {
+                                            bool returnsJson = root.GetPropertyOrDefaultBool("ReturnsJson");
+                                            bool returnsJsonArray = root.GetPropertyOrDefaultBool("ReturnsJsonArray");
+                                            var legacyJsonRoot = root.GetPropertyOrDefault("JsonRootProperty");
+                                            if (returnsJson || returnsJsonArray || !string.IsNullOrWhiteSpace(legacyJsonRoot))
+                                            {
+                                                jsonPayload = new JsonPayloadDescriptor(returnsJsonArray, string.IsNullOrWhiteSpace(legacyJsonRoot) ? null : legacyJsonRoot);
+                                            }
+                                        }
                                         bool encrypted = root.GetPropertyOrDefaultBool("IsEncrypted");
                                         // Dependencies
                                         var dependencies = new List<string>();
@@ -577,9 +611,7 @@ namespace SpocR.SpocRVNext.Metadata
                                             ReturnSqlType: string.IsNullOrWhiteSpace(returnSql) ? null : returnSql,
                                             ReturnMaxLength: returnMaxLen,
                                             ReturnIsNullable: returnIsNullable,
-                                            ReturnsJson: returnsJson,
-                                            ReturnsJsonArray: returnsJsonArray,
-                                            JsonRootProperty: string.IsNullOrWhiteSpace(jsonRoot) ? null : jsonRoot,
+                                            JsonPayload: jsonPayload,
                                             IsEncrypted: encrypted,
                                             Dependencies: dependencies,
                                             Parameters: paramDescriptors,
@@ -625,6 +657,33 @@ namespace SpocR.SpocRVNext.Metadata
             };
             if (core != "string" && core != "byte[]" && nullable) core += "?";
             return core;
+        }
+
+        private static string? ComposeSchemaObjectRef(string? schema, string? name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return null;
+            var cleanName = name.Trim();
+            if (cleanName.Length == 0) return null;
+            var cleanSchema = string.IsNullOrWhiteSpace(schema) ? null : schema.Trim();
+            return cleanSchema != null ? string.Concat(cleanSchema, ".", cleanName) : cleanName;
+        }
+
+        private static string? NormalizeSchemaObjectRef(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return null;
+            var trimmed = raw.Trim();
+            if (trimmed.Length == 0) return null;
+            var parts = trimmed.Split('.', 2, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 0) return null;
+            if (parts.Length == 1)
+            {
+                return parts[0];
+            }
+            var schema = parts[0];
+            var name = parts[1];
+            if (string.IsNullOrWhiteSpace(name)) return null;
+            if (string.IsNullOrWhiteSpace(schema)) return name;
+            return string.Concat(schema, ".", name);
         }
     }
 

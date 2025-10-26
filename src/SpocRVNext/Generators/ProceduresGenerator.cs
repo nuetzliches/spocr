@@ -33,6 +33,44 @@ public sealed class ProceduresGenerator
         _cfg = cfg; // may be null for legacy call sites
     }
 
+    private static string? ComposeSchemaObjectRef(string? schema, string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return null;
+        var cleanName = name.Trim();
+        if (cleanName.Length == 0) return null;
+        var cleanSchema = string.IsNullOrWhiteSpace(schema) ? null : schema.Trim();
+        return cleanSchema != null ? string.Concat(cleanSchema, ".", cleanName) : cleanName;
+    }
+
+    private static (string? Schema, string? Name) SplitSchemaObject(string? reference, string? fallbackSchema)
+    {
+        if (string.IsNullOrWhiteSpace(reference))
+        {
+            return (string.IsNullOrWhiteSpace(fallbackSchema) ? null : fallbackSchema?.Trim(), null);
+        }
+        var trimmed = reference.Trim();
+        if (trimmed.Length == 0)
+        {
+            return (string.IsNullOrWhiteSpace(fallbackSchema) ? null : fallbackSchema?.Trim(), null);
+        }
+        var parts = trimmed.Split('.', 2, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0)
+        {
+            return (string.IsNullOrWhiteSpace(fallbackSchema) ? null : fallbackSchema?.Trim(), null);
+        }
+        if (parts.Length == 1)
+        {
+            return (string.IsNullOrWhiteSpace(fallbackSchema) ? null : fallbackSchema?.Trim(), parts[0]);
+        }
+        var schema = string.IsNullOrWhiteSpace(parts[0]) ? (string.IsNullOrWhiteSpace(fallbackSchema) ? null : fallbackSchema?.Trim()) : parts[0];
+        var name = parts.Length > 1 ? parts[1] : null;
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return (schema, null);
+        }
+        return (schema, name);
+    }
+
     public int Generate(string ns, string baseOutputDir)
     {
         // Capture full unfiltered list (needed for cross-schema forwarding even if target schema excluded by allow-list)
@@ -297,11 +335,12 @@ public sealed class ProceduresGenerator
                 // werden dessen Ziel-ResultSets virtuell expandiert (inline), ohne die ursprüngliche Descriptor-Liste zu verändern.
                 foreach (var rs in proc.ResultSets.OrderBy(r => r.Index))
                 {
-                    bool isExecPlaceholder = rs.Fields.Count == 0 && ((rs.ExecSourceProcedureName != null) || (rs.Reference?.Kind == "Procedure"));
+                    bool isExecPlaceholder = rs.Fields.Count == 0 && (!string.IsNullOrWhiteSpace(rs.ExecSourceProcedureName) || !string.IsNullOrWhiteSpace(rs.ProcedureRef));
                     if (isExecPlaceholder)
                     {
-                        var targetSchema = rs.Reference?.Schema ?? rs.ExecSourceSchemaName ?? "dbo";
-                        var targetProcName = rs.Reference?.Name ?? rs.ExecSourceProcedureName;
+                        var targetRef = SplitSchemaObject(rs.ProcedureRef, rs.ExecSourceSchemaName ?? "dbo");
+                        var targetSchema = targetRef.Schema ?? rs.ExecSourceSchemaName ?? "dbo";
+                        var targetProcName = targetRef.Name ?? rs.ExecSourceProcedureName;
                         var targetKey = targetSchema + "." + targetProcName;
                         if (originalLookup.TryGetValue(targetKey, out var targetProc) && targetProc.ResultSets != null && targetProc.ResultSets.Count > 0)
                         {
@@ -327,9 +366,8 @@ public sealed class ProceduresGenerator
                                     HasSelectStar: tSet.HasSelectStar,
                                     ExecSourceSchemaName: rs.ExecSourceSchemaName,
                                     ExecSourceProcedureName: rs.ExecSourceProcedureName,
-                                    ReturnsJson: tSet.ReturnsJson,
-                                    ReturnsJsonArray: tSet.ReturnsJsonArray,
-                                    Reference: rs.Reference ?? (targetProcName != null ? new ColumnReferenceInfo("Procedure", targetSchema, targetProcName) : null)
+                                    ProcedureRef: rs.ProcedureRef ?? ComposeSchemaObjectRef(targetSchema, targetProcName),
+                                    JsonPayload: tSet.JsonPayload
                                 );
                                 // Weiterverarbeitung wie reguläres ResultSet (Mapping & Record-Emission)
                                 AppendResultSetMeta(virtualRs);
@@ -356,7 +394,7 @@ public sealed class ProceduresGenerator
                 {
                     // JSON Typ-Korrektur: Wenn ReturnsJson aktiv ist, Feldliste mit SQL->CLR Mapping neu ableiten.
                     IReadOnlyList<FieldDescriptor> effectiveFields = rs.Fields;
-                    if (rs.ReturnsJson && rs.Fields.Count > 0)
+                    if (rs.JsonPayload != null && rs.Fields.Count > 0)
                     {
                         var remapped = new List<FieldDescriptor>(rs.Fields.Count);
                         foreach (var f in rs.Fields)
@@ -364,7 +402,7 @@ public sealed class ProceduresGenerator
                             var mapped = MapJsonSqlToClr(f.SqlTypeName, f.IsNullable);
                             if (!string.Equals(mapped, f.ClrType, StringComparison.Ordinal))
                             {
-                                remapped.Add(new FieldDescriptor(f.Name, f.PropertyName, mapped, f.IsNullable, f.SqlTypeName, f.MaxLength, f.Documentation, f.Attributes));
+                                remapped.Add(new FieldDescriptor(f.Name, f.PropertyName, mapped, f.IsNullable, f.SqlTypeName, f.MaxLength, f.Documentation, f.Attributes, f.FunctionRef));
                                 jsonTypeCorrections.Add($"{proc.OperationName}:{rs.Name}.{f.PropertyName} {f.ClrType}->{mapped}");
                             }
                             else
@@ -378,16 +416,17 @@ public sealed class ProceduresGenerator
                     // Ersetzt Container-Spalte durch virtuelle Dot-Pfad Felder: record.<col>
                     try
                     {
-                        var deferredContainers = effectiveFields.Where(f => f.DeferredJsonExpansion == true && f.Reference?.Kind == "Function" && !string.IsNullOrWhiteSpace(f.Reference.Name)).ToList();
+                        var deferredContainers = effectiveFields.Where(f => f.DeferredJsonExpansion == true && !string.IsNullOrWhiteSpace(f.FunctionRef)).ToList();
                         if (deferredContainers.Count > 0 && StoredProcedureContentModel.ResolveFunctionJsonSet != null)
                         {
                             var expanded = new List<FieldDescriptor>(effectiveFields);
                             bool changed = false;
                             foreach (var dc in deferredContainers)
                             {
-                                var refInfo = dc.Reference!; // bereits gefiltert auf non-null
+                                var functionRef = SplitSchemaObject(dc.FunctionRef, proc.Schema ?? "dbo");
+                                if (string.IsNullOrWhiteSpace(functionRef.Name)) continue;
                                 (bool ReturnsJson, bool ReturnsJsonArray, string RootProperty, IReadOnlyList<string> ColumnNames) meta;
-                                try { meta = StoredProcedureContentModel.ResolveFunctionJsonSet(refInfo.Schema ?? "dbo", refInfo.Name); } catch { continue; }
+                                try { meta = StoredProcedureContentModel.ResolveFunctionJsonSet(functionRef.Schema ?? proc.Schema ?? "dbo", functionRef.Name); } catch { continue; }
                                 if (!meta.ReturnsJson || meta.ColumnNames == null || meta.ColumnNames.Count == 0) continue;
                                 // Entferne Container-Spalte
                                 expanded.Remove(dc);
@@ -434,8 +473,9 @@ public sealed class ProceduresGenerator
                     var allMissingCondition = rs.Fields.Count > 0 ? string.Join(" && ", rs.Fields.Select((f, i) => $"o{i} < 0")) : "false"; // nur für Nicht-JSON Sets relevant
                     // ReturnsJson Flag aus Snapshot nutzen (ResultSet Modell besitzt Properties)
                     // JSON-Erkennung: jedes ResultSet mit ReturnsJson wird über Single-Column Deserialisierung verarbeitet (FOR JSON liefert genau eine NVARCHAR-Spalte).
-                    var isJson = rs.ReturnsJson;
-                    var isJsonArray = rs.ReturnsJsonArray;
+                    var jsonInfo = rs.JsonPayload;
+                    var isJson = jsonInfo != null;
+                    var isJsonArray = jsonInfo?.IsArray ?? false;
                     string jsonFallback = string.Empty;
                     if (isJson)
                     {

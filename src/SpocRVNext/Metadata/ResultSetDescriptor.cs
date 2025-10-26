@@ -11,7 +11,6 @@ public sealed record ResultSetDescriptor(
     bool HasSelectStar = false,
     string? ExecSourceSchemaName = null,
     string? ExecSourceProcedureName = null,
-    bool ReturnsJson = false,
-    bool ReturnsJsonArray = false,
-    ColumnReferenceInfo? Reference = null // Konsolidierung: ExecSource* -> Reference.Kind="Procedure"
+    string? ProcedureRef = null,
+    JsonPayloadDescriptor? JsonPayload = null
 );

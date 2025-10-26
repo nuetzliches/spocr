@@ -227,14 +227,19 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                 if (set == null || !ShouldIncludeResultSet(set)) continue;
 
                 writer.WriteStartObject();
-                if (set.ReturnsJson || set.ReturnsJsonArray)
+                if (set.ReturnsJson || set.ReturnsJsonArray || !string.IsNullOrWhiteSpace(set.JsonRootProperty))
                 {
-                    writer.WriteBoolean("ReturnsJson", set.ReturnsJson);
-                    writer.WriteBoolean("ReturnsJsonArray", set.ReturnsJsonArray);
+                    writer.WritePropertyName("Json");
+                    writer.WriteStartObject();
+                    if (set.ReturnsJsonArray)
+                    {
+                        writer.WriteBoolean("IsArray", true);
+                    }
                     if (!string.IsNullOrWhiteSpace(set.JsonRootProperty))
                     {
-                        writer.WriteString("JsonRootProperty", set.JsonRootProperty);
+                        writer.WriteString("RootProperty", set.JsonRootProperty);
                     }
+                    writer.WriteEndObject();
                 }
                 if (!string.IsNullOrWhiteSpace(set.ExecSourceSchemaName))
                 {
@@ -243,6 +248,11 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                 if (!string.IsNullOrWhiteSpace(set.ExecSourceProcedureName))
                 {
                     writer.WriteString("ExecSourceProcedureName", set.ExecSourceProcedureName);
+                }
+                var procedureRef = BuildProcedureRef(set);
+                if (!string.IsNullOrWhiteSpace(procedureRef))
+                {
+                    writer.WriteString("ProcedureRef", procedureRef);
                 }
                 if (set.HasSelectStar)
                 {
@@ -448,7 +458,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
             writer.WriteString("Name", column.Name);
         }
         var typeRef = BuildTypeRef(column);
-        if (!string.IsNullOrWhiteSpace(typeRef))
+        if (!string.IsNullOrWhiteSpace(typeRef) && column.ReturnsJson != true && column.IsNestedJson != true)
         {
             writer.WriteString("TypeRef", typeRef);
         }
@@ -461,19 +471,6 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         {
             writer.WriteNumber("MaxLength", columnMaxLength.GetValueOrDefault());
         }
-        if (column.ReturnsJson == true || column.IsNestedJson == true)
-        {
-            writer.WriteBoolean("ReturnsJson", true);
-            if (column.ReturnsJsonArray.HasValue)
-            {
-                writer.WriteBoolean("ReturnsJsonArray", column.ReturnsJsonArray.Value);
-            }
-            if (!string.IsNullOrWhiteSpace(column.JsonRootProperty))
-            {
-                writer.WriteString("JsonRootProperty", column.JsonRootProperty);
-            }
-        }
-
         if (column.Columns != null && column.Columns.Count > 0)
         {
             writer.WritePropertyName("Columns");
@@ -486,23 +483,10 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
             writer.WriteEndArray();
         }
 
-        if (column.Reference != null && (!string.IsNullOrWhiteSpace(column.Reference.Kind) || !string.IsNullOrWhiteSpace(column.Reference.Schema) || !string.IsNullOrWhiteSpace(column.Reference.Name)))
+        var functionRef = BuildFunctionRef(column);
+        if (!string.IsNullOrWhiteSpace(functionRef))
         {
-            writer.WritePropertyName("Reference");
-            writer.WriteStartObject();
-            if (!string.IsNullOrWhiteSpace(column.Reference.Kind))
-            {
-                writer.WriteString("Kind", column.Reference.Kind);
-            }
-            if (!string.IsNullOrWhiteSpace(column.Reference.Schema))
-            {
-                writer.WriteString("Schema", column.Reference.Schema);
-            }
-            if (!string.IsNullOrWhiteSpace(column.Reference.Name))
-            {
-                writer.WriteString("Name", column.Reference.Name);
-            }
-            writer.WriteEndObject();
+            writer.WriteString("FunctionRef", functionRef);
         }
         if (column.DeferredJsonExpansion == true)
         {
@@ -519,6 +503,36 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         if (set.Columns != null && set.Columns.Count > 0) return true;
         if (!string.IsNullOrWhiteSpace(set.ExecSourceProcedureName)) return true;
         return false;
+    }
+
+    private static string? BuildProcedureRef(StoredProcedureContentModel.ResultSet set)
+    {
+        if (set == null) return null;
+        if (set.Reference != null && string.Equals(set.Reference.Kind, "Procedure", StringComparison.OrdinalIgnoreCase))
+        {
+            return ComposeSchemaObjectRef(set.Reference.Schema, set.Reference.Name);
+        }
+        if (!string.IsNullOrWhiteSpace(set.ExecSourceProcedureName))
+        {
+            return ComposeSchemaObjectRef(set.ExecSourceSchemaName, set.ExecSourceProcedureName);
+        }
+        return null;
+    }
+
+    private static string? BuildFunctionRef(StoredProcedureContentModel.ResultColumn column)
+    {
+        if (column?.Reference == null) return null;
+        if (!string.Equals(column.Reference.Kind, "Function", StringComparison.OrdinalIgnoreCase)) return null;
+        return ComposeSchemaObjectRef(column.Reference.Schema, column.Reference.Name);
+    }
+
+    private static string? ComposeSchemaObjectRef(string? schema, string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return null;
+        var cleanName = name.Trim();
+        if (cleanName.Length == 0) return null;
+        var cleanSchema = string.IsNullOrWhiteSpace(schema) ? null : schema.Trim();
+        return cleanSchema != null ? string.Concat(cleanSchema, ".", cleanName) : cleanName;
     }
 
     private static string NormalizeParameterName(string? raw)
@@ -1018,41 +1032,57 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         try
         {
             var projectRoot = ProjectRootResolver.ResolveCurrent();
-            var schemaRoot = Path.Combine(projectRoot, ".spocr", "schema");
-            if (!Directory.Exists(schemaRoot)) return result;
-
-            var legacyFiles = Directory.GetFiles(schemaRoot, "*.json", SearchOption.TopDirectoryOnly)
-                .Where(f => !string.Equals(Path.GetFileName(f), "index.json", StringComparison.OrdinalIgnoreCase))
-                .Where(f => !string.Equals(Path.GetFileNameWithoutExtension(f), currentFingerprint, StringComparison.OrdinalIgnoreCase))
-                .OrderByDescending(f => File.GetLastWriteTimeUtc(f))
-                .ToList();
-
-            foreach (var file in legacyFiles)
+            var candidateDirs = new[]
             {
-                try
-                {
-                    var json = File.ReadAllText(file);
-                    var fallback = JsonSerializer.Deserialize<LegacySnapshotDocument>(json, IndexSerializerOptions);
-                    if (fallback?.Procedures == null) continue;
+                Path.Combine(projectRoot, ".spocr", "cache", "schema"),
+                Path.Combine(projectRoot, ".spocr", "schema")
+            };
 
-                    foreach (var proc in fallback.Procedures)
+            foreach (var dir in candidateDirs)
+            {
+                if (string.IsNullOrWhiteSpace(dir) || !Directory.Exists(dir))
+                {
+                    continue;
+                }
+
+                var legacyFiles = Directory.GetFiles(dir, "*.json", SearchOption.TopDirectoryOnly)
+                    .Where(f => !string.Equals(Path.GetFileName(f), "index.json", StringComparison.OrdinalIgnoreCase))
+                    .Where(f => !string.Equals(Path.GetFileNameWithoutExtension(f), currentFingerprint, StringComparison.OrdinalIgnoreCase))
+                    .OrderByDescending(f => File.GetLastWriteTimeUtc(f))
+                    .ToList();
+
+                foreach (var file in legacyFiles)
+                {
+                    try
                     {
-                        if (proc == null || string.IsNullOrWhiteSpace(proc.Schema) || string.IsNullOrWhiteSpace(proc.Name)) continue;
-                        var key = BuildKey(proc.Schema, proc.Name);
-                        if (!result.ContainsKey(key) && proc.Inputs != null)
+                        var json = File.ReadAllText(file);
+                        var fallback = JsonSerializer.Deserialize<LegacySnapshotDocument>(json, IndexSerializerOptions);
+                        if (fallback?.Procedures == null) continue;
+
+                        foreach (var proc in fallback.Procedures)
                         {
-                            result[key] = proc.Inputs.Select(CloneSnapshotInput).ToList();
+                            if (proc == null || string.IsNullOrWhiteSpace(proc.Schema) || string.IsNullOrWhiteSpace(proc.Name)) continue;
+                            var key = BuildKey(proc.Schema, proc.Name);
+                            if (!result.ContainsKey(key) && proc.Inputs != null)
+                            {
+                                result[key] = proc.Inputs.Select(CloneSnapshotInput).ToList();
+                            }
+                        }
+
+                        if (result.Count > 0)
+                        {
+                            break;
                         }
                     }
-
-                    if (result.Count > 0)
+                    catch
                     {
-                        break;
+                        // continue to next candidate
                     }
                 }
-                catch
+
+                if (result.Count > 0)
                 {
-                    // continue to next candidate
+                    break;
                 }
             }
         }

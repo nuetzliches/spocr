@@ -13,6 +13,6 @@ public sealed record FieldDescriptor(
     int? MaxLength = null,
     string? Documentation = null,
     IReadOnlyList<string>? Attributes = null,
-    ColumnReferenceInfo? Reference = null,
+    string? FunctionRef = null,
     bool? DeferredJsonExpansion = null
 );

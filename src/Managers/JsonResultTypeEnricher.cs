@@ -71,6 +71,7 @@ public sealed class JsonResultTypeEnricher
             bool modifiedLocal = false;
 
             // Removed UDTT 'record' mapping heuristic: Only AST-bound table metadata allowed. Leaving UserType* empty unless future AST capture implemented.
+            // JSON payloads without explicit typing default to nvarchar(max) and nullable – FOR JSON outputs obey this contract
             // JSON_QUERY heuristic
             // Kein Fallback auf nvarchar: fehlende Typinformationen müssen als null im Snapshot verbleiben
             if (col.ExpressionKind == StoredProcedureContentModel.ResultColumnExpressionKind.JsonQuery)
@@ -83,6 +84,19 @@ public sealed class JsonResultTypeEnricher
                 if (string.IsNullOrWhiteSpace(col.SqlTypeName))
                 {
                     col.SqlTypeName = "nvarchar(max)"; // FOR JSON payload is nvarchar(max) by contract
+                    modifiedLocal = true;
+                }
+            }
+            else if (col.ReturnsJson == true && (col.Columns == null || col.Columns.Count == 0))
+            {
+                if (col.IsNullable == null)
+                {
+                    col.IsNullable = true;
+                    modifiedLocal = true;
+                }
+                if (string.IsNullOrWhiteSpace(col.SqlTypeName))
+                {
+                    col.SqlTypeName = "nvarchar(max)";
                     modifiedLocal = true;
                 }
             }

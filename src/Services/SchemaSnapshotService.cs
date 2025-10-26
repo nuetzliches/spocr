@@ -29,7 +29,7 @@ public class SchemaSnapshotService : ISchemaSnapshotService
     {
         var working = Utils.DirectoryUtils.GetWorkingDirectory();
         if (string.IsNullOrEmpty(working)) return null;
-        var dir = Path.Combine(working, ".spocr", "schema");
+        var dir = Path.Combine(working, ".spocr", "cache", "schema");
         try { Directory.CreateDirectory(dir); } catch { }
         return dir;
     }
@@ -54,11 +54,29 @@ public class SchemaSnapshotService : ISchemaSnapshotService
     {
         try
         {
-            var dir = EnsureDir();
-            if (dir == null) return null;
-            var path = Path.Combine(dir, fingerprint + ".json");
-            if (!File.Exists(path)) return null;
-            var json = File.ReadAllText(path);
+            var cacheDir = EnsureDir();
+            if (cacheDir == null) return null;
+            var cachePath = Path.Combine(cacheDir, fingerprint + ".json");
+            string pathToLoad = null;
+            if (File.Exists(cachePath))
+            {
+                pathToLoad = cachePath;
+            }
+            else
+            {
+                var legacyDir = ResolveLegacySchemaDir();
+                if (!string.IsNullOrEmpty(legacyDir))
+                {
+                    var legacyPath = Path.Combine(legacyDir, fingerprint + ".json");
+                    if (File.Exists(legacyPath))
+                    {
+                        pathToLoad = legacyPath;
+                    }
+                }
+            }
+
+            if (string.IsNullOrEmpty(pathToLoad) || !File.Exists(pathToLoad)) return null;
+            var json = File.ReadAllText(pathToLoad);
             return JsonSerializer.Deserialize<SchemaSnapshot>(json, _jsonOptions);
         }
         catch { return null; }
@@ -175,8 +193,43 @@ public class SchemaSnapshotService : ISchemaSnapshotService
             // Serialize
             var json = JsonSerializer.Serialize(prunedSnapshot, _jsonOptions);
             File.WriteAllText(path, json);
+
+            PruneLegacySchemaSnapshots();
         }
         catch { /* swallow snapshot write errors */ }
+    }
+
+    private static string ResolveLegacySchemaDir()
+    {
+        var working = Utils.DirectoryUtils.GetWorkingDirectory();
+        if (string.IsNullOrEmpty(working)) return string.Empty;
+        return Path.Combine(working, ".spocr", "schema");
+    }
+
+    private static void PruneLegacySchemaSnapshots()
+    {
+        try
+        {
+            var legacyDir = ResolveLegacySchemaDir();
+            if (string.IsNullOrEmpty(legacyDir) || !Directory.Exists(legacyDir))
+            {
+                return;
+            }
+
+            // Remove the specific fingerprint file if present and, more broadly, any monolithic snapshot files at the root.
+            var files = Directory.GetFiles(legacyDir, "*.json", SearchOption.TopDirectoryOnly)
+                .Where(f => !string.Equals(Path.GetFileName(f), "index.json", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            foreach (var file in files)
+            {
+                try { File.Delete(file); } catch { }
+            }
+        }
+        catch
+        {
+            // best-effort cleanup; ignore failures
+        }
     }
 
     private static void PruneNested(SnapshotResultColumn column)

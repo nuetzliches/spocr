@@ -26,7 +26,7 @@ public static class JsonResultSetAudit
         var findings = new List<AuditFinding>();
         foreach (var p in procedures)
         {
-            foreach (var rs in p.ResultSets.Where(r => r.ReturnsJson))
+            foreach (var rs in p.ResultSets.Where(r => r.JsonPayload != null))
             {
                 foreach (var f in rs.Fields)
                 {
