@@ -84,7 +84,7 @@
 
 - [~] debug\.spocr\schema redundant minimieren
   - [x] MaxLength/Precision/Scale bei TypeRef → UDTT oder konstanten sys-Typen unterdrücken.
-  - [ ] `IsNullable`-Spiegelung zum zugrunde liegenden TypeRef auflösen (nur Fälle mit abweichender Semantik beibehalten).
+  - [x] `IsNullable`-Spiegelung zum zugrunde liegenden TypeRef auflösen (nur Fälle mit abweichender Semantik beibehalten).
   - [ ] Weitere sys-Typen mit festen Längen prüfen und ggf. streichen.
 
 ## Artefakte

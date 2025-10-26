@@ -185,7 +185,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                 }
                 else
                 {
-                    if (input.IsNullable)
+                    if (ShouldEmitIsNullable(input.IsNullable, typeRef))
                     {
                         writer.WriteBoolean("IsNullable", true);
                     }
@@ -456,7 +456,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         {
             writer.WriteString("TypeRef", typeRef);
         }
-        if (column.IsNullable == true)
+        if (ShouldEmitIsNullable(column.IsNullable, typeRef))
         {
             writer.WriteBoolean("IsNullable", true);
         }
@@ -628,6 +628,25 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
     {
         if (string.IsNullOrWhiteSpace(sqlTypeName)) return null;
         return sqlTypeName.Trim().ToLowerInvariant();
+    }
+
+    private static bool ShouldEmitIsNullable(bool value, string? typeRefOrTypeName)
+        => ShouldEmitIsNullable(value ? (bool?)true : null, typeRefOrTypeName);
+
+    private static bool ShouldEmitIsNullable(bool? value, string? typeRefOrTypeName)
+    {
+        if (!value.HasValue || !value.Value) return false;
+        if (string.IsNullOrWhiteSpace(typeRefOrTypeName)) return true;
+        var (schema, _) = SplitTypeRef(typeRefOrTypeName);
+        if (string.IsNullOrWhiteSpace(schema))
+        {
+            return true; // bare type name, keep for clarity
+        }
+        if (!string.Equals(schema, "sys", StringComparison.OrdinalIgnoreCase))
+        {
+            return false; // user-defined types carry their own nullability semantics
+        }
+        return true;
     }
 
     private static bool ShouldEmitMaxLength(int value, string? typeRef)
@@ -1200,7 +1219,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                         writer.WriteString("SqlTypeName", column.SqlTypeName);
                     }
 
-                    if (column.IsNullable)
+                    if (ShouldEmitIsNullable(column.IsNullable, columnTypeRef ?? column.SqlTypeName))
                     {
                         writer.WriteBoolean("IsNullable", true);
                     }
