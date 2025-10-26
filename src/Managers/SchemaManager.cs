@@ -587,34 +587,60 @@ public class SchemaManager(
                         // Inputs hydration
                         if (snapProc.Inputs?.Any() == true && (storedProcedure.Input == null || !storedProcedure.Input.Any()))
                         {
-                            storedProcedure.Input = snapProc.Inputs.Select(i => new StoredProcedureInputModel(new DataContext.Models.StoredProcedureInput
-                            {
-                                Name = i.Name,
-                                SqlTypeName = i.SqlTypeName,
-                                IsNullable = i.IsNullable ?? false,
-                                MaxLength = i.MaxLength ?? 0,
-                                IsOutput = i.IsOutput ?? false,
-                                IsTableType = !string.IsNullOrWhiteSpace(i.TableTypeName) && !string.IsNullOrWhiteSpace(i.TableTypeSchema),
-                                UserTypeName = i.TableTypeName,
-                                UserTypeSchemaName = i.TableTypeSchema
-                            })).ToList();
+                            storedProcedure.Input = snapProc.Inputs
+                                .Select(MapSnapshotInputToModel)
+                                .Where(model => model != null)
+                                .Select(model => model!)
+                                .ToList();
                         }
                         // ResultSets hydration
                         if (snapProc.ResultSets?.Any() == true && (storedProcedure.Content?.ResultSets == null || !storedProcedure.Content.ResultSets.Any()))
                         {
                             StoredProcedureContentModel.ResultColumn MapSnapshotColToRuntime(SnapshotResultColumn c)
                             {
-                                var rc = new StoredProcedureContentModel.ResultColumn
+                                if (c == null)
+                                {
+                                    return new StoredProcedureContentModel.ResultColumn();
+                                }
+
+                                var (schema, name) = SplitTypeRef(c.TypeRef);
+                                var isSystemType = IsSystemSchema(schema);
+
+                                var column = new StoredProcedureContentModel.ResultColumn
                                 {
                                     Name = c.Name,
-                                    SqlTypeName = c.SqlTypeName,
+                                    SqlTypeName = BuildSqlTypeName(schema, name),
                                     IsNullable = c.IsNullable,
                                     MaxLength = c.MaxLength,
-                                    UserTypeName = c.UserTypeName,
-                                    UserTypeSchemaName = c.UserTypeSchemaName
+                                    IsNestedJson = c.IsNestedJson,
+                                    ReturnsJson = c.ReturnsJson,
+                                    ReturnsJsonArray = c.ReturnsJsonArray,
+                                    JsonRootProperty = c.JsonRootProperty,
+                                    DeferredJsonExpansion = c.DeferredJsonExpansion
                                 };
 
-                                return rc;
+                                if (!isSystemType)
+                                {
+                                    column.UserTypeSchemaName = schema;
+                                    column.UserTypeName = name;
+                                }
+
+                                if (c.Columns != null && c.Columns.Count > 0)
+                                {
+                                    column.Columns = c.Columns.Select(MapSnapshotColToRuntime).ToArray();
+                                }
+
+                                if (c.Reference != null)
+                                {
+                                    column.Reference = new StoredProcedureContentModel.ColumnReferenceInfo
+                                    {
+                                        Kind = c.Reference.Kind,
+                                        Schema = c.Reference.Schema,
+                                        Name = c.Reference.Name
+                                    };
+                                }
+
+                                return column;
                             }
                             var rsModels = snapProc.ResultSets.Select(rs => new StoredProcedureContentModel.ResultSet
                             {
@@ -838,5 +864,99 @@ public class SchemaManager(
         consoleService.Verbose($"[timing] Total schema load duration {(DateTime.UtcNow - loadStart).TotalMilliseconds:F1} ms");
 
         return schemas;
+    }
+
+    private static StoredProcedureInputModel? MapSnapshotInputToModel(SnapshotInput snapshotInput)
+    {
+        if (snapshotInput == null)
+        {
+            return null;
+        }
+
+        var stored = new StoredProcedureInput
+        {
+            Name = snapshotInput.Name ?? string.Empty,
+            IsNullable = snapshotInput.IsNullable ?? false,
+            MaxLength = snapshotInput.MaxLength ?? 0,
+            IsOutput = snapshotInput.IsOutput ?? false,
+            HasDefaultValue = snapshotInput.HasDefaultValue ?? false,
+            Precision = snapshotInput.Precision,
+            Scale = snapshotInput.Scale
+        };
+
+        var (schemaFromRef, nameFromRef) = SplitTypeRef(snapshotInput.TypeRef);
+
+        var tableTypeSchema = snapshotInput.TableTypeSchema ?? schemaFromRef;
+        var tableTypeName = snapshotInput.TableTypeName ?? nameFromRef;
+        var scalarSchema = snapshotInput.TypeSchema ?? schemaFromRef;
+        var scalarName = snapshotInput.TypeName ?? nameFromRef;
+
+        var isTableType = !string.IsNullOrWhiteSpace(tableTypeSchema) && !string.IsNullOrWhiteSpace(tableTypeName);
+
+        if (isTableType)
+        {
+            stored.IsTableType = true;
+            stored.UserTypeSchemaName = tableTypeSchema;
+            stored.UserTypeName = tableTypeName;
+            stored.SqlTypeName = BuildSqlTypeName(tableTypeSchema, tableTypeName) ?? snapshotInput.TypeRef ?? string.Empty;
+        }
+        else
+        {
+            stored.IsTableType = false;
+
+            if (!IsSystemSchema(scalarSchema) && !string.IsNullOrWhiteSpace(scalarName))
+            {
+                stored.UserTypeSchemaName = scalarSchema;
+                stored.UserTypeName = scalarName;
+            }
+
+            stored.SqlTypeName = BuildSqlTypeName(scalarSchema, scalarName) ?? snapshotInput.TypeRef ?? string.Empty;
+        }
+
+        return new StoredProcedureInputModel(stored);
+    }
+
+    private static (string? Schema, string? Name) SplitTypeRef(string? typeRef)
+    {
+        if (string.IsNullOrWhiteSpace(typeRef))
+        {
+            return (null, null);
+        }
+
+        var parts = typeRef.Trim().Split('.', 2, StringSplitOptions.TrimEntries);
+        if (parts.Length == 2)
+        {
+            var schema = string.IsNullOrWhiteSpace(parts[0]) ? null : parts[0];
+            var name = string.IsNullOrWhiteSpace(parts[1]) ? null : parts[1];
+            return (schema, name);
+        }
+
+        var single = string.IsNullOrWhiteSpace(parts[0]) ? null : parts[0];
+        return (null, single);
+    }
+
+    private static string? BuildSqlTypeName(string? schema, string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(schema) && !IsSystemSchema(schema))
+        {
+            return string.Concat(schema, ".", name);
+        }
+
+        return name;
+    }
+
+    private static bool IsSystemSchema(string? schema)
+    {
+        if (string.IsNullOrWhiteSpace(schema))
+        {
+            return true;
+        }
+
+        return string.Equals(schema, "sys", StringComparison.OrdinalIgnoreCase);
     }
 }

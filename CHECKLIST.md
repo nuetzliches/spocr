@@ -55,6 +55,10 @@ Status-Legende:
   Die typischen Betrag/Quota‑Berechnungen (Net/Success/Gross) stammen in dieser Prozedur aus mehrstufigen Ausdrücken (IIF, Fensterfunktionen, Kombinationen). Ich kann die AST‑Typableitung noch enger fassen (z. B. arithmetische Kombinationen aus int/decimal konsequent zu decimal(18,2)), rein aus den erkannten Operatoren – ebenfalls ohne Heuristik. Soll ich das für WCalculation konsistent ergänzen?
 - [~] Verschachtelte JSON Child-Spalten (summary._, claims._) erhalten noch keine durchgängigen SqlTypeNames (z. B. `summary.debitorTypeId`). AST-Bindung liefert aktuell nur Root-CTE; ColumnRef → Tabellen/CTE-Source Mapping für Child-Pfade noch ergänzen (Follow-up nötig).
 
+### Aktualisierung 26.10.2025
+
+- [x] Expanded Snapshot Loader lädt scalar UDT Artefakte (`SchemaSnapshotFileLayoutService.LoadExpanded`) und `SchemaMetadataProvider` nutzt die UDT-Basisinformationen für TypeRef → SqlTypeName Mapping (fix für `core._id` → `int` Eingabe-/Outputparameter in Generatoren).
+
 ### Debug Phase (Aggregat & JSON Typisierung Erweiterungen 23.10.2025)
 
 - Erweiterte Aggregat-Typinferenz (AST-basiert): - SUM über 0/1 bedingte Ausdrücke → int - COUNT → int, COUNT_BIG → bigint - AVG → decimal(18,2) - EXISTS → bit - SUM ansonsten Fallback decimal(18,2|18,4) abhängig von Literal-Erkennung (Integer vs. Decimal)

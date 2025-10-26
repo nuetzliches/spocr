@@ -78,16 +78,12 @@ public class SchemaSnapshotService : ISchemaSnapshotService
 
             SnapshotResultColumn ProcessColumn(SnapshotResultColumn c)
             {
-#pragma warning disable CS0612, CS0618 // legacy fields remain for compatibility until TypeRef adoption is complete
                 var clone = new SnapshotResultColumn
                 {
                     Name = c.Name,
-                    SqlTypeName = c.SqlTypeName,
+                    TypeRef = c.TypeRef,
                     IsNullable = c.IsNullable == false ? null : c.IsNullable,
                     MaxLength = (c.MaxLength.HasValue && c.MaxLength.Value == 0) ? null : c.MaxLength,
-                    UserTypeSchemaName = c.UserTypeSchemaName,
-                    UserTypeName = c.UserTypeName,
-                    BaseSqlTypeName = (!string.IsNullOrWhiteSpace(c.BaseSqlTypeName) && !string.Equals(c.BaseSqlTypeName, c.SqlTypeName, StringComparison.OrdinalIgnoreCase)) ? c.BaseSqlTypeName : null,
                     Precision = (c.Precision.HasValue && c.Precision.Value > 0) ? c.Precision : null,
                     Scale = (c.Scale.HasValue && c.Scale.Value > 0) ? c.Scale : null,
                     IsIdentity = c.IsIdentity == true ? true : null,
@@ -103,11 +99,12 @@ public class SchemaSnapshotService : ISchemaSnapshotService
                     var nested = c.Columns.Select(ProcessColumn).Where(n => n != null).ToList();
                     clone.Columns = nested.Count > 0 ? nested : null; // nested JSON columns (column-level)
                 }
-                else clone.Columns = null; // omit empty
-                // Legacy fields removed (JsonPath/JsonResult) by not setting
+                else
+                {
+                    clone.Columns = null; // omit empty
+                }
                 return clone;
             }
-#pragma warning restore CS0612, CS0618
 
             var prunedSnapshot = new SchemaSnapshot
             {
@@ -121,20 +118,15 @@ public class SchemaSnapshotService : ISchemaSnapshotService
                     Schema = u.Schema,
                     Name = u.Name,
                     UserTypeId = u.UserTypeId,
-#pragma warning disable CS0612, CS0618 // legacy fields remain for compatibility until TypeRef adoption is complete
                     Columns = u.Columns?.Select(c => new SnapshotUdttColumn
                     {
                         Name = c.Name,
-                        SqlTypeName = c.SqlTypeName,
+                        TypeRef = c.TypeRef,
                         IsNullable = c.IsNullable == true ? true : null,
                         MaxLength = (c.MaxLength.HasValue && c.MaxLength.Value > 0) ? c.MaxLength : null,
-                        UserTypeSchemaName = c.UserTypeSchemaName,
-                        UserTypeName = c.UserTypeName,
-                        BaseSqlTypeName = (!string.IsNullOrWhiteSpace(c.BaseSqlTypeName) && !string.Equals(c.BaseSqlTypeName, c.SqlTypeName, StringComparison.OrdinalIgnoreCase)) ? c.BaseSqlTypeName : null,
                         Precision = (c.Precision.HasValue && c.Precision.Value > 0) ? c.Precision : null,
                         Scale = (c.Scale.HasValue && c.Scale.Value > 0) ? c.Scale : null
                     }).ToList() ?? new List<SnapshotUdttColumn>()
-#pragma warning restore CS0612, CS0618
                 }).ToList() ?? new List<SnapshotUdtt>(),
                 Tables = snapshot.Tables,
                 Views = snapshot.Views,
@@ -241,18 +233,15 @@ public class SnapshotProcedure
 public class SnapshotInput
 {
     public string Name { get; set; }
+    public string? TypeRef { get; set; }
     public string? TableTypeSchema { get; set; }
     public string? TableTypeName { get; set; }
     public bool? IsOutput { get; set; }
-    [Obsolete("Use TypeRef for downstream type resolution.")]
-    public string? SqlTypeName { get; set; }
     public bool? IsNullable { get; set; }
     public int? MaxLength { get; set; }
     public bool? HasDefaultValue { get; set; } // nur schreiben wenn true
     public string? TypeSchema { get; set; }
     public string? TypeName { get; set; }
-    [Obsolete("Use TypeRef for downstream type resolution.")]
-    public string? BaseSqlTypeName { get; set; }
     public int? Precision { get; set; }
     public int? Scale { get; set; }
 }
@@ -272,17 +261,9 @@ public class SnapshotResultSet
 public class SnapshotResultColumn
 {
     public string Name { get; set; }
-    [Obsolete("Use TypeRef for downstream type resolution.")]
-    public string SqlTypeName { get; set; }
+    public string? TypeRef { get; set; }
     public bool? IsNullable { get; set; }
     public int? MaxLength { get; set; }
-    [Obsolete("Use TypeRef for downstream type resolution.")]
-    public string UserTypeSchemaName { get; set; }
-    [Obsolete("Use TypeRef for downstream type resolution.")]
-    public string UserTypeName { get; set; }
-    // Basis-SQL Typ bei Alias / UDT (z.B. Alias 'MyCustomerId' -> int). Wird gepruned wenn identisch zu SqlTypeName.
-    [Obsolete("Use TypeRef for downstream type resolution.")]
-    public string BaseSqlTypeName { get; set; }
     // Präzision & Scale für decimal/numeric (oder time/datetime2 falls benötigt). 0/Null wird gepruned.
     public int? Precision { get; set; }
     public int? Scale { get; set; }
@@ -336,16 +317,8 @@ public class SnapshotUdttColumn
 {
     public string Name { get; set; }
     public string? TypeRef { get; set; }
-    [Obsolete("Use TypeRef for downstream type resolution.")]
-    public string SqlTypeName { get; set; }
     public bool? IsNullable { get; set; }
     public int? MaxLength { get; set; }
-    [Obsolete("Use TypeRef for downstream type resolution.")]
-    public string UserTypeSchemaName { get; set; }
-    [Obsolete("Use TypeRef for downstream type resolution.")]
-    public string UserTypeName { get; set; }
-    [Obsolete("Use TypeRef for downstream type resolution.")]
-    public string BaseSqlTypeName { get; set; }
     public int? Precision { get; set; }
     public int? Scale { get; set; }
 }
@@ -374,8 +347,6 @@ public class SnapshotFunctionParameter
     public string TableTypeName { get; set; }
     public string? TypeRef { get; set; }
     public bool? IsOutput { get; set; }
-    [Obsolete("Use TypeRef for downstream type resolution.")]
-    public string SqlTypeName { get; set; }
     public bool? IsNullable { get; set; }
     public int? MaxLength { get; set; }
     // Hinweis: Default-Wert Information wird vorerst nicht persistiert zur Vereinheitlichung mit StoredProcedure Inputs.
@@ -386,12 +357,8 @@ public class SnapshotFunctionColumn
 {
     public string Name { get; set; }
     public string? TypeRef { get; set; }
-    [Obsolete("Use TypeRef for downstream type resolution.")]
-    public string SqlTypeName { get; set; }
     public bool? IsNullable { get; set; }
     public int? MaxLength { get; set; }
-    [Obsolete("Use TypeRef for downstream type resolution.")]
-    public string BaseSqlTypeName { get; set; }
     public int? Precision { get; set; }
     public int? Scale { get; set; }
     public bool? IsIdentity { get; set; }
@@ -415,17 +382,9 @@ public class SnapshotTableColumn
 {
     public string Name { get; set; }
     public string? TypeRef { get; set; }
-    [Obsolete("Use TypeRef for downstream type resolution.")]
-    public string SqlTypeName { get; set; }
     public bool? IsNullable { get; set; } // false wird gepruned bei Persistierung (Analog zu anderen Modellen – Implementierung folgt im Writer)
     public int? MaxLength { get; set; } // null wenn 0 oder nicht zutreffend
     public bool? IsIdentity { get; set; } // nur true persistieren
-    [Obsolete("Use TypeRef for downstream type resolution.")]
-    public string UserTypeSchemaName { get; set; } // gesetzt bei UDT
-    [Obsolete("Use TypeRef for downstream type resolution.")]
-    public string UserTypeName { get; set; } // gesetzt bei UDT
-    [Obsolete("Use TypeRef for downstream type resolution.")]
-    public string BaseSqlTypeName { get; set; }
     public int? Precision { get; set; }
     public int? Scale { get; set; }
 }
@@ -441,16 +400,8 @@ public class SnapshotViewColumn
 {
     public string Name { get; set; }
     public string? TypeRef { get; set; }
-    [Obsolete("Use TypeRef for downstream type resolution.")]
-    public string SqlTypeName { get; set; }
     public bool? IsNullable { get; set; }
     public int? MaxLength { get; set; }
-    [Obsolete("Use TypeRef for downstream type resolution.")]
-    public string UserTypeSchemaName { get; set; }
-    [Obsolete("Use TypeRef for downstream type resolution.")]
-    public string UserTypeName { get; set; }
-    [Obsolete("Use TypeRef for downstream type resolution.")]
-    public string BaseSqlTypeName { get; set; }
     public int? Precision { get; set; }
     public int? Scale { get; set; }
 }

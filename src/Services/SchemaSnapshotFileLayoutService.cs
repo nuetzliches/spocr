@@ -179,13 +179,9 @@ public sealed class SchemaSnapshotFileLayoutService
                 Columns = (udtt.Columns ?? new List<SnapshotUdttColumn>()).Select(c => new SnapshotUdttColumn
                 {
                     Name = c.Name,
-                    TypeRef = BuildTypeRef(c.UserTypeSchemaName, c.UserTypeName, c.SqlTypeName),
-                    SqlTypeName = c.SqlTypeName,
+                    TypeRef = c.TypeRef,
                     IsNullable = c.IsNullable == true ? true : null,
                     MaxLength = (c.MaxLength.HasValue && c.MaxLength.Value > 0) ? c.MaxLength : null,
-                    UserTypeSchemaName = c.UserTypeSchemaName,
-                    UserTypeName = c.UserTypeName,
-                    BaseSqlTypeName = (!string.IsNullOrWhiteSpace(c.BaseSqlTypeName) && !string.Equals(c.BaseSqlTypeName, c.SqlTypeName, StringComparison.OrdinalIgnoreCase)) ? c.BaseSqlTypeName : null,
                     Precision = (c.Precision.HasValue && c.Precision.Value > 0) ? c.Precision : null,
                     Scale = (c.Scale.HasValue && c.Scale.Value > 0) ? c.Scale : null
                 }).ToList()
@@ -247,7 +243,18 @@ public sealed class SchemaSnapshotFileLayoutService
                 foreach (var prm in fn.Parameters)
                 {
                     if (prm == null) continue;
-                    prm.TypeRef = BuildTypeRef(prm.TableTypeSchema, prm.TableTypeName, prm.SqlTypeName);
+                    if (string.IsNullOrWhiteSpace(prm.TypeRef))
+                    {
+                        prm.TypeRef = CombineTypeRef(prm.TableTypeSchema, prm.TableTypeName);
+                    }
+                    if (string.IsNullOrWhiteSpace(prm.TypeRef))
+                    {
+                        prm.TypeRef = null;
+                    }
+                    else
+                    {
+                        prm.TypeRef = prm.TypeRef.Trim();
+                    }
                     if (prm.IsOutput == false) prm.IsOutput = null;
                     if (prm.HasDefaultValue != true) prm.HasDefaultValue = null;
                     if (prm.IsNullable == false) prm.IsNullable = null;
@@ -261,7 +268,14 @@ public sealed class SchemaSnapshotFileLayoutService
                 foreach (var c in cols.ToList())
                 {
                     if (c == null) continue;
-                    c.TypeRef = BuildTypeRef(null, null, c.SqlTypeName);
+                    if (string.IsNullOrWhiteSpace(c.TypeRef))
+                    {
+                        c.TypeRef = null;
+                    }
+                    else
+                    {
+                        c.TypeRef = c.TypeRef.Trim();
+                    }
                     if (c.IsNullable == false) c.IsNullable = null;
                     if (c.MaxLength.HasValue && c.MaxLength.Value == 0) c.MaxLength = null;
                     if (c.IsNestedJson == false) c.IsNestedJson = null; // nur true behalten
@@ -372,11 +386,17 @@ public sealed class SchemaSnapshotFileLayoutService
             // Spalten-Pruning analog Procedure Columns: false/null Werte entfernen
             foreach (var c in tbl.Columns ?? new List<SnapshotTableColumn>())
             {
-                c.TypeRef = BuildTypeRef(c.UserTypeSchemaName, c.UserTypeName, c.SqlTypeName);
+                if (string.IsNullOrWhiteSpace(c.TypeRef))
+                {
+                    c.TypeRef = null;
+                }
+                else
+                {
+                    c.TypeRef = c.TypeRef.Trim();
+                }
                 if (c.IsNullable == false) c.IsNullable = null;
                 if (c.IsIdentity == false) c.IsIdentity = null;
                 if (c.MaxLength.HasValue && c.MaxLength.Value == 0) c.MaxLength = null;
-                if (!string.IsNullOrWhiteSpace(c.BaseSqlTypeName) && string.Equals(c.BaseSqlTypeName, c.SqlTypeName, StringComparison.OrdinalIgnoreCase)) c.BaseSqlTypeName = null;
                 if (c.Precision.HasValue && c.Precision.Value == 0) c.Precision = null;
                 if (c.Scale.HasValue && c.Scale.Value == 0) c.Scale = null;
             }
@@ -393,10 +413,16 @@ public sealed class SchemaSnapshotFileLayoutService
             var path = Path.Combine(viewsDir, fileName);
             foreach (var c in vw.Columns ?? new List<SnapshotViewColumn>())
             {
-                c.TypeRef = BuildTypeRef(c.UserTypeSchemaName, c.UserTypeName, c.SqlTypeName);
+                if (string.IsNullOrWhiteSpace(c.TypeRef))
+                {
+                    c.TypeRef = null;
+                }
+                else
+                {
+                    c.TypeRef = c.TypeRef.Trim();
+                }
                 if (c.IsNullable == false) c.IsNullable = null;
                 if (c.MaxLength.HasValue && c.MaxLength.Value == 0) c.MaxLength = null;
-                if (!string.IsNullOrWhiteSpace(c.BaseSqlTypeName) && string.Equals(c.BaseSqlTypeName, c.SqlTypeName, StringComparison.OrdinalIgnoreCase)) c.BaseSqlTypeName = null;
                 if (c.Precision.HasValue && c.Precision.Value == 0) c.Precision = null;
                 if (c.Scale.HasValue && c.Scale.Value == 0) c.Scale = null;
             }
@@ -592,6 +618,7 @@ public sealed class SchemaSnapshotFileLayoutService
             Stats = index.Stats,
             Procedures = new List<SnapshotProcedure>(),
             UserDefinedTableTypes = new List<SnapshotUdtt>(),
+            UserDefinedTypes = new List<SnapshotUserDefinedType>(),
             // Wichtig: Schemas wird aktuell nicht aus index.json rekonstruiert – wir leiten sie später ab.
             Schemas = new List<SnapshotSchema>()
         };
@@ -620,38 +647,46 @@ public sealed class SchemaSnapshotFileLayoutService
                             Name = parameter.Name ?? string.Empty,
                             IsOutput = parameter.IsOutput,
                             HasDefaultValue = parameter.HasDefaultValue,
-                            SqlTypeName = parameter.SqlTypeName,
+                            TypeRef = parameter.TypeRef,
                             IsNullable = parameter.IsNullable,
                             MaxLength = parameter.MaxLength,
-                            BaseSqlTypeName = parameter.BaseSqlTypeName,
                             Precision = parameter.Precision,
                             Scale = parameter.Scale
                         };
 
-                        if (!string.IsNullOrWhiteSpace(parameter.TypeRef))
+                        var resolvedTypeRef = snapshotInput.TypeRef;
+                        if (string.IsNullOrWhiteSpace(resolvedTypeRef))
                         {
-                            var (schema, name) = SplitTypeRef(parameter.TypeRef);
-                            var kind = DetermineTypeRefKind(baseDir, schema, name, parameter.IsTableType);
-                            if (kind == ParameterTypeRefKind.TableType)
+                            resolvedTypeRef = CombineTypeRef(parameter.TableTypeSchema, parameter.TableTypeName)
+                                ?? CombineTypeRef(parameter.TypeSchema, parameter.TypeName);
+
+                            if (string.IsNullOrWhiteSpace(resolvedTypeRef) && !string.IsNullOrWhiteSpace(parameter.SqlTypeName))
                             {
-                                snapshotInput.TableTypeSchema = schema;
-                                snapshotInput.TableTypeName = name;
+                                var normalized = NormalizeSqlTypeName(parameter.SqlTypeName);
+                                if (!string.IsNullOrWhiteSpace(normalized))
+                                {
+                                    resolvedTypeRef = CombineTypeRef("sys", normalized);
+                                }
                             }
-                            else if (kind == ParameterTypeRefKind.Scalar)
-                            {
-                                snapshotInput.TypeSchema = schema;
-                                snapshotInput.TypeName = name;
-                            }
-                            else
-                            {
-                                snapshotInput.TypeSchema = schema;
-                                snapshotInput.TypeName = name;
-                            }
+                        }
+
+                        snapshotInput.TypeRef = resolvedTypeRef;
+
+                        var (schema, name) = SplitTypeRef(resolvedTypeRef);
+                        var kind = DetermineTypeRefKind(baseDir, schema, name, parameter.IsTableType);
+
+                        if (kind == ParameterTypeRefKind.TableType || (!string.IsNullOrWhiteSpace(parameter.TableTypeSchema) && !string.IsNullOrWhiteSpace(parameter.TableTypeName)))
+                        {
+                            snapshotInput.TableTypeSchema = parameter.TableTypeSchema ?? schema;
+                            snapshotInput.TableTypeName = parameter.TableTypeName ?? name;
+                        }
+                        else if (!string.IsNullOrWhiteSpace(schema) || !string.IsNullOrWhiteSpace(name))
+                        {
+                            snapshotInput.TypeSchema = parameter.TypeSchema ?? schema;
+                            snapshotInput.TypeName = parameter.TypeName ?? name;
                         }
                         else
                         {
-                            snapshotInput.TableTypeSchema = parameter.TableTypeSchema;
-                            snapshotInput.TableTypeName = parameter.TableTypeName;
                             snapshotInput.TypeSchema = parameter.TypeSchema;
                             snapshotInput.TypeName = parameter.TypeName;
                         }
@@ -683,6 +718,18 @@ public sealed class SchemaSnapshotFileLayoutService
             {
                 var udtt = JsonSerializer.Deserialize<SnapshotUdtt>(File.ReadAllText(path), _jsonOptions);
                 if (udtt != null) snapshot.UserDefinedTableTypes.Add(udtt);
+            }
+            catch { }
+        }
+        // Load scalar user-defined types
+        foreach (var typeEntry in index.UserDefinedTypes ?? Enumerable.Empty<FileHashEntry>())
+        {
+            var path = Path.Combine(baseDir, "types", typeEntry.File);
+            if (!File.Exists(path)) continue;
+            try
+            {
+                var udt = JsonSerializer.Deserialize<SnapshotUserDefinedType>(File.ReadAllText(path), _jsonOptions);
+                if (udt != null) snapshot.UserDefinedTypes.Add(udt);
             }
             catch { }
         }
@@ -767,52 +814,46 @@ public sealed class SchemaSnapshotFileLayoutService
         var tableTypeRef = CombineTypeRef(input.TableTypeSchema, input.TableTypeName);
         var scalarTypeRef = CombineTypeRef(input.TypeSchema, input.TypeName);
 
-        if (!string.IsNullOrWhiteSpace(tableTypeRef))
+        var resolvedTypeRef = input.TypeRef;
+        if (string.IsNullOrWhiteSpace(resolvedTypeRef))
         {
-            parameter.TypeRef = tableTypeRef;
+            resolvedTypeRef = !string.IsNullOrWhiteSpace(tableTypeRef)
+                ? tableTypeRef
+                : (!string.IsNullOrWhiteSpace(scalarTypeRef) ? scalarTypeRef : null);
         }
-        else if (!string.IsNullOrWhiteSpace(scalarTypeRef))
+
+        if (string.IsNullOrWhiteSpace(resolvedTypeRef) && !string.IsNullOrWhiteSpace(input.TypeName))
         {
-            parameter.TypeRef = scalarTypeRef;
-        }
-        else
-        {
-            var normalized = NormalizeSqlTypeName(input.SqlTypeName);
+            var normalized = NormalizeSqlTypeName(input.TypeName);
             if (!string.IsNullOrWhiteSpace(normalized))
             {
-                parameter.TypeRef = CombineTypeRef("sys", normalized);
+                var schemaComponent = string.IsNullOrWhiteSpace(input.TypeSchema) ? "sys" : input.TypeSchema;
+                resolvedTypeRef = CombineTypeRef(schemaComponent, normalized);
             }
         }
 
-        var isPrimitive = string.IsNullOrWhiteSpace(input.TableTypeSchema) &&
-                          (string.IsNullOrWhiteSpace(input.TypeSchema) || string.Equals(input.TypeSchema, "sys", StringComparison.OrdinalIgnoreCase));
+        parameter.TypeRef = resolvedTypeRef;
 
-        if (isPrimitive)
+        if (!string.IsNullOrWhiteSpace(parameter.TableTypeSchema) && !string.IsNullOrWhiteSpace(parameter.TableTypeName))
         {
-            if (!string.IsNullOrWhiteSpace(input.SqlTypeName))
-            {
-                parameter.SqlTypeName = input.SqlTypeName;
-            }
-            if (input.IsNullable == true)
-            {
-                parameter.IsNullable = true;
-            }
-            if (input.MaxLength.HasValue && input.MaxLength.Value > 0)
-            {
-                parameter.MaxLength = input.MaxLength;
-            }
-            if (!string.IsNullOrWhiteSpace(input.BaseSqlTypeName) && !string.Equals(input.BaseSqlTypeName, input.SqlTypeName, StringComparison.OrdinalIgnoreCase))
-            {
-                parameter.BaseSqlTypeName = input.BaseSqlTypeName;
-            }
-            if (input.Precision.HasValue && input.Precision.Value > 0)
-            {
-                parameter.Precision = input.Precision;
-            }
-            if (input.Scale.HasValue && input.Scale.Value > 0)
-            {
-                parameter.Scale = input.Scale;
-            }
+            parameter.IsTableType = true;
+        }
+
+        if (input.IsNullable == true)
+        {
+            parameter.IsNullable = true;
+        }
+        if (input.MaxLength.HasValue && input.MaxLength.Value > 0)
+        {
+            parameter.MaxLength = input.MaxLength;
+        }
+        if (input.Precision.HasValue && input.Precision.Value > 0)
+        {
+            parameter.Precision = input.Precision;
+        }
+        if (input.Scale.HasValue && input.Scale.Value > 0)
+        {
+            parameter.Scale = input.Scale;
         }
 
         return parameter;
@@ -822,22 +863,6 @@ public sealed class SchemaSnapshotFileLayoutService
     {
         if (string.IsNullOrWhiteSpace(schema) || string.IsNullOrWhiteSpace(name)) return null;
         return string.Concat(schema.Trim(), ".", name.Trim());
-    }
-
-    private static string? BuildTypeRef(string? schema, string? name, string? sqlTypeName)
-    {
-        if (!string.IsNullOrWhiteSpace(schema) && !string.IsNullOrWhiteSpace(name))
-        {
-            return CombineTypeRef(schema, name);
-        }
-
-        var normalized = NormalizeSqlTypeName(sqlTypeName);
-        if (!string.IsNullOrWhiteSpace(normalized))
-        {
-            return CombineTypeRef("sys", normalized);
-        }
-
-        return null;
     }
 
     private static (string? Schema, string? Name) SplitTypeRef(string? typeRef)

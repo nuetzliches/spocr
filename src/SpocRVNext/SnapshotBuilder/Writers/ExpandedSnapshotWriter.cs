@@ -150,7 +150,6 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                     writer.WriteString("Name", name);
                 }
 
-                var hasUserDefinedType = !string.IsNullOrWhiteSpace(input.UserTypeSchemaName) && !string.IsNullOrWhiteSpace(input.UserTypeName);
                 var typeRef = BuildTypeRef(input);
 
                 if (!string.IsNullOrWhiteSpace(typeRef))
@@ -189,24 +188,8 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                         }
                     }
                 }
-                else if (hasUserDefinedType)
-                {
-                    if (!string.IsNullOrWhiteSpace(input.UserTypeSchemaName))
-                    {
-                        writer.WriteString("TypeSchema", input.UserTypeSchemaName);
-                    }
-                    if (!string.IsNullOrWhiteSpace(input.UserTypeName))
-                    {
-                        writer.WriteString("TypeName", input.UserTypeName);
-                    }
-                }
-
                 if (!input.IsTableType)
                 {
-                    if (!string.IsNullOrWhiteSpace(input.SqlTypeName))
-                    {
-                        writer.WriteString("SqlTypeName", input.SqlTypeName);
-                    }
                     if (input.IsNullable)
                     {
                         writer.WriteBoolean("IsNullable", true);
@@ -214,10 +197,6 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                     if (input.MaxLength > 0)
                     {
                         writer.WriteNumber("MaxLength", input.MaxLength);
-                    }
-                    if (!string.IsNullOrWhiteSpace(input.BaseSqlTypeName) && !string.Equals(input.BaseSqlTypeName, input.SqlTypeName, StringComparison.OrdinalIgnoreCase))
-                    {
-                        writer.WriteString("BaseSqlTypeName", input.BaseSqlTypeName);
                     }
                     if (input.Precision.HasValue && input.Precision.Value > 0)
                     {
@@ -475,14 +454,10 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         {
             writer.WriteString("Name", column.Name);
         }
-        var sqlType = column.SqlTypeName;
-        if (string.IsNullOrWhiteSpace(sqlType) && !string.IsNullOrWhiteSpace(column.CastTargetType))
+        var typeRef = BuildTypeRef(column);
+        if (!string.IsNullOrWhiteSpace(typeRef))
         {
-            sqlType = column.CastTargetType;
-        }
-        if (!string.IsNullOrWhiteSpace(sqlType))
-        {
-            writer.WriteString("SqlTypeName", sqlType);
+            writer.WriteString("TypeRef", typeRef);
         }
         if (column.IsNullable == true)
         {
@@ -491,14 +466,6 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         if (column.MaxLength.HasValue && column.MaxLength.Value > 0)
         {
             writer.WriteNumber("MaxLength", column.MaxLength.Value);
-        }
-        if (!string.IsNullOrWhiteSpace(column.UserTypeSchemaName))
-        {
-            writer.WriteString("UserTypeSchemaName", column.UserTypeSchemaName);
-        }
-        if (!string.IsNullOrWhiteSpace(column.UserTypeName))
-        {
-            writer.WriteString("UserTypeName", column.UserTypeName);
         }
         if (column.ReturnsJson == true || column.IsNestedJson == true)
         {
@@ -603,6 +570,32 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         if (!string.IsNullOrWhiteSpace(column.SqlTypeName))
         {
             var normalized = NormalizeSqlTypeName(column.SqlTypeName);
+            if (!string.IsNullOrWhiteSpace(normalized))
+            {
+                return BuildTypeRef("sys", normalized);
+            }
+        }
+
+        return null;
+    }
+
+    private static string? BuildTypeRef(StoredProcedureContentModel.ResultColumn column)
+    {
+        if (column == null) return null;
+        if (!string.IsNullOrWhiteSpace(column.UserTypeSchemaName) && !string.IsNullOrWhiteSpace(column.UserTypeName))
+        {
+            return BuildTypeRef(column.UserTypeSchemaName, column.UserTypeName);
+        }
+
+        var sqlType = column.SqlTypeName;
+        if (string.IsNullOrWhiteSpace(sqlType) && !string.IsNullOrWhiteSpace(column.CastTargetType))
+        {
+            sqlType = column.CastTargetType;
+        }
+
+        if (!string.IsNullOrWhiteSpace(sqlType))
+        {
+            var normalized = NormalizeSqlTypeName(sqlType);
             if (!string.IsNullOrWhiteSpace(normalized))
             {
                 return BuildTypeRef("sys", normalized);
@@ -998,27 +991,35 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         {
             if (parameter == null) continue;
 
+            var typeRef = BuildTypeRef(parameter);
             var snapshotInput = new SnapshotInput
             {
                 Name = NormalizeParameterName(parameter.Name),
+                TypeRef = typeRef,
                 IsOutput = parameter.IsOutput ? true : null,
                 HasDefaultValue = parameter.HasDefaultValue ? true : null,
-                SqlTypeName = parameter.IsTableType ? null : parameter.SqlTypeName,
                 IsNullable = parameter.IsNullable ? true : null,
                 MaxLength = parameter.MaxLength > 0 ? parameter.MaxLength : null,
                 TableTypeSchema = parameter.IsTableType ? parameter.UserTypeSchemaName : null,
                 TableTypeName = parameter.IsTableType ? parameter.UserTypeName : null,
                 TypeSchema = !parameter.IsTableType ? parameter.UserTypeSchemaName : null,
                 TypeName = !parameter.IsTableType ? parameter.UserTypeName : null,
-                BaseSqlTypeName = !parameter.IsTableType ? parameter.BaseSqlTypeName : null,
                 Precision = parameter.Precision > 0 ? parameter.Precision : null,
                 Scale = parameter.Scale > 0 ? parameter.Scale : null
             };
 
             if (!parameter.IsTableType && string.IsNullOrWhiteSpace(snapshotInput.TypeName))
             {
-                snapshotInput.TypeSchema = string.IsNullOrWhiteSpace(parameter.SqlTypeName) ? null : "sys";
-                snapshotInput.TypeName = parameter.SqlTypeName;
+                var (_, nameFromRef) = SplitTypeRef(typeRef);
+                snapshotInput.TypeSchema ??= "sys";
+                snapshotInput.TypeName = nameFromRef;
+            }
+
+            if (parameter.IsTableType && string.IsNullOrWhiteSpace(snapshotInput.TableTypeName))
+            {
+                var (schemaFromRef, nameFromRef) = SplitTypeRef(typeRef);
+                snapshotInput.TableTypeSchema ??= schemaFromRef;
+                snapshotInput.TableTypeName = nameFromRef;
             }
 
             list.Add(snapshotInput);
@@ -1032,16 +1033,15 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         return new SnapshotInput
         {
             Name = source?.Name ?? string.Empty,
+            TypeRef = source?.TypeRef,
             TableTypeSchema = source?.TableTypeSchema,
             TableTypeName = source?.TableTypeName,
-            SqlTypeName = source?.SqlTypeName,
             IsNullable = source?.IsNullable,
             MaxLength = source?.MaxLength,
             HasDefaultValue = source?.HasDefaultValue,
             IsOutput = source?.IsOutput,
             TypeSchema = source?.TypeSchema,
             TypeName = source?.TypeName,
-            BaseSqlTypeName = source?.BaseSqlTypeName,
             Precision = source?.Precision,
             Scale = source?.Scale
         };

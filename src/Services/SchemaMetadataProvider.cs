@@ -146,128 +146,160 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
         bool hasIgnored = ignored?.Any() == true;
         if (hasIgnored) _console.Verbose($"[snapshot-provider] deriving schema statuses via IgnoredSchemas ({ignored.Count})");
 
+        var userTypeLookup = BuildUserTypeLookup(snapshot?.UserDefinedTypes);
+
         var schemas = snapshot.Schemas.Select(s =>
-            {
-                // Derive status: check SPOCR_BUILD_SCHEMAS first (positive allow-list), then fall back to legacy ignore logic
-                SchemaStatusEnum status;
-
-                // If SPOCR_BUILD_SCHEMAS is specified, use it as positive allow-list
-                if (buildSchemas != null && buildSchemas.Any())
                 {
-                    status = buildSchemas.Contains(s.Name, StringComparer.OrdinalIgnoreCase)
-                        ? SchemaStatusEnum.Build
-                        : SchemaStatusEnum.Ignore;
-                }
-                // Otherwise use legacy logic with IgnoredSchemas
-                else if (defaultStatus == SchemaStatusEnum.Ignore)
-                {
-                    status = ignored.Contains(s.Name, StringComparer.OrdinalIgnoreCase)
-                        ? SchemaStatusEnum.Ignore
-                        : SchemaStatusEnum.Build;
-                }
-                else
-                {
-                    status = ignored.Contains(s.Name, StringComparer.OrdinalIgnoreCase)
-                        ? SchemaStatusEnum.Ignore
-                        : defaultStatus;
-                }
+                    // Derive status: check SPOCR_BUILD_SCHEMAS first (positive allow-list), then fall back to legacy ignore logic
+                    SchemaStatusEnum status;
 
-                // Filter procedures by SPOCR_BUILD_PROCEDURES if specified
-                var proceduresInSchema = snapshot.Procedures
-                    .Where(p => p.Schema.Equals(s.Name, StringComparison.OrdinalIgnoreCase));
-
-                // Apply procedure-level filtering 
-                // DISABLED in Code Generation - procedure filtering is only for schema snapshots (pull command)
-                // Code generation is controlled exclusively by SPOCR_BUILD_SCHEMAS
-                /*
-                var buildProceduresRaw = Environment.GetEnvironmentVariable("SPOCR_BUILD_PROCEDURES");
-                if (!string.IsNullOrWhiteSpace(buildProceduresRaw))
-                {
-                    var buildProcedures = new HashSet<string>(buildProceduresRaw
-                        .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
-                        .Select(sp => sp.Trim())
-                        .Where(sp => sp.Length > 0), StringComparer.OrdinalIgnoreCase);
-
-                    if (buildProcedures.Count > 0)
+                    // If SPOCR_BUILD_SCHEMAS is specified, use it as positive allow-list
+                    if (buildSchemas != null && buildSchemas.Any())
                     {
-                        proceduresInSchema = proceduresInSchema.Where(p =>
-                        {
-                            var fullName = $"{p.Schema}.{p.Name}";
-                            var procedureName = p.Name;
-                            return buildProcedures.Contains(fullName) || buildProcedures.Contains(procedureName);
-                        });
-                        _console.Verbose($"[snapshot-provider] applying SPOCR_BUILD_PROCEDURES filter for schema {s.Name}");
+                        status = buildSchemas.Contains(s.Name, StringComparer.OrdinalIgnoreCase)
+                            ? SchemaStatusEnum.Build
+                            : SchemaStatusEnum.Ignore;
                     }
-                }
-                */
+                    // Otherwise use legacy logic with IgnoredSchemas
+                    else if (defaultStatus == SchemaStatusEnum.Ignore)
+                    {
+                        status = ignored.Contains(s.Name, StringComparer.OrdinalIgnoreCase)
+                            ? SchemaStatusEnum.Ignore
+                            : SchemaStatusEnum.Build;
+                    }
+                    else
+                    {
+                        status = ignored.Contains(s.Name, StringComparer.OrdinalIgnoreCase)
+                            ? SchemaStatusEnum.Ignore
+                            : defaultStatus;
+                    }
 
-                var spList = proceduresInSchema
-                    .Select(p => new StoredProcedureModel(new DataContext.Models.StoredProcedure
+                    // Filter procedures by SPOCR_BUILD_PROCEDURES if specified
+                    var proceduresInSchema = snapshot.Procedures
+                        .Where(p => p.Schema.Equals(s.Name, StringComparison.OrdinalIgnoreCase));
+
+                    // Apply procedure-level filtering 
+                    // DISABLED in Code Generation - procedure filtering is only for schema snapshots (pull command)
+                    // Code generation is controlled exclusively by SPOCR_BUILD_SCHEMAS
+                    /*
+                    var buildProceduresRaw = Environment.GetEnvironmentVariable("SPOCR_BUILD_PROCEDURES");
+                    if (!string.IsNullOrWhiteSpace(buildProceduresRaw))
                     {
-                        SchemaName = p.Schema,
-                        Name = p.Name,
-                        // ModifiedTicks nicht mehr Teil des Snapshots: Fallback auf GeneratedUtc / DateTime.MinValue
-                        Modified = DateTime.MinValue
-                    })
-                    {
-                        ModifiedTicks = null,
-                        Input = p.Inputs.Select(i => new StoredProcedureInputModel(new DataContext.Models.StoredProcedureInput
+                        var buildProcedures = new HashSet<string>(buildProceduresRaw
+                            .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                            .Select(sp => sp.Trim())
+                            .Where(sp => sp.Length > 0), StringComparer.OrdinalIgnoreCase);
+
+                        if (buildProcedures.Count > 0)
                         {
-                            Name = i.Name,
-                            SqlTypeName = i.SqlTypeName,
-                            IsNullable = i.IsNullable ?? false,
-                            MaxLength = i.MaxLength ?? 0,
-                            IsOutput = i.IsOutput ?? false,
-                            IsTableType = !string.IsNullOrWhiteSpace(i.TableTypeName) && !string.IsNullOrWhiteSpace(i.TableTypeSchema),
-                            UserTypeName = i.TableTypeName,
-                            UserTypeSchemaName = i.TableTypeSchema
-                        })).ToList(),
-                        Content = new StoredProcedureContentModel
-                        {
-                            Definition = null,
-                            ContainsSelect = true,
-                            ResultSets = PostProcessResultSets(p)
+                            proceduresInSchema = proceduresInSchema.Where(p =>
+                            {
+                                var fullName = $"{p.Schema}.{p.Name}";
+                                var procedureName = p.Name;
+                                return buildProcedures.Contains(fullName) || buildProcedures.Contains(procedureName);
+                            });
+                            _console.Verbose($"[snapshot-provider] applying SPOCR_BUILD_PROCEDURES filter for schema {s.Name}");
                         }
-                    }).ToList();
-                var ttList = snapshot.UserDefinedTableTypes
-                    .Where(u => u.Schema.Equals(s.Name, StringComparison.OrdinalIgnoreCase))
-                    .Select(u => new TableTypeModel(new DataContext.Models.TableType
-                    {
-                        Name = u.Name,
-                        SchemaName = u.Schema,
-                        UserTypeId = u.UserTypeId,
-                        Columns = u.Columns.Select(c => new DataContext.Models.Column
+                    }
+                    */
+
+                    var spList = proceduresInSchema
+                        .Select(p => new StoredProcedureModel(new DataContext.Models.StoredProcedure
                         {
-                            Name = c.Name,
-                            SqlTypeName = c.SqlTypeName,
-                            IsNullable = c.IsNullable ?? false,
-                            MaxLength = c.MaxLength ?? 0,
-                            UserTypeName = c.UserTypeName,
-                            UserTypeSchemaName = c.UserTypeSchemaName,
-                            BaseSqlTypeName = c.BaseSqlTypeName,
-                            Precision = c.Precision,
-                            Scale = c.Scale
-                        }).ToList()
-                    }, u.Columns.Select(c => new DataContext.Models.Column
+                            SchemaName = p.Schema,
+                            Name = p.Name,
+                            // ModifiedTicks nicht mehr Teil des Snapshots: Fallback auf GeneratedUtc / DateTime.MinValue
+                            Modified = DateTime.MinValue
+                        })
+                        {
+                            ModifiedTicks = null,
+                            Input = p.Inputs.Select(i =>
+                            {
+                                var storedInput = new DataContext.Models.StoredProcedureInput
+                                {
+                                    Name = i.Name,
+                                    IsNullable = i.IsNullable ?? false,
+                                    MaxLength = i.MaxLength ?? 0,
+                                    IsOutput = i.IsOutput ?? false,
+                                    HasDefaultValue = i.HasDefaultValue == true,
+                                    Precision = i.Precision,
+                                    Scale = i.Scale
+                                };
+
+                                bool isTableType = !string.IsNullOrWhiteSpace(i.TableTypeSchema) && !string.IsNullOrWhiteSpace(i.TableTypeName);
+                                storedInput.IsTableType = isTableType;
+
+                                if (isTableType)
+                                {
+                                    storedInput.UserTypeSchemaName = i.TableTypeSchema;
+                                    storedInput.UserTypeName = i.TableTypeName;
+                                    storedInput.SqlTypeName = BuildSqlTypeName(i.TableTypeSchema, i.TableTypeName) ?? i.TypeRef ?? string.Empty;
+                                }
+                                else
+                                {
+                                    var (schema, name) = SplitTypeRef(i.TypeRef);
+                                    var resolvedUdt = ResolveUserDefinedType(schema, name, userTypeLookup);
+
+                                    if (resolvedUdt != null)
+                                    {
+                                        storedInput.SqlTypeName = resolvedUdt.BaseSqlTypeName ?? name ?? i.TypeRef ?? string.Empty;
+                                        storedInput.UserTypeSchemaName = resolvedUdt.Schema;
+                                        storedInput.UserTypeName = resolvedUdt.Name;
+                                        storedInput.BaseSqlTypeName = resolvedUdt.BaseSqlTypeName;
+                                        if (resolvedUdt.MaxLength.HasValue)
+                                        {
+                                            storedInput.MaxLength = resolvedUdt.MaxLength.Value;
+                                        }
+                                        storedInput.Precision ??= resolvedUdt.Precision;
+                                        storedInput.Scale ??= resolvedUdt.Scale;
+                                        if (!i.IsNullable.HasValue && resolvedUdt.IsNullable.HasValue)
+                                        {
+                                            storedInput.IsNullable = resolvedUdt.IsNullable.Value;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        storedInput.SqlTypeName = ResolveSqlTypeNameOrFallback(schema, name, i.TypeRef);
+
+                                        if (!IsSystemSchema(schema))
+                                        {
+                                            storedInput.UserTypeSchemaName = schema;
+                                            storedInput.UserTypeName = name;
+                                            storedInput.BaseSqlTypeName ??= storedInput.SqlTypeName;
+                                        }
+                                        else
+                                        {
+                                            storedInput.BaseSqlTypeName = name ?? storedInput.SqlTypeName;
+                                        }
+                                    }
+                                }
+
+                                return new StoredProcedureInputModel(storedInput);
+                            }).ToList(),
+                            Content = new StoredProcedureContentModel
+                            {
+                                Definition = null,
+                                ContainsSelect = true,
+                                ResultSets = PostProcessResultSets(p, userTypeLookup)
+                            }
+                        }).ToList();
+                    var ttList = snapshot.UserDefinedTableTypes
+                        .Where(u => u.Schema.Equals(s.Name, StringComparison.OrdinalIgnoreCase))
+                        .Select(u => new TableTypeModel(new DataContext.Models.TableType
+                        {
+                            Name = u.Name,
+                            SchemaName = u.Schema,
+                            UserTypeId = u.UserTypeId,
+                            Columns = u.Columns.Select(c => MapUdttColumnToModel(c, userTypeLookup)).ToList()
+                        }, u.Columns.Select(c => MapUdttColumnToModel(c, userTypeLookup)).ToList())).ToList();
+                    return new SchemaModel
                     {
-                        Name = c.Name,
-                        SqlTypeName = c.SqlTypeName,
-                        IsNullable = c.IsNullable ?? false,
-                        MaxLength = c.MaxLength ?? 0,
-                        UserTypeName = c.UserTypeName,
-                        UserTypeSchemaName = c.UserTypeSchemaName,
-                        BaseSqlTypeName = c.BaseSqlTypeName,
-                        Precision = c.Precision,
-                        Scale = c.Scale
-                    }).ToList())).ToList();
-                return new SchemaModel
-                {
-                    Name = s.Name,
-                    Status = status,
-                    StoredProcedures = spList,
-                    TableTypes = ttList
-                };
-            }).ToList();
+                        Name = s.Name,
+                        Status = status,
+                        StoredProcedures = spList,
+                        TableTypes = ttList
+                    };
+                }).ToList();
 
         _schemas = schemas;
         _lastLoadUtc = DateTime.UtcNow;
@@ -310,21 +342,67 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
         return _schemas;
     }
 
-    private static IReadOnlyList<StoredProcedureContentModel.ResultSet> PostProcessResultSets(SnapshotProcedure p)
+    private static DataContext.Models.Column MapUdttColumnToModel(SnapshotUdttColumn column, IDictionary<string, SnapshotUserDefinedType> userTypeLookup)
+    {
+        var mapped = new DataContext.Models.Column
+        {
+            Name = column.Name,
+            IsNullable = column.IsNullable ?? false,
+            MaxLength = column.MaxLength ?? 0,
+            Precision = column.Precision,
+            Scale = column.Scale
+        };
+
+        var (schema, name) = SplitTypeRef(column.TypeRef);
+        var resolvedUdt = ResolveUserDefinedType(schema, name, userTypeLookup);
+
+        if (resolvedUdt != null)
+        {
+            mapped.SqlTypeName = resolvedUdt.BaseSqlTypeName ?? name ?? column.TypeRef ?? string.Empty;
+            mapped.UserTypeSchemaName = resolvedUdt.Schema;
+            mapped.UserTypeName = resolvedUdt.Name;
+            mapped.BaseSqlTypeName = resolvedUdt.BaseSqlTypeName;
+            if (resolvedUdt.MaxLength.HasValue)
+            {
+                mapped.MaxLength = resolvedUdt.MaxLength.Value;
+            }
+            mapped.Precision ??= resolvedUdt.Precision;
+            mapped.Scale ??= resolvedUdt.Scale;
+            if (!column.IsNullable.HasValue && resolvedUdt.IsNullable.HasValue)
+            {
+                mapped.IsNullable = resolvedUdt.IsNullable.Value;
+            }
+        }
+        else
+        {
+            mapped.SqlTypeName = ResolveSqlTypeNameOrFallback(schema, name, column.TypeRef);
+            if (!IsSystemSchema(schema))
+            {
+                mapped.UserTypeSchemaName = schema;
+                mapped.UserTypeName = name;
+                mapped.BaseSqlTypeName ??= mapped.SqlTypeName;
+            }
+            else
+            {
+                mapped.BaseSqlTypeName = name ?? mapped.SqlTypeName;
+            }
+        }
+
+        return mapped;
+    }
+
+    private static IReadOnlyList<StoredProcedureContentModel.ResultSet> PostProcessResultSets(SnapshotProcedure p, IDictionary<string, SnapshotUserDefinedType> userTypeLookup)
     {
         StoredProcedureContentModel.ResultColumn MapSnapshotCol(SnapshotResultColumn c)
         {
-            // Prefer flattened v6 fields
             bool hasFlattened = c.IsNestedJson == true || c.ReturnsJson == true || (c.Columns != null && c.Columns.Count > 0);
 #pragma warning disable CS0612
             var rc = new StoredProcedureContentModel.ResultColumn
             {
                 Name = c.Name,
-                SqlTypeName = c.SqlTypeName,
+                SqlTypeName = null,
                 IsNullable = c.IsNullable,
                 MaxLength = c.MaxLength,
-                UserTypeSchemaName = c.UserTypeSchemaName,
-                UserTypeName = c.UserTypeName,
                 IsNestedJson = hasFlattened ? c.IsNestedJson : (c.JsonResult != null ? true : null),
                 ReturnsJson = hasFlattened ? c.ReturnsJson : c.JsonResult?.ReturnsJson,
                 ReturnsJsonArray = hasFlattened ? c.ReturnsJsonArray : c.JsonResult?.ReturnsJsonArray,
@@ -337,20 +415,49 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
                     Name = c.Reference.Name
                 } : null
             };
+#pragma warning restore CS0612
+
+            var (schema, name) = SplitTypeRef(c.TypeRef);
+            var resolvedUdt = ResolveUserDefinedType(schema, name, userTypeLookup);
+            if (resolvedUdt != null)
+            {
+                rc.SqlTypeName = resolvedUdt.BaseSqlTypeName ?? name ?? c.TypeRef ?? string.Empty;
+                rc.UserTypeSchemaName = resolvedUdt.Schema;
+                rc.UserTypeName = resolvedUdt.Name;
+                rc.MaxLength ??= resolvedUdt.MaxLength;
+                if (!c.IsNullable.HasValue && resolvedUdt.IsNullable.HasValue)
+                {
+                    rc.IsNullable = resolvedUdt.IsNullable;
+                }
+            }
+            else
+            {
+                rc.SqlTypeName = ResolveSqlTypeNameOrFallback(schema, name, c.TypeRef);
+                if (!IsSystemSchema(schema))
+                {
+                    rc.UserTypeSchemaName = schema;
+                    rc.UserTypeName = name;
+                }
+            }
+
+#pragma warning disable CS0612
             var nestedSource = hasFlattened ? c.Columns : c.JsonResult?.Columns;
 #pragma warning restore CS0612
             if (nestedSource != null && nestedSource.Count > 0)
             {
                 rc.Columns = nestedSource.Select(MapSnapshotCol).ToArray();
             }
-            else rc.Columns = Array.Empty<StoredProcedureContentModel.ResultColumn>();
+            else
+            {
+                rc.Columns = Array.Empty<StoredProcedureContentModel.ResultColumn>();
+            }
             return rc;
         }
+
         var sets = p.ResultSets.Select(rs => new StoredProcedureContentModel.ResultSet
         {
             ReturnsJson = rs.ReturnsJson,
             ReturnsJsonArray = rs.ReturnsJsonArray,
-            // removed flag
             JsonRootProperty = rs.JsonRootProperty,
             ExecSourceSchemaName = rs.ExecSourceSchemaName,
             ExecSourceProcedureName = rs.ExecSourceProcedureName,
@@ -372,10 +479,139 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
             Columns = rs.Columns.Select(MapSnapshotCol).ToArray()
         }).ToList();
 
-        // Placeholder sets (forwarding references) are never filtered now because they are required to resolve the target model.
-
-        // Entfernt: automatische legacy Einzelspalten-Konvertierung (JSON_F52E2B61...)
-        // Optional reaktivierbar via Flag SPOCR_JSON_LEGACY_SINGLE=1 bereits im SchemaManager für Live-Erkennung.
         return sets.ToArray();
+    }
+
+    private static Dictionary<string, SnapshotUserDefinedType> BuildUserTypeLookup(IEnumerable<SnapshotUserDefinedType> userDefinedTypes)
+    {
+        var lookup = new Dictionary<string, SnapshotUserDefinedType>(StringComparer.OrdinalIgnoreCase);
+        if (userDefinedTypes == null)
+        {
+            return lookup;
+        }
+
+        foreach (var udt in userDefinedTypes)
+        {
+            if (udt == null) continue;
+            if (string.IsNullOrWhiteSpace(udt.Schema) || string.IsNullOrWhiteSpace(udt.Name)) continue;
+
+            var key = string.Concat(udt.Schema, ".", udt.Name);
+            lookup[key] = udt;
+            if (!lookup.ContainsKey(udt.Name))
+            {
+                lookup[udt.Name] = udt;
+            }
+
+            if (udt.Name.StartsWith("_", StringComparison.Ordinal))
+            {
+                var trimmed = udt.Name.TrimStart('_');
+                var trimmedKey = string.Concat(udt.Schema, ".", trimmed);
+                if (!lookup.ContainsKey(trimmedKey))
+                {
+                    lookup[trimmedKey] = udt;
+                }
+                if (!lookup.ContainsKey(trimmed))
+                {
+                    lookup[trimmed] = udt;
+                }
+            }
+        }
+
+        return lookup;
+    }
+
+    private static SnapshotUserDefinedType ResolveUserDefinedType(string? schema, string? name, IDictionary<string, SnapshotUserDefinedType> lookup)
+    {
+        if (lookup == null || lookup.Count == 0 || string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        SnapshotUserDefinedType udt = null;
+        if (!string.IsNullOrWhiteSpace(schema))
+        {
+            lookup.TryGetValue(string.Concat(schema, ".", name), out udt);
+        }
+
+        if (udt == null)
+        {
+            lookup.TryGetValue(name, out udt);
+        }
+
+        if (udt == null && name.StartsWith("_", StringComparison.Ordinal))
+        {
+            var trimmed = name.TrimStart('_');
+            if (!string.IsNullOrWhiteSpace(schema))
+            {
+                lookup.TryGetValue(string.Concat(schema, ".", trimmed), out udt);
+            }
+            if (udt == null)
+            {
+                lookup.TryGetValue(trimmed, out udt);
+            }
+        }
+
+        return udt;
+    }
+
+    private static string ResolveSqlTypeNameOrFallback(string? schema, string? name, string? typeRef)
+    {
+        var candidate = BuildSqlTypeName(schema, name) ?? typeRef ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(candidate))
+        {
+            return System.Data.SqlDbType.Variant.ToString();
+        }
+
+        var normalized = candidate.Split('(')[0];
+        if (Enum.TryParse<System.Data.SqlDbType>(normalized, true, out _))
+        {
+            return candidate;
+        }
+
+        return System.Data.SqlDbType.NVarChar.ToString();
+    }
+
+    private static (string? Schema, string? Name) SplitTypeRef(string? typeRef)
+    {
+        if (string.IsNullOrWhiteSpace(typeRef))
+        {
+            return (null, null);
+        }
+
+        var parts = typeRef.Trim().Split('.', 2, StringSplitOptions.TrimEntries);
+        if (parts.Length == 2)
+        {
+            var schema = string.IsNullOrWhiteSpace(parts[0]) ? null : parts[0];
+            var name = string.IsNullOrWhiteSpace(parts[1]) ? null : parts[1];
+            return (schema, name);
+        }
+
+        var single = string.IsNullOrWhiteSpace(parts[0]) ? null : parts[0];
+        return (null, single);
+    }
+
+    private static string? BuildSqlTypeName(string? schema, string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(schema) && !IsSystemSchema(schema))
+        {
+            return string.Concat(schema, ".", name);
+        }
+
+        return name;
+    }
+
+    private static bool IsSystemSchema(string? schema)
+    {
+        if (string.IsNullOrWhiteSpace(schema))
+        {
+            return true;
+        }
+
+        return string.Equals(schema, "sys", StringComparison.OrdinalIgnoreCase);
     }
 }

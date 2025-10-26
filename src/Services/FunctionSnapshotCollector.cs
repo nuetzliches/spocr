@@ -97,7 +97,6 @@ public sealed class FunctionSnapshotCollector
                                     var mapped = new SnapshotFunctionColumn
                                     {
                                         Name = c.Name,
-                                        SqlTypeName = (c.IsNestedJson || c.ReturnsJson) ? "json" : null,
                                         IsNullable = null,
                                         MaxLength = null,
                                         IsNestedJson = c.IsNestedJson ? true : null,
@@ -218,13 +217,15 @@ public sealed class FunctionSnapshotCollector
                     finalNullable = userTypeNullable ?? true;
                 }
 
+                var parameterTypeRef = BuildTypeRef(p.user_type_schema_name, p.user_type_name, p.base_type_name);
+
                 fn.Parameters.Add(new SnapshotFunctionParameter
                 {
                     Name = name,
                     TableTypeSchema = null,
                     TableTypeName = null,
+                    TypeRef = parameterTypeRef,
                     IsOutput = null, // pruned (immer false)
-                    SqlTypeName = sqlType,
                     IsNullable = finalNullable,
                     MaxLength = maxLength > 0 ? maxLength : null,
                     HasDefaultValue = hasDefault ? true : null
@@ -253,10 +254,12 @@ public sealed class FunctionSnapshotCollector
                         suffix++;
                     }
                 }
+                var columnTypeRef = BuildTypeRef(c.user_type_schema_name, c.user_type_name, c.base_type_name);
+
                 fn.Columns.Add(new SnapshotFunctionColumn
                 {
                     Name = finalName,
-                    SqlTypeName = sqlType,
+                    TypeRef = columnTypeRef,
                     IsNullable = isNullable ? true : null,
                     MaxLength = maxLength > 0 ? maxLength : null
                 });
@@ -292,13 +295,13 @@ public sealed class FunctionSnapshotCollector
 
             // Sorting and version tag
             snapshot.FunctionsVersion = 2; // Nested JSON / erweitertes Model
-            // Enrichment: Typableitung für JSON-Spalten aus Parameter- und Tabellen-Metadaten (nur wenn keine SqlTypeName vorhanden)
+            // Enrichment: Typableitung für JSON-Spalten aus Parameter- und Tabellen-Metadaten (nur wenn kein TypeRef vorhanden)
             try
             {
                 // Baue schnelle Lookup Maps für Parameter je Funktion (nutze lokale 'functions' Liste, nicht bereits existierende snapshot.Functions)
                 var paramLookup = functions.ToDictionary(f => f.Schema + "." + f.Name, f => f.Parameters.ToDictionary(p => p.Name, p => p, StringComparer.OrdinalIgnoreCase), StringComparer.OrdinalIgnoreCase);
-                // Table Lookup: Schema.Table -> Columns (Name->(SqlType, IsNullable, MaxLength))
-                var tableLookup = new Dictionary<string, Dictionary<string, (string SqlType, bool? IsNullable, int? MaxLength)>>(StringComparer.OrdinalIgnoreCase);
+                // Table Lookup: Schema.Table -> Columns (Name->(TypeRef, IsNullable, MaxLength))
+                var tableLookup = new Dictionary<string, Dictionary<string, (string TypeRef, bool? IsNullable, int? MaxLength)>>(StringComparer.OrdinalIgnoreCase);
                 if (snapshot.Tables != null)
                 {
                     foreach (var t in snapshot.Tables)
@@ -307,9 +310,9 @@ public sealed class FunctionSnapshotCollector
                         var colMap = new Dictionary<string, (string, bool?, int?)>(StringComparer.OrdinalIgnoreCase);
                         foreach (var c in t.Columns ?? new List<SnapshotTableColumn>())
                         {
-                            if (!string.IsNullOrWhiteSpace(c.Name) && !string.IsNullOrWhiteSpace(c.SqlTypeName))
+                            if (!string.IsNullOrWhiteSpace(c.Name) && !string.IsNullOrWhiteSpace(c.TypeRef))
                             {
-                                colMap[c.Name] = (c.SqlTypeName!, c.IsNullable, c.MaxLength);
+                                colMap[c.Name] = (c.TypeRef!, c.IsNullable, c.MaxLength);
                             }
                         }
                         tableLookup[key] = colMap;
@@ -350,10 +353,10 @@ public sealed class FunctionSnapshotCollector
     // Hinweis: Alle regex-basierten JSON Rückfall-Heuristiken entfernt (InferJsonColumns & verwandte Methoden).
 
     private void EnrichColumnRecursive(SnapshotFunction fn, SnapshotFunctionColumn col, Dictionary<string, SnapshotFunctionParameter>? paramMap,
-        Dictionary<string, Dictionary<string, (string SqlType, bool? IsNullable, int? MaxLength)>> tableLookup)
+        Dictionary<string, Dictionary<string, (string TypeRef, bool? IsNullable, int? MaxLength)>> tableLookup)
     {
         // Wenn bereits konkreter Typ vorhanden und != 'json' (Container) -> nichts tun
-        if (!string.IsNullOrWhiteSpace(col.SqlTypeName) && !string.Equals(col.SqlTypeName, "json", StringComparison.OrdinalIgnoreCase))
+        if (!string.IsNullOrWhiteSpace(col.TypeRef))
         {
             if (col.Columns != null && col.Columns.Count > 0)
             {
@@ -376,9 +379,9 @@ public sealed class FunctionSnapshotCollector
                 }
             }
         }
-        if (matchedParam != null && !string.IsNullOrWhiteSpace(matchedParam.SqlTypeName))
+        if (matchedParam != null && !string.IsNullOrWhiteSpace(matchedParam.TypeRef))
         {
-            col.SqlTypeName = matchedParam.SqlTypeName;
+            col.TypeRef = matchedParam.TypeRef;
             col.IsNullable = matchedParam.IsNullable;
             col.MaxLength = matchedParam.MaxLength;
         }
@@ -388,20 +391,20 @@ public sealed class FunctionSnapshotCollector
             if (leaf.Equals("dateTime", StringComparison.OrdinalIgnoreCase) && paramMap != null)
             {
                 string paramAlias = segments.Length > 0 && segments[0].Equals("updated", StringComparison.OrdinalIgnoreCase) ? "UpdatedDt" : "CreatedDt";
-                if (paramMap.TryGetValue(paramAlias, out var dtParam) && !string.IsNullOrWhiteSpace(dtParam.SqlTypeName))
+                if (paramMap.TryGetValue(paramAlias, out var dtParam) && !string.IsNullOrWhiteSpace(dtParam.TypeRef))
                 {
-                    col.SqlTypeName = dtParam.SqlTypeName;
+                    col.TypeRef = dtParam.TypeRef;
                     col.IsNullable = dtParam.IsNullable;
                     col.MaxLength = dtParam.MaxLength;
                 }
             }
             // DisplayName / Initials / userId / rowVersion mapping
-            if (string.IsNullOrWhiteSpace(col.SqlTypeName))
+            if (string.IsNullOrWhiteSpace(col.TypeRef))
             {
                 if (leaf.Equals("displayName", StringComparison.OrdinalIgnoreCase))
                 {
                     TryMapTableColumn("identity.User", "DisplayName", col, tableLookup); // direkter Name, falls vorhanden
-                    if (string.IsNullOrWhiteSpace(col.SqlTypeName))
+                    if (string.IsNullOrWhiteSpace(col.TypeRef))
                     {
                         TryMapTableColumn("identity.User", "UserName", col, tableLookup); // Fallback
                     }
@@ -419,11 +422,11 @@ public sealed class FunctionSnapshotCollector
                     // Versuche echte Tabellen-Spalte zuzuordnen (identity.User.RowVersion) und nutze deren Typ.
                     TryMapTableColumn("identity.User", "RowVersion", col, tableLookup);
                     // Fallback falls Mapping leer blieb: verwende kanonischen SqlTypeName 'rowversion'.
-                    if (string.IsNullOrWhiteSpace(col.SqlTypeName)) col.SqlTypeName = "rowversion";
+                    if (string.IsNullOrWhiteSpace(col.TypeRef)) col.TypeRef = CombineTypeRef("sys", "rowversion");
                 }
             }
             // Generischer Fallback: identity.User.<leaf>
-            if (string.IsNullOrWhiteSpace(col.SqlTypeName))
+            if (string.IsNullOrWhiteSpace(col.TypeRef))
             {
                 TryMapTableColumn("identity.User", leaf, col, tableLookup);
             }
@@ -436,11 +439,11 @@ public sealed class FunctionSnapshotCollector
     }
 
     private void TryMapTableColumn(string tableKey, string columnName, SnapshotFunctionColumn target,
-        Dictionary<string, Dictionary<string, (string SqlType, bool? IsNullable, int? MaxLength)>> tableLookup)
+        Dictionary<string, Dictionary<string, (string TypeRef, bool? IsNullable, int? MaxLength)>> tableLookup)
     {
         if (tableLookup.TryGetValue(tableKey, out var cols) && cols.TryGetValue(columnName, out var meta))
         {
-            if (string.IsNullOrWhiteSpace(target.SqlTypeName)) target.SqlTypeName = meta.SqlType;
+            if (string.IsNullOrWhiteSpace(target.TypeRef)) target.TypeRef = meta.TypeRef;
             if (!target.IsNullable.HasValue) target.IsNullable = meta.IsNullable;
             if (!target.MaxLength.HasValue) target.MaxLength = meta.MaxLength;
         }
@@ -490,6 +493,42 @@ public sealed class FunctionSnapshotCollector
         }
         catch { }
         return string.Empty;
+    }
+
+    private static string? BuildTypeRef(string? userTypeSchema, string? userTypeName, string? baseTypeName)
+    {
+        if (!string.IsNullOrWhiteSpace(userTypeSchema) && !string.IsNullOrWhiteSpace(userTypeName))
+        {
+            return CombineTypeRef(userTypeSchema, userTypeName);
+        }
+
+        var normalizedBase = NormalizeSqlTypeName(baseTypeName);
+        if (!string.IsNullOrWhiteSpace(normalizedBase))
+        {
+            return CombineTypeRef("sys", normalizedBase);
+        }
+
+        return null;
+    }
+
+    private static string? CombineTypeRef(string? schema, string? name)
+    {
+        if (string.IsNullOrWhiteSpace(schema) || string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        return string.Concat(schema.Trim(), ".", name.Trim());
+    }
+
+    private static string? NormalizeSqlTypeName(string? sqlTypeName)
+    {
+        if (string.IsNullOrWhiteSpace(sqlTypeName))
+        {
+            return null;
+        }
+
+        return sqlTypeName.Trim().ToLowerInvariant();
     }
 
     private sealed class ReturnTypeVisitor : TSqlFragmentVisitor

@@ -3,6 +3,7 @@ using SpocR.DataContext.Attributes;
 
 namespace SpocR.DataContext.Models;
 
+// TODO rename to `StoredProcedureParameter`, remove obsolete fields later
 public class StoredProcedureInput : Column
 {
     [SqlFieldName("is_output")]
