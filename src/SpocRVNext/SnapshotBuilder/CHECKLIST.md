@@ -38,7 +38,7 @@
   - Ausgabe: Liste verarbeitbarer Prozeduren mit Status (Reuse, Refresh, Skip). _(Reuse/Analyze umgesetzt; Skip noch offen)_
 - [~] ProcedureAnalyzer
   - Integration `StoredProcedureContentModel` (AST only). _(DatabaseProcedureAnalyzer zieht Definition aus DB, parsed AST & extrahiert Dependencies)_
-  - Übergabe an Postprocessor (CTE/TableVar/JSON Binding).
+  - Übergabe an Postprocessor (CTE/TableVar/JSON Binding). _(Dependency-Metadaten-Queries korrigiert; `modify_date`-freie Pfade validiert)_
   - Rückgabe: `AnalyzedProcedure` DTO inkl. Typinformationen.
 - [~] Writer: Procedures + Index
   - Streaming-Write mit `Utf8JsonWriter`. _(ExpandedSnapshotWriter erzeugt deterministische Procedure-Dateien)_
@@ -50,9 +50,9 @@
 - [ ] Parallelisierung
   - Konfigurierbare MaxDegreeOfParallelism.
   - Thread-sichere Nutzung von Analyzer/Writers (z. B. `SemaphoreSlim`).
-- [ ] Telemetrie & Logging
+- [~] Telemetrie & Logging
   - Laufzeiten (Collect, Analyze, Write) und Spaltenmetriken.
-  - Aggregierte Summary nach Run; Persistenz optional.
+  - Aggregierte Summary nach Run; Persistenz optional. _(CLI fasst aktuell Analyzed/Reuse/Write zusammen; Timing fehlt noch)_
 - [~] Config-Übergang
   - ENV-only Pfad sicherstellen, `spocr.json` nur für Warnung/Kompat. _(Pull-Flow nutzt jetzt `EnvConfiguration` als Primärquelle; Warnung beim Fallback bleibt aktiv)_
   - Bootstrapper anpassen (Inputs aus `.env` priorisieren).
