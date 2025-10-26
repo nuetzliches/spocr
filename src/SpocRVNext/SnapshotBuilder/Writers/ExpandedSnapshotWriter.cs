@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -61,44 +62,65 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         var filesUnchanged = 0;
         var verbose = options?.Verbose ?? false;
 
-        foreach (var item in analyzedProcedures)
+        var degreeOfParallelism = options?.MaxDegreeOfParallelism > 0
+            ? options.MaxDegreeOfParallelism
+            : Environment.ProcessorCount;
+        var parallelOptions = new ParallelOptions
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (item == null) continue;
+            CancellationToken = cancellationToken,
+            MaxDegreeOfParallelism = Math.Max(1, degreeOfParallelism)
+        };
 
-            var descriptor = item.Descriptor ?? new ProcedureDescriptor();
-            var fileName = string.IsNullOrWhiteSpace(item.SnapshotFile)
-                ? BuildDefaultSnapshotFile(descriptor)
-                : item.SnapshotFile;
-            var filePath = Path.Combine(proceduresRoot, fileName);
+        var writeResults = new ConcurrentBag<ProcedureWriteRecord>();
 
-            var jsonBytes = BuildProcedureJson(descriptor, item.Parameters, item.Ast);
-            var writeOutcome = await WriteArtifactAsync(filePath, jsonBytes, cancellationToken).ConfigureAwait(false);
-            if (writeOutcome.Wrote)
+        await Parallel.ForEachAsync(
+            analyzedProcedures.Select((item, index) => (item, index)),
+            parallelOptions,
+            async (entry, ct) =>
             {
-                filesWritten++;
-                if (verbose)
+                var (item, index) = entry;
+                if (item == null)
+                {
+                    return;
+                }
+
+                ct.ThrowIfCancellationRequested();
+
+                var descriptor = item.Descriptor ?? new ProcedureDescriptor();
+                var fileName = string.IsNullOrWhiteSpace(item.SnapshotFile)
+                    ? BuildDefaultSnapshotFile(descriptor)
+                    : item.SnapshotFile;
+                var filePath = Path.Combine(proceduresRoot, fileName);
+
+                var jsonBytes = BuildProcedureJson(descriptor, item.Parameters, item.Ast);
+                var writeOutcome = await WriteArtifactAsync(filePath, jsonBytes, ct).ConfigureAwait(false);
+                if (writeOutcome.Wrote && verbose)
                 {
                     _console.Verbose($"[snapshot-write] wrote {fileName}");
                 }
-            }
-            else
-            {
-                filesUnchanged++;
-            }
 
-            updated.Add(new ProcedureAnalysisResult
-            {
-                Descriptor = descriptor,
-                Ast = item.Ast,
-                WasReusedFromCache = item.WasReusedFromCache,
-                SourceLastModifiedUtc = item.SourceLastModifiedUtc,
-                SnapshotFile = fileName,
-                SnapshotHash = writeOutcome.Hash,
-                Parameters = item.Parameters,
-                Dependencies = item.Dependencies
-            });
-        }
+                var result = new ProcedureAnalysisResult
+                {
+                    Descriptor = descriptor,
+                    Ast = item.Ast,
+                    WasReusedFromCache = item.WasReusedFromCache,
+                    SourceLastModifiedUtc = item.SourceLastModifiedUtc,
+                    SnapshotFile = fileName,
+                    SnapshotHash = writeOutcome.Hash,
+                    Parameters = item.Parameters,
+                    Dependencies = item.Dependencies
+                };
+
+                writeResults.Add(new ProcedureWriteRecord(index, result, writeOutcome.Wrote));
+            }).ConfigureAwait(false);
+
+        var orderedWrites = writeResults
+            .OrderBy(static record => record.Index)
+            .ToList();
+
+        filesWritten = orderedWrites.Count(static record => record.Wrote);
+        filesUnchanged = orderedWrites.Count - filesWritten;
+        updated.AddRange(orderedWrites.Select(static record => record.Result));
 
         var schemaArtifacts = await WriteSchemaArtifactsAsync(schemaRoot, options!, updated, cancellationToken).ConfigureAwait(false);
         filesWritten += schemaArtifacts.FilesWritten;
@@ -1250,6 +1272,8 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
     }
 
     private sealed record ArtifactWriteOutcome(bool Wrote, string Hash);
+
+    private sealed record ProcedureWriteRecord(int Index, ProcedureAnalysisResult Result, bool Wrote);
 
     private sealed class SchemaArtifactSummary
     {

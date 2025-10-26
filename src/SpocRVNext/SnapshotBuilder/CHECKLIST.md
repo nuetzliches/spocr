@@ -47,9 +47,10 @@
 - [~] Cache-Modul
   - Persistenter Cache (z. B. `debug/.spocr/cache/procedures.json`). _(FileSnapshotCache speichert Fingerprints & ModifyDate nur lokal pro Entwickler; Schema-Artefakte bleiben diff-frei)_
   - [x] Shared Table-Metadata Cache (Thread-safe, lazy load, TTL). _(Gemeinsamer `TableMetadataCache` liefert lazy geladene Tabellenmetadaten mit Änderungsüberwachung und TTL-Invalidierung, Provider teilen sich denselben Snapshot.)_
-- [ ] Parallelisierung
+- [x] Parallelisierung
   - Konfigurierbare MaxDegreeOfParallelism.
   - Thread-sichere Nutzung von Analyzer/Writers (z. B. `SemaphoreSlim`).
+  - `ExpandedSnapshotWriter` nutzt `Parallel.ForEachAsync` mit deterministischer Ergebnisreihenfolge und konsolidierter Fehlerbehandlung.
 - [~] Telemetrie & Logging
   - [x] Laufzeiten (Collect, Analyze, Write). _(Per-Phase-Laufzeiten werden via Diagnostics & CLI ausgewiesen.)_
   - [x] Spaltenmetriken. _(Parameter-/ResultSet-Kennzahlen werden gesammelt und als CLI-Metrik ausgegeben.)_
