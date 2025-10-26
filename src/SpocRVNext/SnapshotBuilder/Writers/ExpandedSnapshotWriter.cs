@@ -489,6 +489,20 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
             writer.WriteString("TypeRef", typeRef);
             RegisterTypeRef(requiredTypeRefs, typeRef);
         }
+        if (column.ReturnsJson == true || column.IsNestedJson == true)
+        {
+            writer.WritePropertyName("Json");
+            writer.WriteStartObject();
+            if (column.ReturnsJsonArray == true)
+            {
+                writer.WriteBoolean("IsArray", true);
+            }
+            if (!string.IsNullOrWhiteSpace(column.JsonRootProperty))
+            {
+                writer.WriteString("RootProperty", column.JsonRootProperty);
+            }
+            writer.WriteEndObject();
+        }
         var sqlTypeName = DeriveSqlTypeName(column, typeRef);
         if (!string.IsNullOrWhiteSpace(sqlTypeName))
         {

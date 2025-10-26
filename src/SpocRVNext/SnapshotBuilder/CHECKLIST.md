@@ -93,7 +93,7 @@
 - [x] Die SQL-Queries (Abfragen für den Snapshot) auf die Felder (und Joins) reduzieren, die erforderlich sind. _(Parameter-/UDTT-Abfragen liefern jetzt nur noch benötigte Spalten, überflüssige Joins entfernt.)_
 - [x] Sollten wir nur die Types laden (oder im Snapshot speichern), die auch über die `TypeRef`s benötigt werden? Passt das in unser Konzept oder eher nachteilhaft?
 - [x] JsonResultSetTypeEnricher von `StoredProcedureContentModel` entkoppeln (neue Parser-Outputs verwenden).
-- [ ] Column-Level JSON-Emission prüfen (`Json`-Block vs. Flattening), sobald Konsumenten aktualisiert sind.
+- [x] Column-Level JSON-Emission prüfen (`Json`-Block vs. Flattening), sobald Konsumenten aktualisiert sind.
 - [x] C:\Projekte\GitHub\spocr\src\Services\SchemaSnapshotService.cs:ResolveLegacySchemaDir(): Kommentar ergänzt – Pfad bleibt für deterministische Artefakte/Legacy-Fallback erhalten.
 - [ ] debug\.spocr\schema\procedures\workflow-state.TransitionFindAsJson.json `SqlTypeName` scheint redundant zu sein, können wir die Property komplett entfernen, da alles über `TypeRef` ableitbar? [ ] leeres `"Json": {},` vermeiden.
 - [ ] debug\.spocr\schema\procedures\workflow.NodeFindAsJson.json: `"FunctionRef": "workflow.StatusFindAsJson"` existiert noch nicht in debug\.spocr\schema\functions
