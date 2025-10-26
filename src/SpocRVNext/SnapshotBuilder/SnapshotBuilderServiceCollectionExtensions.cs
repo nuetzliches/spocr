@@ -16,6 +16,8 @@ public static class SnapshotBuilderServiceCollectionExtensions
     {
         services.AddSingleton<IDependencyMetadataProvider, DatabaseDependencyMetadataProvider>();
         services.AddSingleton<IFunctionJsonMetadataProvider, DatabaseFunctionJsonMetadataProvider>();
+        services.AddSingleton<ITableTypeMetadataProvider, DatabaseTableTypeMetadataProvider>();
+        services.AddSingleton<IUserDefinedTypeMetadataProvider, DatabaseUserDefinedTypeMetadataProvider>();
         services.AddSingleton<IProcedureCollector, DatabaseProcedureCollector>();
         services.AddSingleton<IProcedureAnalyzer, DatabaseProcedureAnalyzer>();
         services.AddSingleton<ISnapshotWriter>(provider =>
@@ -23,7 +25,9 @@ public static class SnapshotBuilderServiceCollectionExtensions
             var console = provider.GetRequiredService<IConsoleService>();
             var dbContext = provider.GetRequiredService<DbContext>();
             var legacySnapshotService = provider.GetService<ISchemaSnapshotService>();
-            return new ExpandedSnapshotWriter(console, dbContext, legacySnapshotService);
+            var tableTypeMetadataProvider = provider.GetRequiredService<ITableTypeMetadataProvider>();
+            var userDefinedTypeMetadataProvider = provider.GetRequiredService<IUserDefinedTypeMetadataProvider>();
+            return new ExpandedSnapshotWriter(console, dbContext, legacySnapshotService, tableTypeMetadataProvider, userDefinedTypeMetadataProvider);
         });
         services.AddSingleton<ISnapshotCache, FileSnapshotCache>();
         services.AddSingleton<ISnapshotDiagnostics, ConsoleSnapshotDiagnostics>();

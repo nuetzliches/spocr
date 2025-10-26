@@ -80,9 +80,9 @@
 - Sollten wir die DataTypes bereits auflösen oder einfach nur referenzieren und im Output erst auflösen (Vor/Nachteile ...)? _Entscheidung: Snapshots referenzieren Schemanamen/Typnamen, die eigentliche Auflösung passiert erst in den Konsumenten (auch für JSON/No-JSON Procs, Functions, Views, Tables)._
 - Legacy Output Anbindung. _Entscheidung: Output-Bridge bereitstellen, die neue Artefakte auf das bisherige Layout mappt, bis alle Downstream-Abhängigkeiten auf vNext migriert sind._
 
-## Austeshende Optimierungen
+## Ausstehende Optimierungen
 
-- [~] debug\.spocr\schema redundant minimieren
+- [~] debug\.spocr\schema redundanz minimieren
   - [x] MaxLength/Precision/Scale bei TypeRef → UDTT oder konstanten sys-Typen unterdrücken.
   - [x] `IsNullable`-Spiegelung zum zugrunde liegenden TypeRef auflösen (nur Fälle mit abweichender Semantik beibehalten).
   - [x] Weitere sys-Typen mit festen Längen prüfen und ggf. streichen.
@@ -97,8 +97,7 @@
 - [x] C:\Projekte\GitHub\spocr\src\Services\SchemaSnapshotService.cs:ResolveLegacySchemaDir(): Kommentar ergänzt – Pfad bleibt für deterministische Artefakte/Legacy-Fallback erhalten.
 - [x] debug\.spocr\schema\procedures\workflow-state.TransitionFindAsJson.json `SqlTypeName` scheint redundant zu sein, können wir die Property komplett entfernen, da alles über `TypeRef` ableitbar? [x] leeres `"Json": {},` vermeiden.
 - [x] debug\.spocr\schema\procedures\workflow.NodeListAsJson.json: "FunctionRef": "identity.RecordAsJson" dürfte kein Array sein, da die referenzierte Funktion kein Array liefert. Siehe debug\[workflow]_[NodeListAsJson].sql und debug\[identity]_[RecordAsJson].sql (benötigen wir hier die `Json` Property überhaupt, wenn wir `FunctionRef` haben? Oder kann diese Eigenschaft in anderen Fällen abweichen?)
-- [ ] debug\.spocr\schema\procedures\workflow.NodeFindAsJson.json: `"FunctionRef": "workflow.StatusFindAsJson"` existiert noch nicht in debug\.spocr\schema\functions
-- [ ] src\SpocRVNext\SnapshotBuilder\Metadata hier wurden bereits einige Queries hin verschoben. Es fehlen aber m.E. noch die Queries der Types und StoreProcedures (weitere?) oder ist bereits alles im neuen SpocRVNext vorhanden?
+- [x] src\SpocRVNext\SnapshotBuilder\Metadata: TableType- und UDT-Queries als Provider ausgekoppelt (`DatabaseTableTypeMetadataProvider`, `DatabaseUserDefinedTypeMetadataProvider`); StoredProcedures laufen weiterhin über Collector/Analyzer.
 
 ## Artefakte
 

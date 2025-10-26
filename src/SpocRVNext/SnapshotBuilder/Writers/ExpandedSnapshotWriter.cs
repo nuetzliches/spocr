@@ -14,6 +14,7 @@ using SpocR.DataContext.Models;
 using SpocR.DataContext.Queries;
 using SpocR.Models;
 using SpocR.Services;
+using SpocR.SpocRVNext.SnapshotBuilder.Metadata;
 using SpocR.SpocRVNext.SnapshotBuilder.Models;
 using SpocR.SpocRVNext.Utils;
 
@@ -27,16 +28,25 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
     private readonly IConsoleService _console;
     private readonly DbContext _dbContext;
     private readonly ISchemaSnapshotService? _legacySnapshotService;
+    private readonly ITableTypeMetadataProvider _tableTypeMetadataProvider;
+    private readonly IUserDefinedTypeMetadataProvider _userDefinedTypeMetadataProvider;
     private static readonly JsonSerializerOptions IndexSerializerOptions = new()
     {
         WriteIndented = true
     };
 
-    public ExpandedSnapshotWriter(IConsoleService console, DbContext dbContext, ISchemaSnapshotService? legacySnapshotService)
+    public ExpandedSnapshotWriter(
+        IConsoleService console,
+        DbContext dbContext,
+        ISchemaSnapshotService? legacySnapshotService,
+        ITableTypeMetadataProvider tableTypeMetadataProvider,
+        IUserDefinedTypeMetadataProvider userDefinedTypeMetadataProvider)
     {
         _console = console ?? throw new ArgumentNullException(nameof(console));
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
         _legacySnapshotService = legacySnapshotService;
+        _tableTypeMetadataProvider = tableTypeMetadataProvider ?? throw new ArgumentNullException(nameof(tableTypeMetadataProvider));
+        _userDefinedTypeMetadataProvider = userDefinedTypeMetadataProvider ?? throw new ArgumentNullException(nameof(userDefinedTypeMetadataProvider));
     }
 
     public async Task<SnapshotWriteResult> WriteAsync(IReadOnlyList<ProcedureAnalysisResult> analyzedProcedures, SnapshotBuildOptions options, CancellationToken cancellationToken)
@@ -340,53 +350,35 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
             summary.Functions.AddRange(functionSummary.Functions);
         }
 
-        var escapedSchemas = schemaSet
-            .Select(s => $"'{s.Replace("'", "''")}'")
-            .ToArray();
-        var schemaListString = string.Join(',', escapedSchemas);
-
-        List<TableType> tableTypes = new();
+        IReadOnlyList<TableTypeMetadata> tableTypes = Array.Empty<TableTypeMetadata>();
         try
         {
-            var list = await _dbContext.TableTypeListAsync(schemaListString, cancellationToken).ConfigureAwait(false);
-            if (list != null)
-            {
-                tableTypes = list;
-            }
+            tableTypes = await _tableTypeMetadataProvider.GetTableTypesAsync(schemaSet, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            _console.Verbose($"[snapshot-tabletype] failed to enumerate table types: {ex.Message}");
+            _console.Verbose($"[snapshot-tabletype] metadata provider failed: {ex.Message}");
         }
 
         var tableTypeRoot = Path.Combine(schemaRoot, "tabletypes");
         Directory.CreateDirectory(tableTypeRoot);
         var validTableTypeFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var tableType in tableTypes)
+        foreach (var tableTypeMetadata in tableTypes)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (tableTypeMetadata == null)
+            {
+                continue;
+            }
+
+            var tableType = tableTypeMetadata.TableType;
             if (tableType == null || string.IsNullOrWhiteSpace(tableType.SchemaName) || string.IsNullOrWhiteSpace(tableType.Name))
             {
                 continue;
             }
 
-            List<Column> columns = new();
-            if (tableType.UserTypeId.HasValue)
-            {
-                try
-                {
-                    var columnList = await _dbContext.TableTypeColumnListAsync(tableType.UserTypeId.Value, cancellationToken).ConfigureAwait(false);
-                    if (columnList != null)
-                    {
-                        columns = columnList;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    _console.Verbose($"[snapshot-tabletype] failed to load columns for {tableType.SchemaName}.{tableType.Name}: {ex.Message}");
-                }
-            }
+            var columns = tableTypeMetadata.Columns ?? Array.Empty<Column>();
 
             var jsonBytes = BuildTableTypeJson(tableType, columns, requiredTypeRefs);
             var fileName = BuildArtifactFileName(tableType.SchemaName, tableType.Name);
@@ -413,20 +405,14 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
 
         PruneExtraneousFiles(tableTypeRoot, validTableTypeFiles);
 
-        List<UserDefinedTypeRow> scalarTypes = new();
+        IReadOnlyList<UserDefinedTypeRow> scalarTypes = Array.Empty<UserDefinedTypeRow>();
         try
         {
-            var list = await _dbContext.UserDefinedScalarTypesAsync(cancellationToken).ConfigureAwait(false);
-            if (list != null)
-            {
-                scalarTypes = list
-                    .Where(t => t != null && !string.IsNullOrWhiteSpace(t.schema_name) && schemaSet.Contains(t.schema_name))
-                    .ToList();
-            }
+            scalarTypes = await _userDefinedTypeMetadataProvider.GetUserDefinedTypesAsync(schemaSet, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            _console.Verbose($"[snapshot-udt] failed to enumerate user-defined types: {ex.Message}");
+            _console.Verbose($"[snapshot-udt] metadata provider failed: {ex.Message}");
         }
 
         var scalarRoot = Path.Combine(schemaRoot, "types");
