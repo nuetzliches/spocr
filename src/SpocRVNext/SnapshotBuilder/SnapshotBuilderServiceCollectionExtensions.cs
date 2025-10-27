@@ -18,6 +18,7 @@ public static class SnapshotBuilderServiceCollectionExtensions
         services.AddSingleton<IFunctionJsonMetadataProvider, DatabaseFunctionJsonMetadataProvider>();
         services.AddSingleton<ITableTypeMetadataProvider, DatabaseTableTypeMetadataProvider>();
         services.AddSingleton<IUserDefinedTypeMetadataProvider, DatabaseUserDefinedTypeMetadataProvider>();
+        services.AddSingleton<IProcedureModelBuilder, LegacyProcedureModelBuilder>();
         services.AddSingleton<IProcedureCollector, DatabaseProcedureCollector>();
         services.AddSingleton<IProcedureAnalyzer, DatabaseProcedureAnalyzer>();
         services.AddSingleton<ISnapshotWriter>(provider =>

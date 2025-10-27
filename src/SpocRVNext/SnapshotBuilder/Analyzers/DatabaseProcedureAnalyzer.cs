@@ -24,6 +24,7 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
     private readonly IConsoleService _console;
     private readonly IDependencyMetadataProvider _dependencyMetadataProvider;
     private readonly IFunctionJsonMetadataProvider _functionJsonMetadataProvider;
+    private readonly IProcedureModelBuilder _procedureModelBuilder;
 
     private Func<string, string, string, (string SqlTypeName, int? MaxLength, bool? IsNullable)>? _tableColumnTypeResolver;
     private Func<string, string, string, (string? Schema, string? Name)>? _tableColumnUserTypeResolver;
@@ -35,12 +36,14 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
         DbContext dbContext,
         IConsoleService console,
         IDependencyMetadataProvider dependencyMetadataProvider,
-        IFunctionJsonMetadataProvider functionJsonMetadataProvider)
+        IFunctionJsonMetadataProvider functionJsonMetadataProvider,
+        IProcedureModelBuilder procedureModelBuilder)
     {
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
         _console = console ?? throw new ArgumentNullException(nameof(console));
         _dependencyMetadataProvider = dependencyMetadataProvider ?? throw new ArgumentNullException(nameof(dependencyMetadataProvider));
         _functionJsonMetadataProvider = functionJsonMetadataProvider ?? throw new ArgumentNullException(nameof(functionJsonMetadataProvider));
+        _procedureModelBuilder = procedureModelBuilder ?? throw new ArgumentNullException(nameof(procedureModelBuilder));
     }
 
     public async Task<IReadOnlyList<ProcedureAnalysisResult>> AnalyzeAsync(
@@ -54,8 +57,6 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
         }
 
         EnsureTableColumnResolver();
-
-        StoredProcedureContentModel.SetAstVerbose(options?.Verbose ?? false);
 
         var results = new List<ProcedureAnalysisResult>(items.Count);
         foreach (var item in items)
@@ -123,7 +124,6 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
 
             var parameterSnapshot = parameters?.Count > 0 ? parameters.ToList() : new List<StoredProcedureInput>();
 
-            StoredProcedureContentModel? legacyAst = null;
             string? definition = null;
             ProcedureModel? procedureModel = null;
             if (!string.IsNullOrWhiteSpace(descriptor.Schema) && !string.IsNullOrWhiteSpace(descriptor.Name))
@@ -133,13 +133,15 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
                     definition = await _dbContext.StoredProcedureContentAsync(descriptor.Schema, descriptor.Name, cancellationToken).ConfigureAwait(false);
                     if (!string.IsNullOrWhiteSpace(definition))
                     {
-                        legacyAst = StoredProcedureContentModel.Parse(definition, descriptor.Schema);
-                        procedureModel = ConvertToProcedureModel(legacyAst);
-                        var scriptDom = ProcedureModelScriptDomParser.Parse(definition);
-                        ProcedureModelExecAnalyzer.Apply(scriptDom, procedureModel);
-                        ProcedureModelAggregateAnalyzer.Apply(scriptDom, procedureModel);
-                        ProcedureModelJsonAnalyzer.Apply(scriptDom, procedureModel, definition);
-                        ProcedureModelPostProcessor.Apply(procedureModel);
+                        procedureModel = _procedureModelBuilder.Build(definition, descriptor.Schema, options?.Verbose ?? false);
+                        if (procedureModel != null)
+                        {
+                            var scriptDom = ProcedureModelScriptDomParser.Parse(definition);
+                            ProcedureModelExecAnalyzer.Apply(scriptDom, procedureModel);
+                            ProcedureModelAggregateAnalyzer.Apply(scriptDom, procedureModel);
+                            ProcedureModelJsonAnalyzer.Apply(scriptDom, procedureModel, definition);
+                            ProcedureModelPostProcessor.Apply(procedureModel);
+                        }
                     }
                     else
                     {
@@ -435,172 +437,6 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
         }
 
         return null;
-    }
-
-    private static ProcedureModel? ConvertToProcedureModel(StoredProcedureContentModel? source)
-    {
-        if (source == null)
-        {
-            return null;
-        }
-
-        var model = new ProcedureModel();
-
-        if (source.ExecutedProcedures != null)
-        {
-            foreach (var executed in source.ExecutedProcedures)
-            {
-                var mapped = ConvertExecutedProcedure(executed);
-                if (mapped != null)
-                {
-                    model.ExecutedProcedures.Add(mapped);
-                }
-            }
-        }
-
-        if (source.ResultSets != null)
-        {
-            foreach (var resultSet in source.ResultSets)
-            {
-                var mapped = ConvertResultSet(resultSet);
-                if (mapped != null)
-                {
-                    model.ResultSets.Add(mapped);
-                }
-            }
-        }
-
-        return model;
-    }
-
-    private static ProcedureExecutedProcedureCall? ConvertExecutedProcedure(StoredProcedureContentModel.ExecutedProcedureCall? source)
-    {
-        if (source == null)
-        {
-            return null;
-        }
-
-        return new ProcedureExecutedProcedureCall
-        {
-            Schema = source.Schema,
-            Name = source.Name,
-            IsCaptured = source.IsCaptured
-        };
-    }
-
-    private static ProcedureResultSet? ConvertResultSet(StoredProcedureContentModel.ResultSet? source)
-    {
-        if (source == null)
-        {
-            return null;
-        }
-
-        var target = new ProcedureResultSet
-        {
-            ReturnsJson = source.ReturnsJson,
-            ReturnsJsonArray = source.ReturnsJsonArray,
-            JsonRootProperty = source.JsonRootProperty,
-            HasSelectStar = source.HasSelectStar,
-            ExecSourceSchemaName = source.ExecSourceSchemaName,
-            ExecSourceProcedureName = source.ExecSourceProcedureName,
-            Reference = ConvertReference(source.Reference)
-        };
-
-        if (source.Columns != null)
-        {
-            foreach (var column in source.Columns)
-            {
-                var mapped = ConvertResultColumn(column);
-                if (mapped != null)
-                {
-                    target.Columns.Add(mapped);
-                }
-            }
-        }
-
-        return target;
-    }
-
-    private static ProcedureResultColumn? ConvertResultColumn(StoredProcedureContentModel.ResultColumn? source)
-    {
-        if (source == null)
-        {
-            return null;
-        }
-
-        var target = new ProcedureResultColumn
-        {
-            Name = source.Name,
-            ExpressionKind = ConvertExpressionKind(source.ExpressionKind),
-            SourceSchema = source.SourceSchema,
-            SourceTable = source.SourceTable,
-            SourceColumn = source.SourceColumn,
-            SourceAlias = source.SourceAlias,
-            SqlTypeName = source.SqlTypeName,
-            CastTargetType = source.CastTargetType,
-            CastTargetLength = source.CastTargetLength,
-            CastTargetPrecision = source.CastTargetPrecision,
-            CastTargetScale = source.CastTargetScale,
-            HasIntegerLiteral = source.HasIntegerLiteral,
-            HasDecimalLiteral = source.HasDecimalLiteral,
-            IsNullable = source.IsNullable,
-            ForcedNullable = source.ForcedNullable,
-            IsNestedJson = source.IsNestedJson,
-            ReturnsJson = source.ReturnsJson,
-            ReturnsJsonArray = source.ReturnsJsonArray,
-            JsonRootProperty = source.JsonRootProperty,
-            UserTypeSchemaName = source.UserTypeSchemaName,
-            UserTypeName = source.UserTypeName,
-            MaxLength = source.MaxLength,
-            IsAmbiguous = source.IsAmbiguous,
-            RawExpression = source.RawExpression,
-            IsAggregate = source.IsAggregate,
-            AggregateFunction = source.AggregateFunction,
-            Reference = ConvertReference(source.Reference),
-            DeferredJsonExpansion = source.DeferredJsonExpansion
-        };
-
-        if (source.Columns != null)
-        {
-            foreach (var child in source.Columns)
-            {
-                var mappedChild = ConvertResultColumn(child);
-                if (mappedChild != null)
-                {
-                    target.Columns.Add(mappedChild);
-                }
-            }
-        }
-
-        return target;
-    }
-
-    private static ProcedureReference? ConvertReference(StoredProcedureContentModel.ColumnReferenceInfo? source)
-    {
-        if (source == null)
-        {
-            return null;
-        }
-
-        return new ProcedureReference
-        {
-            Kind = source.Kind,
-            Schema = source.Schema,
-            Name = source.Name
-        };
-    }
-
-    private static ProcedureResultColumnExpressionKind ConvertExpressionKind(StoredProcedureContentModel.ResultColumnExpressionKind? kind)
-    {
-        return kind switch
-        {
-            StoredProcedureContentModel.ResultColumnExpressionKind.ColumnRef => ProcedureResultColumnExpressionKind.ColumnRef,
-            StoredProcedureContentModel.ResultColumnExpressionKind.Cast => ProcedureResultColumnExpressionKind.Cast,
-            StoredProcedureContentModel.ResultColumnExpressionKind.FunctionCall => ProcedureResultColumnExpressionKind.FunctionCall,
-            StoredProcedureContentModel.ResultColumnExpressionKind.JsonQuery => ProcedureResultColumnExpressionKind.JsonQuery,
-            StoredProcedureContentModel.ResultColumnExpressionKind.Computed => ProcedureResultColumnExpressionKind.Computed,
-            _ => ProcedureResultColumnExpressionKind.Unknown
-        };
     }
 
     private static string? CombinePath(string? parent, string? child)
