@@ -140,7 +140,7 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
             {
                 try
                 {
-                    await EnrichJsonResultSetMetadataAsync(ast, cancellationToken).ConfigureAwait(false);
+                    await EnrichJsonResultSetMetadataAsync(descriptor, ast, cancellationToken).ConfigureAwait(false);
                 }
                 catch (Exception ex)
                 {
@@ -231,11 +231,13 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
         return $"{schema}.{name}.json";
     }
 
-    private async Task EnrichJsonResultSetMetadataAsync(StoredProcedureContentModel ast, CancellationToken cancellationToken)
+    private async Task EnrichJsonResultSetMetadataAsync(ProcedureDescriptor descriptor, StoredProcedureContentModel ast, CancellationToken cancellationToken)
     {
         if (ast?.ResultSets == null || ast.ResultSets.Count == 0) return;
 
         var tableCache = new Dictionary<string, Dictionary<string, Column>>(StringComparer.OrdinalIgnoreCase);
+        var unresolvedColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var descriptorLabel = FormatProcedureLabel(descriptor);
 
         foreach (var resultSet in ast.ResultSets)
         {
@@ -247,7 +249,8 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
 
             foreach (var column in resultSet.Columns ?? Array.Empty<StoredProcedureContentModel.ResultColumn>())
             {
-                await EnrichColumnRecursiveAsync(column, tableCache, cancellationToken).ConfigureAwait(false);
+                var initialPath = column?.Name;
+                await EnrichColumnRecursiveAsync(column, tableCache, descriptorLabel, initialPath, unresolvedColumns, cancellationToken).ConfigureAwait(false);
             }
         }
     }
@@ -255,15 +258,21 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
     private async Task EnrichColumnRecursiveAsync(
         StoredProcedureContentModel.ResultColumn? column,
         Dictionary<string, Dictionary<string, Column>> tableCache,
+        string descriptorLabel,
+        string? path,
+        ISet<string> unresolvedColumns,
         CancellationToken cancellationToken)
     {
         if (column == null) return;
+
+        var currentPath = string.IsNullOrWhiteSpace(path) ? column.Name : path;
 
         if (column.Columns != null && column.Columns.Count > 0)
         {
             foreach (var child in column.Columns)
             {
-                await EnrichColumnRecursiveAsync(child, tableCache, cancellationToken).ConfigureAwait(false);
+                var childPath = CombinePath(currentPath, child?.Name);
+                await EnrichColumnRecursiveAsync(child, tableCache, descriptorLabel, childPath, unresolvedColumns, cancellationToken).ConfigureAwait(false);
             }
         }
 
@@ -275,7 +284,20 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
         if (column.ReturnsJson == true) return;
 
         var metadata = await ResolveColumnMetadataAsync(column, tableCache, cancellationToken).ConfigureAwait(false);
-        if (metadata == null) return;
+        if (metadata == null)
+        {
+            var warningPath = !string.IsNullOrWhiteSpace(currentPath)
+                ? currentPath
+                : !string.IsNullOrWhiteSpace(column.Name) ? column.Name : "(unnamed)";
+
+            if (!string.IsNullOrWhiteSpace(warningPath) && unresolvedColumns.Add(string.Concat(descriptorLabel, "|", warningPath)))
+            {
+                var sourceDetails = BuildColumnSourceDetails(column);
+                _console.Warn($"[snapshot-analyze] Type resolution failed for column '{warningPath}' in {descriptorLabel}{sourceDetails}. Snapshot will omit sqlType metadata.");
+            }
+
+            return;
+        }
 
         if (!string.IsNullOrWhiteSpace(metadata.SqlType))
         {
@@ -358,7 +380,66 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
             return heuristic;
         }
 
-        return new ColumnMetadata("nvarchar(max)", null, null, null, column.IsNullable ?? true, column.UserTypeSchemaName, column.UserTypeName);
+        return null;
+    }
+
+    private static string? CombinePath(string? parent, string? child)
+    {
+        if (string.IsNullOrWhiteSpace(child)) return parent;
+        if (string.IsNullOrWhiteSpace(parent)) return child;
+        return string.Concat(parent, ".", child);
+    }
+
+    private static string FormatProcedureLabel(ProcedureDescriptor descriptor)
+    {
+        if (descriptor == null)
+        {
+            return "(unknown procedure)";
+        }
+
+        var schema = descriptor.Schema?.Trim();
+        var name = descriptor.Name?.Trim();
+
+        if (string.IsNullOrWhiteSpace(schema))
+        {
+            return string.IsNullOrWhiteSpace(name) ? "(unknown procedure)" : name;
+        }
+
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return schema;
+        }
+
+        return string.Concat(schema, ".", name);
+    }
+
+    private static string BuildColumnSourceDetails(StoredProcedureContentModel.ResultColumn column)
+    {
+        if (column == null) return string.Empty;
+
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(column.SourceSchema)) parts.Add(column.SourceSchema);
+        if (!string.IsNullOrWhiteSpace(column.SourceTable)) parts.Add(column.SourceTable);
+
+        var location = parts.Count > 0 ? string.Join('.', parts) : null;
+        if (!string.IsNullOrWhiteSpace(column.SourceColumn))
+        {
+            location = string.IsNullOrWhiteSpace(location)
+                ? column.SourceColumn
+                : string.Concat(location, '.', column.SourceColumn);
+        }
+
+        if (!string.IsNullOrWhiteSpace(location))
+        {
+            return string.Concat(" (source: ", location, ")");
+        }
+
+        if (!string.IsNullOrWhiteSpace(column.SourceAlias))
+        {
+            return string.Concat(" (source alias: ", column.SourceAlias, ")");
+        }
+
+        return string.Empty;
     }
 
     private async Task<Column?> GetTableColumnAsync(
