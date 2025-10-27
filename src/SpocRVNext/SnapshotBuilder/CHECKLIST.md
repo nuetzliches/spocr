@@ -73,9 +73,9 @@
 
 ## Prioritäten (Stand 2025-10-27)
 
-1. ScriptDom-Analyzer auf Legacy-Parität bringen (Regressionstests wie `AggregateTypingExtendedTests`, `JournalMetricsTypingTests`, `ProcedureModelAnalyzerTests` reparieren).
-2. ExpandedSnapshotWriter modularisieren (ProcedureWriter/ResultSetWriter/IndexWriter herausziehen) – **Startpunkt dieser Iteration**.
-3. Diagnose & Typauflösung iterativ verbessern (`--no-cache`, `--verbose`, `--procedure` Läufe) und Fallback-Kommentare bereinigen.
+1. Abhängigkeiten ablösen (StoredProcedureContentModel endgültig entfernen, Analyzer direkt im SnapshotBuilder verankern).
+2. Diagnose & Typauflösung iterativ verbessern (`--no-cache`, `--verbose`, `--procedure` Läufe; JSON/AVG/EXISTS verifizieren).
+3. Deferred JSON/ProcedureRef Serialization finalisieren (offene Punkte aus Writer-Aufteilung schließen).
 4. Abschlussarbeiten: Testsuite (SpocR.Tests), Determinism-Checks und Golden Snapshots aktualisieren.
 
 ## Offene Fragen / Entscheidungsbedarf
@@ -113,8 +113,8 @@
 ## Migration `StoredProcedureContentModel`
 
 - [ ] **Abhängigkeiten ablösen**
-  - SnapshotBuilder vollständig von `StoredProcedureContentModel` lösen und AST-/Metadata-Pipeline direkt im SnapshotBuilder verankern.
-  - Eigenständige Analyzer für JSON-ResultSets aufbauen (AVG/SUM/COUNT Detection, Nested JSON, FunctionRefs) und Regressionen aus den aktuellen Tests adressieren (`avg` Aggregat-Flag, Exec Forwarding, comment-only FOR JSON Fälle).
+  - [ ] SnapshotBuilder vollständig von `StoredProcedureContentModel` lösen und AST-/Metadata-Pipeline direkt im SnapshotBuilder verankern (Ersatz für `StoredProcedureContentModel.Parse`, `Convert*`-Pfad entfernen).
+  - [ ] Eigenständige Analyzer für JSON-ResultSets aufbauen (AVG/SUM/COUNT Detection, Nested JSON, FunctionRefs) und Regressionen aus den aktuellen Tests adressieren (`avg` Aggregat-Flag, Exec Forwarding, comment-only FOR JSON Fälle).
   - [x] `ProcedureModel` eingeführt, Analyzer/Writer konsumieren kein `StoredProcedureContentModel` mehr nach außen.
   - [x] Übergangsweise Aggregat-Propagation in `StoredProcedureContentModel` gefixt (Derived Columns setzen `IsAggregate` jetzt auch für umhüllte Ausdrücke).
   - [x] Postprocessor ergänzt Aggregat-Heuristik direkt auf `ProcedureModel` (stellt AVG/SUM Flags und Standardtypen sicher, bis neue Analyzer stehen).
@@ -124,9 +124,9 @@
   - [x] Unit Tests für Aggregate-, Exec- und JSON-Analyzer decken Alias-Matching, Literal-Flags, Deduplication und Nested-JSON-Erkennung ab.
   - [x] ScriptDom-Analyzer liefern Parität zum Legacy-Parser (Aggregat-Flags, JSON-Metadaten, EXEC-Deduplizierung); Regressionstests (`AggregateTypingExtendedTests`, `JournalMetricsTypingTests`, `ProcedureModelAnalyzerTests`) reparieren.
     - `ProcedureModelAggregateAnalyzer` erkennt Derived-Table Aggregates inkl. EXISTS-Prädikaten; `AggregateTypingExtendedTests` und die ergänzten Analyzer-Unit-Tests laufen wieder grün.
-- [ ] **ExpandedSnapshotWriter modularisieren**
-  - Datei in klar abgegrenzte Writer/Formatter-Komponenten aufteilen (ProcedureWriter, ResultSetWriter, IndexWriter).
-  - Im Zuge der Aufteilung Deferred JSON/ProcedureRef Serialization final klären.
+- [x] **ExpandedSnapshotWriter modularisieren**
+  - [x] Datei in klar abgegrenzte Writer/Formatter-Komponenten aufteilen (`ProcedureSnapshotDocumentBuilder`, `SchemaArtifactWriter`, `SnapshotIndexWriter`, `LegacySnapshotBridge`).
+  - [ ] Im Zuge der Aufteilung Deferred JSON/ProcedureRef Serialization final klären.
 - [ ] **Diagnose & Typauflösung iterativ verbessern**
   - Iterationen über Pull-Läufe mit und ohne Cache (`--no-cache`, `--verbose`, `--procedure`) durchführen, bis sämtliche Typen (insbesondere JSON/AVG/EXISTS) deterministisch gebunden sind.
   - Kommentarbereinigung für Fallbacks (`FOR JSON PATH` ohne AST-Bindung) verifizieren und ggf. in neue Analyzer überführen.
