@@ -91,6 +91,101 @@ END";
     }
 
     [Fact]
+    public void JsonAnalyzer_sets_result_set_flags_with_root()
+    {
+        const string definition = @"
+CREATE PROCEDURE dbo.UsersAsJson
+AS
+BEGIN
+    SELECT Id, Name FROM dbo.Users FOR JSON PATH, ROOT('payload');
+END";
+
+        var model = new ProcedureModel();
+        model.ResultSets.Add(new ProcedureResultSet());
+
+        ProcedureModelJsonAnalyzer.Apply(definition, model);
+
+        var resultSet = Assert.Single(model.ResultSets);
+        Assert.True(resultSet.ReturnsJson);
+        Assert.True(resultSet.ReturnsJsonArray);
+        Assert.Equal("payload", resultSet.JsonRootProperty);
+    }
+
+    [Fact]
+    public void JsonAnalyzer_detects_without_array_wrapper()
+    {
+        const string definition = @"
+CREATE PROCEDURE dbo.UsersAsObject
+AS
+BEGIN
+    SELECT Id, Name FROM dbo.Users FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
+END";
+
+        var model = new ProcedureModel();
+        model.ResultSets.Add(new ProcedureResultSet());
+
+        ProcedureModelJsonAnalyzer.Apply(definition, model);
+
+        var resultSet = Assert.Single(model.ResultSets);
+        Assert.True(resultSet.ReturnsJson);
+        Assert.False(resultSet.ReturnsJsonArray);
+    }
+
+    [Fact]
+    public void JsonAnalyzer_marks_nested_subquery_columns()
+    {
+        const string definition = @"
+CREATE PROCEDURE dbo.UserWithOrderJson
+AS
+BEGIN
+    SELECT (
+        SELECT o.Id AS 'order.id'
+        FROM dbo.Orders o
+        FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
+    ) AS [order], u.Id
+    FROM dbo.Users u
+    FOR JSON PATH;
+END";
+
+        var model = new ProcedureModel();
+        var resultSet = new ProcedureResultSet();
+        resultSet.Columns.Add(new ProcedureResultColumn { Name = "order" });
+        resultSet.Columns.Add(new ProcedureResultColumn { Name = "Id" });
+        model.ResultSets.Add(resultSet);
+
+        ProcedureModelJsonAnalyzer.Apply(definition, model);
+
+        var orderColumn = Assert.Single(resultSet.Columns, c => c.Name == "order");
+        Assert.True(orderColumn.ReturnsJson);
+        Assert.True(orderColumn.IsNestedJson);
+        Assert.False(orderColumn.ReturnsJsonArray);
+    }
+
+    [Fact]
+    public void JsonAnalyzer_marks_json_query_columns()
+    {
+        const string definition = @"
+CREATE PROCEDURE dbo.PayloadFromJsonQuery
+AS
+BEGIN
+    SELECT JSON_QUERY(DataColumn, '$.nested') AS Payload
+    FROM dbo.Documents;
+END";
+
+        var model = new ProcedureModel();
+        var resultSet = new ProcedureResultSet();
+        resultSet.Columns.Add(new ProcedureResultColumn { Name = "Payload" });
+        model.ResultSets.Add(resultSet);
+
+        ProcedureModelJsonAnalyzer.Apply(definition, model);
+
+        var payload = Assert.Single(resultSet.Columns, c => c.Name == "Payload");
+        Assert.True(payload.ReturnsJson);
+        Assert.True(payload.IsNestedJson);
+        Assert.Null(payload.ReturnsJsonArray);
+    }
+
+    [Fact]
     public void ExecAnalyzer_collects_procedure_calls()
     {
         const string definition = @"
