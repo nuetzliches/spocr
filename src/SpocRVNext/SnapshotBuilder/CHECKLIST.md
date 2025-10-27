@@ -103,7 +103,7 @@
 Pulling database schema with SnapshotBuilder
 **************************************************` Neu und schöner designen. Besserer Titel, noch ein paar Meta-Informationen, wie Version, .env usw.
 
-## Migration (zu analysieren und planen)
+## Migration `StoredProcedureContentModel`
 - [ ] **Abhängigkeiten ablösen**
   - SnapshotBuilder vollständig von `StoredProcedureContentModel` lösen und AST-/Metadata-Pipeline direkt im SnapshotBuilder verankern.
   - Eigenständige Analyzer für JSON-ResultSets aufbauen (AVG/SUM/COUNT Detection, Nested JSON, FunctionRefs) und Regressionen aus den aktuellen Tests adressieren (`avg` Aggregat-Flag, Exec Forwarding, comment-only FOR JSON Fälle).
