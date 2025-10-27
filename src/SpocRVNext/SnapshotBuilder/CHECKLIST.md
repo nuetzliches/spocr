@@ -56,12 +56,12 @@
   - [x] Laufzeiten (Collect, Analyze, Write). _(Per-Phase-Laufzeiten werden via Diagnostics & CLI ausgewiesen.)_
   - [x] Spaltenmetriken. _(Parameter-/ResultSet-Kennzahlen werden gesammelt und als CLI-Metrik ausgegeben.)_
   - [x] Aggregierte Summary nach Run; Persistenz optional. _(CLI-Ausgabe enthält per-Phase-Laufzeiten, Diagnostics geben Timing-Übersicht aus; optionaler JSON Export via `SPOCR_SNAPSHOT_SUMMARY[_PATH]` umgesetzt.)_
-- [~] Config-Übergang
-  - ENV-only Pfad sicherstellen, `spocr.json` nur für Warnung/Kompat. _(Pull-Flow nutzt jetzt `EnvConfiguration` als Primärquelle; Warnung beim Fallback bleibt aktiv)_
-  - Bootstrapper anpassen (Inputs aus `.env` priorisieren).
-- [~] Legacy Cleanup
-  - Snapshot-Code aus `SpocrManager` entfernen/weiterleiten. _(CLI `pull` ruft ausschließlich `SnapshotBuildOrchestrator` auf)_
-  - C:\Projekte\GitHub\spocr\src\Services\SchemaSnapshotService.cs:: Tests aktualisieren (`SpocR.Tests`, Golden Snapshots).
+- [x] Config-Übergang
+  - ENV-only Pfad sicherstellen, `spocr.json` nur für Warnung/Kompat. _(Pull-Flow nutzt `EnvConfiguration` als Primärquelle; Fallback warnt und bridged nur die Connection)_
+  - Bootstrapper anpassen (Inputs aus `.env` priorisieren). _(EnvBootstrapper füllt `.env` inkl. `SPOCR_BUILD_SCHEMAS`/Namespace aus und wird beim CLI-Init genutzt)_
+- [ ] Legacy Cleanup
+  - [x] Snapshot-Code aus `SpocrManager` entfernen/weiterleiten. _(CLI `pull` ruft ausschließlich `SnapshotBuildOrchestrator` auf)_
+  - [ ] C:\Projekte\GitHub\spocr\src\Services\SchemaSnapshotService.cs: Tests aktualisieren (`SpocR.Tests`, Golden Snapshots) und auf neuen Snapshot-Output anheben.
 - [x] TableType Normalisierung
   - Expanded SnapshotWriter reduziert TableType/Parameter Felder auf `TypeRef` + relevante Metadaten.
   - TableTypeMetadataProvider/TableTypesGenerator nutzen Resolver für SQL-Signaturen (JsonDocument-Dispose Bug gefixt).
