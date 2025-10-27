@@ -111,6 +111,7 @@ Pulling database schema with SnapshotBuilder
   - [x] Übergangsweise Aggregat-Propagation in `StoredProcedureContentModel` gefixt (Derived Columns setzen `IsAggregate` jetzt auch für umhüllte Ausdrücke).
   - [x] Postprocessor ergänzt Aggregat-Heuristik direkt auf `ProcedureModel` (stellt AVG/SUM Flags und Standardtypen sicher, bis neue Analyzer stehen).
   - [x] ScriptDom-basierte Aggregat-Analyse (`ProcedureModelAggregateAnalyzer`) re-parst Definitionen und setzt AggregateFlags unabhängig vom Legacy-Parser.
+  - [x] Exec-Forwarding via `ProcedureModelExecAnalyzer` (ScriptDom) erkannt – Dependencies basieren nicht mehr auf Legacy-Daten.
 - [ ] **ExpandedSnapshotWriter modularisieren**
   - Datei in klar abgegrenzte Writer/Formatter-Komponenten aufteilen (ProcedureWriter, ResultSetWriter, IndexWriter).
   - Im Zuge der Aufteilung Deferred JSON/ProcedureRef Serialization final klären.

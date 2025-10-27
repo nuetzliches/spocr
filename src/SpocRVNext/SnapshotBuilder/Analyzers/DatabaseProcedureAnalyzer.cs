@@ -135,6 +135,7 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
                     {
                         legacyAst = StoredProcedureContentModel.Parse(definition, descriptor.Schema);
                         procedureModel = ConvertToProcedureModel(legacyAst);
+                        ProcedureModelExecAnalyzer.Apply(definition, procedureModel);
                         ProcedureModelAggregateAnalyzer.Apply(definition, procedureModel);
                         ProcedureModelPostProcessor.Apply(procedureModel);
                     }
