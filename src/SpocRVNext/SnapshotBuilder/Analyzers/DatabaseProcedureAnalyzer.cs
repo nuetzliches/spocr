@@ -124,16 +124,18 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
             var parameterSnapshot = parameters?.Count > 0 ? parameters.ToList() : new List<StoredProcedureInput>();
 
             StoredProcedureContentModel? legacyAst = null;
+            string? definition = null;
             ProcedureModel? procedureModel = null;
             if (!string.IsNullOrWhiteSpace(descriptor.Schema) && !string.IsNullOrWhiteSpace(descriptor.Name))
             {
                 try
                 {
-                    var definition = await _dbContext.StoredProcedureContentAsync(descriptor.Schema, descriptor.Name, cancellationToken).ConfigureAwait(false);
+                    definition = await _dbContext.StoredProcedureContentAsync(descriptor.Schema, descriptor.Name, cancellationToken).ConfigureAwait(false);
                     if (!string.IsNullOrWhiteSpace(definition))
                     {
                         legacyAst = StoredProcedureContentModel.Parse(definition, descriptor.Schema);
                         procedureModel = ConvertToProcedureModel(legacyAst);
+                        ProcedureModelAggregateAnalyzer.Apply(definition, procedureModel);
                         ProcedureModelPostProcessor.Apply(procedureModel);
                     }
                     else
