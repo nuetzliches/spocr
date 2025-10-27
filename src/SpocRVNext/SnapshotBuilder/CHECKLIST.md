@@ -79,6 +79,9 @@
 - debug\.spocr\schema\procedures\cluster.ClusterAddNode.json: Sollten die `Inputs` nicht besser `Parameters` heißen? _Entscheidung: SnapshotBuilder vNext schreibt `Parameters`; Legacy-Consumer erhalten einen Alias, sodass bestehende Parser ohne Breaking Change weiterlaufen._
 - Sollten wir die DataTypes bereits auflösen oder einfach nur referenzieren und im Output erst auflösen (Vor/Nachteile ...)? _Entscheidung: Snapshots referenzieren Schemanamen/Typnamen, die eigentliche Auflösung passiert erst in den Konsumenten (auch für JSON/No-JSON Procs, Functions, Views, Tables)._
 - Legacy Output Anbindung. _Entscheidung: Output-Bridge bereitstellen, die neue Artefakte auf das bisherige Layout mappt, bis alle Downstream-Abhängigkeiten auf vNext migriert sind._
+- Zuordnung ScriptDom → `ProcedureModel`: Wie ordnen wir Query/Column-Fragmente zuverlässig den `ProcedureModel.ResultSets` zu, damit JSON- und Aggregat-Flags sitzen? Bitte Konzept ausarbeiten _(Offen)_
+- EXEC Schema-Normalisierung: Sollen schema-lose `EXEC`-Aufrufe automatisch auf das Prozedur-Schema abgebildet werden, um Doppel-Einträge zu vermeiden? Fehlt uns hier generell noch ein Konzept, um das konfigurierte `Default-Schema` zu sicher? _(Offen)_
+- Aggregat-Erkennung in verschachtelten ResultSets: Reicht das aktuelle Alias-Matching oder brauchen wir zusätzliche Kontextinformationen? Prüfschritte organisieren _(Offen)_
 
 ## Ausstehende Optimierungen
 
