@@ -25,6 +25,12 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
     private readonly IDependencyMetadataProvider _dependencyMetadataProvider;
     private readonly IFunctionJsonMetadataProvider _functionJsonMetadataProvider;
 
+    private Func<string, string, string, (string SqlTypeName, int? MaxLength, bool? IsNullable)>? _tableColumnTypeResolver;
+    private Func<string, string, string, (string? Schema, string? Name)>? _tableColumnUserTypeResolver;
+    private readonly Dictionary<string, Dictionary<string, (string SqlTypeName, int? MaxLength, bool? IsNullable)>> _tableColumnTypeCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Dictionary<string, (string? Schema, string? Name)>> _tableColumnUserTypeCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _tableColumnResolverGate = new();
+
     public DatabaseProcedureAnalyzer(
         DbContext dbContext,
         IConsoleService console,
@@ -46,6 +52,8 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
         {
             return Array.Empty<ProcedureAnalysisResult>();
         }
+
+        EnsureTableColumnResolver();
 
         StoredProcedureContentModel.SetAstVerbose(options?.Verbose ?? false);
 
@@ -348,30 +356,63 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
         CancellationToken cancellationToken)
     {
         if (column == null) return null;
-
-        if (!string.IsNullOrWhiteSpace(column.SqlTypeName))
+        Column? tableColumn = null;
+        if (!string.IsNullOrWhiteSpace(column.SourceSchema) && !string.IsNullOrWhiteSpace(column.SourceTable) && !string.IsNullOrWhiteSpace(column.SourceColumn))
         {
-            return new ColumnMetadata(column.SqlTypeName.Trim(), column.MaxLength, null, null, column.IsNullable, column.UserTypeSchemaName, column.UserTypeName);
+            tableColumn = await GetTableColumnAsync(column.SourceSchema, column.SourceTable, column.SourceColumn, tableCache, cancellationToken).ConfigureAwait(false);
         }
 
         if (!string.IsNullOrWhiteSpace(column.CastTargetType))
         {
             var normalized = NormalizeSqlType(column.CastTargetType);
             var maxLen = NormalizeLength(column.CastTargetLength);
-            return new ColumnMetadata(normalized, maxLen, column.CastTargetPrecision, column.CastTargetScale, column.IsNullable, column.UserTypeSchemaName, column.UserTypeName);
+            var precision = column.CastTargetPrecision;
+            var scale = column.CastTargetScale;
+            var userSchema = !string.IsNullOrWhiteSpace(column.UserTypeSchemaName) ? column.UserTypeSchemaName : tableColumn?.UserTypeSchemaName;
+            var userName = !string.IsNullOrWhiteSpace(column.UserTypeName) ? column.UserTypeName : tableColumn?.UserTypeName;
+            var isNullable = column.IsNullable ?? tableColumn?.IsNullable;
+            return new ColumnMetadata(normalized, maxLen, precision, scale, isNullable, userSchema, userName);
         }
 
-        if (!string.IsNullOrWhiteSpace(column.SourceSchema) && !string.IsNullOrWhiteSpace(column.SourceTable) && !string.IsNullOrWhiteSpace(column.SourceColumn))
+        if (tableColumn != null)
         {
-            var meta = await GetTableColumnAsync(column.SourceSchema, column.SourceTable, column.SourceColumn, tableCache, cancellationToken).ConfigureAwait(false);
-            if (meta != null)
+            var tableMaxLength = NormalizeLength(tableColumn.MaxLength);
+            var tablePrecision = NormalizePrecision(tableColumn.Precision);
+            var tableScale = NormalizePrecision(tableColumn.Scale);
+            var baseType = !string.IsNullOrWhiteSpace(tableColumn.BaseSqlTypeName) ? tableColumn.BaseSqlTypeName : tableColumn.SqlTypeName;
+            var formatted = FormatSqlType(baseType, tableMaxLength, tablePrecision, tableScale);
+            if (string.IsNullOrWhiteSpace(formatted))
             {
-                var baseType = !string.IsNullOrWhiteSpace(meta.BaseSqlTypeName) ? meta.BaseSqlTypeName : meta.SqlTypeName;
-                var formatted = FormatSqlType(baseType, NormalizeLength(meta.MaxLength), NormalizePrecision(meta.Precision), NormalizePrecision(meta.Scale));
-                var isNullable = meta.IsNullable;
-                var maxLen = NormalizeLength(meta.MaxLength);
-                return new ColumnMetadata(formatted, maxLen, meta.Precision, meta.Scale, isNullable, meta.UserTypeSchemaName, meta.UserTypeName);
+                formatted = !string.IsNullOrWhiteSpace(column.SqlTypeName) ? NormalizeSqlType(column.SqlTypeName) : baseType?.Trim();
             }
+
+            var effectiveSqlType = !string.IsNullOrWhiteSpace(formatted) ? formatted : (!string.IsNullOrWhiteSpace(column.SqlTypeName) ? NormalizeSqlType(column.SqlTypeName) : null);
+            if (string.IsNullOrWhiteSpace(effectiveSqlType) && !string.IsNullOrWhiteSpace(baseType))
+            {
+                effectiveSqlType = baseType.Trim();
+            }
+
+            var effectiveMaxLength = column.MaxLength ?? tableMaxLength;
+            var effectiveNullable = column.IsNullable ?? tableColumn.IsNullable;
+            var effectivePrecision = column.CastTargetPrecision ?? tablePrecision;
+            var effectiveScale = column.CastTargetScale ?? tableScale;
+            var userSchema = !string.IsNullOrWhiteSpace(column.UserTypeSchemaName) ? column.UserTypeSchemaName : tableColumn.UserTypeSchemaName;
+            var userName = !string.IsNullOrWhiteSpace(column.UserTypeName) ? column.UserTypeName : tableColumn.UserTypeName;
+
+            return new ColumnMetadata(
+                effectiveSqlType ?? string.Empty,
+                effectiveMaxLength,
+                effectivePrecision,
+                effectiveScale,
+                effectiveNullable,
+                userSchema,
+                userName);
+        }
+
+        if (!string.IsNullOrWhiteSpace(column.SqlTypeName))
+        {
+            var normalized = NormalizeSqlType(column.SqlTypeName);
+            return new ColumnMetadata(normalized, column.MaxLength, null, null, column.IsNullable, column.UserTypeSchemaName, column.UserTypeName);
         }
 
         var heuristic = ResolveHeuristic(column);
@@ -458,6 +499,132 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
         }
 
         return map.TryGetValue(columnName, out var column) ? column : null;
+    }
+
+    private void EnsureTableColumnResolver()
+    {
+        if (_tableColumnTypeResolver == null)
+        {
+            _tableColumnTypeResolver = ResolveTableColumnTypeFromDatabase;
+        }
+
+        if (!ReferenceEquals(StoredProcedureContentModel.ResolveTableColumnType, _tableColumnTypeResolver))
+        {
+            StoredProcedureContentModel.ResolveTableColumnType = _tableColumnTypeResolver;
+        }
+
+        if (_tableColumnUserTypeResolver == null)
+        {
+            _tableColumnUserTypeResolver = ResolveTableColumnUserTypeFromDatabase;
+        }
+
+        if (!ReferenceEquals(StoredProcedureContentModel.ResolveTableColumnUserType, _tableColumnUserTypeResolver))
+        {
+            StoredProcedureContentModel.ResolveTableColumnUserType = _tableColumnUserTypeResolver;
+        }
+    }
+
+    private (string SqlTypeName, int? MaxLength, bool? IsNullable) ResolveTableColumnTypeFromDatabase(string schema, string table, string column)
+    {
+        if (string.IsNullOrWhiteSpace(schema) || string.IsNullOrWhiteSpace(table) || string.IsNullOrWhiteSpace(column))
+        {
+            return (string.Empty, null, null);
+        }
+
+        var tableKey = string.Concat(schema, ".", table);
+        if (!_tableColumnTypeCache.TryGetValue(tableKey, out var columnMap))
+        {
+            lock (_tableColumnResolverGate)
+            {
+                if (!_tableColumnTypeCache.TryGetValue(tableKey, out columnMap))
+                {
+                    columnMap = LoadTableColumnMetadata(schema, table);
+                    _tableColumnTypeCache[tableKey] = columnMap;
+                }
+            }
+        }
+
+        if (columnMap.TryGetValue(column, out var entry))
+        {
+            return entry;
+        }
+
+        return (string.Empty, null, null);
+    }
+
+    private (string? Schema, string? Name) ResolveTableColumnUserTypeFromDatabase(string schema, string table, string column)
+    {
+        if (string.IsNullOrWhiteSpace(schema) || string.IsNullOrWhiteSpace(table) || string.IsNullOrWhiteSpace(column))
+        {
+            return (null, null);
+        }
+
+        var tableKey = string.Concat(schema, ".", table);
+        if (!_tableColumnUserTypeCache.TryGetValue(tableKey, out var columnMap))
+        {
+            lock (_tableColumnResolverGate)
+            {
+                if (!_tableColumnUserTypeCache.TryGetValue(tableKey, out columnMap))
+                {
+                    var typeMap = LoadTableColumnMetadata(schema, table);
+                    if (!_tableColumnTypeCache.ContainsKey(tableKey))
+                    {
+                        _tableColumnTypeCache[tableKey] = typeMap;
+                    }
+                    _tableColumnUserTypeCache.TryGetValue(tableKey, out columnMap);
+                }
+            }
+        }
+
+        if (columnMap != null && columnMap.TryGetValue(column, out var udt))
+        {
+            return udt;
+        }
+
+        return (null, null);
+    }
+
+    private Dictionary<string, (string SqlTypeName, int? MaxLength, bool? IsNullable)> LoadTableColumnMetadata(string schema, string table)
+    {
+        try
+        {
+            var columns = _dbContext.TableColumnsListAsync(schema, table, CancellationToken.None)
+                .ConfigureAwait(false)
+                .GetAwaiter()
+                .GetResult() ?? new List<Column>();
+
+            var map = new Dictionary<string, (string SqlTypeName, int? MaxLength, bool? IsNullable)>(StringComparer.OrdinalIgnoreCase);
+            var udtMap = new Dictionary<string, (string? Schema, string? Name)>(StringComparer.OrdinalIgnoreCase);
+            foreach (var col in columns)
+            {
+                if (col == null || string.IsNullOrWhiteSpace(col.Name)) continue;
+
+                var baseType = !string.IsNullOrWhiteSpace(col.BaseSqlTypeName) ? col.BaseSqlTypeName : col.SqlTypeName;
+                var sqlType = FormatSqlType(baseType, NormalizeLength(col.MaxLength), NormalizePrecision(col.Precision), NormalizePrecision(col.Scale));
+                if (string.IsNullOrWhiteSpace(sqlType))
+                {
+                    sqlType = baseType?.Trim() ?? string.Empty;
+                }
+
+                var maxLength = NormalizeLength(col.MaxLength);
+                map[col.Name] = (sqlType, maxLength, col.IsNullable);
+
+                var udtSchema = string.IsNullOrWhiteSpace(col.UserTypeSchemaName) ? null : col.UserTypeSchemaName;
+                var udtName = string.IsNullOrWhiteSpace(col.UserTypeName) ? null : col.UserTypeName;
+                udtMap[col.Name] = (udtSchema, udtName);
+            }
+
+            var tableKey = string.Concat(schema, ".", table);
+            _tableColumnUserTypeCache[tableKey] = udtMap;
+
+            return map;
+        }
+        catch
+        {
+            var tableKey = string.Concat(schema, ".", table);
+            _tableColumnUserTypeCache[tableKey] = new Dictionary<string, (string? Schema, string? Name)>(StringComparer.OrdinalIgnoreCase);
+            return new Dictionary<string, (string SqlTypeName, int? MaxLength, bool? IsNullable)>(StringComparer.OrdinalIgnoreCase);
+        }
     }
 
     private static ColumnMetadata? ResolveHeuristic(StoredProcedureContentModel.ResultColumn column)

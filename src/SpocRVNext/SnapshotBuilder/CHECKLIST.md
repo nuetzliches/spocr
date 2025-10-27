@@ -82,7 +82,7 @@
 
 ## Ausstehende Optimierungen
 
-- [~] debug\.spocr\schema redundanz minimieren
+- [x] debug\.spocr\schema redundanz minimieren
   - [x] MaxLength/Precision/Scale bei TypeRef → UDTT oder konstanten sys-Typen unterdrücken.
   - [x] `IsNullable`-Spiegelung zum zugrunde liegenden TypeRef auflösen (nur Fälle mit abweichender Semantik beibehalten).
   - [x] Weitere sys-Typen mit festen Längen prüfen und ggf. streichen.
@@ -99,6 +99,10 @@
 - [x] debug\.spocr\schema\procedures\workflow.NodeListAsJson.json: "FunctionRef": "identity.RecordAsJson" dürfte kein Array sein, da die referenzierte Funktion kein Array liefert. Siehe debug\[workflow]_[NodeListAsJson].sql und debug\[identity]_[RecordAsJson].sql (benötigen wir hier die `Json` Property überhaupt, wenn wir `FunctionRef` haben? Oder kann diese Eigenschaft in anderen Fällen abweichen?)
 - [x] src\SpocRVNext\SnapshotBuilder\Metadata: TableType- und UDT-Queries als Provider ausgekoppelt (`DatabaseTableTypeMetadataProvider`, `DatabaseUserDefinedTypeMetadataProvider`); StoredProcedures laufen weiterhin über Collector/Analyzer.
 - [ ] debug\.spocr\cache\schema hier werden noch alle Daten, die eigentlich aus dem Snapshot hervorgehen redundant gespeichert. Sollten hier nicht nur Metadaten in den Cache?
+- [ ] Ist der neue SnapshotBuilder komplett vom `src\Models\StoredProcedureContentModel.cs` entkoppelt? Bitte entsprechend umsetzen.
+- [ ] `**************************************************
+Pulling database schema with SnapshotBuilder
+**************************************************` Neu und schöner designen. Besserer Titel, noch ein paar Meta-Informationen, wie Version, .env usw.
 
 ## Artefakte
 

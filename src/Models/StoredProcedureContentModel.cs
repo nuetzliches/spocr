@@ -22,6 +22,9 @@ public class StoredProcedureContentModel
     // Signatur: (schema, table, column) -> (sqlTypeName, maxLength, isNullable)
     // Wenn null oder sqlTypeName leer zur�ckgegeben wird, erfolgt keine Zuweisung.
     public static Func<string, string, string, (string SqlTypeName, int? MaxLength, bool? IsNullable)> ResolveTableColumnType { get; set; }
+    // Optional externer Resolver f�r Tabellen-Spalten User-Defined-Typen.
+    // Signatur: (schema, table, column) -> (userTypeSchema, userTypeName)
+    public static Func<string, string, string, (string? Schema, string? Name)> ResolveTableColumnUserType { get; set; }
     // JSON-Funktions-Expansion: (schema, functionName) -> (returnsJson, returnsJsonArray, rootProperty, columns[])
     // columns[] enth�lt nur Namen (String-Liste); Typen werden nicht inferiert.
     public static Func<string, string, (bool ReturnsJson, bool ReturnsJsonArray, string RootProperty, IReadOnlyList<string> ColumnNames)> ResolveFunctionJsonSet { get; set; }
@@ -3329,6 +3332,12 @@ public class StoredProcedureContentModel
                     col.SqlTypeName = res.SqlTypeName;
                     if (res.MaxLength.HasValue) col.MaxLength = res.MaxLength.Value;
                     if (res.IsNullable.HasValue) col.IsNullable = res.IsNullable.Value;
+                    if (ResolveTableColumnUserType != null)
+                    {
+                        var udt = ResolveTableColumnUserType(col.SourceSchema, col.SourceTable, col.SourceColumn);
+                        if (!string.IsNullOrWhiteSpace(udt.Schema) && string.IsNullOrWhiteSpace(col.UserTypeSchemaName)) col.UserTypeSchemaName = udt.Schema;
+                        if (!string.IsNullOrWhiteSpace(udt.Name) && string.IsNullOrWhiteSpace(col.UserTypeName)) col.UserTypeName = udt.Name;
+                    }
                     if (ShouldDiag()) System.Console.WriteLine($"[cte-col-type-debug] Resolved to: type={col.SqlTypeName} maxLen={col.MaxLength} nullable={col.IsNullable}");
 
                     // Store the resolved type information for later CTE usage
@@ -3376,6 +3385,8 @@ public class StoredProcedureContentModel
             if (string.IsNullOrWhiteSpace(target.SqlTypeName) && !string.IsNullOrWhiteSpace(source.SqlTypeName)) target.SqlTypeName = source.SqlTypeName;
             if (!target.MaxLength.HasValue && source.MaxLength.HasValue) target.MaxLength = source.MaxLength;
             if (!target.IsNullable.HasValue && source.IsNullable.HasValue) target.IsNullable = source.IsNullable;
+            if (string.IsNullOrWhiteSpace(target.UserTypeSchemaName) && !string.IsNullOrWhiteSpace(source.UserTypeSchemaName)) target.UserTypeSchemaName = source.UserTypeSchemaName;
+            if (string.IsNullOrWhiteSpace(target.UserTypeName) && !string.IsNullOrWhiteSpace(source.UserTypeName)) target.UserTypeName = source.UserTypeName;
         }
 
         private void EnsureDerivedColumnType(ResultColumn col)
@@ -3463,7 +3474,9 @@ public class StoredProcedureContentModel
                 Name = key,
                 SqlTypeName = source.SqlTypeName,
                 MaxLength = source.MaxLength,
-                IsNullable = source.IsNullable
+                IsNullable = source.IsNullable,
+                UserTypeSchemaName = source.UserTypeSchemaName,
+                UserTypeName = source.UserTypeName
             };
         }
 
@@ -5264,22 +5277,8 @@ public class StoredProcedureContentModel
                     {
                         if (ShouldDiag()) System.Console.WriteLine($"[cte-type-propagation] found sourceCol={sourceCol.Name} sqlType={sourceCol.SqlTypeName} maxLen={sourceCol.MaxLength}");
 
-                        // Propagiere SqlTypeName und verwandte Properties
-                        if (!string.IsNullOrWhiteSpace(sourceCol.SqlTypeName) && string.IsNullOrWhiteSpace(target.SqlTypeName))
-                        {
-                            target.SqlTypeName = sourceCol.SqlTypeName;
-                            if (ShouldDiag()) System.Console.WriteLine($"[cte-type-propagation] propagated SqlTypeName={target.SqlTypeName}");
-                        }
-                        if (sourceCol.MaxLength.HasValue && !target.MaxLength.HasValue)
-                        {
-                            target.MaxLength = sourceCol.MaxLength;
-                            if (ShouldDiag()) System.Console.WriteLine($"[cte-type-propagation] propagated MaxLength={target.MaxLength}");
-                        }
-                        if (sourceCol.IsNullable.HasValue && !target.IsNullable.HasValue)
-                        {
-                            target.IsNullable = sourceCol.IsNullable;
-                            if (ShouldDiag()) System.Console.WriteLine($"[cte-type-propagation] propagated IsNullable={target.IsNullable}");
-                        }
+                        CopyColumnType(target, sourceCol);
+                        if (ShouldDiag()) System.Console.WriteLine($"[cte-type-propagation] propagated SqlTypeName={target.SqlTypeName} userType={target.UserTypeSchemaName}.{target.UserTypeName} maxLen={target.MaxLength} nullable={target.IsNullable}");
                     }
                     else
                     {
@@ -5301,7 +5300,13 @@ public class StoredProcedureContentModel
         {
             try
             {
+                if (nestedCol == null) return;
+
                 if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] enter col={nestedCol?.Name} parent={parentPath}");
+
+                bool RequiresUserType() => string.IsNullOrWhiteSpace(nestedCol.UserTypeSchemaName) || string.IsNullOrWhiteSpace(nestedCol.UserTypeName);
+                bool RequiresSqlType() => string.IsNullOrWhiteSpace(nestedCol.SqlTypeName);
+                bool IsFullyResolved() => !RequiresSqlType() && !RequiresUserType();
 
                 // Build candidate names: full dotted, and last segment only
                 var candidates = new List<string>();
@@ -5337,16 +5342,15 @@ public class StoredProcedureContentModel
                 {
                     if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] Found CTE column {nestedCol.Name}: {cteColumn.SqlTypeName}, MaxLength={cteColumn.MaxLength}, IsNullable={cteColumn.IsNullable}");
 
-                    // Propagate type information from captured CTE column
-                    nestedCol.SqlTypeName = cteColumn.SqlTypeName;
-                    nestedCol.MaxLength = cteColumn.MaxLength;
-                    nestedCol.IsNullable = cteColumn.IsNullable;
+                    CopyColumnType(nestedCol, cteColumn);
 
-                    if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] Applied CTE type to {nestedCol.Name}: {nestedCol.SqlTypeName}, MaxLength={nestedCol.MaxLength}, IsNullable={nestedCol.IsNullable}");
-                    return;
+                    if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] Applied CTE type to {nestedCol.Name}: {nestedCol.SqlTypeName}, MaxLength={nestedCol.MaxLength}, IsNullable={nestedCol.IsNullable}, userType={nestedCol.UserTypeSchemaName}.{nestedCol.UserTypeName}");
+                    if (IsFullyResolved()) return;
                 }
-
-                if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] Column {nestedCol.Name} not found in captured CTE types. CTE types count: {_cteColumnTypes.Count}");
+                else if (ShouldDiag())
+                {
+                    Console.WriteLine($"[cte-nested-json-type] Column {nestedCol.Name} not found in captured CTE types. CTE types count: {_cteColumnTypes.Count}");
+                }
                 // Strategy 2: Try to find any CTE (derived table) that has a column with this name
                 foreach (var derivedEntry in _derivedTableColumns)
                 {
@@ -5359,24 +5363,21 @@ public class StoredProcedureContentModel
                         sourceCol = derivedCols.FirstOrDefault(c => c.Name?.Equals(cand, StringComparison.OrdinalIgnoreCase) == true);
                         if (sourceCol != null) break;
                     }
-                    if (sourceCol != null && !string.IsNullOrWhiteSpace(sourceCol.SqlTypeName))
+                    if (sourceCol != null && (!string.IsNullOrWhiteSpace(sourceCol.SqlTypeName) || !string.IsNullOrWhiteSpace(sourceCol.UserTypeName)))
                     {
                         if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] found match col={nestedCol.Name} in derivedAlias={derivedAlias} sqlType={sourceCol.SqlTypeName}");
 
-                        // Propagate type information from CTE column to nested JSON column
-                        nestedCol.SqlTypeName = sourceCol.SqlTypeName;
-                        nestedCol.MaxLength = sourceCol.MaxLength;
-                        nestedCol.IsNullable = sourceCol.IsNullable;
+                        CopyColumnType(nestedCol, sourceCol);
 
-                        if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] propagated to col={nestedCol.Name} sqlType={nestedCol.SqlTypeName} maxLen={nestedCol.MaxLength} nullable={nestedCol.IsNullable}");
-                        return; // Success, exit early
+                        if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] propagated to col={nestedCol.Name} sqlType={nestedCol.SqlTypeName} maxLen={nestedCol.MaxLength} nullable={nestedCol.IsNullable} userType={nestedCol.UserTypeSchemaName}.{nestedCol.UserTypeName}");
+                        if (IsFullyResolved()) return; // Success, exit early
                     }
                 }
 
-                if (string.IsNullOrWhiteSpace(nestedCol.SqlTypeName) && ShouldDiag())
+                if (RequiresSqlType() && ShouldDiag())
                     Console.WriteLine($"[cte-nested-json-type] AST-based resolution still pending for column: {nestedCol.Name}");
 
-                if (string.IsNullOrWhiteSpace(nestedCol.SqlTypeName))
+                if (RequiresSqlType() || RequiresUserType())
                 {
                     ResultColumn tableVarColumn = null;
                     foreach (var cand in candidates)
@@ -5387,17 +5388,36 @@ public class StoredProcedureContentModel
                     if (tableVarColumn == null && !string.IsNullOrWhiteSpace(nestedCol.Name))
                         tableVarColumn = FindTableVariableColumn(nestedCol.Name);
 
-                    if (tableVarColumn != null && !string.IsNullOrWhiteSpace(tableVarColumn.SqlTypeName))
+                    if (tableVarColumn != null && (!string.IsNullOrWhiteSpace(tableVarColumn.SqlTypeName) || !string.IsNullOrWhiteSpace(tableVarColumn.UserTypeName)))
                     {
-                        nestedCol.SqlTypeName = tableVarColumn.SqlTypeName;
-                        nestedCol.MaxLength = tableVarColumn.MaxLength;
-                        nestedCol.IsNullable = tableVarColumn.IsNullable;
-                        if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] applied table-var type to {nestedCol.Name}: {nestedCol.SqlTypeName}");
-                        return;
+                        CopyColumnType(nestedCol, tableVarColumn);
+                        if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] applied table-var type to {nestedCol.Name}: {nestedCol.SqlTypeName} userType={nestedCol.UserTypeSchemaName}.{nestedCol.UserTypeName}");
+                        if (IsFullyResolved()) return;
                     }
                 }
 
-                if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] final result col={nestedCol?.Name} sqlType={nestedCol?.SqlTypeName} maxLen={nestedCol?.MaxLength} isNull={nestedCol?.IsNullable}");
+                if (RequiresSqlType() || RequiresUserType())
+                {
+                    // Try derive from global lookup (unique columns across TableVariables + DerivedTables)
+                    ResultColumn uniqueSource = null; int matches = 0;
+                    foreach (var kv in _derivedTableColumns)
+                    {
+                        var hit = kv.Value?.FirstOrDefault(c => !string.IsNullOrWhiteSpace(c?.Name) && c.Name.Equals(nestedCol.Name, StringComparison.OrdinalIgnoreCase));
+                        if (hit != null && (!string.IsNullOrWhiteSpace(hit.SqlTypeName) || !string.IsNullOrWhiteSpace(hit.UserTypeName)))
+                        {
+                            uniqueSource = hit; matches++;
+                        }
+                    }
+                    if (matches == 1 && uniqueSource != null)
+                    {
+                        CopyColumnType(nestedCol, uniqueSource);
+
+                        if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] propagated from unique source {nestedCol.Name}: {nestedCol.SqlTypeName}, MaxLength={nestedCol.MaxLength}, IsNullable={nestedCol.IsNullable}, userType={nestedCol.UserTypeSchemaName}.{nestedCol.UserTypeName}");
+                        if (IsFullyResolved()) return;
+                    }
+                }
+
+                if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-type] final result col={nestedCol?.Name} sqlType={nestedCol?.SqlTypeName} maxLen={nestedCol?.MaxLength} isNull={nestedCol?.IsNullable} userType={nestedCol?.UserTypeSchemaName}.{nestedCol?.UserTypeName}");
             }
             catch (Exception ex)
             {
@@ -5523,14 +5543,19 @@ public class StoredProcedureContentModel
                         try
                         {
                             if (!string.IsNullOrWhiteSpace(col.Name)
-                                && string.IsNullOrWhiteSpace(col.SqlTypeName)
-                                && _cteColumnTypes.TryGetValue(col.Name, out var cteCol)
-                                && !string.IsNullOrWhiteSpace(cteCol.SqlTypeName))
+                                && _cteColumnTypes.TryGetValue(col.Name, out var cteCol))
                             {
-                                col.SqlTypeName = cteCol.SqlTypeName;
-                                if (cteCol.MaxLength.HasValue) col.MaxLength = cteCol.MaxLength;
+                                if (string.IsNullOrWhiteSpace(col.SqlTypeName) && !string.IsNullOrWhiteSpace(cteCol.SqlTypeName))
+                                {
+                                    col.SqlTypeName = cteCol.SqlTypeName;
+                                }
+
+                                CopyColumnType(col, cteCol);
+
+                                if (cteCol.MaxLength.HasValue && !col.MaxLength.HasValue) col.MaxLength = cteCol.MaxLength;
                                 if (cteCol.IsNullable.HasValue && !col.IsNullable.HasValue) col.IsNullable = cteCol.IsNullable;
-                                if (ShouldDiag()) System.Console.WriteLine($"[cte-top-level-name] applied {col.Name} -> {col.SqlTypeName} len={col.MaxLength} nullable={col.IsNullable}");
+
+                                if (ShouldDiag()) System.Console.WriteLine($"[cte-top-level-name] applied {col.Name} -> {col.SqlTypeName} len={col.MaxLength} nullable={col.IsNullable} userType={col.UserTypeSchemaName}.{col.UserTypeName}");
                             }
                         }
                         catch { }
@@ -5555,14 +5580,17 @@ public class StoredProcedureContentModel
                     // Apply CTE type propagation to each nested column
                     foreach (var nestedCol in col.Columns)
                     {
-                        if (string.IsNullOrWhiteSpace(nestedCol.SqlTypeName))
+                        var needsSqlType = string.IsNullOrWhiteSpace(nestedCol.SqlTypeName);
+                        var needsUserType = string.IsNullOrWhiteSpace(nestedCol.UserTypeSchemaName) || string.IsNullOrWhiteSpace(nestedCol.UserTypeName);
+
+                        if (needsSqlType || needsUserType)
                         {
                             if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-post] applying CTE type propagation to nested column: {nestedCol.Name}");
                             TryApplyCteTypePropagationToNestedJson(nestedCol, currentPath);
                         }
-                        else
+                        else if (ShouldDiag())
                         {
-                            if (ShouldDiag()) Console.WriteLine($"[cte-nested-json-post] skipping nested column {nestedCol.Name} - already has type: {nestedCol.SqlTypeName}");
+                            Console.WriteLine($"[cte-nested-json-post] skipping nested column {nestedCol.Name} - already has type: {nestedCol.SqlTypeName}");
                         }
                     }
 
