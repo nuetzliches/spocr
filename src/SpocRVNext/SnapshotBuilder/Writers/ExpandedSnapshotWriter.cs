@@ -12,7 +12,6 @@ using System.Threading.Tasks;
 using SpocR.DataContext;
 using SpocR.DataContext.Models;
 using SpocR.DataContext.Queries;
-using SpocR.Models;
 using SpocR.Services;
 using SpocR.SpocRVNext.SnapshotBuilder.Metadata;
 using SpocR.SpocRVNext.SnapshotBuilder.Models;
@@ -105,7 +104,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                 var filePath = Path.Combine(proceduresRoot, fileName);
 
                 var localTypeRefs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                var jsonBytes = BuildProcedureJson(descriptor, item.Parameters, item.Ast, localTypeRefs);
+                var jsonBytes = BuildProcedureJson(descriptor, item.Parameters, item.Procedure, localTypeRefs);
                 var writeOutcome = await WriteArtifactAsync(filePath, jsonBytes, ct).ConfigureAwait(false);
                 if (writeOutcome.Wrote && verbose)
                 {
@@ -115,7 +114,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                 var result = new ProcedureAnalysisResult
                 {
                     Descriptor = descriptor,
-                    Ast = item.Ast,
+                    Procedure = item.Procedure,
                     WasReusedFromCache = item.WasReusedFromCache,
                     SourceLastModifiedUtc = item.SourceLastModifiedUtc,
                     SnapshotFile = fileName,
@@ -164,7 +163,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         };
     }
 
-    private static byte[] BuildProcedureJson(ProcedureDescriptor descriptor, IReadOnlyList<StoredProcedureInput> parameters, StoredProcedureContentModel? ast, ISet<string>? requiredTypeRefs)
+    private static byte[] BuildProcedureJson(ProcedureDescriptor descriptor, IReadOnlyList<StoredProcedureInput> parameters, ProcedureModel? procedure, ISet<string>? requiredTypeRefs)
     {
         using var stream = new MemoryStream();
         using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true }))
@@ -174,7 +173,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
             writer.WriteString("Name", descriptor?.Name ?? string.Empty);
 
             WriteParameters(writer, parameters, requiredTypeRefs);
-            WriteResultSets(writer, ast?.ResultSets, requiredTypeRefs);
+            WriteResultSets(writer, procedure?.ResultSets, requiredTypeRefs);
 
             writer.WriteEndObject();
         }
@@ -243,7 +242,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         writer.WriteEndArray();
     }
 
-    private static void WriteResultSets(Utf8JsonWriter writer, IReadOnlyList<StoredProcedureContentModel.ResultSet>? resultSets, ISet<string>? requiredTypeRefs)
+    private static void WriteResultSets(Utf8JsonWriter writer, IReadOnlyList<ProcedureResultSet>? resultSets, ISet<string>? requiredTypeRefs)
     {
         writer.WritePropertyName("ResultSets");
         writer.WriteStartArray();
@@ -1045,7 +1044,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         return normalized;
     }
 
-    private static void WriteResultColumn(Utf8JsonWriter writer, StoredProcedureContentModel.ResultColumn column, ISet<string>? requiredTypeRefs)
+    private static void WriteResultColumn(Utf8JsonWriter writer, ProcedureResultColumn column, ISet<string>? requiredTypeRefs)
     {
         writer.WriteStartObject();
         if (!string.IsNullOrWhiteSpace(column.Name))
@@ -1108,7 +1107,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         writer.WriteEndObject();
     }
 
-    private static string? DeriveSqlTypeName(StoredProcedureContentModel.ResultColumn column, string? typeRef)
+    private static string? DeriveSqlTypeName(ProcedureResultColumn column, string? typeRef)
     {
         if (column == null) return null;
 
@@ -1194,7 +1193,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         return match.Success ? match.Groups[1].Value : null;
     }
 
-    private static bool ShouldIncludeResultSet(StoredProcedureContentModel.ResultSet set)
+    private static bool ShouldIncludeResultSet(ProcedureResultSet set)
     {
         if (set == null) return false;
         if (set.ReturnsJson || set.ReturnsJsonArray) return true;
@@ -1203,7 +1202,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         return false;
     }
 
-    private static string? BuildProcedureRef(StoredProcedureContentModel.ResultSet set)
+    private static string? BuildProcedureRef(ProcedureResultSet set)
     {
         if (set == null) return null;
         if (set.Reference != null && string.Equals(set.Reference.Kind, "Procedure", StringComparison.OrdinalIgnoreCase))
@@ -1217,7 +1216,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         return null;
     }
 
-    private static string? BuildFunctionRef(StoredProcedureContentModel.ResultColumn column)
+    private static string? BuildFunctionRef(ProcedureResultColumn column)
     {
         if (column?.Reference == null) return null;
         if (!string.Equals(column.Reference.Kind, "Function", StringComparison.OrdinalIgnoreCase)) return null;
@@ -1285,7 +1284,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         return null;
     }
 
-    private static string? BuildTypeRef(StoredProcedureContentModel.ResultColumn column)
+    private static string? BuildTypeRef(ProcedureResultColumn column)
     {
         if (column == null) return null;
         if (!string.IsNullOrWhiteSpace(column.UserTypeSchemaName) && !string.IsNullOrWhiteSpace(column.UserTypeName))

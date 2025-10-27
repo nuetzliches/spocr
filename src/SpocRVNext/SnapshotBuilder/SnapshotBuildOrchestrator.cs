@@ -6,7 +6,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using SpocR.DataContext.Models;
-using SpocR.Models;
 using SpocR.SpocRVNext.SnapshotBuilder.Analyzers;
 using SpocR.SpocRVNext.SnapshotBuilder.Cache;
 using SpocR.SpocRVNext.SnapshotBuilder.Collectors;
@@ -181,21 +180,21 @@ public sealed class SnapshotBuildOrchestrator
                 }
             }
 
-            var ast = procedure.Ast;
-            if (ast?.ResultSets == null || ast.ResultSets.Count == 0)
+            var model = procedure.Procedure;
+            if (model?.ResultSets == null || model.ResultSets.Count == 0)
             {
                 continue;
             }
 
-            resultSetCount += ast.ResultSets.Count;
-            foreach (var resultSet in ast.ResultSets)
+            resultSetCount += model.ResultSets.Count;
+            foreach (var resultSet in model.ResultSets)
             {
                 if (resultSet == null)
                 {
                     continue;
                 }
 
-                if (resultSet.ReturnsJson == true)
+                if (resultSet.ReturnsJson)
                 {
                     jsonResultSetCount++;
                 }
@@ -227,7 +226,7 @@ public sealed class SnapshotBuildOrchestrator
         return metrics;
     }
 
-    private static (int Direct, int Nested, int Json) CountColumns(IReadOnlyList<StoredProcedureContentModel.ResultColumn> columns)
+    private static (int Direct, int Nested, int Json) CountColumns(IReadOnlyList<ProcedureResultColumn> columns)
     {
         if (columns == null || columns.Count == 0)
         {
