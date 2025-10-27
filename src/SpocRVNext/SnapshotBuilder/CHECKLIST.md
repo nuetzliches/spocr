@@ -113,7 +113,7 @@
 ## Migration `StoredProcedureContentModel`
 
 - [ ] **Abhängigkeiten ablösen**
-  - [ ] SnapshotBuilder vollständig von `StoredProcedureContentModel` lösen und AST-/Metadata-Pipeline direkt im SnapshotBuilder verankern (Ersatz für `StoredProcedureContentModel.Parse`, `Convert*`-Pfad entfernen).
+  - [x] SnapshotBuilder vollständig von `StoredProcedureContentModel` lösen und AST-/Metadata-Pipeline direkt im SnapshotBuilder verankern (ScriptDom-Builder + Analyzer nutzen eigene Metadata-Resolver, keine statischen Delegates mehr).
   - [ ] Eigenständige Analyzer für JSON-ResultSets aufbauen (AVG/SUM/COUNT Detection, Nested JSON, FunctionRefs) und Regressionen aus den aktuellen Tests adressieren (`avg` Aggregat-Flag, Exec Forwarding, comment-only FOR JSON Fälle).
   - [x] `ProcedureModel` eingeführt, Analyzer/Writer konsumieren kein `StoredProcedureContentModel` mehr nach außen.
   - [x] Übergangsweise Aggregat-Propagation in `StoredProcedureContentModel` gefixt (Derived Columns setzen `IsAggregate` jetzt auch für umhüllte Ausdrücke).

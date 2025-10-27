@@ -26,12 +26,6 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
     private readonly IFunctionJsonMetadataProvider _functionJsonMetadataProvider;
     private readonly IProcedureModelBuilder _procedureModelBuilder;
 
-    private Func<string, string, string, (string SqlTypeName, int? MaxLength, bool? IsNullable)>? _tableColumnTypeResolver;
-    private Func<string, string, string, (string? Schema, string? Name)>? _tableColumnUserTypeResolver;
-    private readonly Dictionary<string, Dictionary<string, (string SqlTypeName, int? MaxLength, bool? IsNullable)>> _tableColumnTypeCache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, Dictionary<string, (string? Schema, string? Name)>> _tableColumnUserTypeCache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly object _tableColumnResolverGate = new();
-
     public DatabaseProcedureAnalyzer(
         DbContext dbContext,
         IConsoleService console,
@@ -55,8 +49,6 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
         {
             return Array.Empty<ProcedureAnalysisResult>();
         }
-
-        EnsureTableColumnResolver();
 
         var results = new List<ProcedureAnalysisResult>(items.Count);
         foreach (var item in items)
@@ -514,132 +506,6 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
         }
 
         return map.TryGetValue(columnName, out var column) ? column : null;
-    }
-
-    private void EnsureTableColumnResolver()
-    {
-        if (_tableColumnTypeResolver == null)
-        {
-            _tableColumnTypeResolver = ResolveTableColumnTypeFromDatabase;
-        }
-
-        if (!ReferenceEquals(StoredProcedureContentModel.ResolveTableColumnType, _tableColumnTypeResolver))
-        {
-            StoredProcedureContentModel.ResolveTableColumnType = _tableColumnTypeResolver;
-        }
-
-        if (_tableColumnUserTypeResolver == null)
-        {
-            _tableColumnUserTypeResolver = ResolveTableColumnUserTypeFromDatabase;
-        }
-
-        if (!ReferenceEquals(StoredProcedureContentModel.ResolveTableColumnUserType, _tableColumnUserTypeResolver))
-        {
-            StoredProcedureContentModel.ResolveTableColumnUserType = _tableColumnUserTypeResolver;
-        }
-    }
-
-    private (string SqlTypeName, int? MaxLength, bool? IsNullable) ResolveTableColumnTypeFromDatabase(string schema, string table, string column)
-    {
-        if (string.IsNullOrWhiteSpace(schema) || string.IsNullOrWhiteSpace(table) || string.IsNullOrWhiteSpace(column))
-        {
-            return (string.Empty, null, null);
-        }
-
-        var tableKey = string.Concat(schema, ".", table);
-        if (!_tableColumnTypeCache.TryGetValue(tableKey, out var columnMap))
-        {
-            lock (_tableColumnResolverGate)
-            {
-                if (!_tableColumnTypeCache.TryGetValue(tableKey, out columnMap))
-                {
-                    columnMap = LoadTableColumnMetadata(schema, table);
-                    _tableColumnTypeCache[tableKey] = columnMap;
-                }
-            }
-        }
-
-        if (columnMap.TryGetValue(column, out var entry))
-        {
-            return entry;
-        }
-
-        return (string.Empty, null, null);
-    }
-
-    private (string? Schema, string? Name) ResolveTableColumnUserTypeFromDatabase(string schema, string table, string column)
-    {
-        if (string.IsNullOrWhiteSpace(schema) || string.IsNullOrWhiteSpace(table) || string.IsNullOrWhiteSpace(column))
-        {
-            return (null, null);
-        }
-
-        var tableKey = string.Concat(schema, ".", table);
-        if (!_tableColumnUserTypeCache.TryGetValue(tableKey, out var columnMap))
-        {
-            lock (_tableColumnResolverGate)
-            {
-                if (!_tableColumnUserTypeCache.TryGetValue(tableKey, out columnMap))
-                {
-                    var typeMap = LoadTableColumnMetadata(schema, table);
-                    if (!_tableColumnTypeCache.ContainsKey(tableKey))
-                    {
-                        _tableColumnTypeCache[tableKey] = typeMap;
-                    }
-                    _tableColumnUserTypeCache.TryGetValue(tableKey, out columnMap);
-                }
-            }
-        }
-
-        if (columnMap != null && columnMap.TryGetValue(column, out var udt))
-        {
-            return udt;
-        }
-
-        return (null, null);
-    }
-
-    private Dictionary<string, (string SqlTypeName, int? MaxLength, bool? IsNullable)> LoadTableColumnMetadata(string schema, string table)
-    {
-        try
-        {
-            var columns = _dbContext.TableColumnsListAsync(schema, table, CancellationToken.None)
-                .ConfigureAwait(false)
-                .GetAwaiter()
-                .GetResult() ?? new List<Column>();
-
-            var map = new Dictionary<string, (string SqlTypeName, int? MaxLength, bool? IsNullable)>(StringComparer.OrdinalIgnoreCase);
-            var udtMap = new Dictionary<string, (string? Schema, string? Name)>(StringComparer.OrdinalIgnoreCase);
-            foreach (var col in columns)
-            {
-                if (col == null || string.IsNullOrWhiteSpace(col.Name)) continue;
-
-                var baseType = !string.IsNullOrWhiteSpace(col.BaseSqlTypeName) ? col.BaseSqlTypeName : col.SqlTypeName;
-                var sqlType = FormatSqlType(baseType, NormalizeLength(col.MaxLength), NormalizePrecision(col.Precision), NormalizePrecision(col.Scale));
-                if (string.IsNullOrWhiteSpace(sqlType))
-                {
-                    sqlType = baseType?.Trim() ?? string.Empty;
-                }
-
-                var maxLength = NormalizeLength(col.MaxLength);
-                map[col.Name] = (sqlType, maxLength, col.IsNullable);
-
-                var udtSchema = string.IsNullOrWhiteSpace(col.UserTypeSchemaName) ? null : col.UserTypeSchemaName;
-                var udtName = string.IsNullOrWhiteSpace(col.UserTypeName) ? null : col.UserTypeName;
-                udtMap[col.Name] = (udtSchema, udtName);
-            }
-
-            var tableKey = string.Concat(schema, ".", table);
-            _tableColumnUserTypeCache[tableKey] = udtMap;
-
-            return map;
-        }
-        catch
-        {
-            var tableKey = string.Concat(schema, ".", table);
-            _tableColumnUserTypeCache[tableKey] = new Dictionary<string, (string? Schema, string? Name)>(StringComparer.OrdinalIgnoreCase);
-            return new Dictionary<string, (string SqlTypeName, int? MaxLength, bool? IsNullable)>(StringComparer.OrdinalIgnoreCase);
-        }
     }
 
     private static ColumnMetadata? ResolveHeuristic(ProcedureResultColumn column)
