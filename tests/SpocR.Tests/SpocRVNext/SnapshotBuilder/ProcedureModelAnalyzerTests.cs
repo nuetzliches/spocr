@@ -68,6 +68,29 @@ END";
     }
 
     [Fact]
+    public void AggregateAnalyzer_handles_string_literal_aliases()
+    {
+        const string definition = @"
+CREATE PROCEDURE dbo.Sample
+AS
+BEGIN
+    SELECT COUNT(*) AS 'agg.countAll'
+    FROM dbo.Foo;
+END";
+
+        var model = new ProcedureModel();
+        var resultSet = new ProcedureResultSet();
+        resultSet.Columns.Add(new ProcedureResultColumn { Name = "agg.countAll" });
+        model.ResultSets.Add(resultSet);
+
+        ProcedureModelAggregateAnalyzer.Apply(definition, model);
+
+        var column = Assert.Single(resultSet.Columns);
+        Assert.True(column.IsAggregate);
+        Assert.Equal("count", column.AggregateFunction);
+    }
+
+    [Fact]
     public void AggregateAnalyzer_matches_bracketed_aliases()
     {
         const string definition = @"

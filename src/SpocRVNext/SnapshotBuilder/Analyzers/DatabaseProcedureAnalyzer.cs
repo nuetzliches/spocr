@@ -138,7 +138,7 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
                         var scriptDom = ProcedureModelScriptDomParser.Parse(definition);
                         ProcedureModelExecAnalyzer.Apply(scriptDom, procedureModel);
                         ProcedureModelAggregateAnalyzer.Apply(scriptDom, procedureModel);
-                        ProcedureModelJsonAnalyzer.Apply(scriptDom, procedureModel);
+                        ProcedureModelJsonAnalyzer.Apply(scriptDom, procedureModel, definition);
                         ProcedureModelPostProcessor.Apply(procedureModel);
                     }
                     else

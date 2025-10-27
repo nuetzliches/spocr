@@ -174,7 +174,7 @@ internal static class ProcedureModelAggregateAnalyzer
                 return;
             }
 
-            var alias = node.ColumnName?.Value;
+            var alias = GetAlias(node);
             if (string.IsNullOrWhiteSpace(alias))
             {
                 base.ExplicitVisit(node);
@@ -188,6 +188,34 @@ internal static class ProcedureModelAggregateAnalyzer
             }
 
             base.ExplicitVisit(node);
+        }
+
+        private static string? GetAlias(SelectScalarExpression node)
+        {
+            if (node.ColumnName == null)
+            {
+                return null;
+            }
+
+            if (!string.IsNullOrWhiteSpace(node.ColumnName.Value))
+            {
+                return node.ColumnName.Value;
+            }
+
+            if (node.ColumnName is IdentifierOrValueExpression ive)
+            {
+                if (ive.Identifier != null && !string.IsNullOrWhiteSpace(ive.Identifier.Value))
+                {
+                    return ive.Identifier.Value;
+                }
+
+                if (ive.ValueExpression is StringLiteral sl && !string.IsNullOrWhiteSpace(sl.Value))
+                {
+                    return sl.Value;
+                }
+            }
+
+            return null;
         }
 
         private AggregateInfo Analyze(ScalarExpression expression)

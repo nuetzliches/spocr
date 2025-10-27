@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.SqlServer.TransactSql.ScriptDom;
 using SpocR.SpocRVNext.SnapshotBuilder.Models;
 
@@ -92,14 +93,42 @@ internal static class ProcedureModelExecAnalyzer
                 }
             }
 
-            var key = string.IsNullOrWhiteSpace(schema)
-                ? procedureName.ToLowerInvariant()
-                : string.Concat(schema.ToLowerInvariant(), ".", procedureName.ToLowerInvariant());
+            var normalizedName = procedureName.ToLowerInvariant();
+            var hasSchema = !string.IsNullOrWhiteSpace(schema);
+            var normalizedSchema = hasSchema ? schema!.ToLowerInvariant() : null;
 
-            if (!_map.ContainsKey(key))
+            if (!hasSchema)
             {
-                _map[key] = new ExecutedProcedure(schema, procedureName);
+                var existingWithSchema = _map.FirstOrDefault(kvp =>
+                    string.Equals(kvp.Value.Name, procedureName, StringComparison.OrdinalIgnoreCase));
+
+                if (!string.IsNullOrEmpty(existingWithSchema.Key))
+                {
+                    return;
+                }
+
+                var schemaLessKey = normalizedName;
+                if (!_map.ContainsKey(schemaLessKey))
+                {
+                    _map[schemaLessKey] = new ExecutedProcedure(null, procedureName);
+                }
+                return;
             }
+
+            var key = string.Concat(normalizedSchema, ".", normalizedName);
+            if (_map.ContainsKey(key))
+            {
+                return;
+            }
+
+            var schemaLess = _map.FirstOrDefault(kvp =>
+                kvp.Value.Schema == null && string.Equals(kvp.Value.Name, procedureName, StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrEmpty(schemaLess.Key))
+            {
+                _map.Remove(schemaLess.Key);
+            }
+
+            _map[key] = new ExecutedProcedure(schema, procedureName);
         }
     }
 }

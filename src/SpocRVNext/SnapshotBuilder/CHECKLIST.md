@@ -117,6 +117,7 @@ Pulling database schema with SnapshotBuilder
   - [x] Exec-Forwarding via `ProcedureModelExecAnalyzer` (ScriptDom) erkannt – Dependencies basieren nicht mehr auf Legacy-Daten.
   - [x] ScriptDom-basierte JSON-Analyse (`ProcedureModelJsonAnalyzer`) setzt ResultSet- und Nested-JSON-Flags ohne Legacy-Modell.
   - [x] Unit Tests für Aggregate-, Exec- und JSON-Analyzer decken Alias-Matching, Literal-Flags, Deduplication und Nested-JSON-Erkennung ab.
+  - [ ] ScriptDom-Analyzer liefern Parität zum Legacy-Parser (Aggregat-Flags, JSON-Metadaten, EXEC-Deduplizierung); Regressionstests (`AggregateTypingExtendedTests`, `JournalMetricsTypingTests`, `ProcedureModelAnalyzerTests`) reparieren.
 - [ ] **ExpandedSnapshotWriter modularisieren**
   - Datei in klar abgegrenzte Writer/Formatter-Komponenten aufteilen (ProcedureWriter, ResultSetWriter, IndexWriter).
   - Im Zuge der Aufteilung Deferred JSON/ProcedureRef Serialization final klären.
