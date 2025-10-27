@@ -19,19 +19,18 @@ public class SchemaMetadataProviderResultSetResolverTests
     [Fact]
     public void Renames_Generic_ResultSet_Name_From_Table_In_Sql()
     {
-        // Arrange: single procedure, single generic result set with two columns; raw SQL selects from dbo.Users
         var snapshotJson = @"{
   ""Procedures"": [
     {
       ""Schema"": ""dbo"",
       ""Name"": ""GetUsers"",
       ""Sql"": ""CREATE PROCEDURE dbo.GetUsers AS SELECT Id, UserName FROM dbo.Users;"",
-      ""Inputs"": [],
+      ""Parameters"": [],
       ""ResultSets"": [
         {
           ""Columns"": [
-            { ""Name"": ""Id"", ""SqlTypeName"": ""int"", ""IsNullable"": false },
-            { ""Name"": ""UserName"", ""SqlTypeName"": ""nvarchar"", ""IsNullable"": true, ""MaxLength"": 100 }
+            { ""Name"": ""Id"", ""TypeRef"": ""sys.int"" },
+            { ""Name"": ""UserName"", ""TypeRef"": ""sys.nvarchar(100)"", ""IsNullable"": true }
           ]
         }
       ]
@@ -52,19 +51,18 @@ public class SchemaMetadataProviderResultSetResolverTests
     }
 
     [Fact]
-  public void Duplicate_Table_Uses_Suffix_For_Subsequent()
+    public void Duplicate_Table_Uses_Suffix_For_Subsequent()
     {
-  // Arrange: two result sets; second resolves to same table name; expect suffix Items1
         var snapshotJson = @"{
   ""Procedures"": [
     {
       ""Schema"": ""dbo"",
       ""Name"": ""GetStuff"",
       ""Sql"": ""CREATE PROCEDURE dbo.GetStuff AS SELECT * FROM dbo.Items; SELECT * FROM dbo.Items;"",
-      ""Inputs"": [],
+      ""Parameters"": [],
       ""ResultSets"": [
-        { ""Columns"": [ { ""Name"": ""Id"", ""SqlTypeName"": ""int"", ""IsNullable"": false } ] },
-        { ""Columns"": [ { ""Name"": ""Id"", ""SqlTypeName"": ""int"", ""IsNullable"": false } ] }
+        { ""Columns"": [ { ""Name"": ""Id"", ""TypeRef"": ""sys.int"" } ] },
+        { ""Columns"": [ { ""Name"": ""Id"", ""TypeRef"": ""sys.int"" } ] }
       ]
     }
   ]
@@ -73,11 +71,11 @@ public class SchemaMetadataProviderResultSetResolverTests
         var provider = new SchemaMetadataProvider(root);
 
         // Act
-        var rs = provider.GetResultSets().OrderBy(r => r.Index).ToList();
+    var rs = provider.GetResultSets().OrderBy(r => r.Index).ToList();
 
-        // Assert
-        Assert.Equal(2, rs.Count);
-  Assert.Equal("Items", rs[0].Name); // first renamed
-  Assert.Equal("Items1", rs[1].Name); // second now suffixed instead of generic
+    // Assert
+    Assert.Equal(2, rs.Count);
+    Assert.Equal("Items", rs[0].Name); // first renamed
+    Assert.Equal("Items1", rs[1].Name); // second now suffixed instead of generic
     }
 }

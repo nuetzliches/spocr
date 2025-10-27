@@ -6,7 +6,7 @@ namespace SpocR.Tests.SpocRVNext.Generation;
 
 public class GoldenSnapshotTests
 {
-    private const string SampleSnapshot = "{\n  \"Procedures\": [\n    {\n      \"Schema\": \"dbo\",\n      \"Name\": \"GetUsers\",\n      \"Inputs\": [ { \"Name\": \"@Top\", \"SqlTypeName\": \"int\", \"IsNullable\": false } ],\n      \"ResultSets\": [ { \"Columns\": [ { \"Name\": \"UserId\", \"SqlTypeName\": \"int\", \"IsNullable\": false }, { \"Name\": \"UserName\", \"SqlTypeName\": \"nvarchar\", \"IsNullable\": true } ] } ]\n    },\n    {\n      \"Schema\": \"dbo\",\n      \"Name\": \"GetStatistics\",\n      \"Inputs\": [],\n      \"ResultSets\": [ { \"Columns\": [ { \"Name\": \"Total\", \"SqlTypeName\": \"int\", \"IsNullable\": false } ] }, { \"Columns\": [ { \"Name\": \"AvgAge\", \"SqlTypeName\": \"int\", \"IsNullable\": true } ] } ]\n    }\n  ]\n}";
+    private const string SampleSnapshot = "{\n  \"Procedures\": [\n    {\n      \"Schema\": \"dbo\",\n      \"Name\": \"GetUsers\",\n      \"Parameters\": [ { \"Name\": \"Top\", \"TypeRef\": \"sys.int\" } ],\n      \"ResultSets\": [ { \"Columns\": [ { \"Name\": \"UserId\", \"TypeRef\": \"sys.int\" }, { \"Name\": \"UserName\", \"TypeRef\": \"sys.nvarchar(128)\", \"IsNullable\": true } ] } ]\n    },\n    {\n      \"Schema\": \"dbo\",\n      \"Name\": \"GetStatistics\",\n      \"Parameters\": [],\n      \"ResultSets\": [ { \"Columns\": [ { \"Name\": \"Total\", \"TypeRef\": \"sys.int\" } ] }, { \"Columns\": [ { \"Name\": \"AvgAge\", \"TypeRef\": \"sys.int\", \"IsNullable\": true } ] } ]\n    }\n  ]\n}";
 
     [Fact]
     public void GoldenSnapshot_DoubleRun_IsStable()

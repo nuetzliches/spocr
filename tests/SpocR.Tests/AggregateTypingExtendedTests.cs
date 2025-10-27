@@ -43,11 +43,17 @@ END";
         var hasPositive = rs.Columns.First(c => c.Name == "agg.hasPositive");
         var sumAmount = rs.Columns.First(c => c.Name == "agg.sumAmount");
 
-        Assert.True(countAll.IsAggregate); Assert.Equal("count", countAll.AggregateFunction); Assert.Equal("int", countAll.SqlTypeName);
-        Assert.True(countBig.IsAggregate); Assert.Equal("count_big", countBig.AggregateFunction); Assert.Equal("bigint", countBig.SqlTypeName);
-    Assert.True(avgAmount.IsAggregate); Assert.Equal("avg", avgAmount.AggregateFunction); Assert.Equal("decimal(18,2)", avgAmount.SqlTypeName);
-        Assert.True(hasPositive.IsAggregate); Assert.Equal("exists", hasPositive.AggregateFunction); Assert.Equal("bit", hasPositive.SqlTypeName);
-        Assert.True(sumAmount.IsAggregate); Assert.Equal("sum", sumAmount.AggregateFunction); Assert.NotNull(sumAmount.SqlTypeName); // kann int oder decimal Fallback sein
+        System.Console.WriteLine($"countAll agg={countAll.IsAggregate} func={countAll.AggregateFunction} type={countAll.SqlTypeName}");
+        System.Console.WriteLine($"countBig agg={countBig.IsAggregate} func={countBig.AggregateFunction} type={countBig.SqlTypeName}");
+        System.Console.WriteLine($"avgAmount agg={avgAmount.IsAggregate} func={avgAmount.AggregateFunction} type={avgAmount.SqlTypeName}");
+        System.Console.WriteLine($"hasPositive agg={hasPositive.IsAggregate} func={hasPositive.AggregateFunction} type={hasPositive.SqlTypeName}");
+        System.Console.WriteLine($"sumAmount agg={sumAmount.IsAggregate} func={sumAmount.AggregateFunction} type={sumAmount.SqlTypeName}");
+
+    Assert.True(countAll.IsAggregate, "agg.countAll sollte als COUNT Aggregat erkannt werden"); Assert.Equal("count", countAll.AggregateFunction); Assert.Equal("int", countAll.SqlTypeName);
+    Assert.True(countBig.IsAggregate, "agg.countBig sollte als COUNT_BIG Aggregat erkannt werden"); Assert.Equal("count_big", countBig.AggregateFunction); Assert.Equal("bigint", countBig.SqlTypeName);
+    Assert.True(avgAmount.IsAggregate, "agg.avgAmount sollte als AVG Aggregat erkannt werden"); Assert.Equal("avg", avgAmount.AggregateFunction); Assert.Equal("decimal(18,2)", avgAmount.SqlTypeName);
+    Assert.True(hasPositive.IsAggregate, "agg.hasPositive sollte als EXISTS Aggregat erkannt werden"); Assert.Equal("exists", hasPositive.AggregateFunction); Assert.Equal("bit", hasPositive.SqlTypeName);
+    Assert.True(sumAmount.IsAggregate, "agg.sumAmount sollte als SUM Aggregat erkannt werden"); Assert.Equal("sum", sumAmount.AggregateFunction); Assert.NotNull(sumAmount.SqlTypeName); // kann int oder decimal Fallback sein
     }
 
     // Erweiterte Tests für JSON_QUERY Wrapper & STRING_AGG werden separat ergänzt.

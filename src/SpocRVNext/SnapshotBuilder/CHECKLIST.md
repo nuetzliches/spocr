@@ -61,7 +61,7 @@
   - Bootstrapper anpassen (Inputs aus `.env` priorisieren). _(EnvBootstrapper füllt `.env` inkl. `SPOCR_BUILD_SCHEMAS`/Namespace aus und wird beim CLI-Init genutzt)_
 - [ ] Legacy Cleanup
   - [x] Snapshot-Code aus `SpocrManager` entfernen/weiterleiten. _(CLI `pull` ruft ausschließlich `SnapshotBuildOrchestrator` auf)_
-  - [ ] C:\Projekte\GitHub\spocr\src\Services\SchemaSnapshotService.cs: Tests aktualisieren (`SpocR.Tests`, Golden Snapshots) und auf neuen Snapshot-Output anheben.
+  - [ ] C:\Projekte\GitHub\spocr\src\Services\SchemaSnapshotService.cs: Tests aktualisieren (`SpocR.Tests`, Golden Snapshots) und auf neuen Snapshot-Output anheben. _(Aufschub: erst nach Abschluss der Migration unter "## Migration".)_
 - [x] TableType Normalisierung
   - Expanded SnapshotWriter reduziert TableType/Parameter Felder auf `TypeRef` + relevante Metadaten.
   - TableTypeMetadataProvider/TableTypesGenerator nutzen Resolver für SQL-Signaturen (JsonDocument-Dispose Bug gefixt).
@@ -104,14 +104,18 @@ Pulling database schema with SnapshotBuilder
 **************************************************` Neu und schöner designen. Besserer Titel, noch ein paar Meta-Informationen, wie Version, .env usw.
 
 ## Migration (zu analysieren und planen)
-- Bitte folgende Punkte sauber strukturieren und in ein Konzept mit Todos umwandeln
-- SnapshotBuilder von StoredProcedureContentModel (und im besten fall von allen Abhängigkeiten außerhalb von SpocRVNext\SnapshotBuilder) entkoppeln und Logik (AST-Parser usw.) neu in SnapshotBuilder bauen.
-- `src\SpocRVNext\SnapshotBuilder\Writers\ExpandedSnapshotWriter.cs` besser aufteilen (zu groß)
-- Prüfe, wie die folgenden Fixes mit der Migration zusammenpassen
-- Iteriere mit folgenden Befehlen durch den pull Vorgang und verbessere die Typen-Auflösung.
-- Gesamt-Pull ohne Cache: dotnet run --project src/SpocR.csproj -- pull -p c:\Projekte\GitHub\spocr\debug --no-cache
-- Mit Verbose: dotnet run --project src/SpocR.csproj -- pull -p c:\Projekte\GitHub\spocr\debug --no-cache --verbose
-- Einzelprozedur: dotnet run --project src/SpocR.csproj -- pull -p c:\Projekte\GitHub\spocr\debug --no-cache --verbose --procedure schemaName.ProcedureName
+- [ ] **Abhängigkeiten ablösen**
+  - SnapshotBuilder vollständig von `StoredProcedureContentModel` lösen und AST-/Metadata-Pipeline direkt im SnapshotBuilder verankern.
+  - Eigenständige Analyzer für JSON-ResultSets aufbauen (AVG/SUM/COUNT Detection, Nested JSON, FunctionRefs) und Regressionen aus den aktuellen Tests adressieren (`avg` Aggregat-Flag, Exec Forwarding, comment-only FOR JSON Fälle).
+- [ ] **ExpandedSnapshotWriter modularisieren**
+  - Datei in klar abgegrenzte Writer/Formatter-Komponenten aufteilen (ProcedureWriter, ResultSetWriter, IndexWriter).
+  - Im Zuge der Aufteilung Deferred JSON/ProcedureRef Serialization final klären.
+- [ ] **Diagnose & Typauflösung iterativ verbessern**
+  - Iterationen über Pull-Läufe mit und ohne Cache (`--no-cache`, `--verbose`, `--procedure`) durchführen, bis sämtliche Typen (insbesondere JSON/AVG/EXISTS) deterministisch gebunden sind.
+  - Kommentarbereinigung für Fallbacks (`FOR JSON PATH` ohne AST-Bindung) verifizieren und ggf. in neue Analyzer überführen.
+- [ ] **Abschlusskriterien**
+  - Wenn Architektur und Analyzer stehen, komplette Test-Suite (SpocR.Tests, Golden Snapshots, Determinism) wieder aktivieren und erwartete Artefakte aktualisieren.
+  - Anschließend Legacy Tests & Golden Snapshots (siehe "Legacy Cleanup") modernisieren.
 
 
 ## Artefakte

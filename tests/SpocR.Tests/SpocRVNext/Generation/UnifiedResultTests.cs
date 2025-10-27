@@ -15,8 +15,8 @@ public class UnifiedResultTests
         var file = Path.Combine(SampleDir, "CreateUserWithOutput.cs");
         Assert.True(File.Exists(file), "Consolidated proc file not generated");
         var text = File.ReadAllText(file);
-        Assert.Contains("public IReadOnlyList<CreateUserWithOutputResultSet> Result", text);
-        Assert.DoesNotContain("Result1", text); // numbering starts only after first set now
+        Assert.Contains("public CreateUserWithOutputOutput? Output", text);
+        Assert.DoesNotContain("public IReadOnlyList", text); // pure output procedure => no result set wrapper
         // Konsolidiert: Input & Output Record sollen im selben File genau einmal definiert sein
         var outputDefCount = text.Split("record struct CreateUserWithOutputOutput").Length - 1;
         Assert.Equal(1, outputDefCount);
@@ -27,10 +27,10 @@ public class UnifiedResultTests
     [Fact]
     public void OrderListAsJson_FirstResult_NoNumber_And_SecondResultHasNumber()
     {
-        var file = Path.Combine(SampleDir, "UserOrderHierarchyJson.cs"); // this one has two result sets
+    var file = Path.Combine(SampleDir, "UserOrderHierarchyJson.cs"); // JSON hierarchy result consolidated
         var text = File.ReadAllText(file);
-        Assert.Contains("public IReadOnlyList<UserOrderHierarchyJsonResultSet> Result", text); // first generic set renamed
-        Assert.Contains("public IReadOnlyList<UserOrderHierarchyJsonResultSet1> Result1", text); // second now numbered 1 (index-based)
+        Assert.Contains("public IReadOnlyList<UserOrderHierarchyJsonResultSet1Result> Result", text);
+        Assert.DoesNotContain("Result1", text); // single JSON payload => only primary Result property
     }
 
     private static string FindRepoRoot()

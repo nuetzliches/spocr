@@ -32,11 +32,11 @@ public sealed class SchemaMetadataProviderExtendedTests
             Schema = "dbo",
             Name = "GetStuff",
             Sql = "SELECT * FROM dbo.Users; SELECT Id FROM dbo.Roles;",
-            Inputs = Array.Empty<object>(),
+            Parameters = Array.Empty<object>(),
             ResultSets = new object[]
             {
-                new { Columns = new[]{ new { Name = "Id", SqlTypeName = "int", IsNullable = false, MaxLength = (int?)null } } },
-                new { Columns = new[]{ new { Name = "Id", SqlTypeName = "int", IsNullable = false, MaxLength = (int?)null } } }
+                new { Columns = new[]{ new { Name = "Id", TypeRef = "sys.int" } } },
+                new { Columns = new[]{ new { Name = "Id", TypeRef = "sys.int" } } }
             }
         };
         var root = CreateSnapshot(proc);
@@ -59,10 +59,10 @@ public sealed class SchemaMetadataProviderExtendedTests
             Schema = "dbo",
             Name = "Broken",
             Sql = "SELECT * FROM dbo.Users; /* unterbrochen */ THIS IS NOT SQL",
-            Inputs = Array.Empty<object>(),
+            Parameters = Array.Empty<object>(),
             ResultSets = new object[]
             {
-                new { Columns = new[]{ new { Name = "ColA", SqlTypeName = "int", IsNullable = false, MaxLength = (int?)null } } }
+                new { Columns = new[]{ new { Name = "ColA", TypeRef = "sys.int" } } }
             }
         };
         var root = CreateSnapshot(proc);
@@ -84,10 +84,10 @@ public sealed class SchemaMetadataProviderExtendedTests
             Schema = "dbo",
             Name = "GetUsers",
             Sql = "SELECT * FROM DBO.UsErS;",
-            Inputs = Array.Empty<object>(),
+            Parameters = Array.Empty<object>(),
             ResultSets = new object[]
             {
-                new { Columns = new[]{ new { Name = "Id", SqlTypeName = "int", IsNullable = false, MaxLength = (int?)null } } }
+                new { Columns = new[]{ new { Name = "Id", TypeRef = "sys.int" } } }
             }
         };
         var root = CreateSnapshot(proc);
@@ -110,11 +110,11 @@ public sealed class SchemaMetadataProviderExtendedTests
             Schema = "dbo",
             Name = "DoubleUsers",
             Sql = "SELECT * FROM dbo.Users; SELECT * FROM dbo.Users;",
-            Inputs = Array.Empty<object>(),
+            Parameters = Array.Empty<object>(),
             ResultSets = new object[]
             {
-                new { Columns = new[]{ new { Name = "Id", SqlTypeName = "int", IsNullable = false, MaxLength = (int?)null } } },
-                new { Columns = new[]{ new { Name = "Id", SqlTypeName = "int", IsNullable = false, MaxLength = (int?)null } } }
+                new { Columns = new[]{ new { Name = "Id", TypeRef = "sys.int" } } },
+                new { Columns = new[]{ new { Name = "Id", TypeRef = "sys.int" } } }
             }
         };
         var root = CreateSnapshot(proc);

@@ -25,7 +25,7 @@ public class SchemaMetadataProviderTests
         var root = Directory.CreateTempSubdirectory();
         var schemaDir = Path.Combine(root.FullName, ".spocr", "schema");
         Directory.CreateDirectory(schemaDir);
-        var json = "{\n  \"Procedures\": [ { \n    \"Schema\": \"dbo\", \n    \"Name\": \"DoThing\", \n    \"Inputs\": [ { \"Name\": \"@A\", \"IsOutput\": false, \"SqlTypeName\": \"int\", \"IsNullable\": false }, { \"Name\": \"@B\", \"IsOutput\": true, \"SqlTypeName\": \"nvarchar\", \"IsNullable\": true } ],\n    \"ResultSets\": [ { \"Columns\": [ { \"Name\": \"Value\", \"SqlTypeName\": \"int\", \"IsNullable\": true } ] } ]\n  } ]\n}";
+    var json = "{\n  \"Procedures\": [ { \n    \"Schema\": \"dbo\", \n    \"Name\": \"DoThing\", \n    \"Parameters\": [ { \"Name\": \"A\", \"TypeRef\": \"sys.int\" }, { \"Name\": \"B\", \"TypeRef\": \"sys.nvarchar(50)\", \"IsOutput\": true, \"IsNullable\": true, \"MaxLength\": 50 } ],\n    \"ResultSets\": [ { \"Columns\": [ { \"Name\": \"Value\", \"TypeRef\": \"sys.int\", \"IsNullable\": true } ] } ]\n  } ]\n}";
         File.WriteAllText(Path.Combine(schemaDir, "snap.json"), json);
         var provider = new SchemaMetadataProvider(root.FullName);
         var procs = provider.GetProcedures();

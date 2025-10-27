@@ -19,7 +19,7 @@ public class JsonResultSetAuditTests
             new("workflowId","workflowId","string", false, "int", null, null, null),
             new("isActive","isActive","string", false, "bit", null, null, null)
         };
-        var rs = new ResultSetDescriptor(0, "ResultSet1", fields, ReturnsJson: true, ReturnsJsonArray: true);
+    var rs = new ResultSetDescriptor(0, "ResultSet1", fields, JsonPayload: new JsonPayloadDescriptor(true, null));
         var proc = new ProcedureDescriptor("WorkflowListAsJson", "dbo", "dbo__WorkflowListAsJson", Array.Empty<FieldDescriptor>(), Array.Empty<FieldDescriptor>(), new List<ResultSetDescriptor> { rs });
 
         // Act

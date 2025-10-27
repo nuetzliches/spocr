@@ -22,16 +22,14 @@ public class ExecSourceReferenceTests
 
         // Act
         var provider = new SchemaMetadataProvider(root);
-        var rs = provider.GetResultSets().FirstOrDefault(r => r.Name.Equals("ResultSet0", StringComparison.OrdinalIgnoreCase));
+        var rs = provider.GetResultSets()
+            .FirstOrDefault(r => string.Equals(r.ExecSourceProcedureName, "InnerProc", StringComparison.OrdinalIgnoreCase));
 
         // Assert
         Assert.NotNull(rs);
-        Assert.NotNull(rs.Reference); // Consolidated
-        Assert.Equal("Procedure", rs.Reference!.Kind);
-        Assert.Equal("dbo", rs.Reference.Schema);
-        Assert.Equal("InnerProc", rs.Reference.Name);
+        Assert.Equal("dbo.InnerProc", rs!.ProcedureRef);
         // Backward fields still load for now (transitional)
-        Assert.Equal("dbo", rs.ExecSourceSchemaName);
-        Assert.Equal("InnerProc", rs.ExecSourceProcedureName);
+        Assert.Equal("dbo", rs!.ExecSourceSchemaName);
+        Assert.Equal("InnerProc", rs!.ExecSourceProcedureName);
     }
 }

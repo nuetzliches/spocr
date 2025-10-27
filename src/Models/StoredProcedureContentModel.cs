@@ -73,6 +73,7 @@ public class StoredProcedureContentModel
         var normalizedDefinition = sbNorm.ToString();
         if (!normalizedDefinition.TrimEnd().EndsWith(";", StringComparison.Ordinal))
             normalizedDefinition = normalizedDefinition.TrimEnd() + ";";
+        var normalizedDefinitionNoComments = StripSqlComments(normalizedDefinition);
         TSqlFragment fragment;
         IList<ParseError> parseErrors;
         using (var reader = new StringReader(normalizedDefinition))
@@ -257,7 +258,7 @@ public class StoredProcedureContentModel
         // konstruiere ein minimales ResultSet rein aus Textsegmenten. Dieser Fallback ist streng begrenzt und dient
         // nur dazu einfache F�lle (Tests) abzudecken, in denen ScriptDom das JsonForClause nicht an das QuerySpecification
         // knotet. Kein rekursives Parsing, nur Alias-Extraktion.
-        if (analysis.JsonSets.Count == 0 && normalizedDefinition.IndexOf("FOR JSON PATH", StringComparison.OrdinalIgnoreCase) >= 0)
+    if (analysis.JsonSets.Count == 0 && normalizedDefinitionNoComments.IndexOf("FOR JSON PATH", StringComparison.OrdinalIgnoreCase) >= 0)
         {
             // Neuer struktureller Fallback vor dem bisherigen segmentbasierten Alias-Scan: JsonFunctionAstExtractor
             try
@@ -5873,6 +5874,80 @@ public class StoredProcedureContentModel
         if (_astVerboseEnabled) return true;
         var lvl = Environment.GetEnvironmentVariable("SPOCR_LOG_LEVEL");
         return lvl != null && (lvl.Equals("debug", StringComparison.OrdinalIgnoreCase) || lvl.Equals("trace", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string StripSqlComments(string sql)
+    {
+        if (string.IsNullOrEmpty(sql)) return sql;
+        var sb = new StringBuilder(sql.Length);
+        bool inBlockComment = false;
+        bool inStringLiteral = false;
+        for (int i = 0; i < sql.Length; i++)
+        {
+            var ch = sql[i];
+            var next = i + 1 < sql.Length ? sql[i + 1] : '\0';
+
+            if (inBlockComment)
+            {
+                if (ch == '*' && next == '/')
+                {
+                    inBlockComment = false;
+                    i++;
+                }
+                continue;
+            }
+
+            if (!inStringLiteral)
+            {
+                if (ch == '/' && next == '*')
+                {
+                    inBlockComment = true;
+                    i++;
+                    continue;
+                }
+                if (ch == '-' && next == '-')
+                {
+                    i += 2;
+                    while (i < sql.Length)
+                    {
+                        var lineCh = sql[i];
+                        if (lineCh == '\r')
+                        {
+                            sb.Append('\r');
+                            if (i + 1 < sql.Length && sql[i + 1] == '\n')
+                            {
+                                sb.Append('\n');
+                                i++;
+                            }
+                            break;
+                        }
+                        if (lineCh == '\n')
+                        {
+                            sb.Append('\n');
+                            break;
+                        }
+                        i++;
+                    }
+                    continue;
+                }
+            }
+
+            sb.Append(ch);
+
+            if (ch == '\'' )
+            {
+                if (inStringLiteral && next == '\'')
+                {
+                    sb.Append(next);
+                    i++;
+                }
+                else
+                {
+                    inStringLiteral = !inStringLiteral;
+                }
+            }
+        }
+        return sb.ToString();
     }
 
     private static FunctionCall FindFirstFunctionCall(ScalarExpression expr, int depth, int depthLimit = 12)
