@@ -1,268 +1,78 @@
 # AI Agent Guidelines for SpocR
 
-This document provides standardized guidelines for AI agents working on the SpocR project to ensure consistency, quality, and adherence to project standards.
+These guardrails mirror the `feature/vnext-only` working agreement. Follow them whenever producing code, docs, or planning updates for SpocR.
 
-## 🔍 Pre-Development Checklist
+## 1. Intake & Planning
 
-### Package & Environment Verification
+- **Sync the checklists.** Update `CHECKLIST.md`, `src/SpocRVNext/CHECKLIST.md`, and `src/SpocRVNext/SnapshotBuilder/CHECKLIST.md` before changing code. Keep status markers (`[ ]`, `[x]`, `[>]`, `[~]`, `[?]`, `[!]`) consistent across all three files.
+- **Review the workflow instructions.** `.github/instructions/spocr-v5-instructions.instructions.md` defines branch scope, validation, and documentation guardrails. Re-read it whenever the process changes.
+- **Capture scope drift.** Log design gaps, missing tests, and follow-ups under the `Review-Findings` item in the root checklist as soon as you discover them.
+- **Plan in English.** Write checklist updates, design notes, commit messages, docs, and comments in clear English only.
 
-- [ ] **Check latest package versions** - Verify all Packages are up-to-date
-- [ ] **Validate .NET SDK version** - Ensure target frameworks are current and supported
-- [ ] **Review dependency compatibility** - Check for version conflicts and security vulnerabilities
-- [ ] **Verify tooling versions** - Ensure MSBuild, analyzers, and development tools are current
+## 2. Implementation Guardrails
 
-### Style & Standards Verification
+- **Respect branch scope.** Deliver vNext-only improvements; avoid reviving legacy features unless the roadmap checklist explicitly calls for them.
+- **Mirror roadmap and SnapshotBuilder status.** When DbContext, SnapshotBuilder, or artifact flows change, update the matching items in every checklist.
+- **Document CLI or pipeline changes immediately.** Adjust docs, changelog entries, and checklist notes in the same PR that alters commands, telemetry, or exit codes.
+- **Prefer additive diagnostics.** Use existing verbosity switches (`--verbose`, `Verbose(...)`) for temporary tracing. Remove one-off logging before merge unless the checklist tracks a follow-up task.
 
-- [ ] **EditorConfig compliance** - Check for `.editorconfig` and follow defined styles
-- [ ] **Coding standards** - Reference and apply project-specific coding guidelines
-- [ ] **Naming conventions** - Follow established C# and project naming patterns
-- [ ] **Documentation standards** - Ensure XML documentation and README compliance
-- [ ] **Language** - All new / modified content (code comments, docs, commit messages) in English only
+## 3. Validation Matrix
 
-## 🛠️ Development Standards
+```cmd
+:: Refresh schema cache when generator or parser logic changes
+dotnet run --project src\SpocR.csproj -- pull -p debug\spocr.json --no-cache --verbose
 
-## 🌐 Language Policy
+:: Run structural validation pass (no tests)
+dotnet run --project src\SpocR.csproj -- test --validate
 
-All newly added or modified source code comments, documentation, commit messages, issue descriptions and AI assistant outputs MUST be in English only.
+:: Execute full tests (solution-level)
+dotnet test tests\Tests.sln
 
-Prohibited (must be avoided going forward):
+:: Ensure build stays green
+dotnet build src\SpocR.csproj
+```
 
-- German (or mixed-language) inline comments (e.g. // Keine Config ...)
-- German section headings in docs
-- Mixed English/German bullet lists
+```powershell
+# Aggregate gate (fails fast on build/test issues)
+powershell -ExecutionPolicy Bypass -File eng/quality-gates.ps1
 
-Migration Guidance (Revised – ALWAYS translate):
+# Coverage-enforced variant
+powershell -ExecutionPolicy Bypass -File eng/quality-gates.ps1 -CoverageThreshold 60
+```
 
-1. Immediately translate any German (or mixed) comment or doc string you encounter to concise English in the same commit (do not postpone; translation churn risk accepted for consistency).
-2. Remove the original German text entirely after translating (no bilingual duplication).
-3. Prefer imperative mood and short sentences ("Return empty JSON array when configuration file is missing.").
-4. Avoid redundant restatements of method names in comments.
-5. If meaning is uncertain, add a TODO clarification in English rather than leaving German.
+- Refresh golden snapshots (`write-golden`, `verify-golden`) whenever generator output changes and record the outcome in the checklists.
+- Prefer `.artifacts/test-summary.json` (produced by `--ci`) for machine-readable validation results instead of scraping console logs.
+- Mark slow-running tests with `[Trait("Category","Slow")]` to keep the validation surface predictable.
 
-Enforcement Hints:
+## 4. Language & Style Expectations
 
-- Simple grep patterns to audit: ä|ö|ü|ß| Keine | Übersi|Konfig|Verzeich|Schema gefunden
-- Run periodic check scripts (future improvement: lightweight Roslyn analyzer or CI grep step).
-
-Rationale:
-
-- Consistent project language lowers barrier for external contributors.
-- Enables automated reasoning (LLMs) without translation ambiguity.
-- Reduces future maintenance churn when refactoring.
-
-If a contributor must include a non-English term (e.g. official SQL Server object name), keep it inline but explain context in English if ambiguous.
-
-### Code Quality Requirements
+- Translate any remaining German (or non-English) comments, docstrings, or prompts to concise English in the same commit and remove the previous text.
+- Follow `.editorconfig` conventions for naming, spacing, and file headers. Enable nullable reference types (`#nullable enable`) in new files.
+- Add comments only when they clarify intent, invariants, or non-obvious decisions.
 
 ```csharp
-// ✅ Good: Nullable reference types enabled
 #nullable enable
 
-// ✅ Good: Proper XML documentation
 /// <summary>
-/// Generates strongly typed C# classes for SQL Server stored procedures
+/// Generates strongly typed wrappers for SQL Server stored procedures.
 /// </summary>
-/// <param name="connectionString">Database connection string</param>
-/// <returns>Generated code result</returns>
-public async Task<GenerationResult> GenerateAsync(string connectionString)
+public sealed class ProcedureGenerator
 {
-    // Implementation
-}
-
-// ❌ Bad: No documentation, unclear naming
-public async Task<object> DoStuff(string cs)
-{
-    // Implementation
+    // Implementation elided for brevity.
 }
 ```
 
-### Testing Requirements
+## 5. Testing & Quality Gates
 
-- [ ] **Unit tests** - All new functionality must have corresponding unit tests
-- [ ] **Integration tests** - Database-related code requires integration test coverage
-- [ ] **Test naming** - Use descriptive test method names: `Method_Scenario_ExpectedResult`
-- [ ] **Self-validation** - Run `dotnet run --project src/SpocR.csproj -- test --validate` before commits
+- Cover new behavior with unit and/or integration tests using the `Method_Scenario_ExpectedResult` naming pattern.
+- Treat warnings as failures; resolve analyzer feedback instead of suppressing it.
+- Ensure `dotnet run --project src/SpocR.csproj -- test --validate` passes before finalizing work.
+- Keep `.artifacts/test-summary.json` schema updates synchronized with documentation and consumers if the format changes.
 
-### Build & CI Compliance
+## 6. Documentation & Prompts
 
-- [ ] **Local build success** - `dotnet build src/SpocR.csproj` must pass
-- [ ] **All tests pass** - `dotnet test tests/Tests.sln` must be green
-- [ ] **No warnings** - Treat warnings as errors in development
-- [ ] **Clean code analysis** - Address all analyzer suggestions
-
-## 📦 Package Management
-
-### NuGet Package Guidelines
-
-```xml
-<!-- ✅ Good: Explicit version ranges for stability -->
-<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.*" />
-
-<!-- ✅ Good: Security-focused package selection -->
-<PackageReference Include="Microsoft.Data.SqlClient" Version="5.1.*" />
-
-<!-- ❌ Bad: Wildcard versions that can break builds -->
-<PackageReference Include="SomePackage" Version="*" />
-```
-
-### Version Management
-
-SpocR uses tag-driven semantic versioning via MinVer:
-
-- Create annotated git tag `v<MAJOR>.<MINOR>.<PATCH>` to publish that version (CI workflow).
-- Pre-release tags (e.g. `v5.0.0-alpha.1`) propagate to `AssemblyInformationalVersion`.
-- The project file intentionally omits a `<Version>` property; do NOT add one.
-- Bump rules: MAJOR = breaking, MINOR = feature, PATCH = fixes/internal.
-- Avoid adding artificial deprecation notes unless the generated C# output (public surface) actually changes—transient parser heuristics are not user-facing API.
-
-Release checklist (automation-ready):
-
-1. Validate: `eng/quality-gates.ps1 -SkipCoverage` (or with coverage threshold).
-2. Update docs / changelog if needed.
-3. Tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
-4. Draft Release (or rely on automated publish pipeline once enabled).
-
-## 🔧 Architecture Guidelines
-
-### Dependency Injection Pattern
-
-```csharp
-// ✅ Good: Constructor injection with interface
-public class CodeGenerator
-{
-    private readonly IDbContextFactory _contextFactory;
-    private readonly ILogger<CodeGenerator> _logger;
-
-    public CodeGenerator(IDbContextFactory contextFactory, ILogger<CodeGenerator> logger)
-    {
-        _contextFactory = contextFactory ?? throw new ArgumentNullException(nameof(contextFactory));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
-}
-```
-
-### Error Handling Standards
-
-```csharp
-// ✅ Good: Specific exceptions with context
-throw new InvalidOperationException($"Unable to connect to database: {connectionString}");
-
-// ✅ Good: Proper async error handling
-try
-{
-    await ProcessAsync();
-}
-catch (SqlException ex) when (ex.Number == 2) // Timeout
-{
-    _logger.LogWarning("Database timeout occurred, retrying...");
-    throw new TimeoutException("Database operation timed out", ex);
-}
-```
-
-## 📝 Documentation Standards
-
-### Code Documentation
-
-- **Public APIs** - Must have XML documentation
-- **Complex logic** - Inline comments explaining business rules
-- **Configuration** - Document all configuration options
-- **Examples** - Provide usage examples for new features
-
-### Project Documentation (docs/)
-
-- **After code changes** - Always update relevant documentation in `docs/content/`
-- **Structure alignment** - Ensure docs reflect current codebase capabilities
-- **Getting Started** - Update `docs/content/1.getting-started/` for new features
-- **CLI Reference** - Update `docs/content/2.cli/` for command changes
-- **API Reference** - Update `docs/content/3.reference/` for public API changes
-- **Examples** - Add practical examples to documentation
-- **Deployment** - Docs are built with Nuxt.js from `docs/` directory
-
-### Documentation Update Checklist
-
-- [ ] **Feature docs** - New features documented in appropriate section
-- [ ] **CLI changes** - Command help and examples updated
-- [ ] **Breaking changes** - Migration guides provided
-- [ ] **Version alignment** - Documentation version matches code version
-- [ ] **Local testing** - Run `npm run dev` in docs/ to verify changes
-
-### Commit Message Format
-
-```
-feat: add stored procedure parameter validation
-fix: resolve connection timeout in SqlDbHelper
-docs: update README with new CLI commands
-test: add integration tests for schema generation
-chore: update NuGet packages to latest versions
-refactor: reorganize exit code constants
-ci: consume JSON test summary in pipeline
-```
-
-## 🚦 Quality Gates
-
-Additions:
-
-- Ensure `.artifacts/test-summary.json` is produced in CI mode test runs (`spocr test --validate --ci`).
-- Treat any non-zero exit code per categorized mapping (see Exit Codes section below).
-- Mark long-running build/rebuild/version reflection tests with `[Trait("Category","Slow")]`.
-
-### Before Code Changes
-
-1. **Research phase** - Understand existing patterns and conventions
-2. **Planning phase** - Document approach and breaking changes
-3. **Implementation phase** - Follow established patterns
-4. **Validation phase** - Test thoroughly and validate against standards
-
-### Before Commits
-
-1. **Self-validation** - `dotnet run --project src/SpocR.csproj -- test --validate`
-2. **Test execution** - `dotnet test tests/Tests.sln`
-3. **Build verification** - `dotnet build src/SpocR.csproj`
-4. **Documentation update** - Update relevant `docs/content/` files and verify with `npm run dev`
-5. **(If releasing)** - Ensure the git tag reflects the intended semantic version; no `<Version>` property exists to reconcile.
-
-### Exit Codes (Reference)
-
-| Code | Category      | Meaning                                             |
-| ---- | ------------- | --------------------------------------------------- |
-| 0    | Success       | All operations succeeded                            |
-| 10   | Validation    | Structural/semantic validation failure              |
-| 20   | Generation    | Code generation pipeline error (reserved)           |
-| 30   | Dependency    | External dependency (DB/network) failure (reserved) |
-| 40   | Testing       | Aggregate test failure (full suite)                 |
-| 50   | Benchmark     | Benchmark execution failure (reserved)              |
-| 60   | Rollback      | Rollback/recovery failure (reserved)                |
-| 70   | Configuration | Configuration parsing/validation error (reserved)   |
-| 80   | Internal      | Unhandled/internal exception                        |
-| 99   | Reserved      | Future experimental use                             |
-
-Future subcodes inside 40s may differentiate unit/integration/validation failures—avoid hard-coding those until documented.
-
-### JSON Test Summary Artifact
-
-When run with `--ci`, the test command writes `.artifacts/test-summary.json`:
-
-```jsonc
-{
-  "mode": "validation-only",
-  "timestampUtc": "<ISO8601 UTC>",
-  "validation": { "total": 3, "passed": 3, "failed": 0 },
-  "tests": { "total": 0, "passed": 0, "failed": 0 },
-  "duration": { "totalMs": 120, "unitMs": 0, "integrationMs": 0 },
-  "success": true
-}
-```
-
-Added fields:
-
-- `failed` counts for faster CI branching
-- `duration` (overall + per suite) for performance baselining
-
-Future roadmap: failure details array, suite timing breakdown, trend annotation.
-
-### Documentation Development
-
-Docs site uses Bun + Nuxt:
+- Update `docs/content/` alongside code so CLI flags, configuration options, and migration guidance stay current.
+- Docs run on Bun + Nuxt:
 
 ```bash
 cd docs
@@ -270,47 +80,38 @@ bun install
 bun run dev
 ```
 
-Replace any lingering `npm run dev` references when updating docs contributions.
+- When editing `.ai/prompts`, align language with these guidelines and link to the guardrails or checklists as needed.
 
-## 🔗 Resources
+## 7. Dependency & Version Hygiene
 
-### Essential Documentation
+- Use explicit package versions; avoid unconstrained wildcards (`*`). Note removed dependencies in both the checklist and `CHANGELOG.md`.
+- MinVer controls assembly versions. Do not add `<Version>` properties to project files. Tag releases with `v<MAJOR>.<MINOR>.<PATCH>` when shipping.
 
-- [CONTRIBUTING.md](../CONTRIBUTING.md) - Development setup and contribution guidelines
-- [tests/docs/TESTING.md](../tests/docs/TESTING.md) - Testing framework documentation
-- [docs/content/](../docs/content/) - Project documentation (Nuxt.js-based)
-- [README.md](../README.md) - Project overview and quick start
-- [.editorconfig](../.editorconfig) - Code formatting rules (if exists)
+## 8. Snapshot & Cache Expectations
 
-### External Standards
+- Keep `.spocr/` ephemeral. Cache files are keyed by database fingerprint; corruption should degrade gracefully (treat as cache miss).
+- Do not persist schema status in snapshots. New enrichment stages must be deterministic and idempotent when replayed from cached artifacts.
+- If fingerprint semantics change, update the roadmap checklist and amend `README-dot-spocr.md` with the new structure.
 
-- [Microsoft C# Coding Conventions](https://docs.microsoft.com/en-us/dotnet/csharp/fundamentals/coding-style/coding-conventions)
-- [.NET API Design Guidelines](https://docs.microsoft.com/en-us/dotnet/standard/design-guidelines/)
-- [NuGet Package Guidelines](https://docs.microsoft.com/en-us/nuget/create-packages/package-authoring-best-practices)
+## 9. Exit Codes (Reference)
+
+| Code | Category      | Description                               |
+| ---- | ------------- | ----------------------------------------- |
+| 0    | Success       | Operation completed without issues        |
+| 10   | Validation    | Structural or semantic validation failure |
+| 20   | Generation    | Code generation pipeline error (reserved) |
+| 30   | Dependency    | External dependency failure (reserved)    |
+| 40   | Testing       | Test suite failure                        |
+| 50   | Benchmark     | Benchmark harness failure (reserved)      |
+| 60   | Rollback      | Recovery routine failed (reserved)        |
+| 70   | Configuration | Configuration parsing or validation error |
+| 80   | Internal      | Unhandled or unknown failure              |
+| 99   | Reserved      | Future experimental use                   |
+
+Do not codify additional subcodes until the roadmap documents them.
 
 ---
 
-## Snapshot & Cache Model (Project-Specific)
-
-| Aspect             | Rule                                                                                                              |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| Snapshot Content   | Procedures, inputs, result sets, UDTT definitions (with column signatures) – no schema status persisted           |
-| Cache Scope        | Only stored procedure definition & parse skip (per procedure ModifiedTicks); type metadata always refreshed       |
-| Ignore Lists       | `ignoredSchemas` (whole schema), `ignoredProcedures` (single procedure) – do not suppress type metadata refresh   |
-| Typing Pipeline    | Parser builds JSON column provenance → Stage1 UDTT columns → Stage2 base table columns → fallback `nvarchar(max)` |
-| Parser Versioning  | Bump when snapshot structure or enrichment semantics materially change (affects fingerprint)                      |
-| Cross-Schema Types | Always load all UDTT + table column metadata irrespective of ignore lists                                         |
-
-### Fallback Upgrade (Planned v4)
-
-Implement opportunistic replacement of fallback `nvarchar(max)` JSON column types when concrete types become determinable without forcing a full `--no-cache` pull.
-
-### Contribution Implications
-
-- Never reintroduce schema status persistence into snapshots.
-- New enrichment stages must be idempotent and safe to run on hydrated (skipped) procedures if migration is required.
-- Fingerprint changes must remain stable (only parser version and core counts should affect it beyond server/db/schema set).
-
-**Last Updated:** October 5, 2025  
-**Guideline Version:** 1.2  
-**Applies to:** SpocR v4.1.x and later
+**Last Updated:** November 5, 2025  
+**Guideline Version:** 2.0  
+**Applies to:** SpocR vNext branch

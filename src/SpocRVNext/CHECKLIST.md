@@ -1,0 +1,52 @@
+# SpocR v5 Roadmap Checklist
+
+## Statusüberblick (Stand 2025-10-27)
+
+- SnapshotBuilder vNext läuft produktiv (Details siehe `src/SpocRVNext/SnapshotBuilder/CHECKLIST.md`) und setzt ENV-first Konfiguration um.
+- Forced-Upgrade-Zielbild auf `.NET 8` bleibt bestehen; Legacy-Pfade werden erst mit Migration deaktiviert.
+
+## Leitplanken v5.0
+
+- [ ] Forced Upgrade auf `.NET 8`, keine Legacy-Modi (`SPOCR_GENERATOR_MODE` entfällt), Dokumentation nur noch als IST-Stand.
+- [ ] `DataContext/`, `spocr.json`, `spocr.global.json` ablösen und neue Projektstruktur in `src/SpocRVNext` verankern.
+- [ ] Neue CLI (`init`, `pull`, `build`, `rebuild`) als einziger Pfad; Legacy-CLI abschalten.
+- [ ] Parallelen Betrieb ermöglichen, bis Migration abgeschlossen ist; Optimierungen danach priorisieren.
+
+## Aktuelle Schwerpunkte
+
+- [ ] Zielarchitektur und Migrationspfad dokumentieren (Abhängigkeitsmatrix, Optimierungs-Backlog).
+- [ ] Inventar der `DataContext/`- und `spocr.json`-Verbraucher erstellen, Ablösekette planen.
+- [ ] CLI-Konzept aktualisieren (Command-Matrix, UX-Flows, Telemetrie, Breaking-Change-Kommunikation).
+- [ ] Teststrategie festziehen: neue Suite definieren, Legacy-Abschaltung planen, Smoke/Integration festhalten.
+- [ ] Stakeholder-Kommunikation vorbereiten (Forced Upgrade, Beta-Programm, Support-Kanäle).
+
+## Bereinigung & Umsetzung
+
+- [ ] `DataContext/`-Abhängigkeiten entfernen oder ersetzen; verbleibende Nutzung markieren.
+- [ ] `.env`-Pfad finalisieren, Migration `spocr.json` → `.env` über `--init-v5` absichern.
+- [ ] Legacy-Code nach `src/SpocRVNext` verschieben oder entfernen; Projektstruktur bereinigen.
+- [ ] Legacy-Tests deaktivieren, Nachfolge-Tests (Smoke/Integration) vorbereiten.
+- [ ] Deployment-/Release-Pipeline für v5 aufsetzen; parallele Betriebsfähigkeit sicherstellen.
+
+## SnapshotBuilder & Analyzer (siehe `src/SpocRVNext/SnapshotBuilder/CHECKLIST.md`)
+
+- [ ] Tests und Golden Snapshots anheben, Legacy-Brücke abbauen.
+- [ ] Obsolete Snapshot-Felder entfernen und Konsumenten migrieren.
+- [ ] Analyzer-Verbesserungen & Diagnose-Läufe durchführen, Ergebnisse dokumentieren.
+- [ ] Abschlusskriterien bestätigen (Determinism, vollständige Test-Suite).
+
+## Dokumentation & Kommunikation
+
+- [ ] Doku auf IST-Stand konsolidieren (README, Developer Guides, CLI-Hilfe, Release Notes).
+- [ ] Migrationstipps bereitstellen (`MIGRATION-V5.md`, `migration-v5.instructions`, `.NET 8` Hinweis).
+- [ ] Kommunikationsplan für Kunden/Partner erstellen (Zeitplan, Forced-Upgrade-Botschaft, Supportkanäle).
+- [ ] Feedbackschleifen etablieren (Pilotkunden, Beta, Telemetrieauswertung).
+
+## Nachlauf (Legacy v4.5)
+
+- [ ] Branch `v4.5` aus `master` erstellen, Auto-Updater deaktivieren und Warnhinweis platzieren.
+- [ ] Letzte Legacy-Version dokumentieren, Auto-Update stoppen, Migrationspfad klarstellen.
+- [ ] Sicherstellen, dass v5-Installationen Legacy-`DataContext/` nicht mehr aktualisieren; neue Registrierungs- und Deployment-Pfade beschreiben.
+- [ ] `migration-v5.instructions` befüllen (inkl. SnapshotBuilder-Hinweisen aus `src/SpocRVNext/SnapshotBuilder/CHECKLIST.md`).
+
+> Fortschritt der SnapshotBuilder-Migration bitte dort pflegen; dieses Dokument bündelt die Gesamtplanung für v5.

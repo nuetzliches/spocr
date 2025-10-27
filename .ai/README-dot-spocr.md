@@ -1,12 +1,13 @@
 # The `.spocr` Directory
 
-A reserved local workspace folder for SpocR runtime and augmentation data. This directory is NOT meant to be committed and should be added to your `.gitignore`.
+Local runtime workspace for SpocR vNext. Treat everything inside as disposable state tied to the current developer environment. Confirm `.spocr/` stays ignored in git before checking in related changes.
 
 ## Current Structure
 
 ```
 .spocr/
   cache/                # JSON cache snapshots (per database fingerprint)
+  (future folders)      # diagnostics/, schema/, or other planner-approved data
 ```
 
 ## Rationale
@@ -31,7 +32,7 @@ Each cache file lives at:
 
 (Exact format may evolve; treat as opaque.)
 
-Contents (conceptual model – actual implementation may lag):
+Contents (current implementation – extend only when the roadmap checklist records the change):
 
 ```jsonc
 {
@@ -43,15 +44,15 @@ Contents (conceptual model – actual implementation may lag):
 }
 ```
 
-## Planned Uses Beyond Caching
+## Growth Areas (Track in Checklist)
 
-| Feature Idea                  | Usage of `.spocr`                                                                                                                                                    |
+| Idea                          | Potential Usage                                                                                                                                                      |
 | ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Schema/config split           | Store extracted schema (procedures, tables, types) as granular JSON (e.g. `.spocr/schema/<schema>/<proc>.json`) while keeping user editable settings in `spocr.json` |
-| Diff assistance               | Maintain last two snapshot manifests to generate change reports before regeneration                                                                                  |
-| Failure diagnostics           | Persist last error context (SQL text fragments) for post-mortem without polluting stdout                                                                             |
+| Schema/config split           | Store extracted schema (procedures, tables, types) as granular JSON (e.g. `.spocr/schema/<schema>/<proc>.json`) while keeping user-editable settings in `spocr.json` |
+| Diff assistance               | Persist snapshot manifests to support `debug/model-diff-report.md` before regeneration                                                                               |
+| Failure diagnostics           | Cache last error context (SQL text fragments) without polluting stdout                                                                                               |
 | Partial rebuild orchestration | Track dependency graph of generated files to enable selective regeneration                                                                                           |
-| Experimental plugins          | Drop-in extension metadata or feature toggles without altering main config                                                                                           |
+| Experimental plugins          | Host extension metadata or feature toggles without touching primary configs                                                                                          |
 
 ## .gitignore Recommendation
 
@@ -66,9 +67,10 @@ If granular control is desired, whitelist nothing—treat the entire directory a
 
 ## Safety & Cleanup
 
-- Files are small JSON blobs; periodic manual cleanup is safe
-- A future CLI command `spocr cache clear` may automate removal
-- Corruption or deserialization failure is auto-treated as a cache miss
+- Files are small JSON blobs; periodic manual cleanup is safe.
+- Future CLI command `spocr cache clear` (live in roadmap checklist) may automate removal.
+- Corruption or deserialization failure is auto-treated as a cache miss.
+- Never store secrets (connection strings, credentials); rely on secure config sources instead.
 
 ## Evolution Guidelines
 
@@ -95,8 +97,8 @@ CLI flags:
 --quiet            # implicitly suppresses update prompts
 ```
 
-If any is present, the auto-update service exits without contacting package sources.
+If any is present, the auto-update service exits without contacting package sources. Record any changes to this behavior in the guardrail checklists.
 
 ---
 
-Last update: 2025-10-04
+Last update: 2025-11-05

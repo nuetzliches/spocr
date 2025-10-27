@@ -1,81 +1,59 @@
-# SpocR Project AI Assistant Setup
+# SpocR AI Contribution Hub
 
-This directory contains configuration and guidelines for AI agents working on the SpocR project.
+Resources in this directory keep AI agents aligned with the `feature/vnext-only` roadmap. Start here before editing code, docs, or planning artifacts.
 
-## 📋 Files Overview
+## File Map
 
-- **`guidelines.md`** - Comprehensive AI agent guidelines for code quality, standards, and workflows
-- **`mcp-config.json`** - Model Context Protocol configuration (future)
-- **`prompts/`** - Reusable prompt templates for common tasks
+- `guidelines.md` — End-to-end standards (development flow, language policy, validation).
+- `README-debug.md` — Focused walkthrough for local generator diagnostics.
+- `README-dot-spocr.md` — Runtime cache and workspace notes for `.spocr/`.
+- `prompts/` — Reusable prompt snippets; refresh them when workflows change.
 
-## 🤖 For AI Agents
+## Working Agreements
 
-When working on SpocR, always:
+1. Open the checklists first. Align `CHECKLIST.md`, `src/SpocRVNext/CHECKLIST.md`, and `src/SpocRVNext/SnapshotBuilder/CHECKLIST.md` with the work you plan to touch. Keep statuses synchronized and log blockers under `Review-Findings`.
+2. Review the guardrails. `.github/instructions/spocr-v5-instructions.instructions.md` defines the branch workflow (scope, status markers, validation). Re-read whenever you change processes or automation.
+3. Plan deliverables in English. All new or updated comments, docs, prompts, and checklist notes stay English-only.
+4. Document behavioral changes immediately. Update docs, changelog entries, and checklist follow-ups in the same PR that moves the code.
+5. Record roadmap implications. Any SnapshotBuilder or DbContext adjustments must be echoed in the vNext roadmap checklist.
 
-1. **Read `guidelines.md` first** - Understand project standards and requirements
-2. **Run self-validation early**: `dotnet run --project src/SpocR.csproj -- test --validate`
-3. **Use quality gates script** before proposing release changes
-4. **Update docs & changelog** alongside behavioral changes
-5. Prefer parsing `.artifacts/test-summary.json` (when using `--ci`) over console scraping
+## Core Validation Loop
 
-## 🔧 Quick Setup Verification
+```cmd
+:: Generator-affecting work (schema pull refresh)
+dotnet run --project src\SpocR.csproj -- pull -p debug\spocr.json --no-cache --verbose
 
-```bash
-# .NET toolchain
-dotnet --version   # Expect 8.x
+:: Structural validation mode
+dotnet run --project src\SpocR.csproj -- test --validate
 
-# Build main project
-dotnet build src/SpocR.csproj
+:: Full suite (tests solution)
+dotnet test tests\Tests.sln
 
-# Run structural validation only
-dotnet run --project src/SpocR.csproj -- test --validate
-
-# Full test suite (uses tests solution)
-dotnet test tests/Tests.sln
+:: Build gate
+dotnet build src\SpocR.csproj
 ```
 
-Quality gates (build + validate + tests + optional coverage):
-
 ```powershell
-powershell -ExecutionPolicy Bypass -File eng/quality-gates.ps1 -SkipCoverage
-```
-
-Add coverage threshold (example 60):
-
-```powershell
+# Quality gates (toggle coverage as needed)
+powershell -ExecutionPolicy Bypass -File eng/quality-gates.ps1
+# Or enforce minimum coverage
 powershell -ExecutionPolicy Bypass -File eng/quality-gates.ps1 -CoverageThreshold 60
 ```
 
-## 🧾 CI JSON Summary
+After generator output changes, refresh golden assets via the snapshot scripts referenced in the guardrails (`write-golden`, `verify-golden`). Capture results in the relevant checklist rows.
 
-In CI mode (`--ci` flag), a machine-readable summary is written to `.artifacts/test-summary.json` describing validation/test counts and success state. Use this for conditional workflow steps instead of regex parsing on logs.
+## Artifacts & Telemetry
 
-## 🧪 Slow Tests
+- Prefer `.artifacts/test-summary.json` (produced with `--ci`) for machine-readable validation outcomes.
+- Keep `debug/` assets tidy; regenerate via `README-debug.md` commands when comparing outputs.
+- Note removed dependencies or major CLI behavior shifts in both the checklist and `CHANGELOG.md`.
 
-Reflection/version stability tests are marked with `[Trait("Category","Slow")]`. You can filter them if needed using xUnit traits.
+## Docs & Prompts
 
-## 📖 Key Resources
-
-- [Contributing Guidelines](../CONTRIBUTING.md)
-- [Testing Documentation](../tests/docs/TESTING.md) _(additions planned)_
-- [Project README](../README.md)
-- [AI Guidelines](./guidelines.md)
-
-## 🛠 Docs Development
-
-The documentation site uses Bun + Nuxt:
-
-```bash
-cd docs
-bun install
-bun run dev
-```
-
-## ⚙ Exit Codes
-
-See overview in main `README.md` (Exit Codes section). Treat non-zero values per category; avoid hardcoding future subcodes in tests.
+- Docs run on Bun + Nuxt: `cd docs && bun install && bun run dev`.
+- Sync any `.ai/prompt` edits with updated workflow language; link back to the guardrails when helpful.
 
 ---
 
-**Last Updated:** October 2, 2025  
-**Version:** 1.1
+**Last Updated:** November 5, 2025  
+**Maintainer:** vNext AI workflow
