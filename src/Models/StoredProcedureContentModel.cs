@@ -6,6 +6,7 @@ using System.Text;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using Microsoft.SqlServer.TransactSql.ScriptDom;
+using SpocR.SpocRVNext.SnapshotBuilder.Analyzers;
 
 namespace SpocR.Models;
 
@@ -143,6 +144,54 @@ public class StoredProcedureContentModel
         visitor.ApplyCteTypePropagationToTopLevelColumnsByName();
         // Late consolidation: lineage + scoped alias resolution for nested JSON
         try { visitor.ApplyLineageLateConsolidationToNestedJson(); } catch { }
+
+        // Post-processing: ensure aggregate metadata propagates even when alias binding fails (derived tables, JSON projections).
+        try
+        {
+            var aggregateSummaries = ProcedureModelAggregateAnalyzer.CollectAggregateSummaries(fragment);
+            System.Console.WriteLine($"[agg-summary] count={aggregateSummaries.Count}");
+            if (aggregateSummaries.Count > 0 && analysis.JsonSets != null)
+            {
+                void ApplyToColumns(IEnumerable<ResultColumn> columns)
+                {
+                    if (columns == null) return;
+                    foreach (var column in columns)
+                    {
+                        if (column == null) continue;
+
+                        if (!string.IsNullOrWhiteSpace(column.Name) && aggregateSummaries.TryGetValue(column.Name, out var summary))
+                        {
+                            if (summary.IsAggregate)
+                            {
+                                column.IsAggregate = true;
+                                if (!string.IsNullOrWhiteSpace(summary.FunctionName))
+                                {
+                                    column.AggregateFunction = summary.FunctionName;
+                                }
+                            }
+                            if (summary.HasIntegerLiteral) column.HasIntegerLiteral = true;
+                            if (summary.HasDecimalLiteral) column.HasDecimalLiteral = true;
+                            if (string.IsNullOrWhiteSpace(column.SqlTypeName) && !string.IsNullOrWhiteSpace(summary.SqlTypeName))
+                            {
+                                column.SqlTypeName = summary.SqlTypeName;
+                            }
+                        }
+
+                        if (column.Columns != null && column.Columns.Count > 0)
+                        {
+                            ApplyToColumns(column.Columns);
+                        }
+                    }
+                }
+
+                foreach (var resultSet in analysis.JsonSets)
+                {
+                    if (resultSet?.Columns == null || resultSet.Columns.Count == 0) continue;
+                    ApplyToColumns(resultSet.Columns);
+                }
+            }
+        }
+        catch { }
 
         // Normalize: Flatten accidental single-field JSON containers created by scalar subqueries with dotted aliases (e.g., 'invoice.invoiceId')
         try

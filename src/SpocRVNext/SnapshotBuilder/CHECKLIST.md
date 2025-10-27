@@ -115,6 +115,7 @@
   - [x] ScriptDom-basierte JSON-Analyse (`ProcedureModelJsonAnalyzer`) setzt ResultSet- und Nested-JSON-Flags ohne Legacy-Modell.
   - [x] Unit Tests für Aggregate-, Exec- und JSON-Analyzer decken Alias-Matching, Literal-Flags, Deduplication und Nested-JSON-Erkennung ab.
   - [ ] ScriptDom-Analyzer liefern Parität zum Legacy-Parser (Aggregat-Flags, JSON-Metadaten, EXEC-Deduplizierung); Regressionstests (`AggregateTypingExtendedTests`, `JournalMetricsTypingTests`, `ProcedureModelAnalyzerTests`) reparieren.
+    - `ProcedureModelAggregateAnalyzer` verfehlt aktuell Aggregat-Aliase aus Derived Tables (`AggregateTypingExtendedTests` rot); Debug-Ausgaben aktiv, Matching für `agg.*` Alias anpassen und anschließend Instrumentierung entfernen.
 - [ ] **ExpandedSnapshotWriter modularisieren**
   - Datei in klar abgegrenzte Writer/Formatter-Komponenten aufteilen (ProcedureWriter, ResultSetWriter, IndexWriter).
   - Im Zuge der Aufteilung Deferred JSON/ProcedureRef Serialization final klären.
