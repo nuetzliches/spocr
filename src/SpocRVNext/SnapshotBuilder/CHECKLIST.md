@@ -62,6 +62,7 @@
 - [ ] Legacy Cleanup
   - [x] Snapshot-Code aus `SpocrManager` entfernen/weiterleiten. _(CLI `pull` ruft ausschließlich `SnapshotBuildOrchestrator` auf)_
   - [ ] C:\Projekte\GitHub\spocr\src\Services\SchemaSnapshotService.cs: Tests aktualisieren (`SpocR.Tests`, Golden Snapshots) und auf neuen Snapshot-Output anheben. _(Aufschub: erst nach Abschluss der Migration unter "## Migration".)_
+  - [ ] Obsolete Snapshot-Felder (`SnapshotResultColumn.JsonPath`, `SnapshotResultColumn.JsonResult`) inkl. Migration eliminieren, sobald Downstream-Consumer verifiziert sind.
 - [x] TableType Normalisierung
   - Expanded SnapshotWriter reduziert TableType/Parameter Felder auf `TypeRef` + relevante Metadaten.
   - TableTypeMetadataProvider/TableTypesGenerator nutzen Resolver für SQL-Signaturen (JsonDocument-Dispose Bug gefixt).
@@ -89,6 +90,7 @@
 - Zuordnung ScriptDom → `ProcedureModel`: Wie ordnen wir Query/Column-Fragmente zuverlässig den `ProcedureModel.ResultSets` zu, damit JSON- und Aggregat-Flags sitzen? Bitte Konzept ausarbeiten _(Offen)_
 - EXEC Schema-Normalisierung: Sollen schema-lose `EXEC`-Aufrufe automatisch auf das Prozedur-Schema abgebildet werden, um Doppel-Einträge zu vermeiden? Fehlt uns hier generell noch ein Konzept, um das konfigurierte `Default-Schema` zu sicher? _(Offen)_
 - Aggregat-Erkennung in verschachtelten ResultSets: Reicht das aktuelle Alias-Matching oder brauchen wir zusätzliche Kontextinformationen? Prüfschritte organisieren _(Offen)_
+- DeferredJsonExpansion & DeferredJsonColumns: Status quo beibehalten, da Flag/Feld vom Analyzer kommt und Generator deterministische Record-Projektionen ohne erneutes FOR JSON Parsing ermöglicht; Reduktion auf reine Function-Referenzen erfordert Generator-Refactoring (siehe Aufgaben unten).
 
 ## Optimierungen
 
@@ -126,10 +128,12 @@
     - `ProcedureModelAggregateAnalyzer` erkennt Derived-Table Aggregates inkl. EXISTS-Prädikaten; `AggregateTypingExtendedTests` und die ergänzten Analyzer-Unit-Tests laufen wieder grün.
 - [x] **ExpandedSnapshotWriter modularisieren**
   - [x] Datei in klar abgegrenzte Writer/Formatter-Komponenten aufteilen (`ProcedureSnapshotDocumentBuilder`, `SchemaArtifactWriter`, `SnapshotIndexWriter`, `LegacySnapshotBridge`).
-  - [ ] Im Zuge der Aufteilung Deferred JSON/ProcedureRef Serialization final klären.
+- [ ] Evaluieren, ob `DeferredJsonColumns` aus Snapshots entfernt werden können: Generator auf Funktions-Snapshots umstellen, Referenzen nachladen, anschließend `DeferredJsonColumns` streichen und in der Dokumentation festhalten, dass vNext-Generatoren ausschließlich Function-Referenzen auflösen.
 - [ ] **Diagnose & Typauflösung iterativ verbessern**
-  - Iterationen über Pull-Läufe mit und ohne Cache (`--no-cache`, `--verbose`, `--procedure`) durchführen, bis sämtliche Typen (insbesondere JSON/AVG/EXISTS) deterministisch gebunden sind.
-  - Kommentarbereinigung für Fallbacks (`FOR JSON PATH` ohne AST-Bindung) verifizieren und ggf. in neue Analyzer überführen.
+  - [ ] Vollständigen Pull-Lauf mit `--no-cache --verbose` dokumentieren (Binding-Diff unter `debug/test-summary.json` ablegen).
+  - [ ] Vergleichslauf mit aktiviertem Cache durchführen und Bindings miteinander diffen (`SpocRVNext.Diagnostics` Log prüfen).
+  - [ ] Zielgerichtete `--procedure <schema.proc>` Runs für problematische JSON/AVG/EXISTS Fälle protokollieren und Regressionstests ergänzen.
+  - [ ] Kommentarbereinigung für Fallbacks (`FOR JSON PATH` ohne AST-Bindung) verifizieren; bei verbleibenden Fällen dedizierte Analyzer Stories eröffnen.
 - [ ] **Abschlusskriterien**
   - Wenn Architektur und Analyzer stehen, komplette Test-Suite (SpocR.Tests, Determinism) wieder aktivieren und erwartete Artefakte aktualisieren.
   - Abschließend Legacy Tests & Golden Snapshots (siehe "Legacy Cleanup") modernisieren.
