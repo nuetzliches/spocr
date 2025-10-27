@@ -5,36 +5,42 @@
     {
       "Name": "UserId",
       "TypeRef": "sys.int",
-      "IsNullable": true,
-      "MaxLength": 4,
-      "Precision": 10
+      "IsNullable": true
     }
   ],
   "ResultSets": [
     {
-      "ReturnsJson": true,
-      "ReturnsJsonArray": false,
+      "Json": {
+        "IsArray": false
+      },
       "Columns": [
         {
-          "Name": "UserId"
+          "Name": "UserId",
+          "TypeRef": "sys.int"
         },
         {
-          "Name": "DisplayName"
+          "Name": "DisplayName",
+          "TypeRef": "samples.DisplayNameType"
         },
         {
-          "Name": "Email"
+          "Name": "Email",
+          "TypeRef": "samples.EmailAddressType"
         },
         {
-          "Name": "OrderId"
+          "Name": "OrderId",
+          "TypeRef": "sys.int"
         },
         {
-          "Name": "TotalAmount"
+          "Name": "TotalAmount",
+          "TypeRef": "samples.MoneyAmountType"
         },
         {
-          "Name": "PlacedAt"
+          "Name": "PlacedAt",
+          "TypeRef": "samples.UtcDateTimeType"
         },
         {
-          "Name": "Notes"
+          "Name": "Notes",
+          "TypeRef": "samples.OrderNoteType"
         }
       ]
     }

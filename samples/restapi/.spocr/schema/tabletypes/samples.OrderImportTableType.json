@@ -1,28 +1,18 @@
 {
   "Schema": "samples",
   "Name": "OrderImportTableType",
-  "UserTypeId": 264,
   "Columns": [
     {
       "Name": "UserId",
-      "TypeRef": "sys.int",
-      "IsNullable": true,
-      "MaxLength": 4,
-      "Precision": 10
+      "TypeRef": "sys.int"
     },
     {
       "Name": "TotalAmount",
-      "TypeRef": "samples.MoneyAmountType",
-      "MaxLength": 9,
-      "Precision": 38,
-      "Scale": 38
+      "TypeRef": "samples.MoneyAmountType"
     },
     {
       "Name": "PlacedAt",
-      "TypeRef": "samples.UtcDateTimeType",
-      "MaxLength": 8,
-      "Precision": 27,
-      "Scale": 7
+      "TypeRef": "samples.UtcDateTimeType"
     }
   ]
 }

@@ -423,6 +423,52 @@ internal static class ProcedureModelAggregateAnalyzer
             return result;
         }
 
+        private AggregateInfo AnalyzeBoolean(BooleanExpression expression)
+        {
+            if (expression == null)
+            {
+                return AggregateInfo.Empty;
+            }
+
+            return expression switch
+            {
+                BooleanBinaryExpression binary => Merge(AnalyzeBoolean(binary.FirstExpression), AnalyzeBoolean(binary.SecondExpression)),
+                BooleanComparisonExpression comparison => Merge(Analyze(comparison.FirstExpression), Analyze(comparison.SecondExpression)),
+                BooleanParenthesisExpression parenthesis => AnalyzeBoolean(parenthesis.Expression),
+                BooleanIsNullExpression isNull => Analyze(isNull.Expression),
+                BooleanNotExpression notExpression => AnalyzeBoolean(notExpression.Expression),
+                InPredicate inPredicate => AnalyzeInPredicate(inPredicate),
+                ExistsPredicate exists => AnalyzeExists(exists),
+                LikePredicate likePredicate => Merge(Analyze(likePredicate.FirstExpression), Analyze(likePredicate.SecondExpression)),
+                _ => AggregateInfo.Empty
+            };
+        }
+
+        private AggregateInfo AnalyzeInPredicate(InPredicate predicate)
+        {
+            var result = Analyze(predicate.Expression);
+            if (predicate.Values != null)
+            {
+                foreach (var value in predicate.Values.OfType<ScalarExpression>())
+                {
+                    result = Merge(result, Analyze(value));
+                }
+            }
+            return result;
+        }
+
+        private AggregateInfo AnalyzeExists(ExistsPredicate exists)
+        {
+            if (exists == null)
+            {
+                return AggregateInfo.Empty;
+            }
+
+            var info = AggregateInfo.ForAggregate("exists");
+            var inferred = InferAggregateType("exists", info.HasIntegerLiteral, info.HasDecimalLiteral);
+            return info with { SqlTypeName = inferred };
+        }
+
         private AggregateInfo AnalyzeFunctionCall(FunctionCall functionCall)
         {
             var name = functionCall.FunctionName?.Value;
@@ -469,6 +515,10 @@ internal static class ProcedureModelAggregateAnalyzer
                 {
                     result = Merge(result, Analyze(whenClause.ThenExpression));
                 }
+                if (whenClause?.WhenExpression != null)
+                {
+                    result = Merge(result, Analyze(whenClause.WhenExpression));
+                }
             }
             return result;
         }
@@ -483,6 +533,10 @@ internal static class ProcedureModelAggregateAnalyzer
                 if (whenClause?.ThenExpression != null)
                 {
                     result = Merge(result, Analyze(whenClause.ThenExpression));
+                }
+                if (whenClause?.WhenExpression != null)
+                {
+                    result = Merge(result, AnalyzeBoolean(whenClause.WhenExpression));
                 }
             }
             return result;

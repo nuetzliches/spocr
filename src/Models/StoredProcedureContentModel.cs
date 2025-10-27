@@ -148,8 +148,7 @@ public class StoredProcedureContentModel
         // Post-processing: ensure aggregate metadata propagates even when alias binding fails (derived tables, JSON projections).
         try
         {
-            var aggregateSummaries = ProcedureModelAggregateAnalyzer.CollectAggregateSummaries(fragment);
-            System.Console.WriteLine($"[agg-summary] count={aggregateSummaries.Count}");
+            var aggregateSummaries = ProcedureModelAggregateAnalyzer.CollectAggregateSummaries(normalizedDefinition);
             if (aggregateSummaries.Count > 0 && analysis.JsonSets != null)
             {
                 void ApplyToColumns(IEnumerable<ResultColumn> columns)
@@ -307,7 +306,7 @@ public class StoredProcedureContentModel
         // konstruiere ein minimales ResultSet rein aus Textsegmenten. Dieser Fallback ist streng begrenzt und dient
         // nur dazu einfache F�lle (Tests) abzudecken, in denen ScriptDom das JsonForClause nicht an das QuerySpecification
         // knotet. Kein rekursives Parsing, nur Alias-Extraktion.
-    if (analysis.JsonSets.Count == 0 && normalizedDefinitionNoComments.IndexOf("FOR JSON PATH", StringComparison.OrdinalIgnoreCase) >= 0)
+        if (analysis.JsonSets.Count == 0 && normalizedDefinitionNoComments.IndexOf("FOR JSON PATH", StringComparison.OrdinalIgnoreCase) >= 0)
         {
             // Neuer struktureller Fallback vor dem bisherigen segmentbasierten Alias-Scan: JsonFunctionAstExtractor
             try
@@ -5983,7 +5982,7 @@ public class StoredProcedureContentModel
 
             sb.Append(ch);
 
-            if (ch == '\'' )
+            if (ch == '\'')
             {
                 if (inStringLiteral && next == '\'')
                 {

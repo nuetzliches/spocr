@@ -1,14 +1,10 @@
 {
   "Schema": "samples",
   "Name": "UserIdListTableType",
-  "UserTypeId": 265,
   "Columns": [
     {
       "Name": "UserId",
-      "TypeRef": "sys.int",
-      "IsNullable": true,
-      "MaxLength": 4,
-      "Precision": 10
+      "TypeRef": "sys.int"
     }
   ]
 }

@@ -114,6 +114,82 @@ END";
     }
 
     [Fact]
+    public void AggregateAnalyzer_resolves_derived_table_aliases()
+    {
+        const string definition = @"
+CREATE PROCEDURE samples.AggregateTypingExtended
+AS
+BEGIN
+    SELECT
+        sub.CountAll AS 'agg.countAll',
+        sub.CountBig AS 'agg.countBig'
+    FROM (
+        SELECT
+            COUNT(*) AS CountAll,
+            COUNT_BIG(*) AS CountBig
+        FROM samples.Orders o
+    ) AS sub
+    FOR JSON PATH, WITHOUT_ARRAY_WRAPPER;
+END";
+
+        var model = new ProcedureModel();
+        var resultSet = new ProcedureResultSet();
+        resultSet.Columns.Add(new ProcedureResultColumn { Name = "agg.countAll" });
+        resultSet.Columns.Add(new ProcedureResultColumn { Name = "agg.countBig" });
+        model.ResultSets.Add(resultSet);
+
+        ProcedureModelAggregateAnalyzer.Apply(definition, model);
+
+        var countAll = Assert.Single(resultSet.Columns, c => c.Name == "agg.countAll");
+        Assert.True(countAll.IsAggregate);
+        Assert.Equal("count", countAll.AggregateFunction);
+
+        var countBig = Assert.Single(resultSet.Columns, c => c.Name == "agg.countBig");
+        Assert.True(countBig.IsAggregate);
+        Assert.Equal("count_big", countBig.AggregateFunction);
+    }
+
+    [Fact]
+    public void AggregateAnalyzer_returns_summary_for_dotted_aliases()
+    {
+        const string definition = @"
+CREATE PROCEDURE samples.AggregateTypingExtended
+AS
+BEGIN
+    SELECT
+        sub.CountAll AS 'agg.countAll'
+    FROM (
+        SELECT COUNT(*) AS CountAll FROM samples.Orders
+    ) AS sub
+    FOR JSON PATH;
+END";
+
+        var summary = ProcedureModelAggregateAnalyzer.CollectAggregateSummaries(definition);
+        Assert.True(summary.TryGetValue("agg.countAll", out var aggregate));
+        Assert.True(aggregate.IsAggregate);
+        Assert.Equal("count", aggregate.FunctionName);
+    }
+
+    [Fact]
+    public void AggregateAnalyzer_detects_exists_predicate()
+    {
+        const string definition = @"
+CREATE PROCEDURE samples.ExistsProbe
+AS
+BEGIN
+    SELECT
+        CASE WHEN EXISTS(SELECT 1 FROM samples.Orders) THEN 1 ELSE 0 END AS HasRows
+    FOR JSON PATH;
+END";
+
+        var summary = ProcedureModelAggregateAnalyzer.CollectAggregateSummaries(definition);
+        Assert.True(summary.TryGetValue("HasRows", out var aggregate));
+        Assert.True(aggregate.IsAggregate);
+        Assert.Equal("exists", aggregate.FunctionName);
+        Assert.Equal("bit", aggregate.SqlTypeName);
+    }
+
+    [Fact]
     public void JsonAnalyzer_sets_result_set_flags_with_root()
     {
         const string definition = @"
@@ -269,7 +345,7 @@ END";
 
         ProcedureModelExecAnalyzer.Apply(definition, model);
 
-    var exec = Assert.Single(model.ExecutedProcedures);
+        var exec = Assert.Single(model.ExecutedProcedures);
         Assert.Equal("dbo", exec.Schema);
         Assert.Equal("DoWork", exec.Name);
 

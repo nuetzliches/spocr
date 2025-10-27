@@ -20,7 +20,7 @@ namespace RestApi.DataContext.StoredProcedures.Samples
 
             var parameters = new List<SqlParameter>
             {
-                AppDbContext.GetParameter("UserId", input.UserId, false, 4),
+                AppDbContext.GetParameter("UserId", input.UserId),
                 AppDbContext.GetParameter("Bio", input.Bio, false, 512)
             };
             return context.ExecuteAsync<Output>("[samples].[UserBioUpdate]", parameters, cancellationToken);

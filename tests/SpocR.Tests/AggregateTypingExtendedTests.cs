@@ -23,7 +23,7 @@ BEGIN
             COUNT(*) AS CountAll,
             COUNT_BIG(*) AS CountBig,
             AVG(o.Amount) AS AvgAmount,
-            EXISTS(SELECT 1 FROM samples.Orders o2 WHERE o2.Amount > 0) AS HasPositive,
+            CASE WHEN EXISTS(SELECT 1 FROM samples.Orders o2 WHERE o2.Amount > 0) THEN 1 ELSE 0 END AS HasPositive,
             SUM(o.Amount) AS SumAmount
         FROM samples.Orders o
     ) AS sub
@@ -34,6 +34,7 @@ END";
     public void Aggregates_Should_Have_Inferred_Types()
     {
         var model = StoredProcedureContentModel.Parse(Sql, DefaultSchema);
+
         var rs = Assert.Single(model.ResultSets);
         Assert.True(rs.ReturnsJson);
 

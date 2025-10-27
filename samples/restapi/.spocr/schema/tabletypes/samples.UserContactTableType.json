@@ -1,24 +1,18 @@
 {
   "Schema": "samples",
   "Name": "UserContactTableType",
-  "UserTypeId": 263,
   "Columns": [
     {
       "Name": "UserId",
-      "TypeRef": "sys.int",
-      "IsNullable": true,
-      "MaxLength": 4,
-      "Precision": 10
+      "TypeRef": "sys.int"
     },
     {
       "Name": "Email",
-      "TypeRef": "samples.EmailAddressType",
-      "MaxLength": 256
+      "TypeRef": "samples.EmailAddressType"
     },
     {
       "Name": "DisplayName",
-      "TypeRef": "samples.DisplayNameType",
-      "MaxLength": 128
+      "TypeRef": "samples.DisplayNameType"
     }
   ]
 }

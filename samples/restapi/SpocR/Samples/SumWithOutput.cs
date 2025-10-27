@@ -3,9 +3,8 @@
 // Changes may be overwritten. For customization extend generated partials.
 
 #nullable enable
-namespace RestApi.SpocR.Samples;
+namespace TestNs.SpocR.Samples;
 
-using RestApi.SpocR;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -13,6 +12,7 @@ using System.Data.Common;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using TestNs.SpocR;
 
 public readonly record struct SumWithOutputInput(
     int? A,

@@ -1,15 +1,13 @@
 using System;
 
 namespace RestApi.DataContext.Models.Samples;
-/// <summary>Generated JSON model (legacy mode) – columns suppressed or not inferred.</summary>
-/// <remarks>Raw JSON access still available via stored procedure Raw method. Upgrade to vNext mode for rich nested mapping.</remarks>
 public class OrderListByUserAsJson
 {
     public int UserId { get; set; }
     public string DisplayName { get; set; }
     public string Email { get; set; }
-    public string OrderId { get; set; }
-    public string TotalAmount { get; set; }
-    public string PlacedAt { get; set; }
+    public int OrderId { get; set; }
+    public decimal TotalAmount { get; set; }
+    public DateTime PlacedAt { get; set; }
     public string Notes { get; set; }
 }

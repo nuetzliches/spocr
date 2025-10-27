@@ -5,15 +5,11 @@
     {
       "Name": "UserId",
       "TypeRef": "sys.int",
-      "IsNullable": true,
-      "MaxLength": 4,
-      "Precision": 10
+      "IsNullable": true
     },
     {
       "Name": "Bio",
-      "TypeRef": "samples.UserBioType",
-      "IsNullable": true,
-      "MaxLength": 512
+      "TypeRef": "samples.UserBioType"
     }
   ],
   "ResultSets": []

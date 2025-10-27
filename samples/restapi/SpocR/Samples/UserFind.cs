@@ -3,9 +3,8 @@
 // Changes may be overwritten. For customization extend generated partials.
 
 #nullable enable
-namespace RestApi.SpocR.Samples;
+namespace TestNs.SpocR.Samples;
 
-using RestApi.SpocR;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -13,6 +12,7 @@ using System.Data.Common;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using TestNs.SpocR;
 
 public readonly record struct UserFindInput(
     int? UserId
@@ -34,7 +34,7 @@ internal static partial class UserFindPlan
 
 	var parameters = new ProcedureParameter[]
 	{
-            new("@UserId", System.Data.DbType.Int32, 4, false, true),
+            new("@UserId", System.Data.DbType.Int32, null, false, true),
         };
 
 	var resultSets = Array.Empty<ResultSetMapping>();

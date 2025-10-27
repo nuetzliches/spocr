@@ -5,7 +5,7 @@ namespace RestApi.DataContext.TableTypes.Samples
 {
     public class UserContactTableType : ITableType
     {
-        public int? UserId { get; set; }
+        public int UserId { get; set; }
 
         [MaxLength(256)]
         public string Email { get; set; }

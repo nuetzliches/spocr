@@ -3,9 +3,8 @@
 // Changes may be overwritten. For customization extend generated partials.
 
 #nullable enable
-namespace RestApi.SpocR.Samples;
+namespace TestNs.SpocR.Samples;
 
-using RestApi.SpocR;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -13,18 +12,19 @@ using System.Data.Common;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using TestNs.SpocR;
 
 public readonly record struct OrderListByUserAsJsonInput(
     int? UserId
 );
 
 public readonly record struct OrderListByUserAsJsonResultSet1Result(
-    string UserId,
+    int UserId,
     string DisplayName,
     string Email,
-    string OrderId,
-    string TotalAmount,
-    string PlacedAt,
+    int OrderId,
+    decimal TotalAmount,
+    DateTime PlacedAt,
     string Notes
 );
 
@@ -45,7 +45,7 @@ internal static partial class OrderListByUserAsJsonPlan
 
 	var parameters = new ProcedureParameter[]
 	{
-            new("@UserId", System.Data.DbType.Int32, 4, false, true),
+            new("@UserId", System.Data.DbType.Int32, null, false, true),
         };
 
 	var resultSets = new ResultSetMapping[]

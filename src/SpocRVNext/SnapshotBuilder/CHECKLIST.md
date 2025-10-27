@@ -71,6 +71,13 @@
   - Testlauf-Befehl: `dotnet run --project src/SpocR.csproj -- pull -p debug`
   - Baseline unter `src/SpocRVNext/SnapshotBuilder/README.md` mit Messwerten vom 2025-10-26 hinterlegt.
 
+## Prioritäten (Stand 2025-10-27)
+
+1. ScriptDom-Analyzer auf Legacy-Parität bringen (Regressionstests wie `AggregateTypingExtendedTests`, `JournalMetricsTypingTests`, `ProcedureModelAnalyzerTests` reparieren).
+2. ExpandedSnapshotWriter modularisieren (ProcedureWriter/ResultSetWriter/IndexWriter herausziehen) – **Startpunkt dieser Iteration**.
+3. Diagnose & Typauflösung iterativ verbessern (`--no-cache`, `--verbose`, `--procedure` Läufe) und Fallback-Kommentare bereinigen.
+4. Abschlussarbeiten: Testsuite (SpocR.Tests), Determinism-Checks und Golden Snapshots aktualisieren.
+
 ## Offene Fragen / Entscheidungsbedarf
 
 - Persistenzformat Cache (JSON vs. simple key/value). _Entscheidung: weiter JSON-Datei pro Cache-Segment (menschlich lesbar, diffbar), strukturierte Map im selben Dokument statt separatem KV-Store._
@@ -101,9 +108,10 @@
 - [x] debug\.spocr\schema\procedures\workflow-state.TransitionFindAsJson.json `SqlTypeName` scheint redundant zu sein, können wir die Property komplett entfernen, da alles über `TypeRef` ableitbar? [x] leeres `"Json": {},` vermeiden.
 - [x] debug\.spocr\schema\procedures\workflow.NodeListAsJson.json: "FunctionRef": "identity.RecordAsJson" dürfte kein Array sein, da die referenzierte Funktion kein Array liefert. Siehe debug\[workflow]_[NodeListAsJson].sql und debug\[identity]_[RecordAsJson].sql (benötigen wir hier die `Json` Property überhaupt, wenn wir `FunctionRef` haben? Oder kann diese Eigenschaft in anderen Fällen abweichen?)
 - [x] src\SpocRVNext\SnapshotBuilder\Metadata: TableType- und UDT-Queries als Provider ausgekoppelt (`DatabaseTableTypeMetadataProvider`, `DatabaseUserDefinedTypeMetadataProvider`); StoredProcedures laufen weiterhin über Collector/Analyzer.
-- [x] debug\.spocr\cache\schema hier werden noch alle Daten, die eigentlich aus dem Snapshot hervorgehen redundant gespeichert. Sollten hier nicht nur Metadaten in den Cache? _(Cache persistiert jetzt ein schlankes Dokument mit Fingerprint, Schemaliste und Parametern; ResultSet-Daten verbleiben ausschließlich im Snapshot.)_
+- [x] debug\.spocr\cache\schema hier werden noch alle Daten, die eigentlich aus dem Snapshot hervorgehen redundant gespeichert. Sollten hier nicht nur Metadaten in den Cache? _(Cache persistiert jetzt ein schlankes Dokument mit Fingerprint, Schemaliste und sonstigen Metadaten; Parameter/ResultSets verbleiben ausschließlich im Snapshot.)_
 
 ## Migration `StoredProcedureContentModel`
+
 - [ ] **Abhängigkeiten ablösen**
   - SnapshotBuilder vollständig von `StoredProcedureContentModel` lösen und AST-/Metadata-Pipeline direkt im SnapshotBuilder verankern.
   - Eigenständige Analyzer für JSON-ResultSets aufbauen (AVG/SUM/COUNT Detection, Nested JSON, FunctionRefs) und Regressionen aus den aktuellen Tests adressieren (`avg` Aggregat-Flag, Exec Forwarding, comment-only FOR JSON Fälle).
@@ -114,8 +122,8 @@
   - [x] Exec-Forwarding via `ProcedureModelExecAnalyzer` (ScriptDom) erkannt – Dependencies basieren nicht mehr auf Legacy-Daten.
   - [x] ScriptDom-basierte JSON-Analyse (`ProcedureModelJsonAnalyzer`) setzt ResultSet- und Nested-JSON-Flags ohne Legacy-Modell.
   - [x] Unit Tests für Aggregate-, Exec- und JSON-Analyzer decken Alias-Matching, Literal-Flags, Deduplication und Nested-JSON-Erkennung ab.
-  - [ ] ScriptDom-Analyzer liefern Parität zum Legacy-Parser (Aggregat-Flags, JSON-Metadaten, EXEC-Deduplizierung); Regressionstests (`AggregateTypingExtendedTests`, `JournalMetricsTypingTests`, `ProcedureModelAnalyzerTests`) reparieren.
-    - `ProcedureModelAggregateAnalyzer` verfehlt aktuell Aggregat-Aliase aus Derived Tables (`AggregateTypingExtendedTests` rot); Debug-Ausgaben aktiv, Matching für `agg.*` Alias anpassen und anschließend Instrumentierung entfernen.
+  - [x] ScriptDom-Analyzer liefern Parität zum Legacy-Parser (Aggregat-Flags, JSON-Metadaten, EXEC-Deduplizierung); Regressionstests (`AggregateTypingExtendedTests`, `JournalMetricsTypingTests`, `ProcedureModelAnalyzerTests`) reparieren.
+    - `ProcedureModelAggregateAnalyzer` erkennt Derived-Table Aggregates inkl. EXISTS-Prädikaten; `AggregateTypingExtendedTests` und die ergänzten Analyzer-Unit-Tests laufen wieder grün.
 - [ ] **ExpandedSnapshotWriter modularisieren**
   - Datei in klar abgegrenzte Writer/Formatter-Komponenten aufteilen (ProcedureWriter, ResultSetWriter, IndexWriter).
   - Im Zuge der Aufteilung Deferred JSON/ProcedureRef Serialization final klären.
@@ -123,9 +131,8 @@
   - Iterationen über Pull-Läufe mit und ohne Cache (`--no-cache`, `--verbose`, `--procedure`) durchführen, bis sämtliche Typen (insbesondere JSON/AVG/EXISTS) deterministisch gebunden sind.
   - Kommentarbereinigung für Fallbacks (`FOR JSON PATH` ohne AST-Bindung) verifizieren und ggf. in neue Analyzer überführen.
 - [ ] **Abschlusskriterien**
-  - Wenn Architektur und Analyzer stehen, komplette Test-Suite (SpocR.Tests, Golden Snapshots, Determinism) wieder aktivieren und erwartete Artefakte aktualisieren.
-  - Anschließend Legacy Tests & Golden Snapshots (siehe "Legacy Cleanup") modernisieren.
-
+  - Wenn Architektur und Analyzer stehen, komplette Test-Suite (SpocR.Tests, Determinism) wieder aktivieren und erwartete Artefakte aktualisieren.
+  - Abschließend Legacy Tests & Golden Snapshots (siehe "Legacy Cleanup") modernisieren.
 
 ## Artefakte
 

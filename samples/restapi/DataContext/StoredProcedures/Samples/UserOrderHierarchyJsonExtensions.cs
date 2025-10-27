@@ -5,13 +5,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using RestApi.DataContext.Models;
 using RestApi.DataContext.Outputs;
+using RestApi.DataContext.Models.Samples;
 
 namespace RestApi.DataContext.StoredProcedures.Samples
 {
     public static class UserOrderHierarchyJsonExtensions
     {
-        /// <summary>Executes stored procedure '[samples].[UserOrderHierarchyJson]' and returns the raw JSON string.</summary>
-        public static Task<string> UserOrderHierarchyJsonAsync(this IAppDbContextPipe context, CancellationToken cancellationToken)
+        public static Task<UserOrderHierarchyJson> UserOrderHierarchyJsonAsync(this IAppDbContextPipe context, CancellationToken cancellationToken)
         {
             if (context == null)
             {
@@ -21,11 +21,10 @@ namespace RestApi.DataContext.StoredProcedures.Samples
             var parameters = new List<SqlParameter>
             {
             };
-            return context.ReadJsonAsync("[samples].[UserOrderHierarchyJson]", parameters, cancellationToken);
+            return context.ExecuteSingleAsync<UserOrderHierarchyJson>("[samples].[UserOrderHierarchyJson]", parameters, cancellationToken);
         }
 
-        /// <summary>Executes stored procedure '[samples].[UserOrderHierarchyJson]' and returns the raw JSON string.</summary>
-        public static Task<string> UserOrderHierarchyJsonAsync(this IAppDbContext context, CancellationToken cancellationToken)
+        public static Task<UserOrderHierarchyJson> UserOrderHierarchyJsonAsync(this IAppDbContext context, CancellationToken cancellationToken)
         {
             return context.CreatePipe().UserOrderHierarchyJsonAsync(cancellationToken);
         }
