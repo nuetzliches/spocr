@@ -38,6 +38,59 @@ END";
     }
 
     [Fact]
+    public void AggregateAnalyzer_sets_literal_flags()
+    {
+        const string definition = @"
+CREATE PROCEDURE dbo.Sample
+AS
+BEGIN
+    SELECT
+        SUM(1) AS IntSum,
+        SUM(1.5) AS DecimalSum
+    FROM dbo.Foo;
+END";
+
+        var model = new ProcedureModel();
+        var resultSet = new ProcedureResultSet();
+        resultSet.Columns.Add(new ProcedureResultColumn { Name = "IntSum" });
+        resultSet.Columns.Add(new ProcedureResultColumn { Name = "DecimalSum" });
+        model.ResultSets.Add(resultSet);
+
+        ProcedureModelAggregateAnalyzer.Apply(definition, model);
+
+        var intSum = Assert.Single(resultSet.Columns, c => c.Name == "IntSum");
+        Assert.True(intSum.HasIntegerLiteral);
+        Assert.False(intSum.HasDecimalLiteral);
+
+        var decimalSum = Assert.Single(resultSet.Columns, c => c.Name == "DecimalSum");
+        Assert.True(decimalSum.HasDecimalLiteral);
+        Assert.False(decimalSum.HasIntegerLiteral);
+    }
+
+    [Fact]
+    public void AggregateAnalyzer_matches_bracketed_aliases()
+    {
+        const string definition = @"
+CREATE PROCEDURE dbo.Sample
+AS
+BEGIN
+    SELECT SUM(Value) AS [Total Value]
+    FROM dbo.Foo;
+END";
+
+        var model = new ProcedureModel();
+        var resultSet = new ProcedureResultSet();
+        resultSet.Columns.Add(new ProcedureResultColumn { Name = "[Total Value]" });
+        model.ResultSets.Add(resultSet);
+
+        ProcedureModelAggregateAnalyzer.Apply(definition, model);
+
+        var column = Assert.Single(resultSet.Columns);
+        Assert.True(column.IsAggregate);
+        Assert.Equal("sum", column.AggregateFunction);
+    }
+
+    [Fact]
     public void ExecAnalyzer_collects_procedure_calls()
     {
         const string definition = @"
@@ -54,5 +107,30 @@ END";
         var executed = Assert.Single(model.ExecutedProcedures);
         Assert.Equal("reporting", executed.Schema);
         Assert.Equal("GenerateReport", executed.Name);
+    }
+
+    [Fact]
+    public void ExecAnalyzer_deduplicates_and_overwrites_previous_results()
+    {
+        const string definition = @"
+CREATE PROCEDURE dbo.CallOther
+AS
+BEGIN
+    EXEC dbo.DoWork;
+    EXEC DoWork;
+END";
+
+        var model = new ProcedureModel();
+        model.ExecutedProcedures.Add(new ProcedureExecutedProcedureCall { Schema = "legacy", Name = "Old" });
+
+        ProcedureModelExecAnalyzer.Apply(definition, model);
+
+    var exec = Assert.Single(model.ExecutedProcedures);
+        Assert.Equal("dbo", exec.Schema);
+        Assert.Equal("DoWork", exec.Name);
+
+        ProcedureModelExecAnalyzer.Apply("CREATE PROCEDURE dbo.Empty AS SELECT 1;", model);
+
+        Assert.Empty(model.ExecutedProcedures);
     }
 }
