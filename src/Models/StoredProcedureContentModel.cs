@@ -5235,8 +5235,8 @@ public class StoredProcedureContentModel
                             if (ShouldDiag()) System.Console.WriteLine($"[cte-type-propagation] {derivedAlias}.{innerAliasColumn} -> {target.SqlTypeName} (MaxLength={target.MaxLength})");
                         }
 
-                        // Aggregat nur propagieren, wenn Ziel selbst ein reiner ColumnRef ist (kein Computed Ausdruck)
-                        if (src.IsAggregate && !target.IsAggregate && target.ExpressionKind == ResultColumnExpressionKind.ColumnRef)
+                        // Aggregat-Flag propagieren, sobald Quelle Aggregat ist – auch wenn Ziel weitere Wrapper (z. B. ISNULL) nutzt.
+                        if (src.IsAggregate && !target.IsAggregate)
                         {
                             target.IsAggregate = true;
                             target.AggregateFunction = src.AggregateFunction;

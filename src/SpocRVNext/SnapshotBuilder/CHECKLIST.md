@@ -107,6 +107,8 @@ Pulling database schema with SnapshotBuilder
 - [ ] **Abhängigkeiten ablösen**
   - SnapshotBuilder vollständig von `StoredProcedureContentModel` lösen und AST-/Metadata-Pipeline direkt im SnapshotBuilder verankern.
   - Eigenständige Analyzer für JSON-ResultSets aufbauen (AVG/SUM/COUNT Detection, Nested JSON, FunctionRefs) und Regressionen aus den aktuellen Tests adressieren (`avg` Aggregat-Flag, Exec Forwarding, comment-only FOR JSON Fälle).
+  - [x] `ProcedureModel` eingeführt, Analyzer/Writer konsumieren kein `StoredProcedureContentModel` mehr nach außen.
+  - [x] Übergangsweise Aggregat-Propagation in `StoredProcedureContentModel` gefixt (Derived Columns setzen `IsAggregate` jetzt auch für umhüllte Ausdrücke).
 - [ ] **ExpandedSnapshotWriter modularisieren**
   - Datei in klar abgegrenzte Writer/Formatter-Komponenten aufteilen (ProcedureWriter, ResultSetWriter, IndexWriter).
   - Im Zuge der Aufteilung Deferred JSON/ProcedureRef Serialization final klären.
