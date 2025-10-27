@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Reflection;
 using Microsoft.SqlServer.TransactSql.ScriptDom;
 using SpocR.SpocRVNext.SnapshotBuilder.Models;
@@ -18,19 +17,13 @@ internal static class ProcedureModelJsonAnalyzer
 
     public static void Apply(string? definition, ProcedureModel? model)
     {
-        if (string.IsNullOrWhiteSpace(definition) || model == null)
-        {
-            return;
-        }
+        var fragment = ProcedureModelScriptDomParser.Parse(definition);
+        Apply(fragment, model);
+    }
 
-        TSqlFragment fragment;
-        var parser = new TSql160Parser(initialQuotedIdentifiers: true);
-        using (var reader = new StringReader(definition))
-        {
-            fragment = parser.Parse(reader, out _);
-        }
-
-        if (fragment == null)
+    public static void Apply(TSqlFragment? fragment, ProcedureModel? model)
+    {
+        if (fragment == null || model == null)
         {
             return;
         }

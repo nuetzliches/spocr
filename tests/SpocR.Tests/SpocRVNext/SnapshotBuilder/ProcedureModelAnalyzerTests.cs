@@ -162,6 +162,32 @@ END";
     }
 
     [Fact]
+    public void JsonAnalyzer_normalizes_bracketed_aliases()
+    {
+        const string definition = @"
+CREATE PROCEDURE dbo.OrderJsonBracketAlias
+AS
+BEGIN
+    SELECT (
+        SELECT o.Id FROM dbo.Orders o FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
+    ) AS [Order Payload]
+    FROM dbo.Users u;
+END";
+
+        var model = new ProcedureModel();
+        var resultSet = new ProcedureResultSet();
+        resultSet.Columns.Add(new ProcedureResultColumn { Name = "[Order Payload]" });
+        model.ResultSets.Add(resultSet);
+
+        ProcedureModelJsonAnalyzer.Apply(definition, model);
+
+        var column = Assert.Single(resultSet.Columns);
+        Assert.True(column.ReturnsJson);
+        Assert.True(column.IsNestedJson);
+        Assert.False(column.ReturnsJsonArray);
+    }
+
+    [Fact]
     public void JsonAnalyzer_marks_json_query_columns()
     {
         const string definition = @"

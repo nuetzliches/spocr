@@ -135,9 +135,10 @@ internal sealed class DatabaseProcedureAnalyzer : IProcedureAnalyzer
                     {
                         legacyAst = StoredProcedureContentModel.Parse(definition, descriptor.Schema);
                         procedureModel = ConvertToProcedureModel(legacyAst);
-                        ProcedureModelExecAnalyzer.Apply(definition, procedureModel);
-                        ProcedureModelAggregateAnalyzer.Apply(definition, procedureModel);
-                        ProcedureModelJsonAnalyzer.Apply(definition, procedureModel);
+                        var scriptDom = ProcedureModelScriptDomParser.Parse(definition);
+                        ProcedureModelExecAnalyzer.Apply(scriptDom, procedureModel);
+                        ProcedureModelAggregateAnalyzer.Apply(scriptDom, procedureModel);
+                        ProcedureModelJsonAnalyzer.Apply(scriptDom, procedureModel);
                         ProcedureModelPostProcessor.Apply(procedureModel);
                     }
                     else
