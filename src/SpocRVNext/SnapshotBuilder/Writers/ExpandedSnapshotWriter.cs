@@ -1824,7 +1824,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
                         {
                             if (proc == null || string.IsNullOrWhiteSpace(proc.Schema) || string.IsNullOrWhiteSpace(proc.Name)) continue;
                             var key = BuildKey(proc.Schema, proc.Name);
-                            if (!result.ContainsKey(key) && proc.Inputs != null)
+                            if (!result.ContainsKey(key) && proc.Inputs != null && proc.Inputs.Count > 0)
                             {
                                 result[key] = proc.Inputs.Select(CloneSnapshotInput).ToList();
                             }

@@ -77,7 +77,47 @@ public class SchemaSnapshotService : ISchemaSnapshotService
 
             if (string.IsNullOrEmpty(pathToLoad) || !File.Exists(pathToLoad)) return null;
             var json = File.ReadAllText(pathToLoad);
-            return JsonSerializer.Deserialize<SchemaSnapshot>(json, _jsonOptions);
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return null;
+            }
+
+            SchemaCacheDocument cacheDocument = null;
+            try
+            {
+                cacheDocument = JsonSerializer.Deserialize<SchemaCacheDocument>(json, _jsonOptions);
+            }
+            catch (JsonException)
+            {
+                cacheDocument = null;
+            }
+
+            if (cacheDocument != null && cacheDocument.CacheVersion >= SchemaCacheDocument.CurrentVersion)
+            {
+                if (RequiresLegacyConversion(cacheDocument, json))
+                {
+                    try
+                    {
+                        var legacy = JsonSerializer.Deserialize<LegacySchemaCacheDocument>(json, _jsonOptions);
+                        cacheDocument = ConvertLegacyCacheDocument(legacy) ?? cacheDocument;
+                    }
+                    catch (JsonException)
+                    {
+                        // ignore legacy conversion failures; fall back to existing document
+                    }
+                }
+
+                return ConvertFromCacheDocument(cacheDocument);
+            }
+
+            try
+            {
+                return JsonSerializer.Deserialize<SchemaSnapshot>(json, _jsonOptions);
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
         }
         catch { return null; }
     }
@@ -91,106 +131,41 @@ public class SchemaSnapshotService : ISchemaSnapshotService
             if (dir == null) return;
             var path = Path.Combine(dir, snapshot.Fingerprint + ".json");
 
-            // Entfernt: synthetisches JSON ResultSet basierend auf String-Heuristik.
-            // Begründung: Erkennung soll ausschließlich über AST / vorgelagerte Parser-Phase laufen.
+            var schemaNames = (snapshot.Schemas ?? new List<SnapshotSchema>())
+                .Select(s => s?.Name)
+                .Where(n => !string.IsNullOrWhiteSpace(n))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
-            SnapshotResultColumn ProcessColumn(SnapshotResultColumn c)
-            {
-                var clone = new SnapshotResultColumn
-                {
-                    Name = c.Name,
-                    TypeRef = c.TypeRef,
-                    IsNullable = c.IsNullable == false ? null : c.IsNullable,
-                    MaxLength = (c.MaxLength.HasValue && c.MaxLength.Value == 0) ? null : c.MaxLength,
-                    Precision = (c.Precision.HasValue && c.Precision.Value > 0) ? c.Precision : null,
-                    Scale = (c.Scale.HasValue && c.Scale.Value > 0) ? c.Scale : null,
-                    IsIdentity = c.IsIdentity == true ? true : null,
-                    IsNestedJson = c.IsNestedJson == true ? true : null,
-                    ReturnsJson = c.ReturnsJson == true ? true : null,
-                    ReturnsJsonArray = c.ReturnsJsonArray == true ? true : null,
-                    JsonRootProperty = string.IsNullOrWhiteSpace(c.JsonRootProperty) ? null : c.JsonRootProperty,
-                    DeferredJsonExpansion = c.DeferredJsonExpansion == true ? true : null,
-                    Reference = c.Reference != null ? new SnapshotColumnReference { Kind = c.Reference.Kind, Schema = c.Reference.Schema, Name = c.Reference.Name } : null
-                };
-                if (c.Columns != null && c.Columns.Count > 0)
-                {
-                    var nested = c.Columns.Select(ProcessColumn).Where(n => n != null).ToList();
-                    clone.Columns = nested.Count > 0 ? nested : null; // nested JSON columns (column-level)
-                }
-                else
-                {
-                    clone.Columns = null; // omit empty
-                }
-                return clone;
-            }
-
-            var prunedSnapshot = new SchemaSnapshot
-            {
-                SchemaVersion = snapshot.SchemaVersion,
-                Fingerprint = snapshot.Fingerprint,
-                Database = snapshot.Database,
-                Schemas = snapshot.Schemas,
-                // UDTT Hash ins Cache verlagert: Hash nicht persistieren, Spalten prunen
-                UserDefinedTableTypes = snapshot.UserDefinedTableTypes?.Select(u => new SnapshotUdtt
-                {
-                    Schema = u.Schema,
-                    Name = u.Name,
-                    Columns = u.Columns?.Select(c => new SnapshotUdttColumn
-                    {
-                        Name = c.Name,
-                        TypeRef = c.TypeRef,
-                        IsNullable = c.IsNullable == true ? true : null,
-                        MaxLength = (c.MaxLength.HasValue && c.MaxLength.Value > 0) ? c.MaxLength : null,
-                        Precision = (c.Precision.HasValue && c.Precision.Value > 0) ? c.Precision : null,
-                        Scale = (c.Scale.HasValue && c.Scale.Value > 0) ? c.Scale : null
-                    }).ToList() ?? new List<SnapshotUdttColumn>()
-                }).ToList() ?? new List<SnapshotUdtt>(),
-                Tables = snapshot.Tables,
-                Views = snapshot.Views,
-                UserDefinedTypes = snapshot.UserDefinedTypes,
-                Parser = snapshot.Parser,
-                Stats = snapshot.Stats,
-                Procedures = snapshot.Procedures?.Select(p => new SnapshotProcedure
+            var procedures = (snapshot.Procedures ?? new List<SnapshotProcedure>())
+                .Where(p => !string.IsNullOrWhiteSpace(p?.Schema) && !string.IsNullOrWhiteSpace(p?.Name))
+                .Select(p => new SchemaCacheProcedure
                 {
                     Schema = p.Schema,
-                    Name = p.Name,
-                    Inputs = p.Inputs,
-                    ResultSets = p.ResultSets?.Select(rs => new SnapshotResultSet
+                    Name = p.Name
+                })
+                .OrderBy(p => p.Schema, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            var document = new SchemaCacheDocument
+            {
+                CacheVersion = SchemaCacheDocument.CurrentVersion,
+                SchemaVersion = snapshot.SchemaVersion,
+                Fingerprint = snapshot.Fingerprint,
+                Database = snapshot.Database != null
+                    ? new SchemaCacheDatabase
                     {
-                        ReturnsJson = rs.ReturnsJson,
-                        ReturnsJsonArray = rs.ReturnsJsonArray,
-                        JsonRootProperty = string.IsNullOrWhiteSpace(rs.JsonRootProperty) ? null : rs.JsonRootProperty,
-                        ExecSourceSchemaName = rs.ExecSourceSchemaName,
-                        ExecSourceProcedureName = rs.ExecSourceProcedureName,
-                        HasSelectStar = rs.HasSelectStar == true ? true : null,
-                        Reference = rs.Reference != null ? new SnapshotColumnReference { Kind = rs.Reference.Kind, Schema = rs.Reference.Schema, Name = rs.Reference.Name } : null,
-                        Columns = rs.Columns?.Select(ProcessColumn).Where(c => c != null).ToList() ?? new List<SnapshotResultColumn>()
-                    }).Where(r => r != null).ToList() ?? new List<SnapshotResultSet>()
-                }).ToList() ?? new List<SnapshotProcedure>()
+                        ServerHash = snapshot.Database.ServerHash,
+                        Name = snapshot.Database.Name
+                    }
+                    : null,
+                Schemas = schemaNames.Select(n => new SchemaCacheSchema { Name = n }).ToList(),
+                Procedures = procedures
             };
 
-            // Prune empty collections where appropriate
-            foreach (var proc in prunedSnapshot.Procedures)
-            {
-                if (proc.ResultSets != null)
-                {
-                    foreach (var rs in proc.ResultSets)
-                    {
-                        if (rs.Columns != null && rs.Columns.Count == 0) rs.Columns = null; // omit empty top-level columns
-                        if (rs.Columns != null)
-                        {
-                            foreach (var c in rs.Columns)
-                            {
-                                PruneNested(c);
-                            }
-                        }
-                        if (rs.HasSelectStar == false) rs.HasSelectStar = null; // prune false
-                    }
-                }
-            }
-
-            // Serialize
-            var json = JsonSerializer.Serialize(prunedSnapshot, _jsonOptions);
+            var json = JsonSerializer.Serialize(document, _jsonOptions);
             File.WriteAllText(path, json);
 
             PruneLegacySchemaSnapshots();
@@ -217,7 +192,6 @@ public class SchemaSnapshotService : ISchemaSnapshotService
                 return;
             }
 
-            // Remove the specific fingerprint file if present and, more broadly, any monolithic snapshot files at the root.
             var files = Directory.GetFiles(legacyDir, "*.json", SearchOption.TopDirectoryOnly)
                 .Where(f => !string.Equals(Path.GetFileName(f), "index.json", StringComparison.OrdinalIgnoreCase))
                 .ToList();
@@ -233,17 +207,231 @@ public class SchemaSnapshotService : ISchemaSnapshotService
         }
     }
 
-    private static void PruneNested(SnapshotResultColumn column)
+    private static bool RequiresLegacyConversion(SchemaCacheDocument document, string json)
     {
-        if (column.Columns != null && column.Columns.Count == 0) column.Columns = null;
-        if (column.Columns == null) return;
-        foreach (var child in column.Columns)
+        if (document == null)
         {
-            PruneNested(child);
+            return false;
         }
-        // After recursion, if all children were pruned and list became empty -> null
-        if (column.Columns != null && column.Columns.Count == 0) column.Columns = null;
+
+        if (document.Procedures == null || document.Procedures.Count == 0)
+        {
+            return ContainsInputsMarker(json);
+        }
+
+        var allHaveParameters = document.Procedures.All(p => p != null && p.Parameters != null && p.Parameters.Count > 0);
+        if (allHaveParameters)
+        {
+            return false;
+        }
+
+        return ContainsInputsMarker(json);
     }
+
+    private static bool ContainsInputsMarker(string json)
+    {
+        if (string.IsNullOrEmpty(json))
+        {
+            return false;
+        }
+
+        return json.IndexOf("\"Inputs\"", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static SchemaCacheDocument ConvertLegacyCacheDocument(LegacySchemaCacheDocument legacy)
+    {
+        if (legacy == null)
+        {
+            return null;
+        }
+
+        var convertedProcedures = (legacy.Procedures ?? new List<LegacySchemaCacheProcedure>())
+            .Where(p => !string.IsNullOrWhiteSpace(p?.Schema) && !string.IsNullOrWhiteSpace(p?.Name))
+            .Select(p => new SchemaCacheProcedure
+            {
+                Schema = p.Schema,
+                Name = p.Name,
+                Parameters = CloneParameters(p.Inputs)
+            })
+            .ToList();
+
+        return new SchemaCacheDocument
+        {
+            CacheVersion = SchemaCacheDocument.CurrentVersion,
+            SchemaVersion = legacy.SchemaVersion,
+            Fingerprint = legacy.Fingerprint ?? string.Empty,
+            Database = legacy.Database,
+            Schemas = legacy.Schemas ?? new List<SchemaCacheSchema>(),
+            Procedures = convertedProcedures
+        };
+    }
+
+    private static SchemaSnapshot ConvertFromCacheDocument(SchemaCacheDocument document)
+    {
+        if (document == null)
+        {
+            return null;
+        }
+
+        var schemaNames = (document.Schemas ?? new List<SchemaCacheSchema>())
+            .Select(s => s?.Name)
+            .Where(n => !string.IsNullOrWhiteSpace(n))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var snapshot = new SchemaSnapshot
+        {
+            SchemaVersion = document.SchemaVersion,
+            Fingerprint = document.Fingerprint ?? string.Empty,
+            Database = document.Database != null
+                ? new SnapshotDatabase
+                {
+                    ServerHash = document.Database.ServerHash,
+                    Name = document.Database.Name
+                }
+                : null,
+            Schemas = schemaNames.Select(n => new SnapshotSchema
+            {
+                Name = n,
+                TableTypeRefs = new List<string>()
+            }).ToList(),
+            Procedures = (document.Procedures ?? new List<SchemaCacheProcedure>())
+                .Where(p => !string.IsNullOrWhiteSpace(p?.Schema) && !string.IsNullOrWhiteSpace(p?.Name))
+                .Select(p => new SnapshotProcedure
+                {
+                    Schema = p.Schema,
+                    Name = p.Name,
+                    Inputs = CloneParameters(p.Parameters),
+                    ResultSets = new List<SnapshotResultSet>()
+                })
+                .ToList(),
+            UserDefinedTableTypes = new List<SnapshotUdtt>(),
+            Tables = new List<SnapshotTable>(),
+            Views = new List<SnapshotView>(),
+            UserDefinedTypes = new List<SnapshotUserDefinedType>(),
+            Parser = null,
+            Stats = null
+        };
+
+        return snapshot;
+    }
+
+    private static List<SnapshotInput> CloneParameters(IEnumerable<SnapshotInput>? inputs)
+    {
+        var result = new List<SnapshotInput>();
+        if (inputs == null)
+        {
+            return result;
+        }
+
+        foreach (var input in inputs)
+        {
+            var clone = CloneParameter(input);
+            if (clone != null)
+            {
+                result.Add(clone);
+            }
+        }
+
+        return result;
+    }
+
+    private static SnapshotInput CloneParameter(SnapshotInput source)
+    {
+        if (source == null)
+        {
+            return null;
+        }
+
+        return new SnapshotInput
+        {
+            Name = source.Name ?? string.Empty,
+            TypeRef = NormalizeOrNull(source.TypeRef),
+            TableTypeSchema = NormalizeOrNull(source.TableTypeSchema),
+            TableTypeName = NormalizeOrNull(source.TableTypeName),
+            IsOutput = source.IsOutput == true ? true : null,
+            IsNullable = source.IsNullable == true ? true : null,
+            MaxLength = source.MaxLength.HasValue && source.MaxLength.Value > 0 ? source.MaxLength : null,
+            HasDefaultValue = source.HasDefaultValue == true ? true : null,
+            TypeSchema = NormalizeOrNull(source.TypeSchema),
+            TypeName = NormalizeOrNull(source.TypeName),
+            Precision = source.Precision.HasValue && source.Precision.Value > 0 ? source.Precision : null,
+            Scale = source.Scale.HasValue && source.Scale.Value > 0 ? source.Scale : null
+        };
+    }
+
+    private static string NormalizeOrNull(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var trimmed = value.Trim();
+        return trimmed.Length == 0 ? null : trimmed;
+    }
+
+    private sealed class SchemaCacheDocument
+    {
+        public const int CurrentVersion = 2;
+        public int CacheVersion { get; set; } = CurrentVersion;
+        public int SchemaVersion { get; set; }
+        public string Fingerprint { get; set; } = string.Empty;
+        public SchemaCacheDatabase Database { get; set; }
+        public List<SchemaCacheSchema> Schemas { get; set; } = new();
+        public List<SchemaCacheProcedure> Procedures { get; set; } = new();
+    }
+
+    private sealed class SchemaCacheSchema
+    {
+        public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class SchemaCacheProcedure
+    {
+        public string Schema { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public List<SnapshotInput>? Parameters { get; set; }
+
+        [JsonPropertyName("Inputs")]
+        public List<SnapshotInput>? LegacyInputs
+        {
+            set
+            {
+                if (value == null || value.Count == 0)
+                {
+                    return;
+                }
+
+                Parameters = value;
+            }
+        }
+    }
+
+    private sealed class SchemaCacheDatabase
+    {
+        public string ServerHash { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class LegacySchemaCacheDocument
+    {
+        public int CacheVersion { get; set; }
+        public int SchemaVersion { get; set; }
+        public string Fingerprint { get; set; } = string.Empty;
+        public SchemaCacheDatabase Database { get; set; }
+        public List<SchemaCacheSchema> Schemas { get; set; } = new();
+        public List<LegacySchemaCacheProcedure> Procedures { get; set; } = new();
+    }
+
+    private sealed class LegacySchemaCacheProcedure
+    {
+        public string Schema { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public List<SnapshotInput> Inputs { get; set; } = new();
+    }
+
 }
 
 public class SchemaSnapshot

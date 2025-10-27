@@ -98,8 +98,8 @@
 - [x] debug\.spocr\schema\procedures\workflow-state.TransitionFindAsJson.json `SqlTypeName` scheint redundant zu sein, können wir die Property komplett entfernen, da alles über `TypeRef` ableitbar? [x] leeres `"Json": {},` vermeiden.
 - [x] debug\.spocr\schema\procedures\workflow.NodeListAsJson.json: "FunctionRef": "identity.RecordAsJson" dürfte kein Array sein, da die referenzierte Funktion kein Array liefert. Siehe debug\[workflow]_[NodeListAsJson].sql und debug\[identity]_[RecordAsJson].sql (benötigen wir hier die `Json` Property überhaupt, wenn wir `FunctionRef` haben? Oder kann diese Eigenschaft in anderen Fällen abweichen?)
 - [x] src\SpocRVNext\SnapshotBuilder\Metadata: TableType- und UDT-Queries als Provider ausgekoppelt (`DatabaseTableTypeMetadataProvider`, `DatabaseUserDefinedTypeMetadataProvider`); StoredProcedures laufen weiterhin über Collector/Analyzer.
-- [ ] debug\.spocr\cache\schema hier werden noch alle Daten, die eigentlich aus dem Snapshot hervorgehen redundant gespeichert. Sollten hier nicht nur Metadaten in den Cache?
-- [ ] Ist der neue SnapshotBuilder komplett vom `src\Models\StoredProcedureContentModel.cs` entkoppelt? Bitte entsprechend umsetzen.
+- [x] debug\.spocr\cache\schema hier werden noch alle Daten, die eigentlich aus dem Snapshot hervorgehen redundant gespeichert. Sollten hier nicht nur Metadaten in den Cache? _(Cache persistiert jetzt ein schlankes Dokument mit Fingerprint, Schemaliste und Parametern; ResultSet-Daten verbleiben ausschließlich im Snapshot.)_
+- [ ] Ist der neue SnapshotBuilder komplett vom `src\Models\StoredProcedureContentModel.cs` entkoppelt? Bitte entsprechend sauber in `SnapshotBuilder` integrieren und in diesem Zuge auch prüfen, wie wir die `src\SpocRVNext\SnapshotBuilder\Writers\ExpandedSnapshotWriter.cs` besser aufgeteilt bekommen.
 - [ ] `**************************************************
 Pulling database schema with SnapshotBuilder
 **************************************************` Neu und schöner designen. Besserer Titel, noch ein paar Meta-Informationen, wie Version, .env usw.
