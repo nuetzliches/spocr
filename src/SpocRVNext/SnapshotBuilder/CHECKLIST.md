@@ -83,7 +83,7 @@
 - EXEC Schema-Normalisierung: Sollen schema-lose `EXEC`-Aufrufe automatisch auf das Prozedur-Schema abgebildet werden, um Doppel-Einträge zu vermeiden? Fehlt uns hier generell noch ein Konzept, um das konfigurierte `Default-Schema` zu sicher? _(Offen)_
 - Aggregat-Erkennung in verschachtelten ResultSets: Reicht das aktuelle Alias-Matching oder brauchen wir zusätzliche Kontextinformationen? Prüfschritte organisieren _(Offen)_
 
-## Ausstehende Optimierungen
+## Optimierungen
 
 - [x] debug\.spocr\schema redundanz minimieren
   - [x] MaxLength/Precision/Scale bei TypeRef → UDTT oder konstanten sys-Typen unterdrücken.
@@ -102,9 +102,6 @@
 - [x] debug\.spocr\schema\procedures\workflow.NodeListAsJson.json: "FunctionRef": "identity.RecordAsJson" dürfte kein Array sein, da die referenzierte Funktion kein Array liefert. Siehe debug\[workflow]_[NodeListAsJson].sql und debug\[identity]_[RecordAsJson].sql (benötigen wir hier die `Json` Property überhaupt, wenn wir `FunctionRef` haben? Oder kann diese Eigenschaft in anderen Fällen abweichen?)
 - [x] src\SpocRVNext\SnapshotBuilder\Metadata: TableType- und UDT-Queries als Provider ausgekoppelt (`DatabaseTableTypeMetadataProvider`, `DatabaseUserDefinedTypeMetadataProvider`); StoredProcedures laufen weiterhin über Collector/Analyzer.
 - [x] debug\.spocr\cache\schema hier werden noch alle Daten, die eigentlich aus dem Snapshot hervorgehen redundant gespeichert. Sollten hier nicht nur Metadaten in den Cache? _(Cache persistiert jetzt ein schlankes Dokument mit Fingerprint, Schemaliste und Parametern; ResultSet-Daten verbleiben ausschließlich im Snapshot.)_
-- [ ] `**************************************************
-Pulling database schema with SnapshotBuilder
-**************************************************` Neu und schöner designen. Besserer Titel, noch ein paar Meta-Informationen, wie Version, .env usw.
 
 ## Migration `StoredProcedureContentModel`
 - [ ] **Abhängigkeiten ablösen**

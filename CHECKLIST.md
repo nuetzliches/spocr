@@ -735,21 +735,9 @@ Status-Legende: [>] deferred (v5 Ziel) – Querverweis auf README / Roadmap Absc
 - [ ] Schema normalisieren: bit braucht keine MaxLength, int auch nicht, weitere Typen prüfen
 - [ ] Table-Type Columns auf `FieldDescriptor` migrieren und `Reference` für UDTs nutzen, dazu ein Enum anstelle "string Kind" im `ColumnReferenceInfo`. Den `FieldDescriptor` auch auf andere relevante Objekte anwenden (src\DataContext\Models\Column.cs deprecated?).
 - [x] wenn der --procedure Filter gesetzt ist, dürfen andere Prozeduren am Ende nicht gelöscht werden.
-- [ ] Was ist die richtige Angabe für decimal? Wir haben doch auch Column-Models mit z.b. Precision und Scale (weitere)?
-      Wir sollten das konsistent machen.
-
-```json
- {
-         "Name": "grossAmountBase",
-         "SqlTypeName": "decimal(18,2)"
-       },
-       {
-         "Name": "taxQuota",
-         "SqlTypeName": "decimal",
-         "MaxLength": 9
-       },
-```
-
+- [ ] `**************************************************
+Pulling database schema with SnapshotBuilder
+**************************************************` Neu und schöner designen. Besserer Titel, noch ein paar Meta-Informationen, wie Version, .env usw.
 - [ ] Haben wir einen C# Linter im Projekt?
 
 ### 0. AST-basierte Typ-Inferenz Verbesserungen (P1 - Kritisch)

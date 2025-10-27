@@ -217,7 +217,7 @@ public sealed class FunctionSnapshotCollector
                     finalNullable = userTypeNullable ?? true;
                 }
 
-                var parameterTypeRef = BuildTypeRef(p.user_type_schema_name, p.user_type_name, p.base_type_name);
+                var parameterTypeRef = BuildTypeRef(p.user_type_schema_name, p.user_type_name, p.system_type_name);
 
                 fn.Parameters.Add(new SnapshotFunctionParameter
                 {
@@ -370,12 +370,49 @@ public sealed class FunctionSnapshotCollector
         SnapshotFunctionParameter? matchedParam = null;
         if (paramMap != null)
         {
-            if (paramMap.TryGetValue(leaf, out var direct)) matchedParam = direct;
+            if (paramMap.TryGetValue(leaf, out var direct))
+            {
+                matchedParam = direct;
+            }
             else
             {
-                foreach (var p in paramMap.Values)
+                var candidates = paramMap.Values
+                    .Where(p => p.Name.EndsWith(leaf, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+                if (candidates.Count == 1)
                 {
-                    if (p.Name.EndsWith(leaf, StringComparison.OrdinalIgnoreCase)) { matchedParam = p; break; }
+                    matchedParam = candidates[0];
+                }
+                else if (candidates.Count > 1)
+                {
+                    var prefixSegments = segments.Length > 1
+                        ? segments.Take(segments.Length - 1).ToArray()
+                        : Array.Empty<string>();
+                    SnapshotFunctionParameter? best = null;
+                    var bestScore = int.MinValue;
+                    foreach (var candidate in candidates)
+                    {
+                        var score = 0;
+                        if (prefixSegments.Length > 0)
+                        {
+                            for (int i = 0; i < prefixSegments.Length; i++)
+                            {
+                                var segment = prefixSegments[i];
+                                if (string.IsNullOrWhiteSpace(segment)) continue;
+                                if (candidate.Name.IndexOf(segment, StringComparison.OrdinalIgnoreCase) >= 0)
+                                {
+                                    score += (prefixSegments.Length - i) * 10;
+                                }
+                            }
+                        }
+                        if (!string.IsNullOrWhiteSpace(candidate.TypeRef)) score++;
+                        if (best == null || score > bestScore)
+                        {
+                            best = candidate;
+                            bestScore = score;
+                        }
+                    }
+                    matchedParam = best ?? candidates[0];
                 }
             }
         }
