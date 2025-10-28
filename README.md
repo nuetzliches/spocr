@@ -66,8 +66,10 @@ SPOCR_BUILD_SCHEMAS=core,identity
 Guidance:
 
 - `SPOCR_BUILD_SCHEMAS` is an allow-list. Remove the line to generate every schema discovered during a pull.
-- Runtime connection strings stay in your host application (see `debug/DataContext/AppDbContext.cs`). The CLI env variable only affects metadata pulls and generators.
+- Runtime connection strings stay in your host application (see `samples/restapi/Program.cs` for a consumer example). The CLI env variable only affects metadata pulls and generators.
 - Store `SPOCR_GENERATOR_DB` securely. The generator still needs this connection string during `spocr pull`, while the runtime DbContext obtains its connection string via `AddSpocRDbContext` and host configuration.
+
+During active development, generate and validate changes under `debug/` first (sandbox rebuilds, snapshot diffs, determinism checks). Once those artifacts stabilize, copy only the necessary outputs into `samples/` so the sample remains a clean consumer showcase rather than the primary development surface.
 
 ## Bridge Mode & Dual CLI
 
