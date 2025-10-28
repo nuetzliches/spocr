@@ -4,6 +4,8 @@ scope: spocr-v5-cutover
 
 # SpocR v5 Migration Checklist (SnapshotBuilder & CLI)
 
+> Scope Note: These instructions capture only the desired end state derived from `CHECKLIST.md`, `src/SpocRVNext/CHECKLIST.md`, and `src/SpocRVNext/SnapshotBuilder/CHECKLIST.md`. Do not expand this file into a narrative migration guide; reference documents should remain focused on documenting the target configuration, not the step-by-step path.
+
 ## Environment Bootstrapping
 
 1. Run `spocr init` in every repository that still relies on `spocr.json`; the v5 CLI ignores the legacy file now, so migrate values before the next run.

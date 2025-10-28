@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -49,18 +50,24 @@ public class CreateUserWithOutputProcedureTests
         createResult.Output?.UserId.ShouldNotBeNull();
         // unwrap nullable for Shouldly comparison
         var createdIdNullable = createResult.Output?.UserId;
-        createdIdNullable.HasValue.ShouldBeTrue();
-        createdIdNullable!.Value.ShouldBeGreaterThan(0);
+        createdIdNullable.ShouldNotBeNull();
+        var createdId = createdIdNullable!.Value;
+        createdId.ShouldBeGreaterThan(0);
         createResult.Result.ShouldNotBeNull();
         if (createResult.Result.Count > 0)
         {
             // Some dialects may echo CreatedUserId in result set, assert consistency if present
-            var echoed = createResult.Result.First().CreatedUserId;
-            if (echoed.HasValue)
-                echoed.ShouldBe(createResult.Output?.UserId);
+            var row = createResult.Result.First();
+            var echoedObj = (object?)row.CreatedUserId;
+            if (echoedObj is not null)
+            {
+                var echoedText = Convert.ToString(echoedObj, CultureInfo.InvariantCulture);
+                echoedText.ShouldNotBeNull();
+                echoedText!.ShouldBe(createdId.ToString(CultureInfo.InvariantCulture));
+            }
         }
 
-        var userId = createdIdNullable!.Value;
+        var userId = createdId;
 
         // Retrieve user via UserFind
         var findInput = new UserFindInput(userId);

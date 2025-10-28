@@ -21,7 +21,7 @@ jobs:
       - name: Rebuild schema & generate (dual)
         shell: pwsh
         run: |
-          dotnet run --project src/SpocR.csproj -- rebuild -p samples/restapi/spocr.json --no-auto-update
+          dotnet run --project src/SpocR.csproj -- rebuild -p samples/restapi --no-auto-update
 
       - name: Verify determinism
         shell: pwsh

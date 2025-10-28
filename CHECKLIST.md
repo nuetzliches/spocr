@@ -45,6 +45,8 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 
 - [ ] Zielarchitektur v5 (Abhängigkeiten, Optimierungs-Backlog) final dokumentieren und hier verlinken.
 - [~] Inventar `DataContext/` + `spocr.json` Konsumenten schließen; Ablösepfad nachhalten. (Legacy `DataContext/` Artefakte entfernt, verbleibende `spocr.json` Prüfrunden offen)
+  - 2025-10-29: CLI ignoriert `spocr.json`; Tests angepasst, Rest-Inventar (Skripte/CI) offen.
+  - 2025-10-29: Entwickler-Dokus & determinism workflow auf Projektpfad (`-p <dir>`) aktualisiert; verbleibende Legacy-Referenzen in Roadmap-Dokumenten prüfen.
 - [ ] Neue CLI (`init`, `pull`, `build`, `rebuild`) finalisieren und Kommunikationspaket vorbereiten.
 - [ ] Teststrategie v5 definieren (Smoke/Integration vs. Legacy-Abschaltung) und CI entsprechend planen.
 - [ ] Forced-Upgrade Kommunikation (Zeitplan, Beta-Programm, Supportkanäle) aufsetzen.
@@ -74,7 +76,7 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 ## Qualität & Tests
 
 - [ ] Coverage-Baseline >=60 % messen und Reporting einschalten (Vorbereitung Strict Golden Hash).
-- [ ] Negative Tests für ENV-Kombinationen (z.B. fehlende DB-Verbindung) ergänzen.
+- [x] Negative Tests für ENV-Kombinationen (z.B. fehlende DB-Verbindung) ergänzen. (2025-10-29)
 - [ ] `eng/quality-gates.ps1` in CI integrieren oder dokumentieren (inkl. `eng/kill-testhosts.ps1`).
 - [ ] Namespace-Kollisionstests für konsolidierte Outputs (Multi-ResultSet) ergänzen.
 - [ ] Test-Hosts Cleanup in Doku/CI verankern.
@@ -136,7 +138,7 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 - [>] Streaming-APIs & JSON Dual Mode (`JsonRawAsync`, `JsonStreamAsync`, ...).
 - [>] Functions/Views Snapshot Erweiterungen (Dependencies, Dokumentation).
 - [>] Strict Golden Hash & Diff Exit Codes nach Coverage-Gating.
-- [>] Entfernung verbleibender `spocr.json`-Fallbacks und Namespace Overrides.
+- [x] Entfernung verbleibender `spocr.json`-Fallbacks und Namespace Overrides. (2025-10-29)
 - [>] TableType Validation/Builder Verbesserungen (FluentValidation, Factory Overloads).
 - [>] Procedure Invocation Patterns & Streaming Doku.
 
@@ -146,7 +148,7 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 
 ## Testing Quick Reference
 
-- Schema rebuild: `dotnet run --project src/SpocR.csproj -- rebuild -p samples/restapi/spocr.json`
+- Schema rebuild: `dotnet run --project src/SpocR.csproj -- rebuild -p samples/restapi`
 - Sample build: `dotnet build samples/restapi/RestApi.csproj -c Debug`
 
 > Fortschritt bitte regelmäßig mit `src/SpocRVNext/CHECKLIST.md` und `src/SpocRVNext/SnapshotBuilder/CHECKLIST.md` abgleichen; dieses Dokument bündelt die Gesamtübersicht für den Branch `feature/vnext`.

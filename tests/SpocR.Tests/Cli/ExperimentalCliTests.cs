@@ -11,14 +11,26 @@ public class ExperimentalCliTests
     public async Task GenerateDemo_Runs_When_Experimental_Flag_On()
     {
         // Arrange
-        Environment.SetEnvironmentVariable("SPOCR_EXPERIMENTAL_CLI", "1");
+    const string DemoConnection = @"Server=(localdb)\MSSQLLocalDB;Database=SpocR_Demo;Integrated Security=true;";
+    var previousExperimental = Environment.GetEnvironmentVariable("SPOCR_EXPERIMENTAL_CLI");
+    var previousGeneratorDb = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_DB");
+    Environment.SetEnvironmentVariable("SPOCR_EXPERIMENTAL_CLI", "1");
+    Environment.SetEnvironmentVariable("SPOCR_GENERATOR_DB", DemoConnection);
         try
         {
             // Ensure .env exists with marker so namespace prompt stays silent
             var envPath = Path.Combine(Directory.GetCurrentDirectory(), ".env");
             if (!File.Exists(envPath))
             {
-                File.WriteAllText(envPath, "# SPOCR_NAMESPACE placeholder\n");
+                File.WriteAllText(envPath, $"SPOCR_GENERATOR_DB={DemoConnection}\n# SPOCR_NAMESPACE placeholder\n");
+            }
+            else
+            {
+                var content = File.ReadAllText(envPath);
+                if (!content.Contains("SPOCR_GENERATOR_DB", StringComparison.OrdinalIgnoreCase))
+                {
+                    File.AppendAllText(envPath, $"SPOCR_GENERATOR_DB={DemoConnection}\n");
+                }
             }
             // Act
             var exit = await SpocR.Program.RunCliAsync(new[] { "generate-demo" });
@@ -28,7 +40,8 @@ public class ExperimentalCliTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("SPOCR_EXPERIMENTAL_CLI", null);
+            Environment.SetEnvironmentVariable("SPOCR_EXPERIMENTAL_CLI", previousExperimental);
+            Environment.SetEnvironmentVariable("SPOCR_GENERATOR_DB", previousGeneratorDb);
         }
     }
 }

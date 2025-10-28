@@ -29,6 +29,9 @@
 - [ ] `DataContext/`-Abhängigkeiten entfernen oder ersetzen; verbleibende Nutzung markieren.
 - [~] `.env`-Pfad finalisieren, Migration `spocr.json` → `.env` über `spocr init` absichern.
   - Debug-Sandbox `.env` bereinigt; `SPOCR_GENERATOR_MODE` entfernt, next-only Verhalten bestätigt (2025-10-29).
+  - Generator liest keine `spocr.json`-Fallbacks mehr; `spocr init`/CI Inventory bleibt zu aktualisieren (2025-10-29).
+  - Tests aktualisiert (`SpocR.Tests`, `SpocR.IntegrationTests`), um neue Pflichtwerte zu setzen (2025-10-29).
+  - CI & Entwickler-Dokus auf Projektpfad-Kommandos umgestellt (`-p <dir>`); Roadmap-Referenzen folgen (2025-10-29).
 - [x] Generator-Mode-Fallbacks entfernen (`SPOCR_GENERATOR_MODE`, `--mode`); next-only Verhalten dokumentiert und getestet.
 - [ ] Legacy-Code nach `src/SpocRVNext` verschieben oder entfernen; Projektstruktur bereinigen.
 - [ ] Legacy-Tests deaktivieren, Nachfolge-Tests (Smoke/Integration) vorbereiten.

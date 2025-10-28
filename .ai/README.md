@@ -23,7 +23,7 @@ Resources in this directory keep AI agents aligned with the `feature/vnext-only`
 
 ```cmd
 :: Generator-affecting work (schema pull refresh)
-dotnet run --project src\SpocR.csproj -- pull -p debug\spocr.json --no-cache --verbose
+dotnet run --project src\SpocR.csproj -- pull -p debug --no-cache --verbose
 
 :: Structural validation mode
 dotnet run --project src\SpocR.csproj -- test --validate

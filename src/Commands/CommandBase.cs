@@ -9,7 +9,7 @@ namespace SpocR.Commands;
 
 public abstract class CommandBase : IAppCommand, ICommandOptions
 {
-    [Option("-p|--path", "Path to spocr.json, eg. the path to your project itself", CommandOptionType.SingleValue)]
+    [Option("-p|--path", "Path to the project root containing .env (legacy spocr.json paths are ignored)", CommandOptionType.SingleValue)]
     public virtual string Path { get; set; }
 
     [Option("-d|--dry-run", "Run command without making any changes", CommandOptionType.NoValue)]
