@@ -1,77 +1,52 @@
 ---
 title: Configuration Reference
-description: Structure and meaning of fields in spocr.json.
+description: v5 configuration precedence and SPOCR_* environment keys.
 ---
 
-# Configuration Reference (`spocr.json`)
+# Configuration Reference (v5)
 
-The configuration intentionally avoids persisting database schema state beyond explicit ignore lists. All structural metadata for generation (procedures, result sets, UDTTs, table column typings) is sourced from fingerprinted snapshot files under `.spocr/schema/`.
+The modern CLI sources all generator settings from environment variables and the `.env` file located at the project root. Legacy JSON configuration (`spocr.json`) is ignored and remains in the repository only for historical reference. This page captures the desired steady-state precedence and supported keys.
 
-## Minimal Example
+## Precedence
 
-```jsonc
-{
-  "version": "4.1.0",
-  "targetFramework": "net8.0",
-  "project": {
-    "role": { "kind": "Default" },
-    "dataBase": {
-      "connectionString": "Server=.;Database=AppDb;Trusted_Connection=True;",
-    },
-    "output": {
-      "namespace": "Demo.Data.Generated",
-      "dataContext": { "path": "src/DataContext" },
-    },
-    "defaultSchemaStatus": "Build",
-    "ignoredSchemas": ["audit"],
-    "ignoredProcedures": ["audit.CleanupJob"],
-    "jsonTypeLogLevel": "SummaryOnly",
-  },
-}
-```
+1. CLI overrides (e.g. `spocr pull --path <dir>` with explicit options)
+2. Process environment variables (`SPOCR_*`)
+3. `.env` file in the target project directory
 
-## Field Reference
+If a value is not present in any of these layers the CLI uses built-in defaults. No generator behavior reads configuration values from JSON files.
 
-| Path                                | Type                    | Description                                                                                                         |
-| ----------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `version`                           | string (semver)         | Configuration file version (tool interprets via migration rules)                                                    |
-| `targetFramework`                   | string                  | Target TF for generated code (e.g. `net8.0`)                                                                        |
-| `project.role.kind`                 | enum                    | Role strategy (affects generation surface)                                                                          |
-| `project.dataBase.connectionString` | string                  | SQL Server connection string used for `pull` and snapshot creation                                                  |
-| `project.output.namespace`          | string                  | Root namespace for generated artifacts                                                                              |
-| `project.output.dataContext.path`   | string                  | Relative path where generated context/models are written                                                            |
-| `project.defaultSchemaStatus`       | enum (`Build`/`Ignore`) | Default treatment for discovered DB schemas (controls which procedures are considered). Not persisted in snapshots. |
-| `project.ignoredSchemas[]`          | string[]                | Explicit schema names to ignore (case-insensitive)                                                                  |
-| `project.ignoredProcedures[]`       | string[]                | Fully-qualified procedure names (`schema.name`) to ignore even if the schema is built                               |
-| `project.jsonTypeLogLevel`          | enum                    | JSON typing log verbosity: `Detailed`, `SummaryOnly`, `Off` (affects `[json-type-*]` & some `[proc-*]` verbosity)   |
+## Required Keys
 
-## Design Principles
+| Key                  | Purpose                                               | Notes                                                  |
+| -------------------- | ----------------------------------------------------- | ------------------------------------------------------ |
+| `SPOCR_GENERATOR_DB` | Connection string used for metadata pulls and builds | Required. Must be stored in `.env` or environment not checked into source control. |
 
-1. Snapshot Single Source: Only snapshots contain procedure & type metadata, never the config file.
-2. Proc-Only Cache: Local cache controls whether procedure definitions are re-fetched; types (UDTTs, table columns) are always refreshed for cross-schema correctness.
-3. Minimal Persistence: Ignored lists are additive and explicit; no historic per-schema status tracking.
-4. Deterministic Generation: A changed snapshot fingerprint implies a real metadata change (procedures added/removed/modified, UDTT signature changes, parser version bump).
+## Optional Keys
 
-## Parser & Typing
+| Key                | Purpose                                                                 | Default behavior when unset                  |
+| ------------------ | ----------------------------------------------------------------------- | -------------------------------------------- |
+| `SPOCR_NAMESPACE`  | Overrides the inferred root namespace for generated artefacts           | Namespace inferred from project/assembly name |
+| `SPOCR_OUTPUT_DIR` | Customizes the relative output directory for generated artefacts        | `SpocR`                                      |
+| `SPOCR_BUILD_SCHEMAS` | Comma-separated allow list of schemas to include during generation | Empty list → all schemas except ignored defaults |
+| `SPOCR_NO_UPDATE` / `SPOCR_SKIP_UPDATE` | Disables auto-update prompts when set             | Prompts remain enabled                       |
+| `SPOCR_VERBOSE`    | Emits additional diagnostics when set to `1`                            | Standard informational logging               |
 
-| Version | Change                                                                                         |
-| ------- | ---------------------------------------------------------------------------------------------- |
-| v2      | Removed derived `HasJson` / `ResultSetCount`, filtered placeholder result sets                 |
-| v3      | Two-stage JSON column typing (UDTT + base table columns) + guaranteed fallback `nvarchar(max)` |
-| v4      | Fallback upgrade: previously unresolved JSON columns re-evaluated & upgraded to concrete types |
+> Keep `.env` under source control only when it contains non-sensitive values. Connection strings and credentials belong in secrets management.
 
-## Legacy `schema` Node Removal
+## File Layout
 
-The legacy `schema` array is no longer written. Any old entries should be removed; ignore intent is now expressed solely via `ignoredSchemas` / `ignoredProcedures`.
+- `.env` lives at the repository root (or project directory when using `--path`).
+- `samples/restapi/.env.example` provides the canonical template for bootstrapping new environments.
+- Generator outputs are written beneath `SpocR/` by default; change with `SPOCR_OUTPUT_DIR` if required.
 
-## Validation Tips
+## Legacy JSON Configuration
 
-- Use `spocr pull --no-cache --verbose` for full diagnostics.
-- Switch `jsonTypeLogLevel` to `Detailed` when inspecting per-column table matches or upgrades.
-- Use `SummaryOnly` (recommended default) for concise per-proc + run summary.
-- Set `Off` to suppress JSON typing logs entirely (still guarantees typing behavior).
+- `spocr.json` is treated as a legacy artefact. The CLI warns when the file is present so teams know to migrate values into `.env`.
+- Schema metadata lives exclusively under `.spocr/schema/` (fingerprinted snapshots). The generator never persists metadata inside JSON configuration files.
+- Historical documentation for `spocr.json` has moved to the legacy documentation stream; new features do not extend the legacy file format.
 
-## Future Additions
+## Validation Checklist
 
-- Machine-readable JSON schema export.
-- CLI command `spocr config validate` for static schema probing.
+- `.env` exists in every project that runs the v5 CLI and contains at least `SPOCR_GENERATOR_DB`.
+- CI and local scripts rely on environment variables / `.env` exclusively—no automation reads from `spocr.json`.
+- Legacy configuration files are retained only when needed for archival purposes and are no longer treated as inputs.

@@ -50,6 +50,9 @@
 - [ ] Doku auf IST-Stand konsolidieren (README, Developer Guides, CLI-Hilfe, Release Notes).
 - [ ] Migrationstipps bereitstellen (`MIGRATION-V5.md`, `migration-v5.instructions`, `.NET 8` Hinweis).
   - 2025-10-29: `migration-v5.instructions` auf SOLL-Zustand begrenzt, MIGRATION Guide auf Zielarchitektur aktualisiert; Veröffentlichung via Docs offen.
+- [ ] Docs/content: GitHub Pages auf aktuellen CLI-Zustand fokussieren, historische Erzählungen in Legacy-Stream verschieben.
+  - 2025-10-29: MIGRATION Inhalte bereinigt, verbleibende Seiten in `docs/content` benötigen Kürzung.
+  - 2025-10-29: Konfigurations-Referenz auf `.env`/`SPOCR_*` Zielzustand angepasst; übrige Roadmap-Artikel folgen.
 - [ ] Kommunikationsplan für Kunden/Partner erstellen (Zeitplan, Forced-Upgrade-Botschaft, Supportkanäle).
 - [ ] Feedbackschleifen etablieren (Pilotkunden, Beta, Telemetrieauswertung).
 - [~] SpocR Freeze-Kommunikation vorbereiten: v4.5 finalisiert, deutet auf `nuetzliches/xtraq` (Namespace `Xtraq`, Version `1.0.0`).
