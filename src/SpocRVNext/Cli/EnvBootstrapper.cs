@@ -7,8 +7,8 @@ using System.Linq;
 namespace SpocR.SpocRVNext.Cli;
 
 /// <summary>
-/// Ensures a .env file exists when generator mode is dual or next. If missing, interactively prompts user to create one
-/// or aborts and downgrades to legacy mode.
+/// Ensures a .env file exists for the next-only generator. If missing, interactively prompts the user to create one
+/// and aborts if they decline.
 /// </summary>
 internal static class EnvBootstrapper
 {
@@ -20,7 +20,7 @@ internal static class EnvBootstrapper
     /// Ensure a .env exists at <paramref name="projectRoot"/>. Can run interactively (prompt) or non-interactively (autoApprove).
     /// When force==true an existing file will be overwritten.
     /// </summary>
-    public static async Task<string> EnsureEnvAsync(string projectRoot, string desiredMode, bool autoApprove = false, bool force = false, string? explicitTemplate = null)
+    public static async Task<string> EnsureEnvAsync(string projectRoot, bool autoApprove = false, bool force = false, string? explicitTemplate = null)
     {
         Directory.CreateDirectory(projectRoot);
         var envPath = Path.Combine(projectRoot, EnvFileName);
@@ -50,16 +50,14 @@ internal static class EnvBootstrapper
         if (!autoApprove)
         {
             Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.WriteLine($"[spocr vNext] Mode '{desiredMode}' requires a {EnvFileName} with at least one SPOCR_ marker.");
+            Console.WriteLine($"[spocr vNext] Next-only generator requires a {EnvFileName} with at least one SPOCR_ marker.");
             Console.ResetColor();
             Console.Write(File.Exists(envPath) ? $"Overwrite existing {EnvFileName}? [y/N]: " : "Create new .env from example now? [Y/n]: ");
             var answer = ReadAnswer();
             var proceed = IsYes(answer);
             if (!proceed)
             {
-                Console.WriteLine("Falling back to legacy mode (no .env created). Set SPOCR_GENERATOR_MODE=legacy explicitly to silence this prompt.");
-                Environment.SetEnvironmentVariable("SPOCR_GENERATOR_MODE", "legacy");
-                return envPath; // may or may not exist
+                throw new InvalidOperationException(".env creation aborted by user – SpocR vNext requires an .env file.");
             }
         }
 
@@ -75,15 +73,15 @@ internal static class EnvBootstrapper
             Console.ForegroundColor = ConsoleColor.Green;
             Console.WriteLine($"{(force ? "(re)created" : "Created")} {EnvFileName} at '{envPath}'.");
             Console.ResetColor();
-            if (Verbose) Console.WriteLine("[spocr vNext] Next steps: (1) Review SPOCR_NAMESPACE (2) Adjust SPOCR_GENERATOR_MODE=next when comfortable (3) Re-run generation.");
+            if (Verbose) Console.WriteLine("[spocr vNext] Next steps: (1) Review SPOCR_NAMESPACE (2) Re-run generation.");
             Console.ResetColor();
         }
         catch (Exception ex)
         {
             Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"Failed to create .env: {ex.Message}. Falling back to legacy mode.");
+            Console.WriteLine($"Failed to create .env: {ex.Message}.");
             Console.ResetColor();
-            Environment.SetEnvironmentVariable("SPOCR_GENERATOR_MODE", "legacy");
+            throw;
         }
         await Task.CompletedTask;
         return envPath;
@@ -126,7 +124,7 @@ internal static class EnvBootstrapper
             }
         }
         if (File.Exists(examplePath)) return File.ReadAllText(examplePath);
-        return "# SpocR vNext configuration\nSPOCR_GENERATOR_MODE=dual\n# SPOCR_NAMESPACE=Your.Project.Namespace\n# SPOCR_OUTPUT_DIR=SpocR\n";
+    return "# SpocR vNext configuration\n# SPOCR_NAMESPACE=Your.Project.Namespace\n# SPOCR_OUTPUT_DIR=SpocR\n";
     }
 
     private static string MergeWithConfig(string projectRoot, string exampleContent)

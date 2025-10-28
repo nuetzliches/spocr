@@ -63,8 +63,7 @@ public class StoredProcedureGenerator(
 
         // Determine if any stored procedure in this group actually produces a model (skip pure scalar non-JSON procs)
         // Unabhängig vom Modus: JSON Procs erzeugen ausschließlich Raw Methoden (Task<string>), niemals typed Models oder Deserialize Methoden.
-        var genMode = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant() ?? "dual"; // read but no behavioral effect for JSON typing
-        bool legacyRawJsonOnly = true; // force raw-only for JSON always
+    bool legacyRawJsonOnly = true; // force raw-only for JSON always
         bool NeedsModel(Definition.StoredProcedure sp)
         {
             if (sp.ResultSets == null || sp.ResultSets.Count == 0) return false;
@@ -437,9 +436,7 @@ public class StoredProcedureGenerator(
                 ? null
                 : storedProcedure.ResultSets.FirstOrDefault(rs => string.IsNullOrEmpty(rs.ExecSourceProcedureName))
                     ?? storedProcedure.ResultSets.FirstOrDefault();
-        var genModeLocal = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant() ?? "dual";
-        // Nur echter 'legacy' Modus unterdrückt JSON Deserialization; 'dual' und 'next' erzeugen Deserialize Methoden.
-        bool legacyRawOnly = genModeLocal == "legacy"; // treat JSON sets as raw-only only in legacy mode
+    const bool legacyRawOnly = false; // legacy mode removed – always allow JSON deserialization
         var isJson = firstSet?.ReturnsJson ?? false;
         var isJsonArray = isJson && (firstSet?.ReturnsJsonArray ?? false);
         // Forwarding Referenz-only: genau ein Set, kein JSON, Columns leer, ExecSource gesetzt -> Ziel auflösen für Modellwahl

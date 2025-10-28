@@ -18,7 +18,7 @@ namespace SpocR.SpocRVNext.Generators;
 
 /// <summary>
 /// Generates the DbContext related artifacts from templates (interface, context, options, DI extension, endpoints).
-/// Generation is enabled automatically when SPOCR_GENERATOR_MODE is 'dual' or 'next'; skipped in 'legacy' mode.
+/// Runs unconditionally in the enforced next-only configuration (mode provider remains overridable for tests).
 /// </summary>
 public class DbContextGenerator
 {
@@ -48,7 +48,7 @@ public class DbContextGenerator
     {
         if (!IsEnabled())
         {
-            _console.Verbose("[dbctx] Skipped (generator mode is 'legacy')");
+            _console.Verbose("[dbctx] Skipped (generator mode disabled)");
             return;
         }
 

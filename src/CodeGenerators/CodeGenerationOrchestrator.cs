@@ -51,10 +51,8 @@ public class CodeGenerationOrchestrator(
         var stopwatch = new Stopwatch();
         var elapsed = new Dictionary<string, long>();
         // Steps: CodeBase (lib only), TableTypes, Inputs, Outputs, Models, StoredProcedures
-        var genMode = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant();
-        if (string.IsNullOrWhiteSpace(genMode)) genMode = "dual"; // default
-        var legacyPipelineEnabled = genMode != "next";
-        var dbCtxEnabled = genMode is "dual" or "next";
+    var legacyPipelineEnabled = false;
+    var dbCtxEnabled = true;
         var totalSteps = 0;
         if (legacyPipelineEnabled)
         {
@@ -114,7 +112,7 @@ public class CodeGenerationOrchestrator(
             }
             else
             {
-                consoleService.Verbose("[generator] Legacy pipeline skipped (mode=next)");
+                consoleService.Verbose("[generator] Legacy pipeline skipped (next-only configuration)");
             }
 
             if (dbCtxEnabled)
@@ -178,11 +176,9 @@ public class CodeGenerationOrchestrator(
     /// </summary>
     public async Task GenerateAllAsync(bool isDryRun)
     {
-        HasErrors = false;
-        var genMode = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant();
-        if (string.IsNullOrWhiteSpace(genMode)) genMode = "dual";
-        var legacyPipelineEnabled = genMode != "next";
-        var dbCtxEnabled = genMode is "dual" or "next";
+    HasErrors = false;
+    var legacyPipelineEnabled = false;
+    var dbCtxEnabled = true;
 
         try
         {
@@ -198,7 +194,7 @@ public class CodeGenerationOrchestrator(
             }
             else
             {
-                consoleService.Verbose("[generator] Legacy pipeline skipped (mode=next)");
+                consoleService.Verbose("[generator] Legacy pipeline skipped (next-only configuration)");
             }
 
             if (dbCtxEnabled)
@@ -245,11 +241,9 @@ public class CodeGenerationOrchestrator(
     /// </summary>
     public async Task GenerateSelectedAsync(bool isDryRun)
     {
-        HasErrors = false;
-        var genMode = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant();
-        if (string.IsNullOrWhiteSpace(genMode)) genMode = "dual";
-        var legacyPipelineEnabled = genMode != "next";
-        var dbCtxEnabled = genMode is "dual" or "next";
+    HasErrors = false;
+    var legacyPipelineEnabled = false;
+    var dbCtxEnabled = true;
 
         try
         {
@@ -260,7 +254,7 @@ public class CodeGenerationOrchestrator(
                 if (legacyPipelineEnabled)
                     await GenerateDataContextTableTypesAsync(isDryRun);
                 else
-                    consoleService.Verbose("[generator] Skipping legacy TableTypes generation (mode=next)");
+                    consoleService.Verbose("[generator] Skipping legacy TableTypes generation (next-only configuration)");
             }
 
             if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.Inputs))
@@ -268,7 +262,7 @@ public class CodeGenerationOrchestrator(
                 if (legacyPipelineEnabled)
                     await GenerateDataContextInputsAsync(isDryRun);
                 else
-                    consoleService.Verbose("[generator] Skipping legacy Inputs generation (mode=next)");
+                    consoleService.Verbose("[generator] Skipping legacy Inputs generation (next-only configuration)");
             }
 
             if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.Outputs))
@@ -276,7 +270,7 @@ public class CodeGenerationOrchestrator(
                 if (legacyPipelineEnabled)
                     await GenerateDataContextOutputsAsync(isDryRun);
                 else
-                    consoleService.Verbose("[generator] Skipping legacy Outputs generation (mode=next)");
+                    consoleService.Verbose("[generator] Skipping legacy Outputs generation (next-only configuration)");
             }
 
             if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.Models))
@@ -284,7 +278,7 @@ public class CodeGenerationOrchestrator(
                 if (legacyPipelineEnabled)
                     await GenerateDataContextModelsAsync(isDryRun);
                 else
-                    consoleService.Verbose("[generator] Skipping legacy Models generation (mode=next)");
+                    consoleService.Verbose("[generator] Skipping legacy Models generation (next-only configuration)");
             }
 
             if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.StoredProcedures))
@@ -292,15 +286,13 @@ public class CodeGenerationOrchestrator(
                 if (legacyPipelineEnabled)
                     await GenerateDataContextStoredProceduresAsync(isDryRun);
                 else
-                    consoleService.Verbose("[generator] Skipping legacy StoredProcedures generation (mode=next)");
+                    consoleService.Verbose("[generator] Skipping legacy StoredProcedures generation (next-only configuration)");
             }
 
             if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.DbContext))
             {
                 if (dbCtxEnabled)
                     await dbContextGenerator.GenerateAsync(isDryRun);
-                else
-                    consoleService.Verbose("[generator] DbContext generation disabled (mode=legacy)");
             }
 
             if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.DbContext) && dbCtxEnabled && !isDryRun)

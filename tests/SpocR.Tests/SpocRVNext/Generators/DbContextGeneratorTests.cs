@@ -17,7 +17,7 @@ public class DbContextGeneratorTests
 {
     private static void Fail(string message) => throw new Xunit.Sdk.XunitException(message);
     [Fact]
-    public async Task DbContextGenerator_Skips_In_Legacy_Mode()
+    public async Task DbContextGenerator_Generates_In_Next_Mode()
     {
         var originalCwd = Directory.GetCurrentDirectory();
         var temp = Directory.CreateTempSubdirectory();
@@ -26,30 +26,6 @@ public class DbContextGeneratorTests
             Directory.SetCurrentDirectory(temp.FullName);
             DirectoryUtils.SetBasePath(temp.FullName);
             File.WriteAllText(Path.Combine(temp.FullName, ".env"), "SPOCR_NAMESPACE=Test.App\n");
-            Environment.SetEnvironmentVariable("SPOCR_GENERATOR_MODE", "legacy");
-            var gen = CreateGenerator();
-            await gen.GenerateAsync(isDryRun: false);
-            var outDir = Path.Combine(temp.FullName, "SpocR");
-            Assert.False(File.Exists(Path.Combine(outDir, "SpocRDbContext.cs")));
-        }
-        finally
-        {
-            Directory.SetCurrentDirectory(originalCwd);
-            Environment.SetEnvironmentVariable("SPOCR_GENERATOR_MODE", null);
-        }
-    }
-
-    [Fact]
-    public async Task DbContextGenerator_Generates_In_Dual_Mode()
-    {
-        var originalCwd = Directory.GetCurrentDirectory();
-        var temp = Directory.CreateTempSubdirectory();
-        try
-        {
-            Directory.SetCurrentDirectory(temp.FullName);
-            DirectoryUtils.SetBasePath(temp.FullName);
-            File.WriteAllText(Path.Combine(temp.FullName, ".env"), "SPOCR_NAMESPACE=Test.App\n");
-            Environment.SetEnvironmentVariable("SPOCR_GENERATOR_MODE", "dual");
             var gen = CreateGenerator();
             await gen.GenerateAsync(isDryRun: false);
             // Diagnose: liste alle Dateien unter temp
@@ -76,7 +52,7 @@ public class DbContextGeneratorTests
             Assert.True(MustExist("SpocRDbContextOptions.cs"), "SpocRDbContextOptions.cs fehlt bei " + outDir);
             Assert.True(MustExist("SpocRDbContextServiceCollectionExtensions.cs"), "Extensions fehlt bei " + outDir);
         }
-        finally { Directory.SetCurrentDirectory(originalCwd); Environment.SetEnvironmentVariable("SPOCR_GENERATOR_MODE", null); }
+        finally { Directory.SetCurrentDirectory(originalCwd); }
     }
 
     private static DbContextGenerator CreateGenerator()

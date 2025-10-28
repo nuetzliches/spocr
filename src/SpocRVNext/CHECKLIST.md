@@ -21,11 +21,14 @@
 - [ ] CLI-Konzept aktualisieren (Command-Matrix, UX-Flows, Telemetrie, Breaking-Change-Kommunikation).
 - [ ] Teststrategie festziehen: neue Suite definieren, Legacy-Abschaltung planen, Smoke/Integration festhalten.
 - [ ] Stakeholder-Kommunikation vorbereiten (Forced Upgrade, Beta-Programm, Support-Kanäle).
+- [ ] Post-Migration Zielbild finalisieren: neues Repository `nuetzliches/xtraq` (Namespace `Xtraq`, Version `1.0.0`, ohne SpocR-Historie) und Freeze-Hinweis aus SpocR v4.5 auf den Nachfolger.
 
 ## Bereinigung & Umsetzung
 
 - [ ] `DataContext/`-Abhängigkeiten entfernen oder ersetzen; verbleibende Nutzung markieren.
-- [ ] `.env`-Pfad finalisieren, Migration `spocr.json` → `.env` über `spocr init` absichern.
+- [~] `.env`-Pfad finalisieren, Migration `spocr.json` → `.env` über `spocr init` absichern.
+  - Debug-Sandbox `.env` bereinigt; `SPOCR_GENERATOR_MODE` entfernt, next-only Verhalten bestätigt (2025-10-29).
+- [x] Generator-Mode-Fallbacks entfernen (`SPOCR_GENERATOR_MODE`, `--mode`); next-only Verhalten dokumentiert und getestet.
 - [ ] Legacy-Code nach `src/SpocRVNext` verschieben oder entfernen; Projektstruktur bereinigen.
 - [ ] Legacy-Tests deaktivieren, Nachfolge-Tests (Smoke/Integration) vorbereiten.
 - [ ] Deployment-/Release-Pipeline für v5 aufsetzen; parallele Betriebsfähigkeit sicherstellen.
@@ -44,6 +47,7 @@
 - [ ] Migrationstipps bereitstellen (`MIGRATION-V5.md`, `migration-v5.instructions`, `.NET 8` Hinweis).
 - [ ] Kommunikationsplan für Kunden/Partner erstellen (Zeitplan, Forced-Upgrade-Botschaft, Supportkanäle).
 - [ ] Feedbackschleifen etablieren (Pilotkunden, Beta, Telemetrieauswertung).
+- [ ] SpocR Freeze-Kommunikation vorbereiten: v4.5 finalisiert, deutet auf `nuetzliches/xtraq` (Namespace `Xtraq`, Version `1.0.0`).
 
 ## Nachlauf (Legacy v4.5)
 

@@ -22,9 +22,6 @@ public class InitCommand : SpocrCommandBase
     [Option("-n|--namespace", "Root namespace (SPOCR_NAMESPACE)", CommandOptionType.SingleValue)]
     public string RootNamespace { get; set; }
 
-    [Option("-m|--mode", "Generator mode (legacy|dual|next). In v5 'next' is default.", CommandOptionType.SingleValue)]
-    public string Mode { get; set; }
-
     [Option("-c|--connection", "Metadata pull connection string (SPOCR_GENERATOR_DB)", CommandOptionType.SingleValue)]
     public string ConnectionString { get; set; }
 
@@ -39,10 +36,8 @@ public class InitCommand : SpocrCommandBase
         var effectivePath = string.IsNullOrWhiteSpace(Path) ? Directory.GetCurrentDirectory() : Path;
         var dir = DirectoryUtils.IsPath(effectivePath) ? effectivePath : System.IO.Path.GetFullPath(effectivePath);
         Directory.CreateDirectory(dir);
-        var desiredMode = string.IsNullOrWhiteSpace(Mode) ? (Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE") ?? "dual") : Mode.Trim();
-
         // Use existing EnvBootstrapper to materialize base file (autoApprove to skip interactive prompt here)
-        var envPath = await SpocR.SpocRVNext.Cli.EnvBootstrapper.EnsureEnvAsync(dir, desiredMode, autoApprove: true, force: Force);
+    var envPath = await SpocR.SpocRVNext.Cli.EnvBootstrapper.EnsureEnvAsync(dir, autoApprove: true, force: Force);
 
         try
         {
@@ -71,7 +66,6 @@ public class InitCommand : SpocrCommandBase
             if (!string.IsNullOrWhiteSpace(RootNamespace)) Upsert("SPOCR_NAMESPACE", RootNamespace.Trim());
             if (!string.IsNullOrWhiteSpace(ConnectionString)) Upsert("SPOCR_GENERATOR_DB", ConnectionString.Trim());
             if (!string.IsNullOrWhiteSpace(Schemas)) Upsert("SPOCR_BUILD_SCHEMAS", string.Join(',', Schemas.Split(',').Select(s => s.Trim()).Where(s => s.Length > 0)));
-            if (!string.IsNullOrWhiteSpace(Mode)) Upsert("SPOCR_GENERATOR_MODE", desiredMode);
             File.WriteAllLines(envPath, lines);
         }
         catch (Exception ex)

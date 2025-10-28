@@ -16,7 +16,8 @@ public class UnifiedResultTests
         Assert.True(File.Exists(file), "Consolidated proc file not generated");
         var text = File.ReadAllText(file);
         Assert.Contains("public CreateUserWithOutputOutput? Output", text);
-        Assert.DoesNotContain("public IReadOnlyList", text); // pure output procedure => no result set wrapper
+    Assert.Contains("public IReadOnlyList<CreateUserWithOutputResultSet1Result> Result", text);
+    Assert.DoesNotContain("Result1", text); // single payload => no numbered suffix
         // Konsolidiert: Input & Output Record sollen im selben File genau einmal definiert sein
         var outputDefCount = text.Split("record struct CreateUserWithOutputOutput").Length - 1;
         Assert.Equal(1, outputDefCount);

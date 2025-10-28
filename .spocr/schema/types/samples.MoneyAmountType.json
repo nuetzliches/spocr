@@ -1,0 +1,8 @@
+{
+  "Schema": "samples",
+  "Name": "MoneyAmountType",
+  "BaseSqlTypeName": "decimal",
+  "MaxLength": 9,
+  "Precision": 18,
+  "Scale": 2
+}

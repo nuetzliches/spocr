@@ -59,20 +59,11 @@ cp .env.example .env
 
 Relevant keys:
 
-| Variable                 | Purpose                               | Typical Value                        |
-| ------------------------ | ------------------------------------- | ------------------------------------ |
-| `SPOCR_GENERATOR_MODE`   | Controls generation pipeline          | `legacy` / `dual` (DEFAULT) / `next` |
-| `SPOCR_EXPERIMENTAL_CLI` | Enables new System.CommandLine parser | `1` to enable                        |
-| `SPOCR_STRICT_NULLABLE`  | Escalate nullable warnings            | `1` optional                         |
-| `SPOCR_STRICT_DIFF`      | Activate strict diff policy (future)  | `1` optional                         |
-
-Recommended for local exploration:
-
-```
-SPOCR_GENERATOR_MODE=dual
-```
-
-This produces legacy + next output side-by-side (comparison / diff tooling can consume hash manifests).
+| Variable                 | Purpose                               | Typical Value             |
+| ------------------------ | ------------------------------------- | ------------------------- |
+| `SPOCR_EXPERIMENTAL_CLI` | Enables new System.CommandLine parser | `1` to enable             |
+| `SPOCR_STRICT_NULLABLE`  | Escalate nullable warnings            | `1` optional              |
+| `SPOCR_STRICT_DIFF`      | Activate strict diff policy (future)  | `1` optional              |
 
 ### Generating Code
 
@@ -81,40 +72,17 @@ From repository root (ensures tool available):
 ```
 dotnet tool restore
 dotnet tool run spocr pull
-dotnet tool run spocr generate --mode dual
+dotnet tool run spocr generate
 ```
 
-Or using environment variable only:
+### Next-Only Output
 
-```
-set SPOCR_GENERATOR_MODE=dual & dotnet tool run spocr generate
-```
-
-### Switching Modes
-
-| Mode     | Effect                                         |
-| -------- | ---------------------------------------------- |
-| `legacy` | Only legacy DataContext generated (status quo) |
-| `dual`   | Legacy + next output (observation mode)        |
-| `next`   | Only new pipeline output (preview)             |
-
-Mode defaults to `dual` in the bridge phase for internal test environments (subject to change before v5 release).
-
-### Activating vNext Output (Overview)
-
-Enable the new generator path via `.env` or a direct environment variable:
-
-```
-SPOCR_GENERATOR_MODE=next
-```
-
-During the bridge phase `dual` is recommended so you can compare (Golden Hash / diff reports). `next` produces only the new consolidated output under `samples/restapi/SpocR/<SchemaPascalCase>`.
+The sample now always emits the consolidated v5 output. Ensure you have a `.env` (see excerpt below) and run `spocr generate`. Legacy DataContext artifacts are no longer produced.
 
 Minimal `.env` excerpt:
 
 ```
 # SpocR Bridge Phase
-SPOCR_GENERATOR_MODE=dual
 SPOCR_EXPERIMENTAL_CLI=1
 # Optional explicit namespace override
 # SPOCR_NAMESPACE=RestApi.SpocR
@@ -278,7 +246,7 @@ var result = await CreateUserProcedure.ExecuteAsync(conn, input, ct);
 
 | Problem                     | Hint                                                                                        |
 | --------------------------- | ------------------------------------------------------------------------------------------- |
-| No output generated         | Check `SPOCR_GENERATOR_MODE` (default dual), ensure `.spocr/schema` exists.                 |
+| No output generated         | Ensure `.env` exists with SPOCR markers and `.spocr/schema` contains snapshots.             |
 | Namespace incorrect         | Set `SPOCR_NAMESPACE` in `.env` or env var then regenerate.                                 |
 | DB timeout                  | Increase `SpocRDbContextOptions.CommandTimeout` or inspect DB/container startup latency.    |
 | No interceptor logs         | Was `ProcedureExecutor.SetInterceptor(...)` invoked after building the ServiceProvider?     |
@@ -293,9 +261,9 @@ For feedback on vNext please create issues with label `vnext`.
 
 If the next pipeline output differs unexpectedly or is missing artifacts, open an issue and include:
 
-1. Generator mode (`legacy|dual|next`)
-2. Hash manifest diff snippet (if available)
-3. Simplified reproduction (stored procedure signature)
+1. Hash manifest diff snippet (if available)
+2. Simplified reproduction (stored procedure signature)
+3. Applied `.env` overrides (namespace, schemas)
 
 This accelerates stabilization of `SpocRVNext` before the v5 cutover.
 

@@ -1,0 +1,10 @@
+{
+  "Schema": "samples",
+  "Name": "UserIdListTableType",
+  "Columns": [
+    {
+      "Name": "UserId",
+      "TypeRef": "sys.int"
+    }
+  ]
+}

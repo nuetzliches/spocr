@@ -30,8 +30,8 @@ public class GoldenHashPipelineDeterminismTests
     public async Task Rebuild_Twice_Produces_Identical_Golden_Hashes()
     {
         var root = RepoRoot();
-        var sampleConfig = Path.Combine(root, "samples", "restapi", "spocr.json");
-        if (!File.Exists(sampleConfig)) return; // skip silently
+        var sampleEnv = Path.Combine(root, "samples", "restapi", ".env");
+        if (!File.Exists(sampleEnv)) return; // skip silently
 
         string RunCli()
         {
@@ -40,16 +40,16 @@ public class GoldenHashPipelineDeterminismTests
             {
                 FileName = "dotnet",
                 WorkingDirectory = root,
-                Arguments = "run --project src/SpocR.csproj -- rebuild -p samples/restapi/spocr.json --no-auto-update",
+                Arguments = "run --project src/SpocR.csproj -- rebuild -p samples/restapi --no-auto-update --no-cache",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true
             };
-            psi.Environment["SPOCR_GENERATOR_MODE"] = "dual"; // ensure vNext path active
             using var proc = Process.Start(psi)!;
             var stdout = proc.StandardOutput.ReadToEnd();
             var stderr = proc.StandardError.ReadToEnd();
             proc.WaitForExit();
-            stdout.ShouldContain("Generators succeeded");
+            stdout.ShouldContain("Pulled 8 stored procedures");
+            stdout.ShouldContain("skipping legacy DataContext build");
             proc.ExitCode.ShouldBe(0, stderr + "\n" + stdout);
             return stdout;
         }

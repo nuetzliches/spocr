@@ -1,0 +1,18 @@
+{
+  "Schema": "samples",
+  "Name": "OrderImportTableType",
+  "Columns": [
+    {
+      "Name": "UserId",
+      "TypeRef": "sys.int"
+    },
+    {
+      "Name": "TotalAmount",
+      "TypeRef": "samples.MoneyAmountType"
+    },
+    {
+      "Name": "PlacedAt",
+      "TypeRef": "samples.UtcDateTimeType"
+    }
+  ]
+}

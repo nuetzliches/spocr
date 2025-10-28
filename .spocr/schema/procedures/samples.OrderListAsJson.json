@@ -1,0 +1,42 @@
+{
+  "Schema": "samples",
+  "Name": "OrderListAsJson",
+  "Parameters": [],
+  "ResultSets": [
+    {
+      "ReturnsJson": true,
+      "ReturnsJsonArray": true,
+      "JsonRootProperty": "OrderSummaries",
+      "Columns": [
+        {
+          "Name": "UserId",
+          "TypeRef": "sys.int"
+        },
+        {
+          "Name": "DisplayName",
+          "TypeRef": "sys.nvarchar"
+        },
+        {
+          "Name": "Email",
+          "TypeRef": "sys.nvarchar"
+        },
+        {
+          "Name": "OrderId",
+          "TypeRef": "sys.int"
+        },
+        {
+          "Name": "TotalAmount",
+          "TypeRef": "sys.decimal"
+        },
+        {
+          "Name": "PlacedAt",
+          "TypeRef": "sys.datetime2"
+        },
+        {
+          "Name": "Notes",
+          "TypeRef": "sys.nvarchar"
+        }
+      ]
+    }
+  ]
+}

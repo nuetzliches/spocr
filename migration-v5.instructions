@@ -1,8 +1,6 @@
----
 version: 1
-updated: 2025-10-28
+updated: 2025-10-29
 scope: spocr-v5-cutover
----
 
 # SpocR v5 Migration Checklist (SnapshotBuilder & CLI)
 
@@ -48,22 +46,25 @@ scope: spocr-v5-cutover
 ## Dual CLI Strategy
 
 1. Ship a frozen v4 CLI as the NuGet tool `spocrv4`. It continues to read `spocr.json` and writes the legacy `DataContext/` output without touching the v5 pipeline.
-2. The v5 CLI (`spocr`) operates exclusively against `.env`/`SPOCR_*` keys and the new SnapshotBuilder artifacts. It must run alongside `spocrv4` without file clashes.
-3. `spocr` checks for legacy artefacts on every run (for example `spocr.json`, `DataContext/`, `debug/spocr.json`). When detected it emits a warning pointing to `MIGRATION_SpocRVNext.md` and these instructions so teams can plan the cutover.
-4. Communicate in release notes that both tools can be installed side by side:
+2. Während der Bridge-Phase bleibt die moderne CLI unter dem Namen `spocr` aktiv und arbeitet ausschließlich mit `.env`/`SPOCR_*` Keys sowie den SnapshotBuilder-Artefakten.
+3. Zum Cutover erfolgt der Umzug in das neue Repository `nuetzliches/xtraq`; die Nachfolge-CLI veröffentlicht dort als Tool/Package `xtraq` (Namespace `Xtraq`, Version `1.0.0`) ohne historische SpocR-Verweise. Das eingefrorene SpocR-Repository (v4.5) verweist in README/Changelog auf Xtraq.
+4. `spocr` prüft weiterhin auf Legacy-Artefakte (z.B. `spocr.json`, `DataContext/`, `debug/spocr.json`) und verlinkt auf `MIGRATION_SpocRVNext.md`, diese Anleitung sowie – nach Cutover – direkt auf das Xtraq-Repository.
+5. Kommuniziere in Release Notes, dass die Tools parallel installiert werden können und ergänze nach dem Cutover den Xtraq-Befehl:
    ```cmd
-   dotnet tool install --global spocr    # v5 pipeline
-   dotnet tool install --global spocrv4  # frozen v4 pipeline
+   dotnet tool install --global spocr    # Bridge CLI (v5)
+   dotnet tool install --global spocrv4  # Frozen v4 pipeline
+   dotnet tool install --global xtraq    # Nachfolger (Repository nuetzliches/xtraq)
    ```
 
 ## CLI Guardrails
 
-1. Default generator mode remains `dual` until the v5 cutover; switch to `next` only after SnapshotBuilder determinism is confirmed.
+1. Generator läuft ausschließlich im `next`-Modus; prüfe nach jedem Release, dass keine `SPOCR_GENERATOR_MODE`-Reste in Samples, Debug-Verzeichnissen oder Dokumentation verbleiben.
 2. Document warning behaviour (legacy artefact detection) in the CLI help and README so users understand why `spocr` references the migration docs.
 3. Communicate breaking changes by updating:
    - `docs/content/3.reference/json-procedures.md`
    - `src/SpocRVNext/SnapshotBuilder/README.md`
    - `CHANGELOG.md`
 4. Before removing legacy outputs, rerun the diagnostics suite above and refresh golden assets (`write-golden`, `verify-golden`).
+5. Plane einen Abschluss-PR, der README, CHANGELOG und Auto-Updater-Meldungen von SpocR (v4.5) auf das Xtraq-Projekt verweist.
 
 Document evidence for each step in `CHECKLIST.md` and keep this file synchronised whenever the migration process evolves.

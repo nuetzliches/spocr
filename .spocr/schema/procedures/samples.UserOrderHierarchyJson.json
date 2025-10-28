@@ -1,0 +1,32 @@
+{
+  "Schema": "samples",
+  "Name": "UserOrderHierarchyJson",
+  "Parameters": [],
+  "ResultSets": [
+    {
+      "ReturnsJson": true,
+      "ReturnsJsonArray": true,
+      "JsonRootProperty": "Users",
+      "Columns": [
+        {
+          "Name": "UserId",
+          "TypeRef": "sys.int"
+        },
+        {
+          "Name": "DisplayName",
+          "TypeRef": "sys.nvarchar"
+        },
+        {
+          "Name": "Email",
+          "TypeRef": "sys.nvarchar"
+        },
+        {
+          "Name": "Orders",
+          "ReturnsJson": true,
+          "ReturnsJsonArray": true,
+          "JsonRootProperty": "Users"
+        }
+      ]
+    }
+  ]
+}

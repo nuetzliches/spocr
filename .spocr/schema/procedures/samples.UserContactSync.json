@@ -1,0 +1,23 @@
+{
+  "Schema": "samples",
+  "Name": "UserContactSync",
+  "Parameters": [
+    {
+      "Name": "Contacts",
+      "TypeRef": "samples.UserContactTableType"
+    }
+  ],
+  "ResultSets": [
+    {
+      "Columns": [
+        {
+          "Name": "UpdatedContacts",
+          "TypeRef": "sys.int"
+        },
+        {
+          "Name": "MissingContacts"
+        }
+      ]
+    }
+  ]
+}

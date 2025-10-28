@@ -231,7 +231,7 @@ Developer notes:
 
 ## Generator Activation and .env Bootstrap
 
-Modern artifacts (inputs, outputs, results, procedures, table types, DbContext) are produced when the generator runs in `dual` or `next` mode.
+Modern artifacts (inputs, outputs, results, procedures, table types, DbContext) are produced once the generator runs with a valid `.env` – generation always targets the next pipeline now.
 
 Initial setup for a fresh repository or sample (`samples/restapi`):
 
@@ -242,14 +242,13 @@ Initial setup for a fresh repository or sample (`samples/restapi`):
 3. Falls keine `.env` existiert:
    - Der `EnvBootstrapper` fragt interaktiv: "Create new .env from example now? [Y/n]:"
    - Mit "Y" wird aus `samples/restapi/.env.example` oder einem Fallback-Template eine `.env` im Repo Root erstellt.
-   - Mit "n" oder Fehler: Fallback auf `legacy` (vNext Ausgabe entfällt in diesem Lauf).
+   - Mit "n" oder Fehler wird der Lauf abgebrochen (vNext erfordert eine `.env`).
 4. Nach erfolgreichem Lauf erscheinen vNext Dateien unter `samples/restapi/SpocR` (z.B. `Inputs`, `Outputs`, `Procedures`, `Results`).
 
 Beispiel `.env` Minimal:
 
 ```dotenv
 # SpocR vNext
-SPOCR_GENERATOR_MODE=dual
 # Optional Namespace überschreiben
 # SPOCR_NAMESPACE=RestApi
 SPOCR_OUTPUT_DIR=SpocR
@@ -258,13 +257,13 @@ SPOCR_OUTPUT_DIR=SpocR
 Troubleshooting:
 
 - Keine neuen Ordner? Prüfen: Wurde `.env` erstellt und enthält mindestens eine `SPOCR_` Zeile?
-- Fallback auf legacy passiert still? `echo %SPOCR_GENERATOR_MODE%` (Windows) prüfen – ggf. erneuter Lauf nach Erstellung der `.env`.
-- Non-interaktives Umfeld (CI): `.env` vorab einchecken oder zur Laufzeit generieren – andernfalls erzwingt der Bootstrapper den Wechsel zu legacy.
+- Lauf abgebrochen? `.env` Erstellung abgelehnt oder fehlgeschlagen – Bootstrapper beendet sich ohne Legacy-Fallback.
+- Non-interaktives Umfeld (CI): `.env` vorab einchecken oder zur Laufzeit generieren – andernfalls beendet der Bootstrapper den Prozess.
 
 CLI Roadmap:
 
 - Geplanter Befehl `spocr vnext init-env` zum nicht-interaktiven Schreiben einer `.env` aus Template.
-- Geplanter Befehl `spocr vnext generate` als expliziter Wrapper für reinen vNext Lauf (ohne Legacy Generatoren).
+- Geplanter Befehl `spocr vnext generate` ersetzt durch Standard-`spocr generate` (nächste Pipeline ist Standard).
 
 ### Interceptors (Procedure Execution)
 

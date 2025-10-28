@@ -1,19 +1,11 @@
-param(
-    [string]$Mode = $env:SPOCR_GENERATOR_MODE
-)
-
-if (-not $Mode) { $Mode = 'dual' }
-
-Write-Host "== SpocR Sample Run (Mode=$Mode) ==" -ForegroundColor Cyan
-
-$env:SPOCR_GENERATOR_MODE = $Mode
+Write-Host "== SpocR Sample Run (Next Mode) ==" -ForegroundColor Cyan
 
 # Optional strict modes (uncomment to experiment)
 # $env:SPOCR_STRICT_DIFF = '1'
 # $env:SPOCR_STRICT_NULLABLE = '1'
 
 # 1. Generate (if generation command needed, placeholder):
-# dotnet run --project ../../src/SpocR.csproj generate --mode $Mode
+# dotnet run --project ../../src/SpocR.csproj generate
 
 # 2. Build sample API
 Write-Host "Building sample Web API..." -ForegroundColor Yellow

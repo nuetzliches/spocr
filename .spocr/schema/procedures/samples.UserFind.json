@@ -1,0 +1,37 @@
+{
+  "Schema": "samples",
+  "Name": "UserFind",
+  "Parameters": [
+    {
+      "Name": "UserId",
+      "TypeRef": "sys.int",
+      "IsNullable": true
+    }
+  ],
+  "ResultSets": [
+    {
+      "Columns": [
+        {
+          "Name": "UserId",
+          "TypeRef": "sys.int"
+        },
+        {
+          "Name": "Email",
+          "TypeRef": "sys.nvarchar"
+        },
+        {
+          "Name": "DisplayName",
+          "TypeRef": "sys.nvarchar"
+        },
+        {
+          "Name": "CreatedAt",
+          "TypeRef": "sys.datetime2"
+        },
+        {
+          "Name": "Bio",
+          "TypeRef": "sys.nvarchar"
+        }
+      ]
+    }
+  ]
+}

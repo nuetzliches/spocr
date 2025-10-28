@@ -282,27 +282,32 @@ public class SpocrManager(
 
     public async Task<ExecuteResultEnum> BuildAsync(ICommandOptions options)
     {
-        // Detect dual/next mode early (do not impact legacy build logic until after legacy generation for dual)
-        var genMode = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant();
-        if (string.IsNullOrWhiteSpace(genMode)) genMode = "dual"; // default bridge phase behavior
+        var workingDirectory = Utils.DirectoryUtils.GetWorkingDirectory();
+        EnvConfiguration envConfig;
+        try
+        {
+            envConfig = EnvConfiguration.Load(projectRoot: workingDirectory);
+        }
+        catch (Exception envEx)
+        {
+            consoleService.Error($"Failed to load environment configuration: {envEx.Message}");
+            return ExecuteResultEnum.Error;
+        }
+
+        await RunAutoUpdateAsync(options);
 
         if (!configFile.Exists())
         {
-            var genModeMissing = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant();
-            var envConn = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_DB");
-            if (genModeMissing is "dual" or "next" && !string.IsNullOrWhiteSpace(envConn))
-            {
-                consoleService.Warn("[bridge] spocr.json missing Ã¢â‚¬â€œ build proceeding using .env values.");
-            }
-            else
+            if (string.IsNullOrWhiteSpace(envConfig.GeneratorConnectionString))
             {
                 consoleService.Error("Configuration file not found");
                 consoleService.Output($"\tTo create a configuration file, run '{Constants.Name} init'");
                 return ExecuteResultEnum.Error;
             }
-        }
 
-        await RunAutoUpdateAsync(options);
+            consoleService.Warn("[bridge] spocr.json missing – skipping legacy DataContext build (using .env values only).");
+            return ExecuteResultEnum.Succeeded;
+        }
 
         if (await RunConfigVersionCheckAsync(options) == ExecuteResultEnum.Aborted)
             return ExecuteResultEnum.Aborted;
@@ -354,14 +359,14 @@ public class SpocrManager(
                 {
                     var working = Utils.DirectoryUtils.GetWorkingDirectory();
                     var outputBase = Utils.DirectoryUtils.GetWorkingDirectory(project.Output?.DataContext?.Path ?? "(null)");
-                    consoleService.Verbose($"[diag-build] workingDir={working} outputBase={outputBase} genMode={genMode}");
+                    consoleService.Verbose($"[diag-build] workingDir={working} outputBase={outputBase} genMode={envConfig.GeneratorMode}");
                 }
                 catch { }
             }
             // Ensure snapshot presence (required for metadata-driven generation) Ã¢â‚¬â€œ but still require connection now (no offline mode)
             try
             {
-                var working = Utils.DirectoryUtils.GetWorkingDirectory();
+                var working = workingDirectory;
                 var schemaDir = System.IO.Path.Combine(working, ".spocr", "schema");
                 if (!System.IO.Directory.Exists(schemaDir) || System.IO.Directory.GetFiles(schemaDir, "*.json").Length == 0)
                 {
@@ -410,12 +415,12 @@ public class SpocrManager(
             consoleService.PrintTotal($"Total elapsed time: {totalElapsed} ms.");
 
 
-            // Invoke vNext pipeline in dual/next mode: real TableTypes generation (always-on)
-            if (genMode == "dual" || genMode == "next")
+            // Invoke vNext pipeline: real TableTypes generation (always-on in next mode)
+            if (envConfig.GeneratorMode == "next")
             {
                 try
                 {
-                    consoleService.PrintSubTitle($"vNext ({genMode}) Ã¢â‚¬â€œ TableTypes");
+                    consoleService.PrintSubTitle($"vNext ({envConfig.GeneratorMode}) Ã¢â‚¬â€œ TableTypes");
                     var targetProjectRoot = Utils.DirectoryUtils.GetWorkingDirectory(); // Zielprojekt (enthÃƒÂ¤lt .spocr)
                     var cfg = EnvConfiguration.Load(projectRoot: targetProjectRoot);
                     var renderer = new SimpleTemplateEngine();

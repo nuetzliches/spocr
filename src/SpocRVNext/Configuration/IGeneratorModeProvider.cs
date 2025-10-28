@@ -1,10 +1,7 @@
-using System;
-
 namespace SpocRVNext.Configuration;
 
 /// <summary>
-/// Provides the current generator mode (legacy | dual | next) to vNext generators.
-/// Abstracted for deterministic unit testing without relying on ambient environment variables.
+/// Provides the current generator mode to vNext generators while remaining injectable for tests.
 /// </summary>
 public interface IGeneratorModeProvider
 {
@@ -12,17 +9,9 @@ public interface IGeneratorModeProvider
 }
 
 /// <summary>
-/// Default implementation reading the process environment variable SPOCR_GENERATOR_MODE (default dual).
+/// Default implementation representing the enforced next-only mode.
 /// </summary>
 public sealed class EnvGeneratorModeProvider : IGeneratorModeProvider
 {
-    public string Mode
-    {
-        get
-        {
-            var mode = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant();
-            if (string.IsNullOrWhiteSpace(mode)) mode = "dual"; // default bridge behavior
-            return mode!;
-        }
-    }
+    public string Mode => "next";
 }

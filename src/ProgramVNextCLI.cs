@@ -28,24 +28,14 @@ internal static class ProgramVNextCLI
             TreatUnmatchedTokensAsErrors = true
         };
 
-        var modeOption = new Option<string>(
-            name: "--mode",
-            description: "Generator mode (legacy|dual|next). Overrides SPOCR_GENERATOR_MODE if supplied.");
         var pathOption = new Option<string>(
             name: "--path",
             description: "Execution / project path to operate on (for init-env / namespace derivation). Defaults to current directory.");
         var forceOption = new Option<bool>(
             name: "--force",
             description: "Force overwrite existing target file (for init-env)");
-        var procedureOption = new Option<string>(
-            name: "--procedure",
-            description: "Process only specific procedures (comma-separated, format: schema.procedurename)");
-
-        var demoCommand = new Command("generate-demo", "Run a demo template render using the vNext generator")
-        {
-            modeOption
-        };
-        demoCommand.SetHandler((string? mode, string? path) =>
+        var demoCommand = new Command("generate-demo", "Run a demo template render using the vNext generator");
+        demoCommand.SetHandler((string? path) =>
             {
                 // Build lightweight service provider per invocation (cheap here; can be cached if expanded)
                 var services = new ServiceCollection();
@@ -56,14 +46,12 @@ internal static class ProgramVNextCLI
                 var start = DateTime.UtcNow;
                 bool success = false;
                 string resolvedMode = "";
-                var envOverrides = new System.Collections.Generic.Dictionary<string, string?>();
-                if (!string.IsNullOrWhiteSpace(mode)) envOverrides["SPOCR_GENERATOR_MODE"] = mode;
                 string? pr = null;
                 if (!string.IsNullOrWhiteSpace(path))
                 {
                     pr = System.IO.Path.GetFullPath(path);
                 }
-                var cfg = EnvConfiguration.Load(projectRoot: pr, cliOverrides: envOverrides, explicitConfigPath: path);
+                var cfg = EnvConfiguration.Load(projectRoot: pr, explicitConfigPath: path);
                 resolvedMode = cfg.GeneratorMode;
                 var renderer = provider.GetRequiredService<SpocR.SpocRVNext.Engine.ITemplateRenderer>();
                 var gen = new SpocRGenerator(renderer, schemaProviderFactory: () => new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider());
@@ -75,29 +63,24 @@ internal static class ProgramVNextCLI
                     mode: resolvedMode,
                     duration: DateTime.UtcNow - start,
                     success: success));
-            }, modeOption, pathOption);
+            }, pathOption);
 
         root.Add(demoCommand);
 
-        var generateNextCommand = new Command("generate-next", "Generate demo outputs (legacy/next) and hash manifest (experimental)")
-        {
-            modeOption
-        };
-        generateNextCommand.SetHandler((string? mode, string? path) =>
+        var generateNextCommand = new Command("generate-next", "Generate demo outputs (next-only) and hash manifest (experimental)");
+        generateNextCommand.SetHandler((string? path) =>
         {
             var services = new ServiceCollection();
             services.AddSingleton<SpocR.SpocRVNext.Engine.ITemplateRenderer, SpocR.SpocRVNext.Engine.SimpleTemplateEngine>();
             using var provider = services.BuildServiceProvider();
-            var envOverrides = new System.Collections.Generic.Dictionary<string, string?>();
-            if (!string.IsNullOrWhiteSpace(mode)) envOverrides["SPOCR_GENERATOR_MODE"] = mode;
             string? pr = null;
             if (!string.IsNullOrWhiteSpace(path)) pr = System.IO.Path.GetFullPath(path);
-            var cfg = EnvConfiguration.Load(projectRoot: pr, cliOverrides: envOverrides, explicitConfigPath: path);
+            var cfg = EnvConfiguration.Load(projectRoot: pr, explicitConfigPath: path);
             var dispatcher = new SpocR.SpocRVNext.DualGenerationDispatcher(cfg, provider.GetRequiredService<SpocR.SpocRVNext.Engine.ITemplateRenderer>());
             var message = dispatcher.ExecuteDemo();
             if (Verbose) Console.WriteLine(message);
             if (Verbose) Console.WriteLine("Hash manifest (if next output) written under debug/codegen-demo/next/manifest.hash.json");
-        }, modeOption, pathOption);
+        }, pathOption);
         root.Add(generateNextCommand);
 
         // golden-hash write command
@@ -131,16 +114,14 @@ internal static class ProgramVNextCLI
         var initEnv = new Command("init-env", "Create or update a .env in the target path (non-interactive unless --no-auto).")
         {
             pathOption,
-            forceOption,
-            modeOption
+            forceOption
         };
-        initEnv.SetHandler(async (string? path, bool force, string? mode) =>
+        initEnv.SetHandler(async (string? path, bool force) =>
         {
             var target = string.IsNullOrWhiteSpace(path) ? System.IO.Directory.GetCurrentDirectory() : System.IO.Path.GetFullPath(path!);
-            var desiredMode = string.IsNullOrWhiteSpace(mode) ? (Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE") ?? "dual") : mode!;
-            var envPath = await SpocR.SpocRVNext.Cli.EnvBootstrapper.EnsureEnvAsync(target, desiredMode, autoApprove: true, force: force);
+            var envPath = await SpocR.SpocRVNext.Cli.EnvBootstrapper.EnsureEnvAsync(target, autoApprove: true, force: force);
             if (Verbose) Console.WriteLine($"Initialized .env at: {envPath}");
-        }, pathOption, forceOption, modeOption);
+        }, pathOption, forceOption);
         root.Add(initEnv);
 
         var builder = new CommandLineBuilder(root)

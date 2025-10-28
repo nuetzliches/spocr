@@ -9,6 +9,7 @@ Current Snapshot Parser Version: 8 (recursive JSON type enrichment + pruning IsN
 - Transition from legacy DataContext generator to SpocRVNext
 - Dual generation until v5.0
 - Remove legacy code in v5.0 following cutover plan
+- Prepare successor repo `nuetzliches/xtraq` (namespace `Xtraq`, semantic version `1.0.0`) and ensure SpocR v4.5 references the new home post-freeze
 
 ## Phases
 
@@ -38,9 +39,10 @@ Note: "Removed" means loader/parser will ignore & no longer bind; warning verbos
 ## Dual CLI Strategy
 
 - Publish the frozen v4 CLI as the dotnet tool `spocrv4`. It continues to consume `spocr.json` and emit the legacy `DataContext/` structure, enabling projects to finish the cutover on their own timeline.
-- The v5 CLI keeps the `spocr` package name and runs solely against `.env` / `SPOCR_*` keys plus SnapshotBuilder artefacts.
-- Both CLIs install independently. There is no overlap in generated files, so validation runs can execute in parallel.
-- To steer users toward the migration path, `spocr` detects legacy artefacts (`spocr.json`, `DataContext/`, legacy outputs) and prints a warning linking to this document and `migration-v5.instructions`.
+- During the bridge phase the v5 CLI keeps the `spocr` package name and operates solely against `.env` / `SPOCR_*` keys plus SnapshotBuilder artefacts.
+- At cutover the modern CLI transitions to the new repository `nuetzliches/xtraq` and ships as tool/package `xtraq` (namespace `Xtraq`, version `1.0.0`) without historical SpocR references. The SpocR repository remains frozen at v4.5 and highlights Xtraq as the active successor.
+- All CLIs install independently. Throughout the transition `spocrv4`, `spocr` (bridge), and later `xtraq` can coexist without overlapping generated outputs.
+- To steer users toward the migration path, `spocr` detects legacy artefacts (`spocr.json`, `DataContext/`, legacy outputs) and prints a warning linking to this document, `migration-v5.instructions`, and (post-cutover) the Xtraq repository.
 
 ## Configuration Changes
 
@@ -65,8 +67,6 @@ Removed (planned / already removed):
 ### Example `.env` (Generator Scope Only – Draft)
 
 ```
-# Generator mode (legacy|dual|next) – generation scope only
-SPOCR_GENERATOR_MODE=dual
 # Optional namespace override (if auto namespace not desired)
 SPOCR_NAMESPACE=MyCompany.Project.Data
 
@@ -115,7 +115,6 @@ After (bridge phase v4.5 – generator only, runtime via DI):
 
 ```
 # .env (generator only)
-SPOCR_GENERATOR_MODE=dual
 # Optional override
 SPOCR_NAMESPACE=MyCompany.App.Data
 
@@ -131,15 +130,13 @@ Consequence: remove `role.kind`; no new ENV variable for DB connections; output 
 ### CLI Help (Draft Excerpt)
 
 ```
-spocr generate [--mode <legacy|dual|next>] [--output <dir>] [--no-validation]
+spocr generate [--output <dir>] [--no-validation]
 
 Environment:
-  SPOCR_GENERATOR_MODE   Overrides generator selection if --mode omitted (Generator Scope).
   SPOCR_NAMESPACE        Explicit namespace root (optional, generator scope).
 
 Notes:
-  - In dual mode both legacy and next outputs are produced.
-  - In v5.0 default mode changes from 'dual' to 'next'.
+  - Generator runs in next-only mode.
   - `spocr.json` fallback removed in v5.0; warnings introduced shortly before removal.
 
 ### Versioned Documentation Plan
@@ -181,8 +178,8 @@ Notes:
 - New output is generated in parallel for observability (not to enforce bit‑for‑bit parity)
 - Principle: Quality & improved design of new output > strict non‑breaking parity. Breaking changes are acceptable when documented & justified.
 - Guard rails / Tasks (updated):
-  - Feature flag: env `SPOCR_GENERATOR_MODE=dual|legacy|next` (default in v4.5 = `dual`)
-  - CLI flag: `spocr generate --mode <mode>` (falls back to env)
+  - Generator mode toggles removed: pipeline always emits next output.
+  - CLI no longer accepts `--mode`; ensure `.env` exists before running generation.
   - Idempotency focus applies only to each generator individually (legacy determinism, new determinism) – no requirement for cross-generator identical hash
   - Diff report may highlight differences but is informational; CI must NOT fail solely on semantic/structural improvements
   - Allow‑list file `.spocr-diff-allow` (glob) optional; can silence known churn while refactoring internals (purely advisory now)
@@ -210,6 +207,14 @@ Notes:
 - Remove legacy generator & output
 - Move stable next modules into `src/`
 - Remove obsolete markers
+
+## Post-Migration Successor (Xtraq 1.0.0)
+
+- Repository: `nuetzliches/xtraq` beherbergt den fortgeführten Codegenerator.
+- Namespace: Standard-Namespace lautet `Xtraq`; Generator, Templates und Samples verwenden keine `SpocR`-Präfixe mehr.
+- Versionierung: Start mit `1.0.0`, semantische Versionierung fortlaufend über das neue Repository.
+- Historie: Keine Legacy-Referenzen im neuen Projekt; Dokumentation fokussiert ausschließlich auf den Xtraq-Funktionsumfang.
+- Freeze-Hinweis: Das SpocR-Repository bleibt bei v4.5 eingefroren und verweist in README, CHANGELOG sowie Auto-Updater-Hinweisen auf das Xtraq-Projekt.
 
 ## Decisions (Resolved Former Open Points)
 
@@ -426,12 +431,10 @@ Documentation:
 - Per-module override mechanism (future): Optional key in config `generation.namespaceOverride` (scoped) – not required for initial release.
 - Fallback: `SpocR.Generated` only if resolution fails (should be extremely rare and treated as warning).
 
-### CLI Flags (Generator Mode)
+### Generator Mode Status
 
-- Single flag: `--mode <legacy|dual|next>` on `spocr pull/build/rebuild`.
-- Environment variable precedence: `SPOCR_GENERATOR_MODE` used if flag omitted.
-- Default (4.5 prerelease series): `dual`.
-- Default (5.0+ after cutover): `next` (legacy path removed).
+- Mode flag and environment variable removed; CLI always executes in next-only mode.
+- Legacy pipeline outputs are no longer produced by default commands.
 
 ### Template Engine Scope (Initial)
 

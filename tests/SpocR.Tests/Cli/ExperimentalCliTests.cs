@@ -14,14 +14,14 @@ public class ExperimentalCliTests
         Environment.SetEnvironmentVariable("SPOCR_EXPERIMENTAL_CLI", "1");
         try
         {
-            // Ensure .env exists with marker so 'next' mode validation passes
+            // Ensure .env exists with marker so namespace prompt stays silent
             var envPath = Path.Combine(Directory.GetCurrentDirectory(), ".env");
             if (!File.Exists(envPath))
             {
-                File.WriteAllText(envPath, "SPOCR_GENERATOR_MODE=next\n# SPOCR_NAMESPACE placeholder\n");
+                File.WriteAllText(envPath, "# SPOCR_NAMESPACE placeholder\n");
             }
             // Act
-            var exit = await SpocR.Program.RunCliAsync(new[] { "generate-demo", "--mode", "next" });
+            var exit = await SpocR.Program.RunCliAsync(new[] { "generate-demo" });
 
             // Assert (System.CommandLine returns 0 on success)
             Assert.Equal(0, exit);

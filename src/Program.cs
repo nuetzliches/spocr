@@ -164,12 +164,6 @@ public class Program
             var explicitCfg = Environment.GetEnvironmentVariable("SPOCR_CONFIG_PATH");
             var envCfg = EnvConfiguration.Load(explicitConfigPath: explicitCfg);
             services.AddSingleton(envCfg);
-            var modeEnv = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE");
-            if (string.IsNullOrWhiteSpace(modeEnv))
-            {
-                try { Environment.SetEnvironmentVariable("SPOCR_GENERATOR_MODE", envCfg.GeneratorMode); }
-                catch { /* non-fatal */ }
-            }
         }
         catch (Exception ex)
         {

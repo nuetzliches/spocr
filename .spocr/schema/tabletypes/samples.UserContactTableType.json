@@ -1,0 +1,18 @@
+{
+  "Schema": "samples",
+  "Name": "UserContactTableType",
+  "Columns": [
+    {
+      "Name": "UserId",
+      "TypeRef": "sys.int"
+    },
+    {
+      "Name": "Email",
+      "TypeRef": "samples.EmailAddressType"
+    },
+    {
+      "Name": "DisplayName",
+      "TypeRef": "samples.DisplayNameType"
+    }
+  ]
+}
