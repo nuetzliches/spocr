@@ -19,10 +19,16 @@ public readonly record struct UserBioUpdateInput(
     string Bio
 );
 
+public readonly record struct UserBioUpdateResultSet1Result(
+    int UserId,
+    string Bio
+);
+
 public sealed class UserBioUpdateResult
 {
 	public bool Success { get; init; }
 	public string? Error { get; init; }
+	public IReadOnlyList<UserBioUpdateResultSet1Result> Result { get; init; } = Array.Empty<UserBioUpdateResultSet1Result>();
 	
 }
 
@@ -39,7 +45,14 @@ internal static partial class UserBioUpdatePlan
             new("@Bio", System.Data.DbType.String, 512, false, false),
         };
 
-	var resultSets = Array.Empty<ResultSetMapping>();
+	var resultSets = new ResultSetMapping[]
+	{
+            new("ResultSet1", async (r, ct) =>
+    {
+		var list = new System.Collections.Generic.List<object>(); int o0=ReaderUtil.TryGetOrdinal(r, "UserId"); int o1=ReaderUtil.TryGetOrdinal(r, "Bio"); while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new UserBioUpdateResultSet1Result(o0 < 0 ? default(int) : r.GetInt32(o0), o1 < 0 ? string.Empty : (r.IsDBNull(o1) ? string.Empty : r.GetString(o1)))); } return list;
+    }),
+
+        };
 
 		object? OutputFactory(IReadOnlyDictionary<string, object?> values) => null;
 		object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs)
@@ -47,7 +60,9 @@ internal static partial class UserBioUpdatePlan
 			return new UserBioUpdateResult
 			{
 				Success = success,
-				Error = error
+				Error = error,
+				// ResultSet 0 → Result (robust list/array handling)
+				Result = rs.Length > 0 && rs[0] is object[] rows0 ? Array.ConvertAll(rows0, o => (UserBioUpdateResultSet1Result)o).ToList() : (rs.Length > 0 && rs[0] is System.Collections.Generic.List<object> list0 ? Array.ConvertAll(list0.ToArray(), o => (UserBioUpdateResultSet1Result)o).ToList() : Array.Empty<UserBioUpdateResultSet1Result>())
 			};
 		};
 		void Binder(DbCommand cmd, object? state)

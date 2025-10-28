@@ -19,7 +19,7 @@ public readonly record struct UserContactSyncInput(
 );
 
 public readonly record struct UserContactSyncResultSet1Result(
-    string UpdatedContacts,
+    int UpdatedContacts,
     string MissingContacts
 );
 
@@ -47,7 +47,7 @@ internal static partial class UserContactSyncPlan
 	{
             new("ResultSet1", async (r, ct) =>
     {
-		var list = new System.Collections.Generic.List<object>(); int o0=ReaderUtil.TryGetOrdinal(r, "UpdatedContacts"); int o1=ReaderUtil.TryGetOrdinal(r, "MissingContacts"); while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new UserContactSyncResultSet1Result(o0 < 0 ? string.Empty : (r.IsDBNull(o0) ? string.Empty : r.GetString(o0)), o1 < 0 ? string.Empty : (r.IsDBNull(o1) ? string.Empty : r.GetString(o1)))); } return list;
+		var list = new System.Collections.Generic.List<object>(); int o0=ReaderUtil.TryGetOrdinal(r, "UpdatedContacts"); int o1=ReaderUtil.TryGetOrdinal(r, "MissingContacts"); while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new UserContactSyncResultSet1Result(o0 < 0 ? default(int) : r.GetInt32(o0), o1 < 0 ? string.Empty : (r.IsDBNull(o1) ? string.Empty : r.GetString(o1)))); } return list;
     }),
 
         };

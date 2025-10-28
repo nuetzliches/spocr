@@ -1,6 +1,6 @@
 {
   "SchemaVersion": 1,
-  "Fingerprint": "83A740CF1211352A",
+  "Fingerprint": "AD3EF01F17077949",
   "Parser": {
     "ToolVersion": "net9.0",
     "ResultSetParserVersion": 8
@@ -20,61 +20,61 @@
       "Schema": "samples",
       "Name": "CreateUserWithOutput",
       "File": "samples.CreateUserWithOutput.json",
-      "Hash": "579742B6B5F24183"
+      "Hash": "3FC002D7CBD16290"
     },
     {
       "Schema": "samples",
       "Name": "OrderListAsJson",
       "File": "samples.OrderListAsJson.json",
-      "Hash": "6F93EDABFB3A1F2E"
+      "Hash": "AD078B82BE051E2F"
     },
     {
       "Schema": "samples",
       "Name": "OrderListByUserAsJson",
       "File": "samples.OrderListByUserAsJson.json",
-      "Hash": "65F1B9743EBCCB0D"
+      "Hash": "1D0B9FE05113AAFF"
     },
     {
       "Schema": "samples",
       "Name": "SumWithOutput",
       "File": "samples.SumWithOutput.json",
-      "Hash": "53E4BA6224024F61"
+      "Hash": "FBA7DA753C406D86"
     },
     {
       "Schema": "samples",
       "Name": "UserBioUpdate",
       "File": "samples.UserBioUpdate.json",
-      "Hash": "65C6637194EFB398"
+      "Hash": "2CF5C74601C49BD7"
     },
     {
       "Schema": "samples",
       "Name": "UserContactSync",
       "File": "samples.UserContactSync.json",
-      "Hash": "D79CD7561A03CD94"
+      "Hash": "7000CF906B383F2E"
     },
     {
       "Schema": "samples",
       "Name": "UserDetailsWithOrders",
       "File": "samples.UserDetailsWithOrders.json",
-      "Hash": "3EE23576DF6E314C"
+      "Hash": "057BD352862A7BFD"
     },
     {
       "Schema": "samples",
       "Name": "UserFind",
       "File": "samples.UserFind.json",
-      "Hash": "FE609DB97E6823FE"
+      "Hash": "86A1A9ED0CB8BD09"
     },
     {
       "Schema": "samples",
       "Name": "UserList",
       "File": "samples.UserList.json",
-      "Hash": "75DB646970FB253F"
+      "Hash": "7AF1BDE9DFD6B2BF"
     },
     {
       "Schema": "samples",
       "Name": "UserOrderHierarchyJson",
       "File": "samples.UserOrderHierarchyJson.json",
-      "Hash": "28AF5E4CFE0626E2"
+      "Hash": "6F05973DB6F2C679"
     }
   ],
   "TableTypes": [

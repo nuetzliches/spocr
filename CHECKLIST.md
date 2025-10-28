@@ -76,7 +76,7 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 - [ ] Namespace-Kollisionstests für konsolidierte Outputs (Multi-ResultSet) ergänzen.
 - [ ] Test-Hosts Cleanup in Doku/CI verankern.
 - [ ] Review-Findings (Konzeptfehler, unsauberer Code, Unschärfen, fehlende Tests/Qualität) laufend pflegen und priorisieren.
-  - [!] RestApi-Sample kompiliert nicht mehr nach Result-Typ-Umstellung (`UserListResult` ohne `.Result`); Endpunkte sind vorübergehend per `#if false` deaktiviert. Sample-Code anpassen oder Legacy-Brücke ergänzen.
+  - [x] RestApi-Sample kompiliert nach Result-Typ-Refresh (`dotnet build samples/restapi/RestApi.csproj -c Debug`, 2025-10-28). Endpunkte bleiben bewusst per `#if false` deaktiviert, bis JSON-Aggregate finalisiert sind.
 
 ## Dokumentation & Kommunikation
 

@@ -4,20 +4,27 @@
   "Parameters": [],
   "ResultSets": [
     {
-      "Json": {
-        "IsArray": true,
-        "RootProperty": "Users"
-      },
+      "ReturnsJson": true,
+      "ReturnsJsonArray": true,
+      "JsonRootProperty": "Users",
       "Columns": [
-        {},
-        {},
-        {},
+        {
+          "Name": "UserId",
+          "TypeRef": "sys.int"
+        },
+        {
+          "Name": "DisplayName",
+          "TypeRef": "sys.nvarchar"
+        },
+        {
+          "Name": "Email",
+          "TypeRef": "sys.nvarchar"
+        },
         {
           "Name": "Orders",
-          "Json": {
-            "IsArray": true,
-            "RootProperty": "Users"
-          }
+          "ReturnsJson": true,
+          "ReturnsJsonArray": true,
+          "JsonRootProperty": "Users"
         }
       ]
     }

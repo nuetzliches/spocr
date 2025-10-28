@@ -23,11 +23,16 @@ public readonly record struct CreateUserWithOutputOutput(
     int? UserId
 );
 
+public readonly record struct CreateUserWithOutputResultSet1Result(
+    string CreatedUserId
+);
+
 public sealed class CreateUserWithOutputResult
 {
 	public bool Success { get; init; }
 	public string? Error { get; init; }
 	public CreateUserWithOutputOutput? Output { get; init; }
+	public IReadOnlyList<CreateUserWithOutputResultSet1Result> Result { get; init; } = Array.Empty<CreateUserWithOutputResultSet1Result>();
 	
 }
 
@@ -42,10 +47,17 @@ internal static partial class CreateUserWithOutputPlan
 	{
             new("@DisplayName", System.Data.DbType.String, 128, false, false),
             new("@Email", System.Data.DbType.String, 256, false, false),
-            new("@UserId", System.Data.DbType.Int32, 4, true, true),
+            new("@UserId", System.Data.DbType.Int32, null, true, true),
         };
 
-	var resultSets = Array.Empty<ResultSetMapping>();
+	var resultSets = new ResultSetMapping[]
+	{
+            new("ResultSet1", async (r, ct) =>
+    {
+		var list = new System.Collections.Generic.List<object>(); int o0=ReaderUtil.TryGetOrdinal(r, "CreatedUserId"); while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new CreateUserWithOutputResultSet1Result(o0 < 0 ? string.Empty : (r.IsDBNull(o0) ? string.Empty : r.GetString(o0)))); } return list;
+    }),
+
+        };
 
 		object? OutputFactory(IReadOnlyDictionary<string, object?> values) => new CreateUserWithOutputOutput(values.TryGetValue("UserId", out var v_UserId) ? (int?)v_UserId : default);
 		object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs)
@@ -54,7 +66,9 @@ internal static partial class CreateUserWithOutputPlan
 			{
 				Success = success,
 				Error = error,
-				Output = (CreateUserWithOutputOutput?)output
+				Output = (CreateUserWithOutputOutput?)output,
+				// ResultSet 0 → Result (robust list/array handling)
+				Result = rs.Length > 0 && rs[0] is object[] rows0 ? Array.ConvertAll(rows0, o => (CreateUserWithOutputResultSet1Result)o).ToList() : (rs.Length > 0 && rs[0] is System.Collections.Generic.List<object> list0 ? Array.ConvertAll(list0.ToArray(), o => (CreateUserWithOutputResultSet1Result)o).ToList() : Array.Empty<CreateUserWithOutputResultSet1Result>())
 			};
 		};
 		void Binder(DbCommand cmd, object? state)

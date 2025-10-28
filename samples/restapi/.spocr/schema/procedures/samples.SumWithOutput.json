@@ -5,33 +5,33 @@
     {
       "Name": "A",
       "TypeRef": "sys.int",
-      "IsNullable": true,
-      "MaxLength": 4,
-      "Precision": 10
+      "IsNullable": true
     },
     {
       "Name": "B",
       "TypeRef": "sys.int",
-      "IsNullable": true,
-      "MaxLength": 4,
-      "Precision": 10
+      "IsNullable": true
     },
     {
       "Name": "Sum",
       "TypeRef": "sys.int",
       "IsNullable": true,
-      "MaxLength": 4,
-      "Precision": 10,
       "IsOutput": true
     },
     {
       "Name": "Success",
       "TypeRef": "sys.bit",
       "IsNullable": true,
-      "MaxLength": 1,
-      "Precision": 1,
       "IsOutput": true
     }
   ],
-  "ResultSets": []
+  "ResultSets": [
+    {
+      "Columns": [
+        {
+          "Name": "Result"
+        }
+      ]
+    }
+  ]
 }

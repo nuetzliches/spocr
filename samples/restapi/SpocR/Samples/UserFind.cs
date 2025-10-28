@@ -18,10 +18,19 @@ public readonly record struct UserFindInput(
     int? UserId
 );
 
+public readonly record struct UserFindResultSet1Result(
+    int UserId,
+    string Email,
+    string DisplayName,
+    DateTime CreatedAt,
+    string Bio
+);
+
 public sealed class UserFindResult
 {
 	public bool Success { get; init; }
 	public string? Error { get; init; }
+	public IReadOnlyList<UserFindResultSet1Result> Result { get; init; } = Array.Empty<UserFindResultSet1Result>();
 	
 }
 
@@ -37,7 +46,14 @@ internal static partial class UserFindPlan
             new("@UserId", System.Data.DbType.Int32, null, false, true),
         };
 
-	var resultSets = Array.Empty<ResultSetMapping>();
+	var resultSets = new ResultSetMapping[]
+	{
+            new("ResultSet1", async (r, ct) =>
+    {
+		var list = new System.Collections.Generic.List<object>(); int o0=ReaderUtil.TryGetOrdinal(r, "UserId"); int o1=ReaderUtil.TryGetOrdinal(r, "Email"); int o2=ReaderUtil.TryGetOrdinal(r, "DisplayName"); int o3=ReaderUtil.TryGetOrdinal(r, "CreatedAt"); int o4=ReaderUtil.TryGetOrdinal(r, "Bio"); while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new UserFindResultSet1Result(o0 < 0 ? default(int) : r.GetInt32(o0), o1 < 0 ? string.Empty : (r.IsDBNull(o1) ? string.Empty : r.GetString(o1)), o2 < 0 ? string.Empty : (r.IsDBNull(o2) ? string.Empty : r.GetString(o2)), o3 < 0 ? default(DateTime) : r.GetDateTime(o3), o4 < 0 ? string.Empty : (r.IsDBNull(o4) ? string.Empty : r.GetString(o4)))); } return list;
+    }),
+
+        };
 
 		object? OutputFactory(IReadOnlyDictionary<string, object?> values) => null;
 		object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs)
@@ -45,7 +61,9 @@ internal static partial class UserFindPlan
 			return new UserFindResult
 			{
 				Success = success,
-				Error = error
+				Error = error,
+				// ResultSet 0 → Result (robust list/array handling)
+				Result = rs.Length > 0 && rs[0] is object[] rows0 ? Array.ConvertAll(rows0, o => (UserFindResultSet1Result)o).ToList() : (rs.Length > 0 && rs[0] is System.Collections.Generic.List<object> list0 ? Array.ConvertAll(list0.ToArray(), o => (UserFindResultSet1Result)o).ToList() : Array.Empty<UserFindResultSet1Result>())
 			};
 		};
 		void Binder(DbCommand cmd, object? state)

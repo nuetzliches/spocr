@@ -4,22 +4,26 @@
   "Parameters": [
     {
       "Name": "DisplayName",
-      "TypeRef": "samples.DisplayNameType",
-      "MaxLength": 128
+      "TypeRef": "samples.DisplayNameType"
     },
     {
       "Name": "Email",
-      "TypeRef": "samples.EmailAddressType",
-      "MaxLength": 256
+      "TypeRef": "samples.EmailAddressType"
     },
     {
       "Name": "UserId",
       "TypeRef": "sys.int",
       "IsNullable": true,
-      "MaxLength": 4,
-      "Precision": 10,
       "IsOutput": true
     }
   ],
-  "ResultSets": []
+  "ResultSets": [
+    {
+      "Columns": [
+        {
+          "Name": "CreatedUserId"
+        }
+      ]
+    }
+  ]
 }

@@ -15,8 +15,14 @@
   "ResultSets": [
     {
       "Columns": [
-        {},
-        {}
+        {
+          "Name": "UserId",
+          "TypeRef": "sys.int"
+        },
+        {
+          "Name": "Bio",
+          "TypeRef": "sys.nvarchar"
+        }
       ]
     }
   ]

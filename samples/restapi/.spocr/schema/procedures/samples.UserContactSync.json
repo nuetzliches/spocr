@@ -11,7 +11,8 @@
     {
       "Columns": [
         {
-          "Name": "UpdatedContacts"
+          "Name": "UpdatedContacts",
+          "TypeRef": "sys.int"
         },
         {
           "Name": "MissingContacts"

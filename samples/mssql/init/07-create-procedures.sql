@@ -6,7 +6,12 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT UserId, Email, DisplayName, CreatedAt, Bio
+    SELECT
+        UserId      = CAST(UserId AS INT),
+        Email       = CAST(Email AS NVARCHAR(256)),
+        DisplayName = CAST(DisplayName AS NVARCHAR(128)),
+        CreatedAt   = CAST(CreatedAt AS DATETIME2(7)),
+        Bio         = CAST(Bio AS NVARCHAR(512))
     FROM samples.Users
     ORDER BY DisplayName;
 END
@@ -18,7 +23,12 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    SELECT UserId, Email, DisplayName, CreatedAt, Bio
+    SELECT
+        UserId      = CAST(UserId AS INT),
+        Email       = CAST(Email AS NVARCHAR(256)),
+        DisplayName = CAST(DisplayName AS NVARCHAR(128)),
+        CreatedAt   = CAST(CreatedAt AS DATETIME2(7)),
+        Bio         = CAST(Bio AS NVARCHAR(512))
     FROM samples.Users
     WHERE UserId = @UserId;
 END
@@ -30,13 +40,13 @@ BEGIN
     SET NOCOUNT ON;
 
     SELECT
-        u.UserId,
-        u.DisplayName,
-        u.Email,
-        o.OrderId,
-        o.TotalAmount,
-        o.PlacedAt,
-        o.Notes
+        UserId      = CAST(u.UserId AS INT),
+        DisplayName = CAST(u.DisplayName AS NVARCHAR(128)),
+        Email       = CAST(u.Email AS NVARCHAR(256)),
+        OrderId     = CAST(o.OrderId AS INT),
+        TotalAmount = CAST(o.TotalAmount AS DECIMAL(18, 2)),
+        PlacedAt    = CAST(o.PlacedAt AS DATETIME2(7)),
+        Notes       = CAST(o.Notes AS NVARCHAR(1024))
     FROM samples.Users AS u
         LEFT JOIN samples.Orders AS o ON o.UserId = u.UserId
     ORDER BY u.UserId, o.PlacedAt
@@ -52,13 +62,13 @@ BEGIN
     SET NOCOUNT ON;
 
     SELECT
-        u.UserId,
-        u.DisplayName,
-        u.Email,
-        o.OrderId,
-        o.TotalAmount,
-        o.PlacedAt,
-        o.Notes
+        UserId      = CAST(u.UserId AS INT),
+        DisplayName = CAST(u.DisplayName AS NVARCHAR(128)),
+        Email       = CAST(u.Email AS NVARCHAR(256)),
+        OrderId     = CAST(o.OrderId AS INT),
+        TotalAmount = CAST(o.TotalAmount AS DECIMAL(18, 2)),
+        PlacedAt    = CAST(o.PlacedAt AS DATETIME2(7)),
+        Notes       = CAST(o.Notes AS NVARCHAR(1024))
     FROM samples.Users AS u
         LEFT JOIN samples.Orders AS o ON o.UserId = u.UserId
     WHERE u.UserId = @UserId
@@ -75,19 +85,19 @@ BEGIN
     SET NOCOUNT ON;
 
     SELECT
-        u.UserId,
-        u.DisplayName,
-        u.Email,
-        u.CreatedAt,
-        u.Bio
+        UserId      = CAST(u.UserId AS INT),
+        DisplayName = CAST(u.DisplayName AS NVARCHAR(128)),
+        Email       = CAST(u.Email AS NVARCHAR(256)),
+        CreatedAt   = CAST(u.CreatedAt AS DATETIME2(7)),
+        Bio         = CAST(u.Bio AS NVARCHAR(512))
     FROM samples.Users AS u
     WHERE u.UserId = @UserId;
 
     SELECT
-        o.OrderId,
-        o.TotalAmount,
-        o.PlacedAt,
-        o.Notes
+        OrderId     = CAST(o.OrderId AS INT),
+        TotalAmount = CAST(o.TotalAmount AS DECIMAL(18, 2)),
+        PlacedAt    = CAST(o.PlacedAt AS DATETIME2(7)),
+        Notes       = CAST(o.Notes AS NVARCHAR(1024))
     FROM samples.Orders AS o
     WHERE o.UserId = @UserId
     ORDER BY o.PlacedAt;
@@ -100,15 +110,15 @@ BEGIN
     SET NOCOUNT ON;
 
     SELECT
-        u.UserId,
-        u.DisplayName,
-        u.Email,
+        UserId      = CAST(u.UserId AS INT),
+        DisplayName = CAST(u.DisplayName AS NVARCHAR(128)),
+        Email       = CAST(u.Email AS NVARCHAR(256)),
         Orders = (
             SELECT
-                o.OrderId,
-                o.TotalAmount,
-                o.PlacedAt,
-                o.Notes
+                OrderId     = CAST(o.OrderId AS INT),
+                TotalAmount = CAST(o.TotalAmount AS DECIMAL(18, 2)),
+                PlacedAt    = CAST(o.PlacedAt AS DATETIME2(7)),
+                Notes       = CAST(o.Notes AS NVARCHAR(1024))
             FROM samples.Orders AS o
             WHERE o.UserId = u.UserId
             ORDER BY o.PlacedAt
@@ -131,7 +141,9 @@ BEGIN
     SET Bio = @Bio
     WHERE UserId = @UserId;
 
-    SELECT UserId, Bio
+    SELECT
+        UserId = CAST(UserId AS INT),
+        Bio    = CAST(Bio AS NVARCHAR(512))
     FROM samples.Users
     WHERE UserId = @UserId;
 END
@@ -153,7 +165,7 @@ BEGIN
     DECLARE @updated INT = @@ROWCOUNT;
 
     SELECT
-        UpdatedContacts = @updated,
+        UpdatedContacts = CAST(@updated AS INT),
         MissingContacts = (
             SELECT COUNT(*)
             FROM @Contacts AS c
