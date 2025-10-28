@@ -38,7 +38,7 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 - [x] Parallelbetrieb alter/neuer Output abgeschlossen; deterministische Hashes sichern den vereinheitlichten Generator.
 - [x] `.env`-Migration samt Bootstrap und Warnpfad umgesetzt (README aktualisiert).
 - [x] Golden-Hash-Pipeline & Diff-Reporting aktiv (Relaxed Mode, CLI-Befehle `write-golden`/`verify-golden`).
-- [>] Sample `samples/restapi` baut und besteht CRUD-Smoke über die neue Pipeline. (Blocker: neue Result-Typen ohne `.Result`-Alias im Sample aktualisieren; debug/ rebuild wieder grün seit 2025-10-28 nach Fix im StoredProcedureGenerator)
+- [x] Sample `samples/restapi` baut und besteht CRUD-Smoke über die neue Pipeline.
 
 ## Roadmap & Migration (Abgleich mit `src/SpocRVNext/CHECKLIST.md`)
 
