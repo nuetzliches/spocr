@@ -541,15 +541,6 @@ internal sealed class SchemaArtifactWriter
 
             if (astResult?.ReturnsJson == true)
             {
-                writer.WritePropertyName("Json");
-                writer.WriteStartObject();
-                writer.WriteBoolean("IsArray", astResult.ReturnsJsonArray);
-                if (!string.IsNullOrWhiteSpace(astResult.JsonRoot))
-                {
-                    writer.WriteString("RootProperty", astResult.JsonRoot);
-                }
-
-                writer.WriteEndObject();
                 writer.WriteBoolean("ReturnsJson", true);
                 if (astResult.ReturnsJsonArray)
                 {

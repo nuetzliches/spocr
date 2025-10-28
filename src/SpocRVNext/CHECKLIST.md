@@ -33,7 +33,8 @@
 ## SnapshotBuilder & Analyzer (siehe `src/SpocRVNext/SnapshotBuilder/CHECKLIST.md`)
 
 - [ ] Tests und Golden Snapshots anheben, Legacy-Brücke abbauen.
-- [ ] Obsolete Snapshot-Felder entfernen und Konsumenten migrieren.
+- [~] Obsolete Snapshot-Felder entfernen und Konsumenten migrieren.
+  - SchemaSnapshotService & SchemaMetadataProvider nutzen nur noch flattening; Writer/Tests noch offen.
 - [ ] Analyzer-Verbesserungen & Diagnose-Läufe durchführen, Ergebnisse dokumentieren.
 - [ ] Abschlusskriterien bestätigen (Determinism, vollständige Test-Suite).
 

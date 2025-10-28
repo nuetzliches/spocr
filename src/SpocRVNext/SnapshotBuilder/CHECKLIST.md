@@ -20,7 +20,8 @@
 ## Migration-gekoppelte Aufgaben (koordiniert mit `../CHECKLIST.md`)
 
 - [ ] Tests und Golden Snapshots in `SpocR.Tests` auf neue Artefakte anheben (`SchemaSnapshotService`, Determinism-Checks).
-- [ ] Obsolete Snapshot-Felder (`SnapshotResultColumn.JsonPath`, `JsonResult`, `DeferredJsonColumns`) entfernen und Downstream-Konsumenten migrieren.
+- [~] Obsolete Snapshot-Felder (`SnapshotResultColumn.JsonPath`, `JsonResult`, `DeferredJsonColumns`) entfernen und Downstream-Konsumenten migrieren.
+  - DTO & Metadata Loader aktualisiert; Writer/Tests stehen aus.
 - [ ] Eigenständige JSON-/Aggregate-Analyzer finalisieren (AVG/SUM/COUNT, Nested JSON, Exec Forwarding ohne Legacy-Parser).
 - [ ] Abschlusskriterien erfüllen: vollständige Test-Suite reaktivieren, Legacy-Brücke abbauen, Determinism-Checks grün.
 - [x] Snapshot-spezifische Schritte in `migration-v5.instructions` dokumentieren (ENV-Migration, neue Artefakte, CLI-Hinweise).

@@ -390,21 +390,12 @@ namespace SpocR.SpocRVNext.Metadata
                         JsonPayloadDescriptor? jsonPayload = null;
                         try
                         {
-                            if (rse.TryGetProperty("Json", out var jsonEl) && jsonEl.ValueKind == JsonValueKind.Object)
+                            var returnsJson = rse.GetPropertyOrDefaultBool("ReturnsJson");
+                            var returnsJsonArray = rse.GetPropertyOrDefaultBool("ReturnsJsonArray");
+                            var root = rse.GetPropertyOrDefault("JsonRootProperty");
+                            if (returnsJson || returnsJsonArray || !string.IsNullOrWhiteSpace(root))
                             {
-                                var isArray = jsonEl.GetPropertyOrDefaultBool("IsArray");
-                                var root = jsonEl.GetPropertyOrDefault("RootProperty");
-                                jsonPayload = new JsonPayloadDescriptor(isArray, string.IsNullOrWhiteSpace(root) ? null : root);
-                            }
-                            else
-                            {
-                                var legacyReturnsJson = rse.GetPropertyOrDefaultBool("ReturnsJson");
-                                var legacyReturnsJsonArray = rse.GetPropertyOrDefaultBool("ReturnsJsonArray");
-                                var legacyRoot = rse.GetPropertyOrDefault("JsonRootProperty");
-                                if (legacyReturnsJson || legacyReturnsJsonArray || !string.IsNullOrWhiteSpace(legacyRoot))
-                                {
-                                    jsonPayload = new JsonPayloadDescriptor(legacyReturnsJsonArray, string.IsNullOrWhiteSpace(legacyRoot) ? null : legacyRoot);
-                                }
+                                jsonPayload = new JsonPayloadDescriptor(returnsJsonArray, string.IsNullOrWhiteSpace(root) ? null : root);
                             }
                         }
                         catch { /* best effort */ }
@@ -520,21 +511,12 @@ namespace SpocR.SpocRVNext.Metadata
                                             if (rin.ValueKind == JsonValueKind.True) returnIsNullable = true; else if (rin.ValueKind == JsonValueKind.False) returnIsNullable = false; // speichern nur falls vorhanden
                                         }
                                         JsonPayloadDescriptor? jsonPayload = null;
-                                        if (root.TryGetProperty("Json", out var jsonEl) && jsonEl.ValueKind == JsonValueKind.Object)
+                                        var returnsJson = root.GetPropertyOrDefaultBool("ReturnsJson");
+                                        var returnsJsonArray = root.GetPropertyOrDefaultBool("ReturnsJsonArray");
+                                        var jsonRootProp = root.GetPropertyOrDefault("JsonRootProperty");
+                                        if (returnsJson || returnsJsonArray || !string.IsNullOrWhiteSpace(jsonRootProp))
                                         {
-                                            var isArray = jsonEl.GetPropertyOrDefaultBool("IsArray");
-                                            var jsonRootProp = jsonEl.GetPropertyOrDefault("RootProperty");
-                                            jsonPayload = new JsonPayloadDescriptor(isArray, string.IsNullOrWhiteSpace(jsonRootProp) ? null : jsonRootProp);
-                                        }
-                                        else
-                                        {
-                                            bool returnsJson = root.GetPropertyOrDefaultBool("ReturnsJson");
-                                            bool returnsJsonArray = root.GetPropertyOrDefaultBool("ReturnsJsonArray");
-                                            var legacyJsonRoot = root.GetPropertyOrDefault("JsonRootProperty");
-                                            if (returnsJson || returnsJsonArray || !string.IsNullOrWhiteSpace(legacyJsonRoot))
-                                            {
-                                                jsonPayload = new JsonPayloadDescriptor(returnsJsonArray, string.IsNullOrWhiteSpace(legacyJsonRoot) ? null : legacyJsonRoot);
-                                            }
+                                            jsonPayload = new JsonPayloadDescriptor(returnsJsonArray, string.IsNullOrWhiteSpace(jsonRootProp) ? null : jsonRootProp);
                                         }
                                         bool encrypted = root.GetPropertyOrDefaultBool("IsEncrypted");
                                         // Dependencies

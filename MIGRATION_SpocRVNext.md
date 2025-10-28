@@ -230,12 +230,11 @@ Change Summary:
 
 Reader Backward Compatibility:
 
-- Loader still maps older snapshots (v5) by translating the legacy `JsonResult` shape into flattened in‑memory structures.
-- Mixed presence (older `JsonResult` + new flattened flags) prefers the new flattened fields.
+- Loader support for older snapshots (v5) has been removed. Regenerate schema artifacts before installing the release that drops `JsonResult` shims.
 
 Migration Impact:
 
-- Any tooling or scripts consuming `.spocr/schema/*.json` must update field access: replace `column.JsonResult.ReturnsJson*` with direct column‑level flags.
+- Any tooling or scripts consuming `.spocr/schema/*.json` must update field access: replace `column.JsonResult.ReturnsJson*` with direct column-level flags.
 - Diff noise expected once per snapshot regeneration; after first commit diffs stabilize (less churn due to pruning of defaults).
 - If your automation relied on `JsonPath`, switch to hierarchical traversal of nested `Columns`.
 
@@ -253,7 +252,7 @@ Action Items for Consumers:
 
 Fallback / Rollback:
 
-- To temporarily continue using an older snapshot without regenerating, you can pin to an earlier tool version (< the commit introducing v6). Long term this is discouraged; backward loader allows reading old snapshots but new snapshots are always written in flattened form.
+- To temporarily continue using an older snapshot without regenerating, you must pin to an earlier tool version (before the commit removing legacy readers). Current releases refuse legacy shapes.
 
 Documentation:
 

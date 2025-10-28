@@ -517,20 +517,9 @@ public class SnapshotResultColumn
     public bool? ReturnsJsonArray { get; set; }
     public string JsonRootProperty { get; set; }
     public List<SnapshotResultColumn> Columns { get; set; } = new(); // renamed from JsonColumns in v7
-    // Legacy v5 fields kept for backward compatibility during load; will be pruned on save.
-    [Obsolete] public string JsonPath { get; set; }
-    [Obsolete] public SnapshotNestedJson JsonResult { get; set; }
     // Deferred Funktions-Expansion: Persistiere Referenz & Flag
     public SnapshotColumnReference Reference { get; set; }
     public bool? DeferredJsonExpansion { get; set; }
-}
-
-public class SnapshotNestedJson
-{
-    public bool ReturnsJson { get; set; }
-    public bool ReturnsJsonArray { get; set; }
-    public string JsonRootProperty { get; set; }
-    public List<SnapshotResultColumn> Columns { get; set; } = new();
 }
 
 public sealed class SnapshotColumnReference

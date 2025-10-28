@@ -116,17 +116,19 @@ internal static class ProcedureSnapshotDocumentBuilder
                 }
 
                 writer.WriteStartObject();
-                if (set.ReturnsJson || set.ReturnsJsonArray || !string.IsNullOrWhiteSpace(set.JsonRootProperty))
+                if (set.ReturnsJson)
                 {
-                    writer.WritePropertyName("Json");
-                    writer.WriteStartObject();
-                    writer.WriteBoolean("IsArray", set.ReturnsJsonArray);
-                    if (!string.IsNullOrWhiteSpace(set.JsonRootProperty))
-                    {
-                        writer.WriteString("RootProperty", set.JsonRootProperty);
-                    }
+                    writer.WriteBoolean("ReturnsJson", true);
+                }
 
-                    writer.WriteEndObject();
+                if (set.ReturnsJsonArray)
+                {
+                    writer.WriteBoolean("ReturnsJsonArray", true);
+                }
+
+                if (!string.IsNullOrWhiteSpace(set.JsonRootProperty))
+                {
+                    writer.WriteString("JsonRootProperty", set.JsonRootProperty);
                 }
 
                 if (!string.IsNullOrWhiteSpace(set.ExecSourceSchemaName))
@@ -188,17 +190,24 @@ internal static class ProcedureSnapshotDocumentBuilder
             SnapshotWriterUtilities.RegisterTypeRef(requiredTypeRefs, typeRef);
         }
 
-        if (column.ReturnsJson == true || column.IsNestedJson == true)
+        if (column.IsNestedJson == true && column.ReturnsJson != true)
         {
-            writer.WritePropertyName("Json");
-            writer.WriteStartObject();
-            writer.WriteBoolean("IsArray", column.ReturnsJsonArray == true);
-            if (!string.IsNullOrWhiteSpace(column.JsonRootProperty))
-            {
-                writer.WriteString("RootProperty", column.JsonRootProperty);
-            }
+            writer.WriteBoolean("IsNestedJson", true);
+        }
 
-            writer.WriteEndObject();
+        if (column.ReturnsJson == true)
+        {
+            writer.WriteBoolean("ReturnsJson", true);
+        }
+
+        if (column.ReturnsJsonArray == true)
+        {
+            writer.WriteBoolean("ReturnsJsonArray", true);
+        }
+
+        if (!string.IsNullOrWhiteSpace(column.JsonRootProperty))
+        {
+            writer.WriteString("JsonRootProperty", column.JsonRootProperty);
         }
 
         var sqlTypeName = DeriveSqlTypeName(column, typeRef);

@@ -395,18 +395,16 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
     {
         StoredProcedureContentModel.ResultColumn MapSnapshotCol(SnapshotResultColumn c)
         {
-            bool hasFlattened = c.IsNestedJson == true || c.ReturnsJson == true || (c.Columns != null && c.Columns.Count > 0);
-#pragma warning disable CS0612
             var rc = new StoredProcedureContentModel.ResultColumn
             {
                 Name = c.Name,
                 SqlTypeName = null,
                 IsNullable = c.IsNullable,
                 MaxLength = c.MaxLength,
-                IsNestedJson = hasFlattened ? c.IsNestedJson : (c.JsonResult != null ? true : null),
-                ReturnsJson = hasFlattened ? c.ReturnsJson : c.JsonResult?.ReturnsJson,
-                ReturnsJsonArray = hasFlattened ? c.ReturnsJsonArray : c.JsonResult?.ReturnsJsonArray,
-                JsonRootProperty = hasFlattened ? c.JsonRootProperty : c.JsonResult?.JsonRootProperty,
+                IsNestedJson = c.IsNestedJson,
+                ReturnsJson = c.ReturnsJson,
+                ReturnsJsonArray = c.ReturnsJsonArray,
+                JsonRootProperty = c.JsonRootProperty,
                 DeferredJsonExpansion = c.DeferredJsonExpansion == true ? true : null,
                 Reference = c.Reference != null ? new StoredProcedureContentModel.ColumnReferenceInfo
                 {
@@ -415,7 +413,6 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
                     Name = c.Reference.Name
                 } : null
             };
-#pragma warning restore CS0612
 
             var (schema, name) = SplitTypeRef(c.TypeRef);
             var resolvedUdt = ResolveUserDefinedType(schema, name, userTypeLookup);
@@ -440,9 +437,7 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
                 }
             }
 
-#pragma warning disable CS0612
-            var nestedSource = hasFlattened ? c.Columns : c.JsonResult?.Columns;
-#pragma warning restore CS0612
+            var nestedSource = c.Columns;
             if (nestedSource != null && nestedSource.Count > 0)
             {
                 rc.Columns = nestedSource.Select(MapSnapshotCol).ToArray();

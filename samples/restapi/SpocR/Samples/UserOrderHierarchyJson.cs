@@ -39,7 +39,7 @@ internal static partial class UserOrderHierarchyJsonPlan
 	{
             new("ResultSet1", async (r, ct) =>
     {
-		var list = new System.Collections.Generic.List<object>(); { if (await r.ReadAsync(ct).ConfigureAwait(false) && !r.IsDBNull(0)) { var __raw = r.GetString(0); try { var __list = System.Text.Json.JsonSerializer.Deserialize<System.Collections.Generic.List<UserOrderHierarchyJsonResultSet1Result>>(__raw, JsonSupport.Options); if (__list != null) foreach (var __e in __list) list.Add(__e); } catch { } } } return list;
+		var list = new System.Collections.Generic.List<object>(); int o0=ReaderUtil.TryGetOrdinal(r, "Orders"); while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new UserOrderHierarchyJsonResultSet1Result(o0 < 0 ? string.Empty : (r.IsDBNull(o0) ? string.Empty : r.GetString(o0)))); } return list;
     }),
 
         };
