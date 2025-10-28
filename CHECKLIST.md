@@ -38,7 +38,7 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 - [x] Parallelbetrieb alter/neuer Output abgeschlossen; deterministische Hashes sichern den vereinheitlichten Generator.
 - [x] `.env`-Migration samt Bootstrap und Warnpfad umgesetzt (README aktualisiert).
 - [x] Golden-Hash-Pipeline & Diff-Reporting aktiv (Relaxed Mode, CLI-Befehle `write-golden`/`verify-golden`).
-- [x] Sample `samples/restapi` baut und besteht CRUD-Smoke über die neue Pipeline.
+- [ ] Sample `samples/restapi` baut und besteht CRUD-Smoke über die neue Pipeline. (Blocker: neue Result-Typen ohne `.Result`-Alias im Sample aktualisieren)
 
 ## Roadmap & Migration (Abgleich mit `src/SpocRVNext/CHECKLIST.md`)
 
@@ -75,6 +75,7 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 - [ ] Namespace-Kollisionstests für konsolidierte Outputs (Multi-ResultSet) ergänzen.
 - [ ] Test-Hosts Cleanup in Doku/CI verankern.
 - [ ] Review-Findings (Konzeptfehler, unsauberer Code, Unschärfen, fehlende Tests/Qualität) laufend pflegen und priorisieren.
+  - [!] RestApi-Sample kompiliert nicht mehr nach Result-Typ-Umstellung (`UserListResult` ohne `.Result`); Endpunkte sind vorübergehend per `#if false` deaktiviert. Sample-Code anpassen oder Legacy-Brücke ergänzen.
 
 ## Dokumentation & Kommunikation
 

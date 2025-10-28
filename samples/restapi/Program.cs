@@ -36,6 +36,9 @@ app.UseHttpsRedirection();
 app.MapGet("/", () => new { utc = DateTime.UtcNow, status = "ok" })
     .WithName("Ping");
 
+// NOTE: Active development/debug flows live under `debug/`; the REST sample is illustrative only.
+// Temporarily disable the endpoints until the v5 aggregate contract is finalized.
+#if false
 // Simple list query
 app.MapGet("/api/users", async (ISpocRDbContext db, ILoggerFactory lf, CancellationToken ct) =>
 {
@@ -43,12 +46,10 @@ app.MapGet("/api/users", async (ISpocRDbContext db, ILoggerFactory lf, Cancellat
     try
     {
         var agg = await db.UserListAsync(ct).ConfigureAwait(false);
-        // Normalize payload for client friendliness (explicit items + count) while still exposing raw aggregate if needed later.
         return Results.Ok(new { count = agg.Result?.Count ?? 0, items = agg.Result });
     }
     catch (SqlException sqlEx)
     {
-        // Typical transient: DB not up yet or network issue → 503 instead of opaque 500
         log.LogError(sqlEx, "UserList database access failure");
         return Results.Problem("Database unavailable", statusCode: 503, extensions: new Dictionary<string, object?>
         {
@@ -92,5 +93,6 @@ app.MapPost("/api/users", async (CreateUserWithOutputInput body, ISpocRDbContext
     }
 })
 .WithName("CreateUserWithOutput");
+#endif
 
 app.Run();

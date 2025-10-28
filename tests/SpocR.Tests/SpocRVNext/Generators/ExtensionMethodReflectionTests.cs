@@ -75,11 +75,11 @@ public class ExtensionMethodReflectionTests
         var parms = method!.GetParameters();
         Assert.True(parms.Length >= 1 && parms[0].ParameterType.Name == dbCtxInterface!.Name, "First parameter is not ISpocRDbContext");
 
-        // Return type check: should be a Task<UserListAggregate> (vNext unified aggregate naming)
+        // Return type check: Task<UserListResult> (aggregate suffix dropped in favor of result naming)
         Assert.True(method.ReturnType.IsGenericType, "Return type is not generic Task<T>");
         Assert.Equal("Task`1", method.ReturnType.Name);
         var aggregateType = method.ReturnType.GenericTypeArguments[0];
-        Assert.Equal("UserListAggregate", aggregateType.Name);
+        Assert.Equal("UserListResult", aggregateType.Name);
 
         // We cannot easily invoke the method without a concrete ISpocRDbContext instance; just ensure presence.
         await Task.CompletedTask;

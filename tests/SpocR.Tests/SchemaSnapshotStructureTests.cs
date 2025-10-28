@@ -58,8 +58,9 @@ public class SchemaSnapshotStructureTests
         var model = JsonSerializer.Deserialize<IndexModel>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
         Assert.NotNull(model);
         Assert.True(model!.UserDefinedTypes?.Length > 0, "UserDefinedTypes list empty in index");
-        Assert.True(model.Tables?.Length > 0, "Tables list empty in index");
-        Assert.True(model.Views?.Length >= 0, "Views list null in index");
+        Assert.NotNull(model.Stats);
+        Assert.True(model.Stats!.TableTotal > 0, "TableTotal should report captured tables");
+        Assert.True(model.Stats.ViewTotal >= 0, "ViewTotal missing in Stats");
     }
 
     [Fact]

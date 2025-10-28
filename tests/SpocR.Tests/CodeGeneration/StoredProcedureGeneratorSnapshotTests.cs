@@ -107,14 +107,14 @@ public class StoredProcedureGeneratorSnapshotTests
         var src = await gen.GetStoredProcedureExtensionsCodeAsync(schema, sps);
         var code = Normalize(src.ToString());
 
-        // Assert presence of raw + deserialize for JSON procs
+        // Assert presence of raw JSON bridge methods only (deserialize variants removed)
         code.ShouldContain("Task<string> UserListAsJsonAsync");
-        code.ShouldContain("Task<List<UserListAsJson>> UserListAsJsonDeserializeAsync");
-        code.ShouldContain("ReadJsonDeserializeAsync<List<UserListAsJson>>");
+        code.ShouldNotContain("UserListAsJsonDeserializeAsync");
+        code.ShouldNotContain("ReadJsonDeserializeAsync<List<UserListAsJson>>");
 
         code.ShouldContain("Task<string> UserFindAsJsonAsync");
-        code.ShouldContain("Task<UserFindAsJson> UserFindAsJsonDeserializeAsync");
-        code.ShouldContain("ReadJsonDeserializeAsync<UserFindAsJson>");
+        code.ShouldNotContain("UserFindAsJsonDeserializeAsync");
+        code.ShouldNotContain("ReadJsonDeserializeAsync<UserFindAsJson>");
 
         // Non-JSON must not get deserialize
         code.ShouldContain("UserListAsync");
@@ -122,7 +122,7 @@ public class StoredProcedureGeneratorSnapshotTests
 
         // XML docs for JSON methods
         code.ShouldContain("returns the raw JSON string");
-        code.ShouldContain("deserializes the JSON response");
+        code.ShouldNotContain("deserializes the JSON response");
     }
 
     private static string Normalize(string input)

@@ -80,14 +80,7 @@ public class ModelGeneratorJsonEmptyModelTests
     {
         var (gen, schema, sp, _) = Arrange("UserListAsJson");
         var text = await gen.GetModelTextForStoredProcedureAsync(schema, sp);
-        var code = text.ToString();
-
-        // The generator should inject documentation comment; tolerate absence only if RawJson present (future-proofing)
-        (code.Contains("Generated JSON model (no columns detected at generation time)") || code.Contains("RawJson"))
-            .ShouldBeTrue("either the explanatory doc comment or the RawJson property must exist");
-        code.ShouldContain("class UserListAsJson");
-        // Ensure no properties other than template removal result
-        code.ShouldNotContain("__TemplateProperty__");
+        text.ShouldBeNull("JSON resultsets without columns no longer emit models; legacy doc comment superseded by raw extensions");
     }
 
     private class TestConsoleService : IConsoleService
