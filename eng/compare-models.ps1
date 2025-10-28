@@ -6,13 +6,13 @@
     sowie nur relevante Strukturen (Namespace, Klassenname, public Properties) extrahiert werden.
     Erzeugt ein JSON mit Added/Removed/Changed Dateien und Property-Diffs.
 .PARAMETER CurrentPath
-    Pfad zum aktuellen (neuen) Modell-Root (z.B. debug\DataContext\Models)
+    Pfad zum aktuellen (neuen) Modell-Root (z.B. debug\SpocR)
 .PARAMETER ReferencePath
     Pfad zum Referenz- (alten) Modell-Root.
 .PARAMETER OutputJson
     Zielpfad für Ergebnis-JSON (Default: ./model-diff.json)
 .EXAMPLE
-    ./eng/compare-models.ps1 -CurrentPath .\debug\DataContext\Models -ReferencePath D:\Ref\DataContext\Models
+    ./eng/compare-models.ps1 -CurrentPath .\debug\SpocR -ReferencePath D:\Ref\DataContext\Models
 #>
 param(
     [Parameter(Mandatory=$true)][string]$CurrentPath,

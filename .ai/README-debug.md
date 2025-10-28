@@ -26,7 +26,7 @@ Add `--verbose` when you need detailed diagnostics (schema iteration, stored pro
 2. Run a full `rebuild` to regenerate baseline output
 3. Make code changes (parsers, generators, services)
 4. Re-run `build` (skip pull) to isolate generator effects
-5. Compare results under `debug/DataContext` using Git diff or the `debug/model-diff-report.md` helper
+5. Compare results under `debug/SpocR` using Git diff or the `debug/model-diff-report.md` helper
 6. If structural DB changes occurred → run `pull` / `rebuild` again and refresh golden hashes when the guardrails require it
 
 ## Progress & Timing

@@ -42,7 +42,7 @@ dotnet run --project src\SpocR.csproj -- pull -p debug
 dotnet run --project src\SpocR.csproj -- pull -p debug --procedure workflow.WorkflowListAsJson
 ```
 
-After each change: compare results in `debug/DataContext` (or `debug/model-diff-report.md`),
+After each change: compare results in `debug/SpocR` (or `debug/model-diff-report.md`),
 regenerate golden assets if outputs move, and capture findings in the `Review-Findings`
 checklist section.
 

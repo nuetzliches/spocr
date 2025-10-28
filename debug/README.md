@@ -16,8 +16,8 @@ Compares two model directory trees.
 
 Inputs:
 
-- `-CurrentPath` : Path to current (new) model root (e.g. `./debug/DataContext/Models`).
-- `-ReferencePath`: Path to reference/legacy model root.
+- `-CurrentPath` : Path to the current v5 model root (e.g. `./debug/SpocR`).
+- `-ReferencePath`: Path to the reference/legacy model root.
 - `-OutputJson` (optional): File name or path for output JSON. If only a filename is given, it is written into `./debug/`.
 
 Normalization:
@@ -48,7 +48,7 @@ Reads a `model-diff.json` (auto-resolved inside `debug/` if only a filename) and
 ## Reproduce Example
 
 ```
-pwsh -File ./eng/compare-models.ps1 -CurrentPath ./debug/DataContext/Models -ReferencePath <legacy-root>/DataContext/Models -OutputJson model-diff.json
+pwsh -File ./eng/compare-models.ps1 -CurrentPath ./debug/SpocR -ReferencePath <legacy-root>/DataContext/Models -OutputJson model-diff.json
 pwsh -File ./eng/diff-stats.ps1 -DiffFile model-diff.json
 ```
 
