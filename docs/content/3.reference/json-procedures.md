@@ -1,100 +1,123 @@
-# JSON Stored Procedure Generation (Alpha)
-
-\_
-
-_Status applies to current alpha builds; details may evolve before a stable release. Review the Changelog when upgrading._
-Detection is based solely on parsed metadata of each `ResultSet` (`ResultSets[i].ReturnsJson == true`). Naming conventions (suffixes like `AsJson`) are treated as hints only during pull heuristics – not as a hard requirement for generation.
-
-## Generated Methods (Current Alpha Capabilities)
-
-For every stored procedure whose first result set (`ResultSets[0]`) is JSON, two method variants (pipe + context) are generated per access mode:
-
-| Purpose                          | Method Pattern                    | Return Type                 |
-| -------------------------------- | --------------------------------- | --------------------------- |
-| Raw JSON payload                 | `<ProcedureName>Async`            | `Task<string>`              |
-| Typed model (array JSON)         | `<ProcedureName>DeserializeAsync` | `Task<List<ProcedureName>>` |
-| Typed model (single JSON object) | `<ProcedureName>DeserializeAsync` | `Task<ProcedureName>`       |
-
-If a generated deserialize method name would collide with an existing one, a fallback `<ProcedureName>ToModelAsync` is used automatically.
-
-> Roadmap: Optional overloads with `JsonSerializerOptions` + streaming (`IAsyncEnumerable<T>`) for very large arrays.
-
-### Example
-
-Given a procedure `UserList` whose first result set returns JSON array and a procedure `UserFind` returning a single JSON object:
-
-```csharp
-// Raw JSON (array)
-var rawUsers = await context.UserListAsync(ct);
-
-// Typed list
-var users = await context.UserListDeserializeAsync(ct);
-
-// Raw JSON (single)
-var rawUser = await context.UserFindAsync(ct);
-
-// Typed single
-var user = await context.UserFindDeserializeAsync(ct);
-```
-
-Internally the typed method calls the raw JSON method and then executes a `System.Text.Json.JsonSerializer.Deserialize<T>` call. For array JSON a null fallback to an empty list is applied:
-
-```csharp
-JsonSerializer.Deserialize<List<UserList>>(await UserListAsync(ct)) ?? new List<UserList>();
-```
-
-## Models
-
-When `ResultSets[0].ReturnsJson` is true a model type with the same base name as the procedure is generated (e.g. `UserList` / `UserFind`). If property inference is impossible (dynamic SQL, wildcard selection) an empty model is still emitted with an explanatory XML doc comment. This allows consistent referencing in API annotations.
-
-### Column Typing (Heuristics v3 / v4)
-
-JSON result set column SQL types are assigned via a two-stage enrichment pipeline during `spocr pull`:
-
-1. UDTT Stage: Columns matched against table-type input parameters (first match wins; avoids ambiguity).
-2. Base Table Stage: Remaining unresolved columns matched via provenance fields (`SourceSchema`, `SourceTable`, `SourceColumn`).
-
-If both stages (v3) fail to determine a concrete type, a fallback `nvarchar(max)` is assigned so downstream generators can rely on presence of `SqlTypeName`.
-
-Parser v4 adds an opportunistic upgrade step: previously persisted fallback `nvarchar(max)` JSON columns are re-checked and replaced with a concrete type if resolvable via updated metadata. Log tags:
-
-- `[json-type-table]` detailed per-column resolutions (Detailed mode only)
-- `[json-type-upgrade]` fallback -> concrete upgrade events
-- `[json-type-summary]` per-procedure aggregate (new vs upgrades)
-- `[json-type-run-summary]` run-level aggregate (always shown unless `jsonTypeLogLevel=Off`)
-
-## Null & Fallback Semantics
-
-- Array JSON: `null` literal ⇒ empty list (`[]` equivalent at call site)
-- Single JSON object: `null` literal ⇒ returned reference is `null`
-
-## Limitations (Alpha)
-
-| Area                             | Current Behavior                                         | Planned / Notes                                              |
-| -------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------ |
-| Multiple JSON result sets        | Only first (`ResultSets[0]`) exposed via helpers         | Later: per-result accessor methods or unified wrapper        |
-| Deep nested objects              | Flattening not attempted; raw JSON preserved             | Potential optional projection generator                      |
-| `JSON_QUERY` nullability         | Conservative: may mark columns nullable broadly          | Refined provenance + join analysis                           |
-| Custom serializer options        | Not exposed                                              | Overload `DeserializeAsync(opts)` planned                    |
-| Streaming large arrays           | Entire payload buffered                                  | Future: `Utf8JsonReader` incremental + `IAsyncEnumerable<T>` |
-| Mixed scalar + JSON in first set | JSON branch wins – scalar columns ignored for typed path | Warning emission (planned)                                   |
-| Upgrades of fallback types       | Occurs silently during subsequent pulls                  | Will emit structured diff summary                            |
-
-### Known Edge Cases
-
-- Dynamic SQL with shape variance between executions may lead to unstable models – consider stabilizing with `SELECT ... FOR JSON` fixed projections.
-- Procedures returning an empty JSON literal (`''`) instead of `null` or `[]` are treated as deserialization failures; prefer `SELECT '' FOR JSON PATH` (returns `[]`).
-- Legacy `Output` metadata has been removed; tooling must read `ResultSets[0].Columns`.
-
-## Troubleshooting
-
-| Symptom                                  | Cause                   | Mitigation                                                                           |
-| ---------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------ |
-| Empty generated model                    | Columns not inferable   | Provide explicit column list or accept empty type                                    |
-| Deserialize returns null (single object) | JSON literal was `null` | Add null-check or fallback in caller                                                 |
-| Missing `System.Text.Json` using         | No JSON SPs detected    | Confirm `ResultSets[0].ReturnsJson` in snapshot JSON                                 |
-| Fallback `nvarchar(max)` persists        | Source metadata absent  | Ensure base table / UDTT accessible; run with `--no-cache --verbose` to inspect logs |
-
+---
+title: JSON Procedure Handling
+description: How SpocR detects, snapshots, and generates typed access for stored procedures that emit JSON payloads.
+version: 5.0
+aiTags: [json, stored-procedures, generator]
 ---
 
-_Applies to branch `feature/json-proc-parser` (alpha parser)._
+# JSON Procedure Handling
+
+SpocR recognises procedures that project JSON via `FOR JSON` or `JSON_QUERY` and keeps enough metadata to generate strongly typed clients. This guide explains how the metadata is captured during `spocr pull`, how it turns into generated code during `spocr build`, and what conventions keep the experience predictable.
+
+## Detection During `spocr pull`
+
+The SnapshotBuilder reparses every stored procedure definition with ScriptDom. Whenever it encounters a top-level `SELECT … FOR JSON`, the first result set is flagged as JSON. Nested `FOR JSON` subqueries and `JSON_QUERY` calls are marked so that the metadata describes the full JSON tree.
+
+- Only the first result set participates in JSON materialisation. Additional sets are treated as ordinary tabular projections.
+- `FOR JSON PATH, ROOT('...')` populates the `RootProperty` flag so downstream tooling can reproduce the same hierarchy.
+- `WITHOUT_ARRAY_WRAPPER` turns the payload into a single JSON object. Without this option SpocR assumes an array payload.
+- `JSON_QUERY` is treated as a JSON container even if it mixes with scalar projections. This keeps nested JSON from being double-encoded.
+
+### Snapshot Flags
+
+| Field                                            | Scope      | Meaning                                                                  |
+| ------------------------------------------------ | ---------- | ------------------------------------------------------------------------ |
+| `ResultSets[i].Json.IsArray`                     | Result set | `true` for array payloads, `false` for single-object projections.        |
+| `ResultSets[i].Json.RootProperty`                | Result set | Root element supplied via `ROOT('name')`; omitted when absent.           |
+| `ResultSets[i].Columns[j].Json`                  | Column     | Nested JSON container (array/object) at column level.                    |
+| `ResultSets[i].Columns[j].ReturnsJson`           | Column     | Column originates from a JSON expression (`FOR JSON` or `JSON_QUERY`).   |
+| `ResultSets[i].Columns[j].IsNestedJson`          | Column     | Column represents a nested JSON container inside a larger payload.       |
+| `ResultSets[i].Columns[j].DeferredJsonExpansion` | Column     | Column is backed by a function returning JSON and can be expanded later. |
+| `ResultSets[i].Columns[j].FunctionRef`           | Column     | Fully-qualified reference to the function that produced the JSON blob.   |
+
+The snapshot file keeps the JSON structure, which makes it reproducible across pulls and diffable in source control:
+
+```jsonc
+{
+  "Schema": "identity",
+  "Name": "UserListAsJson",
+  "ResultSets": [
+    {
+      "Json": { "IsArray": true },
+      "Columns": [
+        { "Name": "userId", "TypeRef": "core._id" },
+        { "Name": "record.rowVersion", "TypeRef": "sys.bigint" },
+        {
+          "Name": "roles",
+          "Json": { "IsArray": true },
+          "Columns": [
+            { "Name": "roleId", "TypeRef": "core._id" },
+            { "Name": "displayName", "TypeRef": "core._label" },
+          ],
+        },
+      ],
+    },
+  ],
+}
+```
+
+### Nested JSON and `JSON_QUERY`
+
+- Aliases such as `AS [record.rowVersion]` or `AS [gender.displayName]` become dotted names in the snapshot. The generator converts these aliases into nested record structs.
+- `JSON_QUERY` is the recommended way to embed arrays or objects inside another JSON payload. The analyzer marks the column with `ReturnsJson` + `IsNestedJson`, which prevents double escaping and preserves the nested structure in the snapshot.
+- When a JSON payload comes from a user-defined function, the snapshot stores `FunctionRef` and sets `DeferredJsonExpansion`. During generation the function can be expanded into flat columns if metadata is available.
+
+## Generation During `spocr build`
+
+The code generator inspects the JSON flags and produces record structs and projectors that deserialize the SQL payload with `System.Text.Json`.
+
+- Each stored procedure outputs a single aggregate class (for example `UserListAsJsonResult`) that contains one `IReadOnlyList<T>` per result set.
+- JSON result sets are deserialized through `JsonSupport.Options`, a shared `JsonSerializerOptions` instance that enables case-insensitive property binding, tolerates numbers stored as strings, and provides a lenient converter for string members.
+- SQL is expected to return exactly one row per JSON result set. For arrays the row should contain a JSON array literal; for single objects use `WITHOUT_ARRAY_WRAPPER` so SpocR reads a single JSON object.
+- When SQL returns `NULL`, the list stays empty. Single-object payloads are skipped when deserialization returns `null`.
+
+### Deserialization Flow
+
+```csharp
+new("ResultSet1", async (reader, ct) =>
+{
+    var list = new List<object>();
+    if (await reader.ReadAsync(ct).ConfigureAwait(false) && !reader.IsDBNull(0))
+    {
+        var json = reader.GetString(0);
+        var records = JsonSerializer.Deserialize<List<UserListAsJsonResultSet1Result>>(json, JsonSupport.Options);
+        if (records != null)
+        {
+            foreach (var item in records)
+            {
+                list.Add(item);
+            }
+        }
+    }
+    return list;
+})
+```
+
+### Nested Records from Aliases
+
+- Dotted aliases (`alias.property`) produce nested record structs (for example `UserListAsJsonResultSet1GenderResult`).
+- Nested JSON columns without dotted aliases (for example arrays returned via `JSON_QUERY`) are currently surfaced as raw `string` properties. The snapshot still tracks their schema so that future generators or downstream tooling can project them.
+- When `DeferredJsonExpansion` is set, the generator attempts to expand the referenced function into individual columns if the snapshot contains its JSON schema.
+
+## Runtime Expectations
+
+- Generated extensions expose a single async method per procedure (`ProcedureNameAsync`) that returns the aggregate result.
+- The aggregate includes `Success`, `Error`, optional output parameter records, and the JSON-backed result lists.
+- Raw JSON strings are not emitted separately; consumers work with the typed record structs. When raw access is required, call `JsonSerializer.Serialize(result.Result)`.
+
+## Authoring Guidelines
+
+- Prefer `FOR JSON PATH` for deterministic property names. `AUTO` is supported but more likely to produce schema drift.
+- Use `WITHOUT_ARRAY_WRAPPER` when the procedure should return a single object rather than an array.
+- Alias nested properties with dotted names to receive nested record structs in the generated code.
+- Wrap nested arrays or complex objects with `JSON_QUERY` so the analyzer flags them as JSON containers instead of varchar literals.
+- Keep column names stable – schema drift results in regenerated record structs and downstream compile breaks.
+
+## Diagnostics & Logging
+
+- `project.jsonTypeLogLevel` (or the environment variable `SPOCR_JSON_TYPE_LOG_LEVEL`) controls how much JSON type enrichment logging reaches the console: `Detailed` (default), `SummaryOnly`, or `Off`.
+- Set `SPOCR_JSON_AST_DIAG=1` to emit detailed ScriptDom findings during analysis; combine with `SPOCR_LOG_LEVEL=debug` for verbose tracing.
+- `SPOCR_JSON_AUDIT=1` writes a `debug/json-audit.txt` report after generation that summarises every JSON result set.
+- Run `spocr pull --no-cache --verbose` when SQL changes are not reflected in the snapshot – this forces a fresh parse and re-emits JSON diagnostics.
+
+Keeping these conventions in place ensures that JSON-heavy procedures stay deterministic, diffable, and easy to consume from the generated C# surface.

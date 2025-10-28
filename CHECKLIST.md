@@ -61,7 +61,7 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 
 ## JSON Typisierung & AST
 
-- [ ] Dokumentation "JSON Procedure Handling" (Deserialisierung, Flags, `JSON_QUERY`-Konvention) schreiben.
+- [x] Dokumentation "JSON Procedure Handling" (Deserialisierung, Flags, `JSON_QUERY`-Konvention) schreiben. (Siehe `docs/content/3.reference/json-procedures.md`)
 - [ ] AST-Nacharbeiten: `identity.RecordAsJson` Heuristik entfernen, `FOR JSON` Strict Mode Flag finalisieren.
 - [ ] JSON ColumnRef Binding verbessern (Alias->Quelle) und unresolved-Logs reduzieren.
 - [ ] JSON Metrics sammeln (resolve vs. fallback) und optional in `debug/test-summary.json` persistieren.
