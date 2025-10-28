@@ -86,7 +86,8 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 - [ ] CHANGELOG v4.5-rc/v5 vorbereiten (Removed Keys, neue CLI, Bridge Policy).
 - [ ] Migration Guide `MIGRATION-V5.md` + `migration-v5.instructions` synchronisieren.
 - [ ] Docs Build (Nuxt/Bun) verifizieren und Deployment-Workflow (`docs-pages`) planen.
-- [ ] TableType/JSON Änderungen in Doku nachziehen (Verweis auf neue Artefakte).
+- [~] TableType/JSON Änderungen in Doku nachziehen (Verweis auf neue Artefakte).
+  - JSON Snapshot Flags aktualisiert (`docs/content/3.reference/json-procedures.md`).
 - [ ] Inhalte aus `src/SpocRVNext` eine Ebene höher ziehen und konsolidierte Struktur dokumentieren.
 - [ ] `.ai/` Inhalte nach jeder relevanten Änderung prüfen und synchronisieren (Guidelines, Prompts, README).
 

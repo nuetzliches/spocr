@@ -22,11 +22,13 @@ The SnapshotBuilder reparses every stored procedure definition with ScriptDom. W
 
 | Field                                            | Scope      | Meaning                                                                  |
 | ------------------------------------------------ | ---------- | ------------------------------------------------------------------------ |
-| `ResultSets[i].Json.IsArray`                     | Result set | `true` for array payloads, `false` for single-object projections.        |
-| `ResultSets[i].Json.RootProperty`                | Result set | Root element supplied via `ROOT('name')`; omitted when absent.           |
-| `ResultSets[i].Columns[j].Json`                  | Column     | Nested JSON container (array/object) at column level.                    |
-| `ResultSets[i].Columns[j].ReturnsJson`           | Column     | Column originates from a JSON expression (`FOR JSON` or `JSON_QUERY`).   |
+| `ResultSets[i].ReturnsJson`                      | Result set | `true` when the set materialises JSON payloads.                          |
+| `ResultSets[i].ReturnsJsonArray`                 | Result set | `true` when the payload is an array; omitted/`false` for single objects. |
+| `ResultSets[i].JsonRootProperty`                 | Result set | Root element supplied via `ROOT('name')`; omitted when absent.           |
 | `ResultSets[i].Columns[j].IsNestedJson`          | Column     | Column represents a nested JSON container inside a larger payload.       |
+| `ResultSets[i].Columns[j].ReturnsJson`           | Column     | Column originates from a JSON expression (`FOR JSON` or `JSON_QUERY`).   |
+| `ResultSets[i].Columns[j].ReturnsJsonArray`      | Column     | Nested column produces an array result (`true` when array).              |
+| `ResultSets[i].Columns[j].JsonRootProperty`      | Column     | Nested column root alias; omitted when absent.                           |
 | `ResultSets[i].Columns[j].DeferredJsonExpansion` | Column     | Column is backed by a function returning JSON and can be expanded later. |
 | `ResultSets[i].Columns[j].FunctionRef`           | Column     | Fully-qualified reference to the function that produced the JSON blob.   |
 
@@ -38,13 +40,16 @@ The snapshot file keeps the JSON structure, which makes it reproducible across p
   "Name": "UserListAsJson",
   "ResultSets": [
     {
-      "Json": { "IsArray": true },
+      "ReturnsJson": true,
+      "ReturnsJsonArray": true,
       "Columns": [
         { "Name": "userId", "TypeRef": "core._id" },
         { "Name": "record.rowVersion", "TypeRef": "sys.bigint" },
         {
           "Name": "roles",
-          "Json": { "IsArray": true },
+          "ReturnsJson": true,
+          "ReturnsJsonArray": true,
+          "IsNestedJson": true,
           "Columns": [
             { "Name": "roleId", "TypeRef": "core._id" },
             { "Name": "displayName", "TypeRef": "core._label" },
@@ -59,7 +64,7 @@ The snapshot file keeps the JSON structure, which makes it reproducible across p
 ### Nested JSON and `JSON_QUERY`
 
 - Aliases such as `AS [record.rowVersion]` or `AS [gender.displayName]` become dotted names in the snapshot. The generator converts these aliases into nested record structs.
-- `JSON_QUERY` is the recommended way to embed arrays or objects inside another JSON payload. The analyzer marks the column with `ReturnsJson` + `IsNestedJson`, which prevents double escaping and preserves the nested structure in the snapshot.
+- `JSON_QUERY` is the recommended way to embed arrays or objects inside another JSON payload. The analyzer marks the column with `ReturnsJson` + `IsNestedJson` (and `ReturnsJsonArray` when appropriate), which prevents double escaping and preserves the nested structure in the snapshot.
 - When a JSON payload comes from a user-defined function, the snapshot stores `FunctionRef` and sets `DeferredJsonExpansion`. During generation the function can be expanded into flat columns if metadata is available.
 
 ## Generation During `spocr build`
