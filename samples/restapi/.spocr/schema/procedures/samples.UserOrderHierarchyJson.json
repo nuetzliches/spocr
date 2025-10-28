@@ -9,42 +9,15 @@
         "RootProperty": "Users"
       },
       "Columns": [
-        {
-          "Name": "UserId",
-          "TypeRef": "sys.int"
-        },
-        {
-          "Name": "DisplayName",
-          "TypeRef": "samples.DisplayNameType"
-        },
-        {
-          "Name": "Email",
-          "TypeRef": "samples.EmailAddressType"
-        },
+        {},
+        {},
+        {},
         {
           "Name": "Orders",
           "Json": {
             "IsArray": true,
             "RootProperty": "Users"
-          },
-          "Columns": [
-            {
-              "Name": "OrderId",
-              "TypeRef": "sys.int"
-            },
-            {
-              "Name": "TotalAmount",
-              "TypeRef": "samples.MoneyAmountType"
-            },
-            {
-              "Name": "PlacedAt",
-              "TypeRef": "samples.UtcDateTimeType"
-            },
-            {
-              "Name": "Notes",
-              "TypeRef": "samples.OrderNoteType"
-            }
-          ]
+          }
         }
       ]
     }

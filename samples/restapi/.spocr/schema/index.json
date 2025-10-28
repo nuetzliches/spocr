@@ -1,6 +1,6 @@
 {
   "SchemaVersion": 1,
-  "Fingerprint": "0F6D7C9F0B5C3CC8",
+  "Fingerprint": "83A740CF1211352A",
   "Parser": {
     "ToolVersion": "net9.0",
     "ResultSetParserVersion": 8
@@ -12,7 +12,7 @@
     "UdttTotal": 3,
     "TableTotal": 2,
     "ViewTotal": 0,
-    "UserDefinedTypeTotal": 6,
+    "UserDefinedTypeTotal": 5,
     "FunctionTotal": 0
   },
   "Procedures": [
@@ -26,13 +26,13 @@
       "Schema": "samples",
       "Name": "OrderListAsJson",
       "File": "samples.OrderListAsJson.json",
-      "Hash": "C5467D41D61D36B6"
+      "Hash": "6F93EDABFB3A1F2E"
     },
     {
       "Schema": "samples",
       "Name": "OrderListByUserAsJson",
       "File": "samples.OrderListByUserAsJson.json",
-      "Hash": "1E5C83AAFCC9552B"
+      "Hash": "65F1B9743EBCCB0D"
     },
     {
       "Schema": "samples",
@@ -44,37 +44,37 @@
       "Schema": "samples",
       "Name": "UserBioUpdate",
       "File": "samples.UserBioUpdate.json",
-      "Hash": "D88683ADC08E521D"
+      "Hash": "65C6637194EFB398"
     },
     {
       "Schema": "samples",
       "Name": "UserContactSync",
       "File": "samples.UserContactSync.json",
-      "Hash": "31323042355FF952"
+      "Hash": "D79CD7561A03CD94"
     },
     {
       "Schema": "samples",
       "Name": "UserDetailsWithOrders",
       "File": "samples.UserDetailsWithOrders.json",
-      "Hash": "22A8EEFF1BCA0FEA"
+      "Hash": "3EE23576DF6E314C"
     },
     {
       "Schema": "samples",
       "Name": "UserFind",
       "File": "samples.UserFind.json",
-      "Hash": "1DC3BB257E4A1EEB"
+      "Hash": "FE609DB97E6823FE"
     },
     {
       "Schema": "samples",
       "Name": "UserList",
       "File": "samples.UserList.json",
-      "Hash": "7D2CE9D8BD480D9A"
+      "Hash": "75DB646970FB253F"
     },
     {
       "Schema": "samples",
       "Name": "UserOrderHierarchyJson",
       "File": "samples.UserOrderHierarchyJson.json",
-      "Hash": "F5BD8B265E971FC7"
+      "Hash": "28AF5E4CFE0626E2"
     }
   ],
   "TableTypes": [
@@ -115,12 +115,6 @@
       "Name": "MoneyAmountType",
       "File": "samples.MoneyAmountType.json",
       "Hash": "32BAB33EC71A740B"
-    },
-    {
-      "Schema": "samples",
-      "Name": "OrderNoteType",
-      "File": "samples.OrderNoteType.json",
-      "Hash": "2EEB57CE844C4079"
     },
     {
       "Schema": "samples",

@@ -5,12 +5,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using RestApi.DataContext.Models;
 using RestApi.DataContext.Outputs;
+using RestApi.DataContext.Models.Samples;
 
 namespace RestApi.DataContext.StoredProcedures.Samples
 {
     public static class UserListExtensions
     {
-        public static Task<Output> UserListAsync(this IAppDbContextPipe context, CancellationToken cancellationToken)
+        public static Task<List<UserList>> UserListAsync(this IAppDbContextPipe context, CancellationToken cancellationToken)
         {
             if (context == null)
             {
@@ -20,10 +21,10 @@ namespace RestApi.DataContext.StoredProcedures.Samples
             var parameters = new List<SqlParameter>
             {
             };
-            return context.ExecuteAsync<Output>("[samples].[UserList]", parameters, cancellationToken);
+            return context.ExecuteListAsync<UserList>("[samples].[UserList]", parameters, cancellationToken);
         }
 
-        public static Task<Output> UserListAsync(this IAppDbContext context, CancellationToken cancellationToken)
+        public static Task<List<UserList>> UserListAsync(this IAppDbContext context, CancellationToken cancellationToken)
         {
             return context.CreatePipe().UserListAsync(cancellationToken);
         }

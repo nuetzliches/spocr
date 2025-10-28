@@ -3,8 +3,9 @@
 // Changes may be overwritten. For customization extend generated partials.
 
 #nullable enable
-namespace TestNs.SpocR.Samples;
+namespace RestApi.SpocR.Samples;
 
+using RestApi.SpocR;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -12,27 +13,15 @@ using System.Data.Common;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using TestNs.SpocR;
 
 public readonly record struct OrderListByUserAsJsonInput(
     int? UserId
-);
-
-public readonly record struct OrderListByUserAsJsonResultSet1Result(
-    int UserId,
-    string DisplayName,
-    string Email,
-    int OrderId,
-    decimal TotalAmount,
-    DateTime PlacedAt,
-    string Notes
 );
 
 public sealed class OrderListByUserAsJsonResult
 {
 	public bool Success { get; init; }
 	public string? Error { get; init; }
-	public IReadOnlyList<OrderListByUserAsJsonResultSet1Result> Result { get; init; } = Array.Empty<OrderListByUserAsJsonResultSet1Result>();
 	
 }
 
@@ -48,14 +37,7 @@ internal static partial class OrderListByUserAsJsonPlan
             new("@UserId", System.Data.DbType.Int32, null, false, true),
         };
 
-	var resultSets = new ResultSetMapping[]
-	{
-            new("ResultSet1", async (r, ct) =>
-    {
-		var list = new System.Collections.Generic.List<object>(); { if (await r.ReadAsync(ct).ConfigureAwait(false) && !r.IsDBNull(0)) { var __raw = r.GetString(0); try { var __single = System.Text.Json.JsonSerializer.Deserialize<OrderListByUserAsJsonResultSet1Result>(__raw, JsonSupport.Options); if (__single != null) list.Add(__single); } catch { } } } return list;
-    }),
-
-        };
+	var resultSets = Array.Empty<ResultSetMapping>();
 
 		object? OutputFactory(IReadOnlyDictionary<string, object?> values) => null;
 		object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs)
@@ -63,9 +45,7 @@ internal static partial class OrderListByUserAsJsonPlan
 			return new OrderListByUserAsJsonResult
 			{
 				Success = success,
-				Error = error,
-				// ResultSet 0 → Result (robust list/array handling)
-				Result = rs.Length > 0 && rs[0] is object[] rows0 ? Array.ConvertAll(rows0, o => (OrderListByUserAsJsonResultSet1Result)o).ToList() : (rs.Length > 0 && rs[0] is System.Collections.Generic.List<object> list0 ? Array.ConvertAll(list0.ToArray(), o => (OrderListByUserAsJsonResultSet1Result)o).ToList() : Array.Empty<OrderListByUserAsJsonResultSet1Result>())
+				Error = error
 			};
 		};
 		void Binder(DbCommand cmd, object? state)

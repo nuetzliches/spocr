@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using RestApi.DataContext.Models;
 using RestApi.DataContext.Outputs;
+using RestApi.DataContext.Models.Samples;
 using RestApi.DataContext.Inputs.Samples;
 using RestApi.DataContext.TableTypes.Samples;
 
@@ -12,7 +13,7 @@ namespace RestApi.DataContext.StoredProcedures.Samples
 {
     public static class UserContactSyncExtensions
     {
-        public static Task<Output> UserContactSyncAsync(this IAppDbContextPipe context, UserContactSyncInput input, CancellationToken cancellationToken)
+        public static Task<UserContactSync> UserContactSyncAsync(this IAppDbContextPipe context, UserContactSyncInput input, CancellationToken cancellationToken)
         {
             if (context == null)
             {
@@ -23,10 +24,10 @@ namespace RestApi.DataContext.StoredProcedures.Samples
             {
                 AppDbContext.GetCollectionParameter("Contacts", input.Contacts)
             };
-            return context.ExecuteAsync<Output>("[samples].[UserContactSync]", parameters, cancellationToken);
+            return context.ExecuteSingleAsync<UserContactSync>("[samples].[UserContactSync]", parameters, cancellationToken);
         }
 
-        public static Task<Output> UserContactSyncAsync(this IAppDbContext context, UserContactSyncInput input, CancellationToken cancellationToken)
+        public static Task<UserContactSync> UserContactSyncAsync(this IAppDbContext context, UserContactSyncInput input, CancellationToken cancellationToken)
         {
             return context.CreatePipe().UserContactSyncAsync(input, cancellationToken);
         }

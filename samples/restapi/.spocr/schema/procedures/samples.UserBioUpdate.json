@@ -12,5 +12,12 @@
       "TypeRef": "samples.UserBioType"
     }
   ],
-  "ResultSets": []
+  "ResultSets": [
+    {
+      "Columns": [
+        {},
+        {}
+      ]
+    }
+  ]
 }

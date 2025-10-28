@@ -3,8 +3,9 @@
 // Changes may be overwritten. For customization extend generated partials.
 
 #nullable enable
-namespace TestNs.SpocR.Samples;
+namespace RestApi.SpocR.Samples;
 
+using RestApi.SpocR;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -12,16 +13,21 @@ using System.Data.Common;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using TestNs.SpocR;
 
 public readonly record struct UserContactSyncInput(
     UserContactTableType Contacts
+);
+
+public readonly record struct UserContactSyncResultSet1Result(
+    string UpdatedContacts,
+    string MissingContacts
 );
 
 public sealed class UserContactSyncResult
 {
 	public bool Success { get; init; }
 	public string? Error { get; init; }
+	public IReadOnlyList<UserContactSyncResultSet1Result> Result { get; init; } = Array.Empty<UserContactSyncResultSet1Result>();
 	
 }
 
@@ -37,7 +43,14 @@ internal static partial class UserContactSyncPlan
             new("@Contacts", System.Data.DbType.Object, null, false, false),
         };
 
-	var resultSets = Array.Empty<ResultSetMapping>();
+	var resultSets = new ResultSetMapping[]
+	{
+            new("ResultSet1", async (r, ct) =>
+    {
+		var list = new System.Collections.Generic.List<object>(); int o0=ReaderUtil.TryGetOrdinal(r, "UpdatedContacts"); int o1=ReaderUtil.TryGetOrdinal(r, "MissingContacts"); while (await r.ReadAsync(ct).ConfigureAwait(false)) { list.Add(new UserContactSyncResultSet1Result(o0 < 0 ? string.Empty : (r.IsDBNull(o0) ? string.Empty : r.GetString(o0)), o1 < 0 ? string.Empty : (r.IsDBNull(o1) ? string.Empty : r.GetString(o1)))); } return list;
+    }),
+
+        };
 
 		object? OutputFactory(IReadOnlyDictionary<string, object?> values) => null;
 		object AggregateFactory(bool success, string? error, object? output, IReadOnlyDictionary<string, object?> outputs, object[] rs)
@@ -45,7 +58,9 @@ internal static partial class UserContactSyncPlan
 			return new UserContactSyncResult
 			{
 				Success = success,
-				Error = error
+				Error = error,
+				// ResultSet 0 → Result (robust list/array handling)
+				Result = rs.Length > 0 && rs[0] is object[] rows0 ? Array.ConvertAll(rows0, o => (UserContactSyncResultSet1Result)o).ToList() : (rs.Length > 0 && rs[0] is System.Collections.Generic.List<object> list0 ? Array.ConvertAll(list0.ToArray(), o => (UserContactSyncResultSet1Result)o).ToList() : Array.Empty<UserContactSyncResultSet1Result>())
 			};
 		};
 		void Binder(DbCommand cmd, object? state)

@@ -7,5 +7,16 @@
       "TypeRef": "samples.UserContactTableType"
     }
   ],
-  "ResultSets": []
+  "ResultSets": [
+    {
+      "Columns": [
+        {
+          "Name": "UpdatedContacts"
+        },
+        {
+          "Name": "MissingContacts"
+        }
+      ]
+    }
+  ]
 }

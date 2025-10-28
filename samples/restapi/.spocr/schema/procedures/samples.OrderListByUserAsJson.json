@@ -14,34 +14,13 @@
         "IsArray": false
       },
       "Columns": [
-        {
-          "Name": "UserId",
-          "TypeRef": "sys.int"
-        },
-        {
-          "Name": "DisplayName",
-          "TypeRef": "samples.DisplayNameType"
-        },
-        {
-          "Name": "Email",
-          "TypeRef": "samples.EmailAddressType"
-        },
-        {
-          "Name": "OrderId",
-          "TypeRef": "sys.int"
-        },
-        {
-          "Name": "TotalAmount",
-          "TypeRef": "samples.MoneyAmountType"
-        },
-        {
-          "Name": "PlacedAt",
-          "TypeRef": "samples.UtcDateTimeType"
-        },
-        {
-          "Name": "Notes",
-          "TypeRef": "samples.OrderNoteType"
-        }
+        {},
+        {},
+        {},
+        {},
+        {},
+        {},
+        {}
       ]
     }
   ]

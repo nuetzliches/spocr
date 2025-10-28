@@ -8,5 +8,15 @@
       "IsNullable": true
     }
   ],
-  "ResultSets": []
+  "ResultSets": [
+    {
+      "Columns": [
+        {},
+        {},
+        {},
+        {},
+        {}
+      ]
+    }
+  ]
 }

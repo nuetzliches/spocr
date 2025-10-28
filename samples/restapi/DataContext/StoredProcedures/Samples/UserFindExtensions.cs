@@ -5,13 +5,14 @@ using System.Threading;
 using System.Threading.Tasks;
 using RestApi.DataContext.Models;
 using RestApi.DataContext.Outputs;
+using RestApi.DataContext.Models.Samples;
 using RestApi.DataContext.Inputs.Samples;
 
 namespace RestApi.DataContext.StoredProcedures.Samples
 {
     public static class UserFindExtensions
     {
-        public static Task<Output> UserFindAsync(this IAppDbContextPipe context, UserFindInput input, CancellationToken cancellationToken)
+        public static Task<UserFind> UserFindAsync(this IAppDbContextPipe context, UserFindInput input, CancellationToken cancellationToken)
         {
             if (context == null)
             {
@@ -22,10 +23,10 @@ namespace RestApi.DataContext.StoredProcedures.Samples
             {
                 AppDbContext.GetParameter("UserId", input.UserId)
             };
-            return context.ExecuteAsync<Output>("[samples].[UserFind]", parameters, cancellationToken);
+            return context.ExecuteSingleAsync<UserFind>("[samples].[UserFind]", parameters, cancellationToken);
         }
 
-        public static Task<Output> UserFindAsync(this IAppDbContext context, UserFindInput input, CancellationToken cancellationToken)
+        public static Task<UserFind> UserFindAsync(this IAppDbContext context, UserFindInput input, CancellationToken cancellationToken)
         {
             return context.CreatePipe().UserFindAsync(input, cancellationToken);
         }

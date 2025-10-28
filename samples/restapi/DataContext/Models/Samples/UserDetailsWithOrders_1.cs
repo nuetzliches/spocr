@@ -1,6 +1,6 @@
 using System;
 
 namespace RestApi.DataContext.Models.Samples;
-public class OrderListAsJson
+public class UserDetailsWithOrders_1
 {
 }
