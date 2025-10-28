@@ -20,6 +20,7 @@ These instructions support the current CLI work on the `feature/vnext-only` bran
 - Capture findings (design gaps, missing tests, quality debt) under the "Review-Findings" item in the root checklist.
 - If you touch CLI or pipeline behavior, document the change immediately in the docs section tasks.
 - Describe the CLI as it exists today. Drop the "vNext" label and avoid reintroducing historical bridge narratives.
+- Run generators against the sandbox under `debug/` (e.g. `dotnet run --project src/SpocR.csproj -- rebuild -p debug ...`). Do not revive `DataContext/` output paths outside the sandbox.
 
 ## 3. After editing functionality or docs
 

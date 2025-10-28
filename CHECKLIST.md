@@ -43,7 +43,7 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 ## Roadmap & Migration (Abgleich mit `src/SpocRVNext/CHECKLIST.md`)
 
 - [ ] Zielarchitektur v5 (Abhängigkeiten, Optimierungs-Backlog) final dokumentieren und hier verlinken.
-- [ ] Inventar `DataContext/` + `spocr.json` Konsumenten schließen; Ablösepfad nachhalten.
+- [~] Inventar `DataContext/` + `spocr.json` Konsumenten schließen; Ablösepfad nachhalten. (Legacy `DataContext/` Artefakte entfernt, verbleibende `spocr.json` Prüfrunden offen)
 - [ ] Neue CLI (`init`, `pull`, `build`, `rebuild`) finalisieren und Kommunikationspaket vorbereiten.
 - [ ] Teststrategie v5 definieren (Smoke/Integration vs. Legacy-Abschaltung) und CI entsprechend planen.
 - [ ] Forced-Upgrade Kommunikation (Zeitplan, Beta-Programm, Supportkanäle) aufsetzen.
