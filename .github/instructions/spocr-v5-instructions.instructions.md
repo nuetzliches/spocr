@@ -2,15 +2,15 @@
 applyTo: "**"
 ---
 
-# SpocR vNext Checklist Guardrails
+# SpocR CLI Checklist Guardrails
 
-These instructions support the vNext migration effort on the `feature/vnext-only` branch. Follow this flow before pushing code or docs. It keeps `CHECKLIST.md`, `src/SpocRVNext/CHECKLIST.md`, and `src/SpocRVNext/SnapshotBuilder/CHECKLIST.md` aligned.
+These instructions support the current CLI work on the `feature/vnext-only` branch. Follow this flow before pushing code or docs. It keeps `CHECKLIST.md`, `src/SpocRVNext/CHECKLIST.md`, and `src/SpocRVNext/SnapshotBuilder/CHECKLIST.md` aligned.
 
 ## 1. Before starting work
 
 - Review all three checklists and mark the items you intend to touch. Ensure cross references stay in sync.
 - Skim `.ai/README.md` and prompts if you plan to rely on tooling; refresh them when the guidance changes.
-- Confirm that any planned work respects the branch scope: vNext only, no legacy feature growth.
+- Confirm that any planned work respects the branch scope: focus on the modern CLI surface, avoid reviving legacy features.
 
 ## 2. While implementing changes
 
@@ -19,18 +19,20 @@ These instructions support the vNext migration effort on the `feature/vnext-only
 - For SnapshotBuilder or DbContext updates, ensure the roadmap checklist reflects the same completion state.
 - Capture findings (design gaps, missing tests, quality debt) under the "Review-Findings" item in the root checklist.
 - If you touch CLI or pipeline behavior, document the change immediately in the docs section tasks.
+- Describe the CLI as it exists today. Drop the "vNext" label and avoid reintroducing historical bridge narratives.
 
 ## 3. After editing functionality or docs
 
 - Re-read the root checklist and adjust statuses, add follow-up bullets, or link to new documents.
-- Update the vNext roadmap checklist with structural or architectural decisions.
+- Update the roadmap checklist with structural or architectural decisions.
 - Update the SnapshotBuilder checklist if determinism, telemetry, or artifact format changes.
 - Re-run the `.ai` review item: sync guidelines, prompts, or README to match the new flow.
 - Note removed dependencies (Roslyn, McMaster, WebApi Client, CodeAnalysis) in both the checklist and changelog.
+- Keep `docs/content` focused on the current CLI (v5) behavior. Move historical or migration notes to the legacy documentation stream instead of the primary site.
 
 ## 4. Validation requirements
 
-- Run `dotnet run --project src/SpocR.csproj -- pull -p debug --no-cache --verbose` after generator-affecting work.
+- Run `dotnet run --project src/SpocR.csproj -- pull` after generator-affecting work.
 - Execute `eng/quality-gates.ps1` (with coverage if touched) and record outcomes when updating quality tasks.
 - Refresh golden snapshots (`write-golden`, `verify-golden`) whenever SnapshotBuilder output changes.
 - Ensure migration instructions (`migration-v5.instructions`) stay current with any step you add.

@@ -1,6 +1,6 @@
 # SpocR Debug & Development Guide
 
-Companion playbook for fast iteration on the vNext generator. Pair these steps with the guardrails in `.github/instructions/spocr-v5-instructions.instructions.md` and keep `CHECKLIST.md` plus the vNext sub-checklists aligned before and after each debugging session.
+Companion playbook for fast iteration on the CLI generator. Pair these steps with the guardrails in `.github/instructions/spocr-v5-instructions.instructions.md` and keep `CHECKLIST.md` plus the sub-checklists aligned before and after each debugging session.
 
 ## Goals
 
@@ -11,18 +11,18 @@ Companion playbook for fast iteration on the vNext generator. Pair these steps w
 
 ## Core Commands
 
-| Scenario                             | Command (example)                                                                |
-| ------------------------------------ | -------------------------------------------------------------------------------- |
-| Pull database schema only            | `dotnet run --project src/SpocR.csproj -- pull -p debug\spocr.json --verbose`    |
-| Build from existing schema in config | `dotnet run --project src/SpocR.csproj -- build -p debug\spocr.json`             |
-| Full refresh (pull + build)          | `dotnet run --project src/SpocR.csproj -- rebuild -p debug\spocr.json --verbose` |
-| Remove generated files               | `dotnet run --project src/SpocR.csproj -- remove -p debug\spocr.json`            |
+| Scenario                      | Command (example)        |
+| ----------------------------- | ------------------------ |
+| Pull database schema only     | `spocr pull -p debug`    |
+| Build from existing snapshots | `spocr build -p debug`   |
+| Full refresh (pull + build)   | `spocr rebuild -p debug` |
+| Remove generated files        | `spocr remove -p debug`  |
 
-`--verbose` adds detailed log lines (schema + stored procedure iteration, progress etc.). Use it whenever you expect snapshot or determinism changes so the diagnostics can be captured in the checklist.
+Add `--verbose` when you need detailed diagnostics (schema iteration, stored procedure progress). Capture notable output in the checklist when investigating determinism.
 
 ## Recommended Debug Workflow
 
-1. Adjust test configuration in `debug/spocr.json` (schemas, connection string, role etc.)
+1. Adjust test configuration in `debug/.env` (schemas, connection string, flags etc.)
 2. Run a full `rebuild` to regenerate baseline output
 3. Make code changes (parsers, generators, services)
 4. Re-run `build` (skip pull) to isolate generator effects
@@ -90,7 +90,7 @@ A: When a procedure’s output columns can’t be reliably inferred, a skeleton 
 A: Run multiple `build` commands in a row (without `pull`) and average the last timings. Log deltas in the guardrail checklists when you adjust batching or caching.
 
 **Q: How can I debug only one procedure?**  
-A: (If a dedicated command exists) run a targeted stored procedure build; otherwise temporarily filter the schema list in `spocr.json` to a minimal subset. Remember to reset the filters and note temporary changes in the checklist to avoid stale configs.
+A: (If a dedicated command exists) run a targeted stored procedure build; otherwise temporarily filter the schema list in `debug/.env` to a minimal subset. Remember to reset the filters and note temporary changes in the checklist to avoid stale configs.
 
 ## Minimal Troubleshooting Matrix
 
@@ -124,7 +124,7 @@ When any of these are active the updater short-circuits before network calls.
 ## Contribution Checklist (During Debug Enhancements)
 
 - [ ] Add/update tests (snapshot or targeted)
-- [ ] Keep `spocr.json` changes minimal (avoid noise)
+- [ ] Keep `debug/.env` changes minimal (avoid noise)
 - [ ] No sensitive connection strings committed
 - [ ] Document any new flags / environment variables here
 
@@ -132,13 +132,13 @@ When any of these are active the updater short-circuits before network calls.
 
 ```cmd
 :: Full refresh verbose
-dotnet run --project src\SpocR.csproj -- rebuild -p debug\spocr.json --verbose
+spocr rebuild -p debug --verbose
 
 :: Build only (schema unchanged)
-dotnet run --project src\SpocR.csproj -- build -p debug\spocr.json
+spocr build -p debug
 
 :: Pull only
-dotnet run --project src\SpocR.csproj -- pull -p debug\spocr.json
+spocr pull -p debug
 ```
 
 ## Updating This Guide

@@ -1,8 +1,8 @@
-# Snapshot Builder vNext
+# Snapshot Builder
 
-The Snapshot Builder powers the `spocr pull` experience in vNext. It orchestrates
-Collect → Analyze → Write stages to produce deterministic metadata for the generator and
-keeps cache state under `.spocr/cache`. Before touching this pipeline, align updates with
+The Snapshot Builder powers the `spocr pull` experience. It orchestrates Collect → Analyze
+→ Write stages to produce deterministic metadata for the generator and keeps cache state
+under `.spocr/cache`. Before touching this pipeline, align updates with
 `CHECKLIST.md` and `src/SpocRVNext/CHECKLIST.md` so roadmap and migration tasks stay in
 sync.
 
@@ -15,8 +15,8 @@ sync.
 - **Diagnostics belong in the guardrails.** Use existing switches (`--verbose`,
   `SPOCR_SNAPSHOT_SUMMARY[_PATH]`) and document new telemetry alongside the guardrail
   instructions.
-- **ENV-first configuration.** The CLI bootstrap (`--init-v5`) and `.env` flow replace
-  direct edits to `spocr.json`; warn or block when legacy config is detected.
+- **ENV-first configuration.** The CLI bootstrap (`spocr init`) and `.env` flow replace
+  direct edits to legacy configuration files; warn or block when they are detected.
 
 ## Pipeline Overview
 
@@ -33,13 +33,13 @@ additions require updating `.ai/README-dot-spocr.md` plus the roadmap checklist.
 
 ```cmd
 :: Cold pull to validate full pipeline
-dotnet run --project src\SpocR.csproj -- pull -p debug --no-cache --verbose
+dotnet run --project src\SpocR.csproj -- pull -p debug
 
 :: Warm pull to exercise cache paths
 dotnet run --project src\SpocR.csproj -- pull -p debug
 
 :: Targeted procedure refresh for delta validation
-dotnet run --project src\SpocR.csproj -- pull -p debug --procedure workflow.WorkflowListAsJson --no-cache
+dotnet run --project src\SpocR.csproj -- pull -p debug --procedure workflow.WorkflowListAsJson
 ```
 
 After each change: compare results in `debug/DataContext` (or `debug/model-diff-report.md`),

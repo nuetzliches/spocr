@@ -1,13 +1,13 @@
 ---
 title: TableTypes Generation
 position: 330
-version: 4.5
+version: 5.0
 status: draft
 ---
 
-# Table Types (UDTT) Generation (vNext)
+# Table Types (UDTT) Generation
 
-SpocR vNext generates strongly-typed records for each user-defined table type (UDTT) discovered in the snapshot. This enables safe passing of structured values (lists / sets) to stored procedures without manual `DataTable` plumbing.
+SpocR generates strongly-typed records for each user-defined table type (UDTT) discovered in the snapshot. This enables safe passing of structured values (lists / sets) to stored procedures without manual `DataTable` plumbing.
 
 ## Goals
 

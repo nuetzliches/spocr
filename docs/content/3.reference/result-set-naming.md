@@ -1,14 +1,14 @@
 ---
 title: ResultSet Naming
 position: 320
-version: 4.5
+version: 5.0
 status: stable
 updated: 2025-10-18
 ---
 
-# ResultSet Naming (vNext)
+# ResultSet Naming
 
-The vNext generator deterministically replaces generic placeholder names (`ResultSet1`, `ResultSet2`, …) with meaningful, table-based names – without any parity requirement with the legacy output. The resolver is always-on (no feature flag) and optimized for stability over aggressiveness.
+The generator deterministically replaces generic placeholder names (`ResultSet1`, `ResultSet2`, …) with meaningful, table-based names – without any parity requirement with historical output. The resolver is always-on (no feature flag) and optimized for stability over aggressiveness.
 
 ## When is a rename applied?
 
@@ -34,7 +34,7 @@ If any condition fails, the generic name is preserved (determinism > aggressive 
 
 ## Collision handling & duplicates
 
-Previously, on a name collision (another result set from the same base table) no rename occurred. Now (vNext behavior):
+Previously, on a name collision (another result set from the same base table) no rename occurred. The current behavior:
 
 1. The first occurrence of a base table receives the plain name (`Users`).
 2. Additional result sets from the same table are suffixed numerically: `Users1`, `Users2`, …
@@ -122,4 +122,4 @@ Only when the heuristic triggers. Identical SQL produces identical naming, so be
 
 ---
 
-Status: Stable (Bridge v4.5) – Updates occur only when the resolver gains new capabilities.
+Status: Stable – updates occur only when the resolver gains new capabilities.

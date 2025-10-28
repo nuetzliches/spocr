@@ -11,16 +11,18 @@ These guardrails mirror the `feature/vnext-only` working agreement. Follow them 
 
 ## 2. Implementation Guardrails
 
-- **Respect branch scope.** Deliver vNext-only improvements; avoid reviving legacy features unless the roadmap checklist explicitly calls for them.
+- **Respect branch scope.** Deliver roadmap-aligned improvements; avoid reviving legacy features unless the checklist explicitly calls for them.
+- **Describe the current CLI state.** Avoid using the label “vNext” or recounting historical bridge phases in new docs, prompts, or code comments. Present the system exactly as the checklist defines the target state.
 - **Mirror roadmap and SnapshotBuilder status.** When DbContext, SnapshotBuilder, or artifact flows change, update the matching items in every checklist.
 - **Document CLI or pipeline changes immediately.** Adjust docs, changelog entries, and checklist notes in the same PR that alters commands, telemetry, or exit codes.
+- **Rewrite large files safely.** When replacing entire documents, either clear the file (`Set-Content -Value ""`) or use a full `apply_patch` update instead of `create_file` so the new content does not merge with residual text.
 - **Prefer additive diagnostics.** Use existing verbosity switches (`--verbose`, `Verbose(...)`) for temporary tracing. Remove one-off logging before merge unless the checklist tracks a follow-up task.
 
 ## 3. Validation Matrix
 
 ```cmd
 :: Refresh schema cache when generator or parser logic changes
-dotnet run --project src\SpocR.csproj -- pull -p debug\spocr.json --no-cache --verbose
+dotnet run --project src\SpocR.csproj -- pull
 
 :: Run structural validation pass (no tests)
 dotnet run --project src\SpocR.csproj -- test --validate
@@ -71,7 +73,7 @@ public sealed class ProcedureGenerator
 
 ## 6. Documentation & Prompts
 
-- Update `docs/content/` alongside code so CLI flags, configuration options, and migration guidance stay current.
+- Update `docs/content/` alongside code so CLI flags and configuration options stay current. Keep this directory focused on the active CLI (v5); move historical or migration notes to the legacy documentation stream.
 - Docs run on Bun + Nuxt:
 
 ```bash
@@ -114,4 +116,4 @@ Do not codify additional subcodes until the roadmap documents them.
 
 **Last Updated:** November 5, 2025  
 **Guideline Version:** 2.0  
-**Applies to:** SpocR vNext branch
+**Applies to:** SpocR CLI branch

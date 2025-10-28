@@ -1,4 +1,4 @@
-# Snapshot Builder vNext Checklist (EPIC-E015)
+# Snapshot Builder Checklist (EPIC-E015)
 
 > Abgestimmt mit `../CHECKLIST.md` („SpocR v5 Roadmap“); Migrationsthemen werden dort gespiegelt.
 
@@ -27,7 +27,7 @@
 ## Entscheidungen & Referenzen
 
 - Cache bleibt JSON-basiert und diffbar; Snapshots referenzieren nur `TypeRef` statt redundanter Typdaten.
-- Legacy-Output wird über eine Bridge beliefert, bis Konsumenten auf vNext migriert sind.
+- Legacy-Output wird über eine Bridge beliefert, bis alle Konsumenten auf den neuen Generator umgestellt sind.
 - Konzept für Default-Schema-Normalisierung bei schema-losen `EXEC`-Aufrufen ist noch offen.
 - Zuordnung ScriptDom → `ProcedureModel.ResultSets` für JSON-/Aggregat-Flags benötigt noch ein belastbares Mapping.
 

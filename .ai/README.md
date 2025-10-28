@@ -1,6 +1,6 @@
 # SpocR AI Contribution Hub
 
-Resources in this directory keep AI agents aligned with the `feature/vnext-only` roadmap. Start here before editing code, docs, or planning artifacts.
+Resources in this directory keep AI agents aligned with the `feature/vnext-only` branch roadmap. Start here before editing code, docs, or planning artifacts.
 
 ## File Map
 
@@ -15,7 +15,9 @@ Resources in this directory keep AI agents aligned with the `feature/vnext-only`
 2. Review the guardrails. `.github/instructions/spocr-v5-instructions.instructions.md` defines the branch workflow (scope, status markers, validation). Re-read whenever you change processes or automation.
 3. Plan deliverables in English. All new or updated comments, docs, prompts, and checklist notes stay English-only.
 4. Document behavioral changes immediately. Update docs, changelog entries, and checklist follow-ups in the same PR that moves the code.
-5. Record roadmap implications. Any SnapshotBuilder or DbContext adjustments must be echoed in the vNext roadmap checklist.
+5. Record roadmap implications. Any SnapshotBuilder or DbContext adjustments must be echoed in the roadmap checklist hierarchy.
+6. Describe the current CLI state only. Avoid “vNext” branding or historical bridge narratives in new material; mirror the terminology used in the active checklists.
+7. When replacing an entire document, clear the file or use `apply_patch` for a full overwrite instead of `create_file` so legacy text does not merge with the new draft.
 
 ## Core Validation Loop
 
@@ -56,4 +58,4 @@ After generator output changes, refresh golden assets via the snapshot scripts r
 ---
 
 **Last Updated:** November 5, 2025  
-**Maintainer:** vNext AI workflow
+**Maintainer:** CLI AI workflow

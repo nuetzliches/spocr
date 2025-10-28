@@ -1,7 +1,7 @@
 ﻿---
 version: 1
 schema: checklist/v1
-description: SpocR Entwicklungs- & Migrations-Checkliste für Übergang zu SpocRVNext
+description: SpocR CLI Delivery Checklist (feature branch)
 generated_for: ai-agent
 branch_scope:
   note: "Branch-spezifisch (feature/vnext); vor Merge in master entfernen"
@@ -28,14 +28,14 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 
 ## Überblick 2025-10-27
 
-- SnapshotBuilder vNext treibt `spocr pull`; Detailplanung liegt in `src/SpocRVNext/SnapshotBuilder/CHECKLIST.md`.
+- SnapshotBuilder pipeline treibt `spocr pull`; Detailplanung liegt in `src/SpocRVNext/SnapshotBuilder/CHECKLIST.md`.
 - Forced-Upgrade-Plan v5 wird in `src/SpocRVNext/CHECKLIST.md` geführt; dieses Dokument bündelt den Gesamtstatus.
 - JSON Typisierung läuft AST-first, Restarbeiten und Tests sind unten verlinkt.
 
 ## Abgeschlossene Eckpunkte
 
 - [x] Legacy-Generator v4.5 eingefroren (Sentinel `legacy-freeze.txt`, EPIC E001).
-- [x] Parallelbetrieb alter/neuer Output (`SPOCR_GENERATOR_MODE=dual`) mit deterministischen Hashes aktiv.
+- [x] Parallelbetrieb alter/neuer Output abgeschlossen; deterministische Hashes sichern den vereinheitlichten Generator.
 - [x] `.env`-Migration samt Bootstrap und Warnpfad umgesetzt (README aktualisiert).
 - [x] Golden-Hash-Pipeline & Diff-Reporting aktiv (Relaxed Mode, CLI-Befehle `write-golden`/`verify-golden`).
 - [x] Sample `samples/restapi` baut und besteht CRUD-Smoke über die neue Pipeline.
@@ -48,6 +48,8 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 - [ ] Teststrategie v5 definieren (Smoke/Integration vs. Legacy-Abschaltung) und CI entsprechend planen.
 - [ ] Forced-Upgrade Kommunikation (Zeitplan, Beta-Programm, Supportkanäle) aufsetzen.
 - [ ] DbContext-Implementierung zu schlankem DB-Adapter für die `spocr pull`-Pipeline umbauen (Basis für `src/SpocRVNext/Templates/DbContext`).
+- [ ] Guardrails für DbContext-Oberflächen definieren (interner Kontext darf Ad-hoc/Diagnostics, generierter Kontext nur Execute-Aufrufe) und Tests/Docs ableiten.
+- [ ] Klare Trennung „SpocR Source“ vs. „SpocR Runtime“ ausarbeiten (Packages/Namespaces/Deploymentpfade) und im Architektur-Abschnitt dokumentieren.
 
 ## SnapshotBuilder & Analyzer (vgl. `src/SpocRVNext/SnapshotBuilder/CHECKLIST.md`)
 
@@ -59,7 +61,7 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 
 ## JSON Typisierung & AST
 
-- [ ] Dokumentation "vNext JSON Procedure Handling" (Deserialisierung, Flags, `JSON_QUERY`-Konvention) schreiben.
+- [ ] Dokumentation "JSON Procedure Handling" (Deserialisierung, Flags, `JSON_QUERY`-Konvention) schreiben.
 - [ ] AST-Nacharbeiten: `identity.RecordAsJson` Heuristik entfernen, `FOR JSON` Strict Mode Flag finalisieren.
 - [ ] JSON ColumnRef Binding verbessern (Alias->Quelle) und unresolved-Logs reduzieren.
 - [ ] JSON Metrics sammeln (resolve vs. fallback) und optional in `debug/test-summary.json` persistieren.
@@ -68,7 +70,7 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 ## Qualität & Tests
 
 - [ ] Coverage-Baseline >=60 % messen und Reporting einschalten (Vorbereitung Strict Golden Hash).
-- [ ] Negative Tests für ENV-Kombinationen (invalid MODE, fehlende DB) ergänzen.
+- [ ] Negative Tests für ENV-Kombinationen (z.B. fehlende DB-Verbindung) ergänzen.
 - [ ] `eng/quality-gates.ps1` in CI integrieren oder dokumentieren (inkl. `eng/kill-testhosts.ps1`).
 - [ ] Namespace-Kollisionstests für konsolidierte Outputs (Multi-ResultSet) ergänzen.
 - [ ] Test-Hosts Cleanup in Doku/CI verankern.
@@ -76,7 +78,8 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 
 ## Dokumentation & Kommunikation
 
-- [ ] Rewrite `README.md` to remove historical context, focus on the SpocR CLI value proposition (DB admins enabling BI layers; developers working with stored procedures only), and push deep technical documentation to the GitHub Pages site.
+- [x] Rewrite `README.md` to remove historical context, focus on the SpocR CLI value proposition (DB admins enabling BI layers; developers working with stored procedures only), and push deep technical documentation to the GitHub Pages site. (2025-10-27)
+- [ ] Docs/content: keep GitHub Pages articles focused on current CLI behavior; migrate historical or migration notes to the legacy stream.
 - [ ] README/Docs: Namespace-Ableitung & Override mit Beispiel diff ergänzen.
 - [ ] CHANGELOG v4.5-rc/v5 vorbereiten (Removed Keys, neue CLI, Bridge Policy).
 - [ ] Migration Guide `MIGRATION-V5.md` + `migration-v5.instructions` synchronisieren.
@@ -132,6 +135,6 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 
 - Schema rebuild: `dotnet run --project src/SpocR.csproj -- rebuild -p samples/restapi/spocr.json`
 - Sample build: `dotnet build samples/restapi/RestApi.csproj -c Debug`
-- Snapshot pull diagnostics: `dotnet run --project src/SpocR.csproj -- pull -p debug --no-cache --verbose`
+- Snapshot pull diagnostics: `dotnet run --project src/SpocR.csproj -- pull`
 
 > Fortschritt bitte regelmäßig mit `src/SpocRVNext/CHECKLIST.md` und `src/SpocRVNext/SnapshotBuilder/CHECKLIST.md` abgleichen; dieses Dokument bündelt die Gesamtübersicht für den Branch `feature/vnext`.

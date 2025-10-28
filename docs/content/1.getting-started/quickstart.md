@@ -1,35 +1,41 @@
 ---
 title: Quickstart
 description: From zero to first generated code in minutes.
-version: 4.5
+version: 5.0
 ---
 
 # Quickstart
 
-## 1. Prepare Project
+Follow these steps to install the SpocR CLI, initialize configuration, and generate your first client code.
+
+## Prerequisites
+
+- .NET 8 SDK (or newer) available on the PATH
+- Network access to the SQL Server instance that hosts your stored procedures
+
+## 1. Install or Update the CLI
 
 ```bash
-mkdir DemoSpocr
-cd DemoSpocr
-dotnet new classlib -n Demo.Data
+dotnet tool update -g spocr
 ```
 
-## 2. Configure SpocR
+`dotnet tool update` installs the tool if it is missing and upgrades it when a newer version ships.
+
+## 2. Initialize Configuration
 
 ```bash
-spocr create --project Demo.Data
+spocr init --namespace Demo.Data --connection "Server=.;Database=AppDb;Trusted_Connection=True;" --schemas core,identity
 ```
 
-This creates a `spocr.json` among other files. Key fields you may want to adjust early:
+This command creates (or updates) a project-scoped `.env` file with generator settings such as `SPOCR_NAMESPACE`, `SPOCR_GENERATOR_DB`, and `SPOCR_BUILD_SCHEMAS`. Re-running `spocr init` safely updates only the keys you specify.
 
-- `ignoredSchemas` / `ignoredProcedures` to trim noise
-- `jsonTypeLogLevel` (default `Detailed`; consider `SummaryOnly` once things look correct)
-
-## 3. Pull Stored Procedures from Database
+## 3. Pull Database Metadata
 
 ```bash
-spocr pull --connection "Server=.;Database=AppDb;Trusted_Connection=True;"
+spocr pull
 ```
+
+`spocr pull` downloads the latest stored procedure metadata and prepares it for the generator. End users do not interact with the repository's `debug/` artifacts; everything needed for your project remains alongside the `.env` file.
 
 ## 4. Generate Code
 
@@ -37,69 +43,18 @@ spocr pull --connection "Server=.;Database=AppDb;Trusted_Connection=True;"
 spocr build
 ```
 
-Generated files can be found in the `Output/` directory.
+Generated files land in the `SpocR/` directory by default. Override the location by setting `SPOCR_OUTPUT_DIR` in `.env` or by passing `--output` on the command line.
 
-## 5. Example Usage (pseudocode)
-
-```csharp
-var ctx = new GeneratedDbContext(connectionString);
-var result = await ctx.MyProcedureAsync(new MyProcedureInput { Id = 5 });
-```
-
-### vNext (Bridge) Example (DbContext Registration)
-
-```csharp
-// Program.cs (minimal API style)
-builder.Services.AddSpocRDbContext(o =>
-{
-	o.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-	o.Name = "AppDb"; // Optional friendly name
-	o.TimeoutSeconds = 30; // Example timeout
-});
-
-var app = builder.Build();
-// Generated execution (vNext pipeline) – strongly typed invocation
-var scope = app.Services.CreateScope();
-var db = scope.ServiceProvider.GetRequiredService<SpocRDbContext>();
-var users = await db.UserListAsync(new UserListInput { ActiveOnly = true });
-```
-
-> Version: This Quickstart reflects the bridge phase (v4.5). v5 will remove the legacy DataContext and rely solely on the vNext pipeline.
-
-## 6. Refresh Changes
+## 5. Run Tests (Optional)
 
 ```bash
-spocr rebuild
+spocr test
 ```
 
-## 7. Update / Install the CLI from the local repository
+Use the test command to execute generated integration tests once you wire them into your solution.
 
-If you have cloned the SpocR repository and want to build & use the current source as a global .NET tool:
+## Next Steps
 
-```bash
-cd src
-# Build a NuGet package (Release)
-dotnet pack -c Release -o ./nupkg
-# Remove existing global installation (ignores error if not installed)
-dotnet tool uninstall -g spocr
-# Install or update from the freshly built local package source
-dotnet tool update -g spocr --add-source ./nupkg
-```
-
-After that:
-
-```bash
-spocr --version
-```
-
-Notes:
-
-- `dotnet tool update` acts as install if the tool was removed.
-- Repeat the pack & update steps whenever you change the source.
-- To force a specific version (e.g. during testing): `dotnet pack -c Release -o ./nupkg /p:Version=4.5.0-local`
-  - Alternatively supply a custom version placeholder: `dotnet pack -c Release -o ./nupkg /p:Version=<version>-local`
-
-## Further Reading
-
-- [CLI Overview](/cli/)
-- [Configuration](/reference/configuration-schema)
+- Review and commit the contents of the `SpocR/` directory.
+- Customize the `.env` file with additional settings from [Environment Bootstrap & Configuration](../3.reference/env-bootstrap.md).
+- Explore additional commands in the [CLI Reference](../2.cli/index.md).

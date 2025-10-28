@@ -1,3 +1,4 @@
+using SpocR.Commands.Spocr;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -8,7 +9,6 @@ using Microsoft.Data.SqlClient;
 using SpocR.AutoUpdater;
 using SpocR.CodeGenerators;
 using SpocR.Commands;
-using SpocR.Commands.Spocr;
 using SpocR.DataContext;
 using SpocR.Enums;
 using SpocR.Extensions;
@@ -43,7 +43,6 @@ public class SpocrManager(
     SpocrService service,
     OutputService output,
     CodeGenerationOrchestrator orchestrator,
-    SpocrProjectManager projectManager,
     IConsoleService consoleService,
     SnapshotBuildOrchestrator snapshotBuildOrchestrator,
     FileManager<GlobalConfigurationModel> globalConfigFile,
@@ -52,69 +51,6 @@ public class SpocrManager(
     AutoUpdaterService autoUpdaterService
 )
 {
-    public async Task<ExecuteResultEnum> CreateAsync(ICreateCommandOptions options)
-    {
-        await RunAutoUpdateAsync(options);
-
-        if (configFile.Exists())
-        {
-            consoleService.Error("Configuration already exists");
-            consoleService.Output($"\tTo view current configuration, run '{Constants.Name} status'");
-            return ExecuteResultEnum.Error;
-        }
-
-        if (!options.Quiet && !options.Force)
-        {
-            var proceed = consoleService.GetYesNo($"Create a new {Constants.ConfigurationFile} file?", true);
-            if (!proceed) return ExecuteResultEnum.Aborted;
-        }
-
-        var targetFramework = options.TargetFramework;
-        if (!options.Quiet)
-        {
-            targetFramework = consoleService.GetString("TargetFramework:", targetFramework);
-        }
-
-        var appNamespace = options.Namespace;
-        if (!options.Quiet)
-        {
-            appNamespace = consoleService.GetString("Your Namespace:", appNamespace);
-        }
-
-        var connectionString = "";
-        // Role deprecated Ã¢â‚¬â€œ only display options as migration notice if user explicitly provides a value
-        var roleKindString = options.Role;
-        RoleKindEnum roleKind = RoleKindEnum.Default; // Always set Default
-        string libNamespace = null;
-        if (!options.Quiet && !string.IsNullOrWhiteSpace(roleKindString))
-        {
-            if (Enum.TryParse(roleKindString, true, out RoleKindEnum parsed) && parsed != RoleKindEnum.Default)
-            {
-                consoleService.Warn("[deprecation] Providing a role is deprecated and ignored. Default role is always applied.");
-            }
-        }
-
-        var config = service.GetDefaultConfiguration(targetFramework, appNamespace, connectionString, roleKind, libNamespace);
-
-        if (options.DryRun)
-        {
-            consoleService.PrintConfiguration(config);
-            consoleService.PrintDryRunMessage();
-        }
-        else
-        {
-            await configFile.SaveAsync(config);
-            projectManager.Create(options);
-
-            if (!options.Quiet)
-            {
-                consoleService.Output($"{Constants.ConfigurationFile} successfully created.");
-            }
-        }
-
-        return ExecuteResultEnum.Succeeded;
-    }
-
     public async Task<ExecuteResultEnum> PullAsync(ICommandOptions options)
     {
         await RunAutoUpdateAsync(options);
@@ -212,7 +148,7 @@ public class SpocrManager(
             if (string.IsNullOrWhiteSpace(envConfig.GeneratorConnectionString))
             {
                 consoleService.Error("Configuration file not found");
-                consoleService.Output($"\tTo create a configuration file, run '{Constants.Name} create'");
+                consoleService.Output($"\tTo create a configuration file, run '{Constants.Name} init'");
                 return ExecuteResultEnum.Error;
             }
 
@@ -361,7 +297,7 @@ public class SpocrManager(
             else
             {
                 consoleService.Error("Configuration file not found");
-                consoleService.Output($"\tTo create a configuration file, run '{Constants.Name} create'");
+                consoleService.Output($"\tTo create a configuration file, run '{Constants.Name} init'");
                 return ExecuteResultEnum.Error;
             }
         }

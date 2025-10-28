@@ -1,6 +1,6 @@
 # The `.spocr` Directory
 
-Local runtime workspace for SpocR vNext. Treat everything inside as disposable state tied to the current developer environment. Confirm `.spocr/` stays ignored in git before checking in related changes.
+Local runtime workspace for the SpocR CLI. Treat everything inside as disposable state tied to the current developer environment. Confirm `.spocr/` stays ignored in git before checking in related changes.
 
 ## Current Structure
 
@@ -12,7 +12,7 @@ Local runtime workspace for SpocR vNext. Treat everything inside as disposable s
 
 ## Rationale
 
-- Keeps ephemeral & environment‑specific artifacts out of `spocr.json`
+- Keeps ephemeral & environment‑specific artifacts out of tracked configuration (`.env`)
 - Allows incremental evolution without breaking existing configs
 - Provides a staging area for future separation of configuration vs. extracted schema metadata
 
@@ -46,13 +46,13 @@ Contents (current implementation – extend only when the roadmap checklist reco
 
 ## Growth Areas (Track in Checklist)
 
-| Idea                          | Potential Usage                                                                                                                                                      |
-| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Schema/config split           | Store extracted schema (procedures, tables, types) as granular JSON (e.g. `.spocr/schema/<schema>/<proc>.json`) while keeping user-editable settings in `spocr.json` |
-| Diff assistance               | Persist snapshot manifests to support `debug/model-diff-report.md` before regeneration                                                                               |
-| Failure diagnostics           | Cache last error context (SQL text fragments) without polluting stdout                                                                                               |
-| Partial rebuild orchestration | Track dependency graph of generated files to enable selective regeneration                                                                                           |
-| Experimental plugins          | Host extension metadata or feature toggles without touching primary configs                                                                                          |
+| Idea                          | Potential Usage                                                                                                                                                |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Schema/config split           | Store extracted schema (procedures, tables, types) as granular JSON (e.g. `.spocr/schema/<schema>/<proc>.json`) while keeping user-editable settings in `.env` |
+| Diff assistance               | Persist snapshot manifests to support `debug/model-diff-report.md` before regeneration                                                                         |
+| Failure diagnostics           | Cache last error context (SQL text fragments) without polluting stdout                                                                                         |
+| Partial rebuild orchestration | Track dependency graph of generated files to enable selective regeneration                                                                                     |
+| Experimental plugins          | Host extension metadata or feature toggles without touching primary configs                                                                                    |
 
 ## .gitignore Recommendation
 

@@ -100,7 +100,7 @@ dotnet tool install --global SpocR
 ```
 
 ```bash [Initialize]
-spocr create --project MyProject
+spocr init --namespace MyCompany.MyProject --connection "Server=.;Database=AppDb;Trusted_Connection=True;" --schemas core,identity
 ```
 
 ```bash [Connect]
@@ -114,7 +114,7 @@ spocr build
 :::
 
 :::callout
-🎉 **That's it!** Your strongly typed C# classes are ready in the `Output/` directory.
+🎉 **That's it!** Your strongly typed C# classes are ready in the `SpocR/` directory by default.
 :::
 
 ::spacer

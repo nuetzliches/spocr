@@ -6,7 +6,6 @@ using Microsoft.Extensions.DependencyInjection;
 using SpocR.Commands.Project;
 using SpocR.Commands.Schema;
 using SpocR.Commands.Spocr;
-using SpocR.Commands.StoredProcedure;
 using SpocR.Commands.Snapshot;
 using SpocR.DataContext;
 using SpocR.Extensions;
@@ -19,7 +18,6 @@ using SpocRVNext.Configuration;
 namespace SpocR;
 
 [Command(Name = "spocr", UnrecognizedArgumentHandling = UnrecognizedArgumentHandling.Throw)]
-[Subcommand(typeof(CreateCommand))] // legacy (spocr.json) – deprecated in v5, replaced by 'init'
 [Subcommand(typeof(InitCommand))]   // v5+ initialization (.env bootstrap)
 [Subcommand(typeof(PullCommand))]
 [Subcommand(typeof(BuildCommand))]
@@ -29,7 +27,6 @@ namespace SpocR;
 [Subcommand(typeof(ConfigCommand))]
 [Subcommand(typeof(ProjectCommand))]
 [Subcommand(typeof(SchemaCommand))]
-[Subcommand(typeof(StoredProcedureCommand))]
 [Subcommand(typeof(SnapshotCommand))]
 [Subcommand(typeof(SpocR.Commands.Test.TestCommand))]
 [HelpOption("-?|-h|--help")]

@@ -2,15 +2,17 @@
 
 ## Statusüberblick (Stand 2025-10-27)
 
-- SnapshotBuilder vNext läuft produktiv (Details siehe `src/SpocRVNext/SnapshotBuilder/CHECKLIST.md`) und setzt ENV-first Konfiguration um.
+- SnapshotBuilder pipeline läuft produktiv (Details siehe `src/SpocRVNext/SnapshotBuilder/CHECKLIST.md`) und setzt ENV-first Konfiguration um.
 - Forced-Upgrade-Zielbild auf `.NET 8` bleibt bestehen; Legacy-Pfade werden erst mit Migration deaktiviert.
 
 ## Leitplanken v5.0
 
-- [ ] Forced Upgrade auf `.NET 8`, keine Legacy-Modi (`SPOCR_GENERATOR_MODE` entfällt), Dokumentation nur noch als IST-Stand.
+- [ ] Forced Upgrade auf `.NET 8`, keine Legacy-Modi mehr, Dokumentation nur noch als IST-Stand.
 - [ ] `DataContext/`, `spocr.json`, `spocr.global.json` ablösen und neue Projektstruktur in `src/SpocRVNext` verankern.
 - [ ] Neue CLI (`init`, `pull`, `build`, `rebuild`) als einziger Pfad; Legacy-CLI abschalten.
 - [ ] Parallelen Betrieb ermöglichen, bis Migration abgeschlossen ist; Optimierungen danach priorisieren.
+- [ ] Guardrails für DbContext-Oberflächen definieren (interner Kontext darf Ad-hoc/Diagnostics, generierter Kontext nur Execute-Aufrufe) und Tests/Docs ableiten.
+- [ ] Klare Trennung „SpocR Source“ vs. „SpocR Runtime“ ausarbeiten (Packages/Namespaces/Deploymentpfade) und im Architektur-Abschnitt dokumentieren.
 
 ## Aktuelle Schwerpunkte
 
@@ -23,7 +25,7 @@
 ## Bereinigung & Umsetzung
 
 - [ ] `DataContext/`-Abhängigkeiten entfernen oder ersetzen; verbleibende Nutzung markieren.
-- [ ] `.env`-Pfad finalisieren, Migration `spocr.json` → `.env` über `--init-v5` absichern.
+- [ ] `.env`-Pfad finalisieren, Migration `spocr.json` → `.env` über `spocr init` absichern.
 - [ ] Legacy-Code nach `src/SpocRVNext` verschieben oder entfernen; Projektstruktur bereinigen.
 - [ ] Legacy-Tests deaktivieren, Nachfolge-Tests (Smoke/Integration) vorbereiten.
 - [ ] Deployment-/Release-Pipeline für v5 aufsetzen; parallele Betriebsfähigkeit sicherstellen.

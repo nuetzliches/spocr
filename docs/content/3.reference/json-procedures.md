@@ -86,20 +86,6 @@ Parser v4 adds an opportunistic upgrade step: previously persisted fallback `nva
 - Procedures returning an empty JSON literal (`''`) instead of `null` or `[]` are treated as deserialization failures; prefer `SELECT '' FOR JSON PATH` (returns `[]`).
 - Legacy `Output` metadata has been removed; tooling must read `ResultSets[0].Columns`.
 
-## CLI Integration
-
-Use the CLI to introspect which stored procedures were identified as JSON-capable:
-
-```bash
-spocr sp ls --schema core --json
-```
-
-Returned array is derived from the current `spocr.json` snapshot. If a procedure is missing, run a fresh pull:
-
-```bash
-spocr pull --no-cache --verbose
-```
-
 ## Troubleshooting
 
 | Symptom                                  | Cause                   | Mitigation                                                                           |

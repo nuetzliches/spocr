@@ -15,7 +15,7 @@ Format loosely inspired by Keep a Changelog. Dates use ISO 8601 (UTC).
 - Major version bridge policy enforcement (blocks direct jump without env override `SPOCR_ALLOW_DIRECT_MAJOR`).
 - Dual generation observability: SHA256 hashing + diff manifests + allow-list `.spocr-diff-allow` (informational mode).
 - Global nullable enabled; legacy nullability warnings broadly suppressed via `.editorconfig` (phase 1 of Nullability Debt plan).
-- CLI `spocr init` command (creates `.env` from template, replaces legacy `spocr create` in v5; available during bridge for early adoption).
+- CLI `spocr init` command (creates `.env` from template and serves as the canonical initializer for v5).
 - Golden Hash CLI commands (`write-golden`, `verify-golden`) with reserved strict determinism exit codes (21–23) documented.
 
 ### Changed
@@ -24,7 +24,6 @@ Format loosely inspired by Keep a Changelog. Dates use ISO 8601 (UTC).
 
 ### Deprecated (Bridge Phase v4.5 → v5)
 
-- `spocr create` command (legacy JSON config initializer) – superseded by `spocr init` (ENV / `.env` bootstrap). A runtime warning will be introduced before v5 removal.
 - Configuration keys targeted for removal in v5:
   - `Project.Role.Kind` (always behaves as `Default`)
   - `Project.Role.DataBase.RuntimeConnectionStringIdentifier` (runtime DB is provided solely via host configuration / `AddSpocRDbContext` options)
@@ -39,7 +38,9 @@ The following heuristics have been eliminated (implementation merged, documentat
 - Result set primary heuristic enforcing singular shortcut aggregate (now always unified aggregate)
 - Legacy JSON root-level `Output` array (replaced by unified `ResultSets`)
 - Template root environment override (`SPOCR_TEMPLATES_ROOT`) (templates resolve deterministically from internal path)
-  Further items will be enumerated with rationale & migration notes prior to v5 tag.
+- Legacy CLI commands `spocr create` and `spocr sp` (including `spocr sp ls`) removed; `.env` bootstrap and current CLI verbs cover supported scenarios.
+
+Further items will be enumerated with rationale & migration notes prior to v5 tag.
 
 ### Determinism / Exit Codes
 

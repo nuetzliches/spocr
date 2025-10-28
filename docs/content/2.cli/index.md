@@ -16,19 +16,18 @@ The SpocR CLI provides commands for project initialization, synchronization, and
 
 ## Core Commands
 
-| Command   | Purpose                                        |
-| --------- | ---------------------------------------------- |
-| `create`  | Initialize project structure and configuration |
-| `pull`    | Read stored procedures & schema from database  |
-| `build`   | Execute code generation                        |
-| `rebuild` | Clean and regenerate                           |
-| `remove`  | Remove generated artifacts                     |
-| `test`    | Run tests and validations                      |
-| `version` | Show version                                   |
-| `config`  | Manage `spocr.json`                            |
-| `project` | Project-related operations                     |
-| `schema`  | Work with database schema                      |
-| `sp`      | Single stored procedure operations             |
+| Command   | Purpose                                       |
+| --------- | --------------------------------------------- |
+| `init`    | Bootstrap `.env` configuration and namespace  |
+| `pull`    | Read stored procedures & schema from database |
+| `build`   | Execute code generation                       |
+| `rebuild` | Clean and regenerate                          |
+| `remove`  | Remove generated artifacts                    |
+| `test`    | Run tests and validations                     |
+| `version` | Show version                                  |
+| `config`  | Manage configuration files and templates      |
+| `project` | Project-related operations                    |
+| `schema`  | Work with database schema                     |
 
 ## Examples
 
