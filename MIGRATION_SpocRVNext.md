@@ -1,5 +1,7 @@
 # Migration to SpocRVNext (Draft)
 
+> Scope: Captures the v5 target state derived from the delivery checklists. Use it to understand the desired configuration and architecture; operational migration steps live elsewhere.
+
 > Status: Draft – references EPICs E001–E013 in `CHECKLIST.md`.
 
 ## Goals
@@ -10,15 +12,6 @@ Current Snapshot Parser Version: 8 (recursive JSON type enrichment + pruning IsN
 - Dual generation until v5.0
 - Remove legacy code in v5.0 following cutover plan
 - Prepare successor repo `nuetzliches/xtraq` (namespace `Xtraq`, semantic version `1.0.0`) and ensure SpocR v4.5 references the new home post-freeze
-
-## Phases
-
-1. Freeze legacy (E001)
-2. Core structure & dual generation (E003/E004)
-3. Template engine & modernization (E005/E006/E007/E009)
-4. Configuration cleanup & documentation (E008/E012)
-5. Cutover & obsolete markings (E010/E011)
-6. Test hardening & release preparation (E013 + release tasks)
 
 ## Deprecation Timeline (v4.5 → v5.0)
 
@@ -38,11 +31,11 @@ Note: "Removed" means loader/parser will ignore & no longer bind; warning verbos
 
 ## Dual CLI Strategy
 
-- Publish the frozen v4 CLI as the dotnet tool `spocrv4`. It continues to consume `spocr.json` and emit the legacy `DataContext/` structure, enabling projects to finish the cutover on their own timeline.
-- During the bridge phase the v5 CLI keeps the `spocr` package name and operates solely against `.env` / `SPOCR_*` keys plus SnapshotBuilder artefacts.
-- At cutover the modern CLI transitions to the new repository `nuetzliches/xtraq` and ships as tool/package `xtraq` (namespace `Xtraq`, version `1.0.0`) without historical SpocR references. The SpocR repository remains frozen at v4.5 and highlights Xtraq as the active successor.
-- All CLIs install independently. Throughout the transition `spocrv4`, `spocr` (bridge), and later `xtraq` can coexist without overlapping generated outputs.
-- To steer users toward the migration path, `spocr` detects legacy artefacts (`spocr.json`, `DataContext/`, legacy outputs) and prints a warning linking to this document, `migration-v5.instructions`, and (post-cutover) the Xtraq repository.
+- `spocrv4` remains available as the frozen legacy tool and continues to read `spocr.json` while emitting `DataContext/` outputs.
+- The bridge CLI `spocr` (v5) runs exclusively with `.env` / `SPOCR_*` inputs and produces SnapshotBuilder artefacts; it flags legacy files but ignores them for configuration.
+- After cutover the maintained CLI lives in `nuetzliches/xtraq` (package `xtraq`, namespace `Xtraq`, version `1.0.0`) with no SpocR references; the SpocR repository stays locked at v4.5 and points to Xtraq.
+- The three tools install side-by-side without output collisions, supporting teams that stage their adoption timeline.
+- Bridge CLI warnings link back to this target-state document, `migration-v5.instructions`, and—post cutover—the Xtraq repository so consumers know the official path forward.
 
 ## Configuration Changes
 
@@ -52,16 +45,14 @@ Removed (planned / already removed):
 - `Project.Role.DataBase.RuntimeConnectionStringIdentifier` (no replacement ENV; runtime connection only via host `AddSpocRDbContext` options)
 - `Project.Output` (path steering being phased out in favor of fixed layout + auto namespace)
 
-### Upcoming (vNext) Configuration Model
+### v5 Configuration Model
 
-- Transitioning from `spocr.json` to environment variable / `.env` driven configuration for runtime & generation parameters.
-- Phase-out complete: `.env` / environment variables are now the sole configuration inputs; `spocr.json` is ignored by the generator.
-- Presence of `spocr.json` triggers a warning only. Delete it after mirroring the required values into `.env`.
-- Rationale: Simplify deployment, enable secret-less container usage, reduce JSON schema churn.
-- Precedence order: CLI flag > Environment variable > `.env` file.
-- `spocr pull` no longer overwrites local configuration (it may still read schema & augment in-memory state).
-- Migration path: Existing keys map to `SPOCR_*` variables (mapping table to be added). Users can gradually mirror required values into `.env`.
-- Example template file now lives at `samples/restapi/.env.example` (moved from repository root for clarity).
+- Configuration inputs come from environment variables and `.env`; the generator no longer loads settings from `spocr.json`.
+- Legacy `spocr.json` files remain optional references only; the CLI ignores their contents but surfaces a warning when they are present.
+- Precedence order is fixed: CLI flag > environment variable > `.env` file.
+- `spocr pull` respects local configuration and does not overwrite `.env` values.
+- Existing installations can mirror legacy keys through the mapping table below so `.env` becomes the authoritative source.
+- The canonical example file resides at `samples/restapi/.env.example`.
 
 ### Example `.env` (Generator Scope Only – Draft)
 
@@ -232,15 +223,15 @@ Change Summary:
 - Removed legacy `JsonPath` emission (no longer produced; legacy readers still tolerate it if present in older snapshots).
 - Writer prunes null / default / empty JSON metadata to keep snapshots smaller & diff‑friendly.
 
-Reader Backward Compatibility:
+Loader Support:
 
-- Loader support for older snapshots (v5) has been removed. Regenerate schema artifacts before installing the release that drops `JsonResult` shims.
+- Current releases accept snapshots authored with parser version 6 or newer; support for v5 shapes was removed alongside the `JsonResult` shim.
 
-Migration Impact:
+Target State Expectations:
 
-- Any tooling or scripts consuming `.spocr/schema/*.json` must update field access: replace `column.JsonResult.ReturnsJson*` with direct column-level flags.
-- Diff noise expected once per snapshot regeneration; after first commit diffs stabilize (less churn due to pruning of defaults).
-- If your automation relied on `JsonPath`, switch to hierarchical traversal of nested `Columns`.
+- Tooling and scripts consume `.spocr/schema/*.json` using the column-level JSON flags (`ReturnsJson*`, `IsNestedJson`, `Columns`) instead of the removed `JsonResult` object.
+- Repository diffs stabilized after the one-time regeneration that introduced the flattened structure.
+- JSON-aware automation traverses nested `Columns` when deriving shapes; no logic depends on the obsolete `JsonPath` field.
 
 Rationale:
 
@@ -248,11 +239,10 @@ Rationale:
 2. Reduces serialization size (omits redundant objects & default false flags).
 3. Aligns with runtime generator APIs already flattened earlier in the refactor.
 
-Action Items for Consumers:
+Repository Checklist:
 
-- Regenerate snapshots (run `spocr pull` / build) to produce v6 snapshot.
-- Update any custom schema processors to look for `IsNestedJson` / nested `Columns`.
-- Commit updated fingerprint files (fingerprint includes parser version so a new root snapshot file name is expected).
+- Snapshots in the tracked repositories correspond to parser version 6 (or later) and carry the updated fingerprint names.
+- Custom schema processors already read `IsNestedJson` and nested `Columns` without relying on removed shim properties.
 
 Fallback / Rollback:
 
@@ -304,17 +294,16 @@ Change:
 - Property `JsonColumns` inside each result column (holding nested JSON child columns) renamed to `Columns`.
 - Rationale: Harmonize naming so nested JSON columns use the same property name as top-level result set columns, reducing concept count.
 - Since no external developers consumed the v6 shape (internal refactor), no backward compatibility shim retained; loader expects `Columns` for nested JSON from v7 onward.
-- Older v6 snapshots (with `JsonColumns`) must be regenerated; the loader does not alias `JsonColumns` to `Columns`.
+- Repositories are expected to store snapshots regenerated after the rename; the loader does not alias `JsonColumns` to `Columns`.
 
 Parser / Fingerprint:
 
 - `ResultSetParserVersion` bumped to 7; fingerprint changes accordingly triggering a new snapshot file emission.
 
-Migration Steps:
+Repository Checklist:
 
-1. Regenerate schema snapshots (`spocr pull` / build) to produce v7 snapshot files.
-2. Commit updated `.spocr/schema` artifacts.
-3. Adjust any tooling referencing `JsonColumns` to use nested `Columns`.
+- Snapshot artefacts under `.spocr/schema` use parser version 7 (or newer) and expose the `Columns` property for nested JSON structures.
+- Downstream tooling expects `Columns` and contains no remaining references to `JsonColumns`.
 
 Example Delta (simplified nested column):
 
@@ -370,14 +359,13 @@ Changes:
 
 5. Backward Compatibility
 
-- Loader tolerates older v7 snapshots; no special shim required for the new pruning semantics.
-- Tools expecting `IsNestedJson=true` must adjust logic: rely on `ReturnsJson` (or nested `Columns`) to identify JSON container columns.
+- Loader tolerates older v7 snapshots; the pruning changes are backward compatible, but new fields appear only after regeneration.
+- Tooling refers to `ReturnsJson` (or nested `Columns`) to identify JSON containers instead of relying on `IsNestedJson=true`.
 
-Migration Impact:
+Target State Expectations:
 
-- Regenerate snapshots (`spocr pull`) to pick up v8 improvements.
-- Update any custom processors that relied on `IsNestedJson` presence; treat absence as implicit when `ReturnsJson=true`.
-- Remove logic depending on `HasSelectStar=false`; check existence (or value true) only.
+- Managed repositories have regenerated snapshots so parser version 8 metadata (recursive enrichment, pruning) is in place.
+- Custom processors interpret missing `IsNestedJson` as implied by `ReturnsJson=true` and no longer expect `HasSelectStar=false` markers.
 
 Example Before (v7 nested column – fallback typing):
 
@@ -413,11 +401,10 @@ Rationale:
 - Simplifies consumer traversal, reduces redundant boolean flags.
 - Provides richer typing for nested structures enabling stronger code generation (model properties get precise types earlier).
 
-Action Items:
+Repository Checklist:
 
-- Regenerate & commit snapshots.
-- Update any schema processors to remove reliance on `IsNestedJson=true` and adjust for missing `HasSelectStar` property when false.
-- Review generated models for improved typing (existing overrides may become unnecessary).
+- Snapshot artefacts committed to source control reflect parser version 8 hashes.
+- Schema processors and generated models operate on the enriched metadata without fallback-specific overrides.
 
 Documentation:
 
