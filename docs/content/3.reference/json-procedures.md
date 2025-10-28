@@ -72,7 +72,7 @@ The snapshot file keeps the JSON structure, which makes it reproducible across p
 The code generator inspects the JSON flags and produces record structs and projectors that deserialize the SQL payload with `System.Text.Json`.
 
 - Each stored procedure outputs a single aggregate class (for example `UserListAsJsonResult`) that contains one `IReadOnlyList<T>` per JSON result set. The typed helper (`ProcedureNameAsync`) is always emitted.
-- When the preview key `SPOCR_ENABLE_JSON_DUAL=1` is present, the generator adds raw helpers (`ProcedureNameRawAsync`) that return the JSON string exactly as produced by SQL. Preview helpers are additive—typed output remains available.
+- The generator produces typed and raw helpers by default. Raw helpers (`ProcedureNameRawAsync`) return the JSON payload exactly as emitted by SQL, while typed helpers materialize objects via the schema metadata.
 - JSON result sets use `JsonSupport.Options`, a shared `JsonSerializerOptions` instance that enables case-insensitive binding, tolerates numbers stored as strings, and provides lenient converters for nested payloads.
 - SQL is expected to return exactly one row per JSON result set. For arrays the row should contain a JSON array literal; for single objects use `WITHOUT_ARRAY_WRAPPER` so SpocR reads a single JSON object.
 - When SQL returns `NULL`, the list stays empty. Single-object payloads are skipped when deserialization returns `null`.
@@ -108,9 +108,9 @@ new("ResultSet1", async (reader, ct) =>
 ## Runtime Expectations
 
 - Generated extensions expose a typed async method per procedure (`ProcedureNameAsync`) that returns the aggregate result. The aggregate includes `Success`, `Error`, optional output parameter records, and the JSON-backed result lists.
-- With `SPOCR_ENABLE_JSON_DUAL=1` enabled, an additional raw helper (`ProcedureNameRawAsync`) is generated alongside the typed method. Both share the same command pipeline and respect cancellation tokens.
-- Preview flags (`SPOCR_ENABLE_JSON_STREAMING`, `SPOCR_ENABLE_JSON_MODELS`, `SPOCR_ENABLE_JSON_AUTODESERIALIZE`) are reserved for upcoming features. Until they stabilize, they default to `0` and the generator omits streaming/nested-model helpers.
-- Without preview flags, raw JSON strings are not emitted separately; consumers can serialize the typed list (`JsonSerializer.Serialize(result.ResultSets[0])`) if they need pass-through behavior.
+- Raw helpers (`ProcedureNameRawAsync`) and typed methods are emitted together. Both share the same command pipeline and respect cancellation tokens.
+- Streaming and nested model helpers remain future work items. They are not gated by `.env` toggles anymore; once implemented they will be documented alongside their stability status.
+- Raw JSON strings are emitted alongside typed helpers; consumers can still serialize the typed list (`JsonSerializer.Serialize(result.ResultSets[0])`) if they want to avoid the raw helper.
 
 ## Authoring Guidelines
 
@@ -122,8 +122,8 @@ new("ResultSet1", async (reader, ct) =>
 
 - `project.jsonTypeLogLevel` (or the environment variable `SPOCR_JSON_TYPE_LOG_LEVEL`) controls how much JSON type enrichment logging reaches the console: `Detailed` (default), `SummaryOnly`, or `Off`.
 - Set `SPOCR_JSON_AST_DIAG=1` to emit detailed ScriptDom findings during analysis; combine with `SPOCR_LOG_LEVEL=debug` for verbose tracing.
-- `SPOCR_JSON_AUDIT=1` writes a `debug/json-audit.txt` report after generation that summarises every JSON result set, including preview feature usage if enabled.
-- Preview keys (`SPOCR_ENABLE_JSON_*`) trigger a CLI warning reminding teams to log findings in the roadmap checklist. Disable the keys (or set to `0`) to return to the typed-only baseline.
+- `SPOCR_JSON_AUDIT=1` writes a `debug/json-audit.txt` report after generation that summarises every JSON result set, including any future experimental features once they land.
+- JSON output is now part of the default surface. Capture any issues in the checklist under review findings so we can track regressions while the feature stabilizes.
 - Run `spocr pull --no-cache --verbose` when SQL changes are not reflected in the snapshot – this forces a fresh parse and re-emits JSON diagnostics.
 
 Keeping these conventions in place ensures that JSON-heavy procedures stay deterministic, diffable, and easy to consume from the generated C# surface.

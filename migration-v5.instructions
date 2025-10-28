@@ -47,14 +47,12 @@ scope: spocr-v5-cutover
 
 ## Dual CLI Strategy
 
-1. Ship a frozen v4 CLI as the NuGet tool `spocrv4`. It continues to read `spocr.json` and writes the legacy `DataContext/` output without touching the v5 pipeline.
-2. Während der Bridge-Phase bleibt die moderne CLI unter dem Namen `spocr` aktiv und arbeitet ausschließlich mit `.env`/`SPOCR_*` Keys sowie den SnapshotBuilder-Artefakten; `spocr.json` is now treated as a legacy artefact and is ignored during execution.
-3. Zum Cutover erfolgt der Umzug in das neue Repository `nuetzliches/xtraq`; die Nachfolge-CLI veröffentlicht dort als Tool/Package `xtraq` (Namespace `Xtraq`, Version `1.0.0`) ohne historische SpocR-Verweise. Das eingefrorene SpocR-Repository (v4.5) verweist in README/Changelog auf Xtraq.
-4. `spocr` prüft weiterhin auf Legacy-Artefakte (z.B. `spocr.json`, `DataContext/`, `debug/spocr.json`) und verlinkt auf `MIGRATION_SpocRVNext.md`, diese Anleitung sowie – nach Cutover – direkt auf das Xtraq-Repository.
-5. Kommuniziere in Release Notes, dass die Tools parallel installiert werden können und ergänze nach dem Cutover den Xtraq-Befehl:
+1. `spocr` bleibt während der gesamten Übergangsphase das Brückentool. Es arbeitet ausschließlich mit `.env`/`SPOCR_*`-Konfigurationen, erzeugt SnapshotBuilder-Artefakte und ignoriert `spocr.json`-Inhalte (Warnhinweis statt Fallback).
+2. Mit dem Cutover verlagert sich die aktive Weiterentwicklung vollständig in das Repository `nuetzliches/xtraq`; dort wird die Nachfolge-CLI als Tool/Package `xtraq` (Namespace `Xtraq`, Version `1.0.0`) veröffentlicht. Das eingefrorene SpocR-Repository (v4.5) verweist in README/CHANGELOG/Auto-Updater auf Xtraq.
+3. `spocr` prüft weiterhin auf Legacy-Artefakte (z.B. `spocr.json`, `DataContext/`, `debug/spocr.json`) und verlinkt auf `MIGRATION_SpocRVNext.md`, diese Anleitung sowie – nach Cutover – direkt auf das Xtraq-Repository.
+4. Release Notes und Dokumentation sollen klarstellen, dass beide Tools parallel installiert werden können und unterschiedliche Artefakte erzeugen:
    ```cmd
-   dotnet tool install --global spocr    # Bridge CLI (v5)
-   dotnet tool install --global spocrv4  # Frozen v4 pipeline
+   dotnet tool install --global spocr    # Bridge CLI (v5, SnapshotBuilder)
    dotnet tool install --global xtraq    # Nachfolger (Repository nuetzliches/xtraq)
    ```
 

@@ -2,7 +2,6 @@ using System;
 using System.CommandLine.IO;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using McMaster.Extensions.CommandLineUtils;
 using SpocR.Utils;
@@ -13,7 +12,7 @@ namespace SpocR.Commands.Spocr;
 /// <summary>
 /// v5+ initialization command replacing legacy 'create'.
 /// Creates or updates a .env file (never writes a new spocr.json) and allows overriding
-/// core SPOCR_* keys via CLI flags. Safe to invoke multiple times (idempotent except for ordering of appended keys).
+/// core SPOCR_* keys via CLI flags. JSON helpers are now always enabled; no preview toggles remain.
 /// </summary>
 [HelpOption("-?|-h|--help")]
 [Command("init", Description = "Initialize SpocR project (.env bootstrap). Replaces legacy 'create' in v5.")]
@@ -37,7 +36,7 @@ public class InitCommand : SpocrCommandBase
         var dir = DirectoryUtils.IsPath(effectivePath) ? effectivePath : System.IO.Path.GetFullPath(effectivePath);
         Directory.CreateDirectory(dir);
         // Use existing EnvBootstrapper to materialize base file (autoApprove to skip interactive prompt here)
-    var envPath = await SpocR.SpocRVNext.Cli.EnvBootstrapper.EnsureEnvAsync(dir, autoApprove: true, force: Force);
+        var envPath = await SpocR.SpocRVNext.Cli.EnvBootstrapper.EnsureEnvAsync(dir, autoApprove: true, force: Force);
 
         try
         {
@@ -62,7 +61,6 @@ public class InitCommand : SpocrCommandBase
                 return key + "=" + value;
             }
 
-            var sb = new StringBuilder();
             if (!string.IsNullOrWhiteSpace(RootNamespace)) Upsert("SPOCR_NAMESPACE", RootNamespace.Trim());
             if (!string.IsNullOrWhiteSpace(ConnectionString)) Upsert("SPOCR_GENERATOR_DB", ConnectionString.Trim());
             if (!string.IsNullOrWhiteSpace(Schemas)) Upsert("SPOCR_BUILD_SCHEMAS", string.Join(',', Schemas.Split(',').Select(s => s.Trim()).Where(s => s.Length > 0)));
@@ -74,6 +72,7 @@ public class InitCommand : SpocrCommandBase
         }
 
         Console.WriteLine($"[spocr init] .env ready at {envPath}");
+        Console.WriteLine("JSON helpers ship enabled by default; no extra preview flags required.");
         Console.WriteLine("Next: run 'spocr pull' then 'spocr build' (or 'spocr rebuild') to generate code.");
         return ExitCodes.Success;
     }

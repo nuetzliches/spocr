@@ -123,8 +123,12 @@ internal static class EnvBootstrapper
                 if (File.Exists(alt)) examplePath = alt;
             }
         }
-        if (File.Exists(examplePath)) return File.ReadAllText(examplePath);
-    return "# SpocR vNext configuration\n# SPOCR_NAMESPACE=Your.Project.Namespace\n# SPOCR_OUTPUT_DIR=SpocR\n";
+       if (File.Exists(examplePath)) return File.ReadAllText(examplePath);
+       return "# SpocR vNext configuration\n"
+           + "# SPOCR_NAMESPACE=Your.Project.Namespace\n"
+           + "# SPOCR_GENERATOR_DB=Server=localhost;Database=AppDb;Trusted_Connection=True;TrustServerCertificate=True;\n"
+           + "# SPOCR_OUTPUT_DIR=SpocR\n"
+           + "# SPOCR_BUILD_SCHEMAS=SchemaA,SchemaB\n";
     }
 
     private static string MergeWithConfig(string projectRoot, string exampleContent)

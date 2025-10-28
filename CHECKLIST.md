@@ -96,12 +96,13 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
   - 2025-10-29: Roadmap Landing (`docs/content/5.roadmap/index.md`) an `.env`-/Snapshot Fokus angepasst.
   - 2025-10-29: `docs/content/5.roadmap/testing-framework.md` aktualisiert (Phasen/Artefakte, Backlog).
   - 2025-10-29: `docs/content/5.roadmap/development-tasks.md` auf generated DbContext/`.env` Fokus gebracht; Legacy DataContext-Referenzen entfernt.
-  - 2025-10-29: Preview-Key Roadmap (`docs/content/5.roadmap/optional-features.md`, `output-strategies.md`) an `.env` Flags (`SPOCR_ENABLE_JSON_*`) angepasst.
-  - 2025-10-29: `docs/content/5.roadmap/json-support-design.md` auf typed Default + Preview Flags aktualisiert.
-  - 2025-10-29: `docs/content/3.reference/json-procedures.md` ergänzt (typed Default, Preview Keys, CLI Warnungen).
-  - 2025-10-29: `docs/content/3.reference/env-bootstrap.md` um JSON Preview Keys & kommentierte Beispiele erweitert.
-  - 2025-10-29: `samples/restapi/.env.example` um JSON Preview Key Kommentare ergänzt.
-  - Next: CLI Hilfetexte/`spocr init` Ausgabe prüfen, ob Preview-Hinweise konsistent sind.
+  - 2025-10-29: JSON Roadmap-Dokumente (`docs/content/5.roadmap/optional-features.md`, `output-strategies.md`) auf standardmäßigen Dual-Mode ohne `.env`-Toggles umgestellt.
+  - 2025-10-29: `docs/content/5.roadmap/json-support-design.md` auf typed+raw Default überführt; Preview-Flag-Hinweise entfernt.
+  - 2025-10-29: `docs/content/3.reference/json-procedures.md` & `env-bootstrap.md` auf JSON-Default angepasst; Preview-Key-Abschnitte bereinigt.
+  - 2025-10-29: `samples/restapi/.env.example` bereinigt (keine JSON Preview Keys mehr nötig).
+  - 2025-10-28: CLI Hilfetext und `spocr init` Ausgabe auf JSON-Default ausgerichtet (keine separaten JSON-Toggles mehr).
+  - 2025-10-28: CLI `pull`/`build`/`rebuild` Hilfetexte auf `.env`-Kontext ohne Preview-Toggles umgestellt.
+  - Next: `docs/content/2.cli` Befehlsreferenzen auf neue `.env`-/JSON-Defaults prüfen und konsolidieren.
   - 2025-10-29: MIGRATION Docs auf Zielzustand gesetzt, Legacy-Narrative in Hauptseiten noch zu kürzen.
 - [x] README/Docs: Namespace-Ableitung & Override mit Beispiel diff ergänzen. (docs/content/3.reference/env-bootstrap.md)
 - [>] CHANGELOG v4.5-rc/v5 vorbereiten (Removed Keys, neue CLI, Bridge Policy).

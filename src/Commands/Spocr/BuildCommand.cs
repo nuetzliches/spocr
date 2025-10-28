@@ -18,7 +18,10 @@ public interface IBuildCommandOptions : ICommandOptions
 }
 
 [HelpOption("-?|-h|--help")]
-[Command("build", Description = "Build DataContext depending on spocr.json")]
+[Command(
+    "build",
+    Description = "Generate vNext client code from current snapshots using .env",
+    ExtendedHelpText = "Configures output via .env (use 'spocr init' to scaffold). JSON helpers generate by default; no preview flags needed.")]
 public class BuildCommand(
     SpocrManager spocrManager,
     SpocrProjectManager spocrProjectManager
@@ -47,7 +50,7 @@ public class BuildCommand(
 
     public override async Task<int> OnExecuteAsync()
     {
-        // Read Path to spocr.json from Project configuration
+    // Legacy project alias support: resolve configured path (still stored as config file entry)
         if (!string.IsNullOrEmpty(Project))
         {
             var project = spocrProjectManager.FindByName(Project);

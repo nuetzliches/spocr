@@ -40,7 +40,7 @@ This section highlights the roadmap for the modern v5 CLI. It aligns with branch
 | CLI               | Exit code specialization (spaced blocks)   | Done     | Spaced categories + sub-codes implemented                                                   |
 | CLI               | `.env` bootstrap & legacy warnings          | Done     | `spocr init` template refresh, legacy artefact detection                                    |
 | Versioning        | Dynamic publish workflow MinVer extraction | Planned  | Transition workflow to derive version from `dotnet minver` output instead of csproj parsing |
-| Output Strategies | Hybrid JSON materialization                | Design   | Controlled via `.env` preview keys; see Optional Features document                          |
+| Output Strategies | Hybrid JSON materialization                | Design   | Typed + raw helpers standard; streaming/nested follow roadmap (see Optional Features)       |
 | Performance       | Structured benchmark baselines             | Planned  | Compare generation & runtime metrics across versions                                        |
 
 Progress in this table should remain synchronized with the README Exit Codes and Testing sections and the Testing Framework document.
@@ -49,9 +49,9 @@ Progress in this table should remain synchronized with the README Exit Codes and
 
 ### v4.5 (Frozen Bridge Release)
 
-- Legacy `spocr.json` + `DataContext/` pipeline maintained via the `spocrv4` tool.
-- Determinism reporting available, but strict exit codes disabled.
-- Minimal JSON typing with heuristic fallbacks.
+- Legacy `spocr.json` + `DataContext/` pipeline bleibt eingefroren; neue Arbeit findet im Xtraq-Nachfolger statt.
+- Determinism reporting verfügbar, aber strenge Exit Codes bleiben deaktiviert.
+- Minimale JSON-Typisierung mit heuristischen Fallbacks.
 
 ### v5 (Current Focus)
 

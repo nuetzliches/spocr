@@ -1,5 +1,5 @@
 title: Optional Features
-description: Preview configuration flags for JSON materialization in the v5 CLI.
+description: Design notes for extended JSON materialization in the v5 CLI.
 versionIntroduced: 5.0.0
 experimental: true
 authoritative: true
@@ -11,32 +11,22 @@ aiTags: [roadmap, optional, deserialization, json, performance]
 ## Current Situation
 
 - The generated `SpocRDbContext` emits typed JSON helpers (`Task<IReadOnlyList<T>>`) derived from SnapshotBuilder metadata.
-- Some consumers still need raw JSON (`string` or `JsonDocument`) for streaming or pass-through scenarios.
-- Preview work explores dual-mode and streaming outputs without reintroducing legacy configuration files.
+- Raw JSON helpers (`Task<string> FooRawAsync`) now ship alongside typed helpers by default for pass-through scenarios.
+- Streaming and nested materialization remain in design and will land incrementally.
 
 ## Target Vision
 
 - JSON results available as typed models, raw payloads, or streaming sequences based on environment-first configuration.
-- `.env` preview keys (`SPOCR_ENABLE_JSON_DUAL`, `SPOCR_ENABLE_JSON_STREAMING`) guard the new behavior; defaults remain typed-only.
+- Dual mode is enabled by default; future streaming/nested capabilities will follow once validated (no `.env` toggles planned).
 - Runtime overrides surface through `AddSpocRDbContext` options, keeping generated code immutable.
 
 ## Architecture Proposal
 
 ### 1. Configurable Materialization Strategy
 
-Preview `.env` keys:
-
-```dotenv
-# Enable dual output (raw + typed) for JSON procedures (preview)
-SPOCR_ENABLE_JSON_DUAL=0
-
-# Enable streaming helpers for large JSON payloads (preview)
-SPOCR_ENABLE_JSON_STREAMING=0
-```
-
-- `SPOCR_ENABLE_JSON_DUAL=1` emits both typed and raw helper methods.
-- `SPOCR_ENABLE_JSON_STREAMING=1` will introduce streaming APIs once implemented (currently scoped to design).
-- Leaving keys unset keeps the baseline typed helper experience.
+- Typed + raw helpers are emitted together by default (dual mode baseline).
+- Streaming helpers will be exposed once validated; activation is expected to rely on generator version/capabilities rather than manual toggles.
+- Nested model materialization and auto-deserialize will follow the same pattern: enabled when stable, documented in release notes.
 
 ### 2. Generated DbContext Options
 
@@ -45,28 +35,28 @@ SPOCR_ENABLE_JSON_STREAMING=0
 ```csharp
 services.AddSpocRDbContext(configuration, options =>
 {
-    options.JsonMaterialization = JsonMaterialization.Typed; // Typed, Raw, Dual (preview)
-    options.EnableJsonStreaming = false;                     // Maps to SPOCR_ENABLE_JSON_STREAMING when enabled
+    options.JsonMaterialization = JsonMaterialization.Dual; // Typed, Raw, Dual (default dual)
+    options.EnableJsonStreaming = false;                    // Future: set true once streaming support ships
 });
 ```
 
 ### 3. Return Value API Form
 
 - Typed default: `Task<IReadOnlyList<CustomerModel>> CustomersAsync(...)`
-- Raw helper (dual mode): `Task<string> CustomersRawAsync(...)`
-- Streaming preview candidate: `IAsyncEnumerable<JsonDocument> CustomersStreamAsync(...)`
+- Raw helper (dual mode baseline): `Task<string> CustomersRawAsync(...)`
+- Streaming candidate: `IAsyncEnumerable<JsonDocument> CustomersStreamAsync(...)` (future)
 
 ### 4. Generator Adjustments
 
-- Respect preview keys consistently across templates, runtime helpers, and diagnostics output.
-- Capture active preview features in snapshots (`JsonFeatures.Dual`, `JsonFeatures.Streaming`) to maintain determinism.
-- Keep typed helpers as the baseline output even when preview flags toggle additional methods.
+- Ensure generator output stays deterministic as capabilities expand.
+- Capture active JSON features in snapshots (`JsonFeatures.Dual`, `JsonFeatures.Streaming`) to maintain determinism.
+- Keep typed helpers as the baseline output even as additional methods ship.
 
 ### 5. Migration and Compatibility
 
-- Defaults produce typed helpers only; enabling preview keys requires explicit `.env` opt-in tracked in `CHECKLIST.md`.
-- Document usage and rollback plans before activating preview features in shared environments.
-- CLI surfaces warnings when preview flags are active to encourage teams to log findings.
+- Defaults now produce typed and raw helpers; future enhancements such as streaming will ship disabled until the generator version flips the capability on.
+- Document usage and rollback plans when adopting new JSON capabilities in shared environments.
+- CLI warnings should continue to flag early capabilities so teams capture findings in `CHECKLIST.md`.
 
 ### 6. Performance Strategy
 
@@ -76,6 +66,6 @@ services.AddSpocRDbContext(configuration, options =>
 
 ## Status
 
-- **Current Phase**: Preview design (`SPOCR_ENABLE_JSON_DUAL`, `SPOCR_ENABLE_JSON_STREAMING`).
+- **Current Phase**: Dual mode GA; streaming/nested still in design.
 - **Dependencies**: output strategies roadmap, SnapshotBuilder JSON metadata.
-- **Target Release**: Opt-in during v5 lifecycle with typed-only default.
+- **Target Release**: Incremental updates during v5 lifecycle; typed + raw default already available.

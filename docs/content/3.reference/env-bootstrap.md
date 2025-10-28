@@ -1,6 +1,6 @@
 ---
 title: Environment Bootstrap & Configuration
-description: How the SpocR CLI bootstraps `.env`, resolves configuration precedence, and manages preview flags.
+description: How the SpocR CLI bootstraps `.env`, resolves configuration precedence, and surfaces optional flags.
 layout: docs
 version: 5.0
 ---
@@ -31,7 +31,7 @@ Re-run `spocr init` at any time; use `--force` to overwrite existing values whil
 
 ## Authoritative Template (`.env.example`)
 
-The template is the single source of truth for available keys. Comment sections are grouped by feature area (core configuration, optional flags, auto-update control, diagnostics). When a key graduates from preview, update the template and this page together.
+The template is the single source of truth for available keys. Comment sections are grouped by feature area (core configuration, optional flags, auto-update control, diagnostics). When a key graduates from preview, update the template and this page together. JSON helpers now ship enabled by default, so no opt-in keys remain for that feature area.
 
 ### Stable Keys
 
@@ -53,10 +53,6 @@ These keys remain disabled until their respective features ship. Keep them docum
 | -------------------------------- | ------------------------------------------- | ------------------------------------------------------- |
 | `SPOCR_STRICT_DIFF`              | Core coverage ≥60% & diff allow-list stable | Fails build on unexpected generator diffs               |
 | `SPOCR_STRICT_GOLDEN`            | Same as strict diff                         | Enforces golden hash manifests                          |
-| `SPOCR_ENABLE_JSON_DUAL`         | JSON dual-mode preview                      | Adds raw helpers alongside typed JSON outputs           |
-| `SPOCR_ENABLE_JSON_STREAMING`    | Streaming preview ready                     | Enables `IAsyncEnumerable<JsonDocument>` helpers        |
-| `SPOCR_ENABLE_JSON_MODELS`       | Nested JSON preview                         | Generates typed nested JSON payload models              |
-| `SPOCR_ENABLE_JSON_AUTODESERIALIZE` | Nested auto-deserialize preview          | Populates nested payload models automatically           |
 | `SPOCR_ENABLE_ANALYZER_WARNINGS` | Analyzer package shipping                   | Surfaces generator diagnostics as compile-time warnings |
 | `SPOCR_STRICT_NULLABLE`          | Nullable enforcement finalized              | Promotes nullable analysis warnings to errors           |
 | `SPOCR_GENERATE_API_ENDPOINTS`   | API endpoint templating GA                  | Generates minimal API endpoint stubs                    |
@@ -103,12 +99,6 @@ SPOCR_TFM=net8.0
 SPOCR_NAMESPACE=Acme.App.Data
 SPOCR_GENERATOR_DB=Server=localhost;Database=AppDb;Trusted_Connection=True;TrustServerCertificate=True;
 SPOCR_BUILD_SCHEMAS=core,identity
-SPOCR_STRICT_DIFF=1
-SPOCR_STRICT_GOLDEN=1
-SPOCR_ENABLE_JSON_DUAL=1
-#SPOCR_ENABLE_JSON_STREAMING=0
-#SPOCR_ENABLE_JSON_MODELS=0
-#SPOCR_ENABLE_JSON_AUTODESERIALIZE=0
 SPOCR_ENABLE_ANALYZER_WARNINGS=1
 ```
 

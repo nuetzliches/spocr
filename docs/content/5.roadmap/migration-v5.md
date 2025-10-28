@@ -10,7 +10,7 @@ This page captures the desired end state for the v5 migration. Treat it as a che
 
 ## Prerequisites
 
-- Install the modern CLI `spocr` (v5) and the frozen bridge tool `spocrv4` so both pipelines remain available during the transition.
+- Install die moderne CLI `spocr` (v5) für die Brückenphase und – sobald bereit – den Nachfolger `xtraq`, damit beide Pipelines parallel validiert werden können.
 - Ensure `.NET 8` is installed on build agents and developer workstations.
 - Confirm repositories contain the latest `.env.example` template shipped with v5.
 
@@ -40,7 +40,7 @@ This page captures the desired end state for the v5 migration. Treat it as a che
 
 1. Stop producing `DataContext/` artefacts. Consumer projects should depend on the new output folders under `SpocR/` (or the directory specified via `SPOCR_OUTPUT_DIR`).
 2. Update CI jobs, scripts, and documentation to reference environment-based configuration and the new output layout.
-3. When dual-running `spocrv4`, isolate its outputs (e.g. `legacy/`) so developers can diff changes without overwriting v5 artefacts.
+3. Wenn `spocr` und `xtraq` parallel laufen, lege getrennte Ausgabepfade fest (z. B. `legacy/` vs. `next/`), damit Diffs nachvollziehbar bleiben und Artefakte sich nicht überschreiben.
 
 ### 4. Update Documentation & Communication
 

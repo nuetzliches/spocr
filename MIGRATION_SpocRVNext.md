@@ -31,11 +31,10 @@ Note: "Removed" means loader/parser will ignore & no longer bind; warning verbos
 
 ## Dual CLI Strategy
 
-- `spocrv4` remains available as the frozen legacy tool and continues to read `spocr.json` while emitting `DataContext/` outputs.
-- The bridge CLI `spocr` (v5) runs exclusively with `.env` / `SPOCR_*` inputs and produces SnapshotBuilder artefacts; it flags legacy files but ignores them for configuration.
-- After cutover the maintained CLI lives in `nuetzliches/xtraq` (package `xtraq`, namespace `Xtraq`, version `1.0.0`) with no SpocR references; the SpocR repository stays locked at v4.5 and points to Xtraq.
-- The three tools install side-by-side without output collisions, supporting teams that stage their adoption timeline.
-- Bridge CLI warnings link back to this target-state document, `migration-v5.instructions`, and—post cutover—the Xtraq repository so consumers know the official path forward.
+- `spocr` (v5) bleibt das Brückentool für bestehende Installationen. Es läuft ausschließlich mit `.env` / `SPOCR_*` Eingaben, erzeugt SnapshotBuilder-Artefakte und warnt bei verbleibenden Legacy-Dateien (`spocr.json`, `DataContext/`, …).
+- `xtraq` (Repository `nuetzliches/xtraq`, Paket `xtraq`, Namespace `Xtraq`, Version `1.0.0`) bildet den vollständigen Nachfolger. Neue Features fließen ausschließlich dort ein; SpocR verweist nach dem Freeze auf dieses Projekt.
+- Beide Tools können parallel installiert werden, ohne dass Ausgabepfade kollidieren. Damit bleibt eine gestaffelte Migration möglich: Stabilisierung und Inventar mit `spocr`, produktive Weiterentwicklung mit `xtraq`.
+- Bridge-Warnungen verlinken auf dieses Zielbild, `migration-v5.instructions` sowie das Xtraq-Repository, damit Konsumenten den offiziellen Pfad kennen.
 
 ## Configuration Changes
 

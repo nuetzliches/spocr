@@ -9,12 +9,12 @@ public class SpocrCommandBase(
     SpocrProjectManager spocrProjectManager
 ) : CommandBase
 {
-    [Option("-pr|--project", "Name of project that has path to spocr.json", CommandOptionType.SingleValue)]
+    [Option("-pr|--project", "Legacy project alias (maps to stored config path); prefer --path pointing at your .env root.", CommandOptionType.SingleValue)]
     public string Project { get; set; }
 
     public override async Task<int> OnExecuteAsync()
     {
-        // Read Path to spocr.json from Project configuration
+        // Map legacy project alias back to stored path (kept for bridge users)
         if (!string.IsNullOrEmpty(Project))
         {
             var project = spocrProjectManager.FindByName(Project);

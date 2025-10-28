@@ -60,11 +60,12 @@
   - 2025-10-29: Roadmap Landing Page (`docs/content/5.roadmap/index.md`) an v5 Fokus angepasst.
   - 2025-10-29: `docs/content/5.roadmap/testing-framework.md` bündelt Phasen/Artefakte & Backlog.
   - 2025-10-29: `docs/content/5.roadmap/development-tasks.md` auf generated DbContext/`.env` Fokus gebracht; Legacy DataContext-Referenzen entfernt.
-  - 2025-10-29: `docs/content/5.roadmap/json-support-design.md` spiegelt typed Default + Preview Flags wider.
-  - 2025-10-29: `docs/content/3.reference/json-procedures.md` dokumentiert typed Default & Preview Keys.
-  - 2025-10-29: `docs/content/3.reference/env-bootstrap.md` um JSON Preview Keys / kommentierte Beispiele erweitert.
-  - 2025-10-29: `samples/restapi/.env.example` trägt kommentierte Preview Keys.
-  - Next: CLI Hilfetexte / `spocr init` Output auf Preview-Hinweise prüfen.
+  - 2025-10-29: `docs/content/5.roadmap/json-support-design.md` auf typed+raw Default überführt; Preview-Flag-Hinweise entfernt.
+  - 2025-10-29: `docs/content/3.reference/json-procedures.md` & `env-bootstrap.md` dokumentieren JSON-Default ohne `.env`-Toggles.
+  - 2025-10-29: `samples/restapi/.env.example` bereinigt (keine JSON Preview Keys mehr).
+  - 2025-10-28: CLI Hilfetext & `spocr init` Output auf JSON-Default ausgerichtet (keine separaten JSON-Toggles mehr).
+  - 2025-10-28: CLI `pull`/`build`/`rebuild` Hilfetexte auf `.env`-Kontext ohne Preview-Toggles umgestellt.
+  - Next: `docs/content/2.cli` Befehlsreferenzen auf neuen Hilfetext synchronisieren.
 - [>] Kommunikationsplan für Kunden/Partner erstellen (Zeitplan, Forced-Upgrade-Botschaft, Supportkanäle).
 - [>] Feedbackschleifen etablieren (Pilotkunden, Beta, Telemetrieauswertung).
 - [~] SpocR Freeze-Kommunikation vorbereiten: v4.5 finalisiert, deutet auf `nuetzliches/xtraq` (Namespace `Xtraq`, Version `1.0.0`).

@@ -29,7 +29,7 @@ This topic summarizes the practical differences teams experience when moving fro
 
 - **Runtime registration**: Consumers wire up `AddSpocRDbContext` and supply runtime connection strings via host configuration. Generator secrets stay in `.env`, never in `spocr.json`.
 - **Result helpers**: JSON helpers favor explicit `ReturnsJson` metadata, enabling typed wrappers without opt-in flags.
-- **Backward compatibility**: The `spocrv4` tool remains available for frozen legacy builds. Projects can install both tools during the bridge window but should treat `spocr` as the authoritative path forward.
+- **Backward compatibility**: SpocR 4.5 bleibt als eingefrorene Bridge-Version verfügbar. Der aktive Nachfolger lebt im `xtraq`-Repository; neue Features entstehen dort.
 
 ## Quick Comparison
 
@@ -40,6 +40,6 @@ This topic summarizes the practical differences teams experience when moving fro
 | Determinism           | Reporting only                                    | Strict diff / golden exit codes when enabled                           |
 | Generator toggles     | Legacy mode flags, disable switches               | No toggles; fails fast when prerequisites missing                      |
 | JSON metadata         | Mixed heuristics + partial snapshot coverage      | Snapshot-driven with explicit JSON typing and alias capture            |
-| Tooling               | `spocr` (bridge)                                  | `spocr` (v5) + optional `spocrv4` for frozen pipelines                 |
+| Tooling               | SpocR 4.5 (bridge release)                        | `spocr` (v5) + `xtraq` als Nachfolger                                   |
 
 Use this page alongside `migration-v5.md` and `migration-v5.instructions` when planning the final cutover. Open issues with label `v5-planning` if additional differences need to be tracked.

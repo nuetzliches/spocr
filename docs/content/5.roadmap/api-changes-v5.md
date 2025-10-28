@@ -17,7 +17,7 @@ The v5 release streamlines the generated runtime surface and clarifies how host 
 ## Additions & Adjustments
 
 - **DbContext scaffolding**: `AddSpocRDbContext(IServiceCollection, Action<SpocROptions>?)` now exposes hooks for supplying runtime connection strings, toggling diagnostics, and plugging in telemetry.
-- **JSON helpers**: Generated JSON result classes expose explicit `ReturnsJson` metadata and typed accessor patterns. Dual-mode generation (raw + materialized) is controlled through `.env` keys (`SPOCR_ENABLE_JSON_DUAL`) for feature branches.
+- **JSON helpers**: Generated JSON result classes expose explicit `ReturnsJson` metadata and typed accessor patterns. Dual-mode generation (raw + materialized) now ships by default; no additional `.env` toggles required.
 - **Snapshot-driven enums**: Procedure status enums derive directly from snapshot metadata rather than post-processing scripts, making them predictable across environments.
 - **Logger integration**: Generated code uses `ILogger<SpocRDbContext>` for tracing rather than bespoke logging helpers.
 

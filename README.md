@@ -77,14 +77,12 @@ During the v4 → v5 migration both CLIs are available side by side:
 
 ```cmd
 dotnet tool install --global spocr    # v5 pipeline (env-first, SnapshotBuilder)
-dotnet tool install --global spocrv4  # frozen v4 pipeline (spocr.json, DataContext/ output)
 dotnet tool install --global xtraq    # Nachfolger (Repository nuetzliches/xtraq, Namespace Xtraq, Version 1.0.0)
 ```
 
-- `spocrv4` continues to read `spocr.json` and emits the legacy `DataContext/` artefacts for teams that still rely on the previous code layout.
-- `spocr` (v5) uses `.env` / `SPOCR_*` keys exclusively and writes the new SnapshotBuilder output. On every run it checks for legacy artefacts (`spocr.json`, `DataContext/`, etc.) and warns with a link to `MIGRATION_SpocRVNext.md` plus `migration-v5.instructions` so the cutover steps stay visible.
-- `xtraq` übernimmt nach dem Cutover das moderne CLI im neuen Repository `nuetzliches/xtraq`. Sobald Version `1.0.0` veröffentlicht ist, verweist SpocR v4.5 in README, CHANGELOG und Auto-Updater-Meldungen auf diesen Nachfolger.
-- Both tools install as separate dotnet tools; there is no overlap in their generated files, which keeps parallel validation safe.
+- `spocr` (v5) uses `.env` / `SPOCR_*` keys exclusively and writes die SnapshotBuilder-Artefakte. Auf jedem Lauf prüft das Tool, ob noch Altsystemreste (`spocr.json`, `DataContext/`, …) vorhanden sind, und verweist auf `MIGRATION_SpocRVNext.md` bzw. `migration-v5.instructions`.
+- `xtraq` ist der produktive Nachfolger mit eigenem Repository (`nuetzliches/xtraq`). Während der Übergangsphase kann `spocr` weiter zur Inventarisierung und Stabilisierung genutzt werden, während neue Projekte direkt auf `xtraq` setzen.
+- Beide Tools installieren sich getrennt als dotnet-Tool; Artefakte kollidieren nicht, wodurch parallele Validierung möglich bleibt.
 
 ## Snapshots & Determinism
 

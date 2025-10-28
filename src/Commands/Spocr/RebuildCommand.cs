@@ -6,7 +6,10 @@ using System.Threading.Tasks;
 namespace SpocR.Commands.Spocr;
 
 [HelpOption("-?|-h|--help")]
-[Command("rebuild", Description = "Pull DB Schema and Build DataContext")]
+[Command(
+    "rebuild",
+    Description = "Shortcut for pull+build using .env configuration (metadata + client code)",
+    ExtendedHelpText = "Runs pull then build with your .env. Ensure SPOCR_GENERATOR_DB is set; JSON helpers are always generated.")]
 public class RebuildCommand(
     SpocrManager spocrManager,
     SpocrProjectManager spocrProjectManager

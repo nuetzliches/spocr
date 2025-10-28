@@ -7,7 +7,10 @@ using SpocR.Infrastructure;
 namespace SpocR.Commands.Spocr;
 
 [HelpOption("-?|-h|--help")]
-[Command("pull", Description = "Pull all schema informations from DB into spocr.json")]
+[Command(
+    "pull",
+    Description = "Pull database metadata into .spocr snapshots using .env settings",
+    ExtendedHelpText = "Requires SPOCR_GENERATOR_DB from .env (seed via 'spocr init'). JSON helpers ship enabled by default.")]
 public class PullCommand(
     SpocrManager spocrManager,
     SpocrProjectManager spocrProjectManager
