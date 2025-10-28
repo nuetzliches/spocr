@@ -55,7 +55,7 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 
 - [ ] Tests und Golden Snapshots auf neuen Artefakt-Output heben (`SpocR.Tests`, Determinism).
 - [ ] Obsolete Snapshot-Felder (`JsonPath`, `JsonResult`, `DeferredJsonColumns`) entfernen, Konsumenten migrieren.
-- [ ] Analyzer-Verbesserungen dokumentieren und Telemetrie-Läufe (`--no-cache --verbose`) archivieren.
+- [x] Analyzer-Verbesserungen dokumentieren und Telemetrie-Läufe (`--no-cache --verbose`) archivieren. (Referenz: `src/SpocRVNext/SnapshotBuilder/README.md` Abschnitt "Diagnostics & Type Resolution Runs"/"Snapshot Summary Payload")
 - [ ] Snapshot-Schritte für Migration (`migration-v5.instructions`) ergänzen.
 - [ ] Legacy-Bridge abbauen, sobald Abschlusskriterien (grüne Tests, deterministischer Pull) erfüllt sind.
 

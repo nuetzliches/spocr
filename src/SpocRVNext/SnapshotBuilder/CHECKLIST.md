@@ -11,10 +11,10 @@
 
 ## Offene Arbeit vor Migration
 
-- [ ] Diagnose- und Typauflösungs-Läufe dokumentieren (`--no-cache --verbose`, Vergleichsläufe mit Cache, zielgerichtete `--procedure`-Runs, Diffs unter `debug/test-summary.json`).
-- [ ] Kommentarpfade und Fallbacks für `FOR JSON` verifizieren; verbleibende Sonderfälle in Analyzer-Stories aufnehmen.
-- [ ] Beispiel-Trace und Verbose-Ausgabe für Fehlersuche aufbereiten und im README referenzieren.
-- [ ] Telemetrie-Ausgaben (CLI, `SPOCR_SNAPSHOT_SUMMARY[_PATH]`) konsolidieren und Monitoring-Checkliste ergänzen.
+- [x] Diagnose- und Typauflösungs-Läufe dokumentieren (`--no-cache --verbose`, Vergleichsläufe mit Cache, zielgerichtete `--procedure`-Runs, Diffs unter `debug/test-summary.json`). (Siehe `src/SpocRVNext/SnapshotBuilder/README.md` Abschnitt "Diagnostics & Type Resolution Runs")
+- [x] Kommentarpfade und Fallbacks für `FOR JSON` verifizieren; verbleibende Sonderfälle in Analyzer-Stories aufnehmen. (Siehe `src/SpocRVNext/SnapshotBuilder/README.md` Abschnitt "`FOR JSON` Validation & Fallbacks")
+- [x] Beispiel-Trace und Verbose-Ausgabe für Fehlersuche aufbereiten und im README referenzieren. (Siehe `src/SpocRVNext/SnapshotBuilder/README.md` Abschnitt "Verbose Trace Example")
+- [x] Telemetrie-Ausgaben (CLI, `SPOCR_SNAPSHOT_SUMMARY[_PATH]`) konsolidieren und Monitoring-Checkliste ergänzen. (Siehe `src/SpocRVNext/SnapshotBuilder/README.md` Abschnitt "Snapshot Summary Payload")
 
 ## Migration-gekoppelte Aufgaben (koordiniert mit `../CHECKLIST.md`)
 
