@@ -49,6 +49,6 @@
 - [ ] Branch `v4.5` aus `master` erstellen, Auto-Updater deaktivieren und Warnhinweis platzieren.
 - [ ] Letzte Legacy-Version dokumentieren, Auto-Update stoppen, Migrationspfad klarstellen.
 - [ ] Sicherstellen, dass v5-Installationen Legacy-`DataContext/` nicht mehr aktualisieren; neue Registrierungs- und Deployment-Pfade beschreiben.
-- [ ] `migration-v5.instructions` befüllen (inkl. SnapshotBuilder-Hinweisen aus `src/SpocRVNext/SnapshotBuilder/CHECKLIST.md`).
+- [x] `migration-v5.instructions` befüllen (inkl. SnapshotBuilder-Hinweisen aus `src/SpocRVNext/SnapshotBuilder/CHECKLIST.md`). (Siehe `migration-v5.instructions`)
 
 > Fortschritt der SnapshotBuilder-Migration bitte dort pflegen; dieses Dokument bündelt die Gesamtplanung für v5.

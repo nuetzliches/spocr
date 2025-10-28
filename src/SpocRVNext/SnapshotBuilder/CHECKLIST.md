@@ -15,6 +15,7 @@
 - [x] Kommentarpfade und Fallbacks für `FOR JSON` verifizieren; verbleibende Sonderfälle in Analyzer-Stories aufnehmen. (Siehe `src/SpocRVNext/SnapshotBuilder/README.md` Abschnitt "`FOR JSON` Validation & Fallbacks")
 - [x] Beispiel-Trace und Verbose-Ausgabe für Fehlersuche aufbereiten und im README referenzieren. (Siehe `src/SpocRVNext/SnapshotBuilder/README.md` Abschnitt "Verbose Trace Example")
 - [x] Telemetrie-Ausgaben (CLI, `SPOCR_SNAPSHOT_SUMMARY[_PATH]`) konsolidieren und Monitoring-Checkliste ergänzen. (Siehe `src/SpocRVNext/SnapshotBuilder/README.md` Abschnitt "Snapshot Summary Payload")
+- [x] Snapshot-spezifische Schritte in `migration-v5.instructions` dokumentieren (ENV-Migration, neue Artefakte, CLI-Hinweise). (Siehe `migration-v5.instructions`)
 
 ## Migration-gekoppelte Aufgaben (koordiniert mit `../CHECKLIST.md`)
 
@@ -22,7 +23,7 @@
 - [ ] Obsolete Snapshot-Felder (`SnapshotResultColumn.JsonPath`, `JsonResult`, `DeferredJsonColumns`) entfernen und Downstream-Konsumenten migrieren.
 - [ ] Eigenständige JSON-/Aggregate-Analyzer finalisieren (AVG/SUM/COUNT, Nested JSON, Exec Forwarding ohne Legacy-Parser).
 - [ ] Abschlusskriterien erfüllen: vollständige Test-Suite reaktivieren, Legacy-Brücke abbauen, Determinism-Checks grün.
-- [ ] Snapshot-spezifische Schritte in `migration-v5.instructions` dokumentieren (ENV-Migration, neue Artefakte, CLI-Hinweise).
+- [x] Snapshot-spezifische Schritte in `migration-v5.instructions` dokumentieren (ENV-Migration, neue Artefakte, CLI-Hinweise).
 
 ## Entscheidungen & Referenzen
 

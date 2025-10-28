@@ -35,6 +35,13 @@ Note: "Removed" means loader/parser will ignore & no longer bind; warning verbos
 
 > Upcoming (v5) Removal of `spocr.json` Dependency: In v4.5 the file is still read as a fallback (only when `SPOCR_GENERATOR_DB` is absent). In v5.0 the generator will neither read nor parse `spocr.json`. If the file still exists a one‑time WARNING will be emitted advising to delete it (fully .env / ENV driven operation). No feature will rely on its contents post‑cutover.
 
+## Dual CLI Strategy
+
+- Publish the frozen v4 CLI as the dotnet tool `spocrv4`. It continues to consume `spocr.json` and emit the legacy `DataContext/` structure, enabling projects to finish the cutover on their own timeline.
+- The v5 CLI keeps the `spocr` package name and runs solely against `.env` / `SPOCR_*` keys plus SnapshotBuilder artefacts.
+- Both CLIs install independently. There is no overlap in generated files, so validation runs can execute in parallel.
+- To steer users toward the migration path, `spocr` detects legacy artefacts (`spocr.json`, `DataContext/`, legacy outputs) and prints a warning linking to this document and `migration-v5.instructions`.
+
 ## Configuration Changes
 
 Removed (planned / already removed):

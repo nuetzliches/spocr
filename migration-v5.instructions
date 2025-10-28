@@ -1,0 +1,69 @@
+---
+version: 1
+updated: 2025-10-28
+scope: spocr-v5-cutover
+---
+
+# SpocR v5 Migration Checklist (SnapshotBuilder & CLI)
+
+## Environment Bootstrapping
+
+1. Run `spocr init` in every repository that still relies on `spocr.json`.
+2. Validate the generated `.env` contains the minimum generator keys:
+   - `SPOCR_GENERATOR_DB`
+   - `SPOCR_NAMESPACE` (only when auto namespace cannot infer the correct value)
+   - `SPOCR_BUILD_SCHEMAS` or schema specific overrides when selective generation is required.
+3. Remove secrets from `.env`; runtime connection strings now live in host configuration (`AddSpocRDbContext`).
+4. Keep `SPOCR_GENERATOR_DB` (and related secrets) inside `.env`; the pull/build pipeline still relies on this value. Treat the file as sensitive (use repo-level secret handling) while runtime code fetches its connection string via `AddSpocRDbContext` and host configuration. Delete stale `spocr.json` files after mirroring the values; in the bridge phase keep a backup only when dual validation is ongoing.
+
+## SnapshotBuilder Verification Flow
+
+1. Execute a cold diagnostics pull to capture analyzer output:
+   ```cmd
+   set SPOCR_LOG_LEVEL=debug
+   dotnet run --project src\SpocR.csproj -- pull --no-cache --verbose
+   ```
+2. Repeat without `--no-cache` to confirm cache reuse does not drift types:
+   ```cmd
+   dotnet run --project src\SpocR.csproj -- pull --verbose
+   ```
+3. For procedure regressions, scope the run with `--procedure <schema.proc>` and archive:
+   - `debug/test-summary.json`
+   - `debug/.spocr/schema/<schema>.<proc>.json`
+4. Inspect verbose logs for the structured tags documented in `src/SpocRVNext/SnapshotBuilder/README.md` (`[json-type-table]`, `[json-type-run-summary]`, `[proc-forward-expand]`). Capture a representative excerpt in the `Review-Findings` checklist.
+
+## Telemetry & Monitoring
+
+1. Export snapshot metrics by setting `SPOCR_SNAPSHOT_SUMMARY_PATH=debug/snapshot-summary.json` before each diagnostics pull.
+2. Attach the summary file to CI artefacts so monitoring can ingest stage durations and JSON typing statistics.
+3. Update the monitoring checklist whenever new fields appear in the summary payload.
+
+## `FOR JSON` Fallback Audit
+
+1. When procedures embed comments inside `FOR JSON` blocks, verify the generated snapshot still contains `Json.IsArray`/`Json.RootProperty`.
+2. If ScriptDom misses metadata, confirm the textual fallback recorded the flag by checking the verbose trace (`[json-type-summary]`).
+3. For nested `JSON_QUERY` projections, ensure the snapshot marks child columns with `ReturnsJson=true` and `Columns` entries; generator output should expose nested record structs or string placeholders as documented.
+4. Escalate anomalies by logging the SQL definition, the verbose trace tail, and the affected snapshot file under `debug/.spocr/schema/`.
+
+## Dual CLI Strategy
+
+1. Ship a frozen v4 CLI as the NuGet tool `spocrv4`. It continues to read `spocr.json` and writes the legacy `DataContext/` output without touching the v5 pipeline.
+2. The v5 CLI (`spocr`) operates exclusively against `.env`/`SPOCR_*` keys and the new SnapshotBuilder artifacts. It must run alongside `spocrv4` without file clashes.
+3. `spocr` checks for legacy artefacts on every run (for example `spocr.json`, `DataContext/`, `debug/spocr.json`). When detected it emits a warning pointing to `MIGRATION_SpocRVNext.md` and these instructions so teams can plan the cutover.
+4. Communicate in release notes that both tools can be installed side by side:
+   ```cmd
+   dotnet tool install --global spocr    # v5 pipeline
+   dotnet tool install --global spocrv4  # frozen v4 pipeline
+   ```
+
+## CLI Guardrails
+
+1. Default generator mode remains `dual` until the v5 cutover; switch to `next` only after SnapshotBuilder determinism is confirmed.
+2. Document warning behaviour (legacy artefact detection) in the CLI help and README so users understand why `spocr` references the migration docs.
+3. Communicate breaking changes by updating:
+   - `docs/content/3.reference/json-procedures.md`
+   - `src/SpocRVNext/SnapshotBuilder/README.md`
+   - `CHANGELOG.md`
+4. Before removing legacy outputs, rerun the diagnostics suite above and refresh golden assets (`write-golden`, `verify-golden`).
+
+Document evidence for each step in `CHECKLIST.md` and keep this file synchronised whenever the migration process evolves.

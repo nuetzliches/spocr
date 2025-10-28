@@ -67,6 +67,20 @@ Guidance:
 
 - `SPOCR_BUILD_SCHEMAS` is an allow-list. Remove the line to generate every schema discovered during a pull.
 - Runtime connection strings stay in your host application (see `debug/DataContext/AppDbContext.cs`). The CLI env variable only affects metadata pulls and generators.
+- Store `SPOCR_GENERATOR_DB` securely. The generator still needs this connection string during `spocr pull`, while the runtime DbContext obtains its connection string via `AddSpocRDbContext` and host configuration.
+
+## Bridge Mode & Dual CLI
+
+During the v4 → v5 migration both CLIs are available side by side:
+
+```cmd
+dotnet tool install --global spocr    # v5 pipeline (env-first, SnapshotBuilder)
+dotnet tool install --global spocrv4  # frozen v4 pipeline (spocr.json, DataContext/ output)
+```
+
+- `spocrv4` continues to read `spocr.json` and emits the legacy `DataContext/` artefacts for teams that still rely on the previous code layout.
+- `spocr` (v5) uses `.env` / `SPOCR_*` keys exclusively and writes the new SnapshotBuilder output. On every run it checks for legacy artefacts (`spocr.json`, `DataContext/`, etc.) and warns with a link to `MIGRATION_SpocRVNext.md` plus `migration-v5.instructions` so the cutover steps stay visible.
+- Both tools install as separate dotnet tools; there is no overlap in their generated files, which keeps parallel validation safe.
 
 ## Snapshots & Determinism
 
