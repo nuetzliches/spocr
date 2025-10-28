@@ -21,6 +21,7 @@ These instructions support the current CLI work on the `feature/vnext-only` bran
 - If you touch CLI or pipeline behavior, document the change immediately in the docs section tasks.
 - Describe the CLI as it exists today. Drop the "vNext" label and avoid reintroducing historical bridge narratives.
 - Run generators against the sandbox under `debug/` (e.g. `dotnet run --project src/SpocR.csproj -- rebuild -p debug ...`). Do not revive `DataContext/` output paths outside the sandbox.
+- Treat `debug/` as the real-world validation target for vNext development; once the artifacts are stable there, extract only the necessary outputs into `samples/` so the sample stays a consumer demo rather than the primary development surface.
 
 ## 3. After editing functionality or docs
 
