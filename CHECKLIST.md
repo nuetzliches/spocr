@@ -38,7 +38,7 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 - [x] Parallelbetrieb alter/neuer Output abgeschlossen; deterministische Hashes sichern den vereinheitlichten Generator.
 - [x] `.env`-Migration samt Bootstrap und Warnpfad umgesetzt (README aktualisiert).
 - [x] Golden-Hash-Pipeline & Diff-Reporting aktiv (Relaxed Mode, CLI-Befehle `write-golden`/`verify-golden`).
-- [ ] Sample `samples/restapi` baut und besteht CRUD-Smoke über die neue Pipeline. (Blocker: neue Result-Typen ohne `.Result`-Alias im Sample aktualisieren)
+- [>] Sample `samples/restapi` baut und besteht CRUD-Smoke über die neue Pipeline. (Blocker: neue Result-Typen ohne `.Result`-Alias im Sample aktualisieren; debug/ rebuild hängt aktuell im legacy StoredProcedureGenerator, vNext Output erst stabilisieren)
 
 ## Roadmap & Migration (Abgleich mit `src/SpocRVNext/CHECKLIST.md`)
 
@@ -134,10 +134,13 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 - [>] TableType Validation/Builder Verbesserungen (FluentValidation, Factory Overloads).
 - [>] Procedure Invocation Patterns & Streaming Doku.
 
+## Debugging / Dev
+
+- Schema rebuild: `dotnet run --project src/SpocR.csproj -- rebuild -p debug`
+
 ## Testing Quick Reference
 
 - Schema rebuild: `dotnet run --project src/SpocR.csproj -- rebuild -p samples/restapi/spocr.json`
 - Sample build: `dotnet build samples/restapi/RestApi.csproj -c Debug`
-- Snapshot pull diagnostics: `dotnet run --project src/SpocR.csproj -- pull`
 
 > Fortschritt bitte regelmäßig mit `src/SpocRVNext/CHECKLIST.md` und `src/SpocRVNext/SnapshotBuilder/CHECKLIST.md` abgleichen; dieses Dokument bündelt die Gesamtübersicht für den Branch `feature/vnext`.

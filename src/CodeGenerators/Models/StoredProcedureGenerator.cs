@@ -246,6 +246,7 @@ public class StoredProcedureGenerator(
         // Generate Methods
         foreach (var storedProcedure in storedProcedures)
         {
+            consoleService.Verbose($"[diag-spgen] processing {schema.Name}.{storedProcedure.Name}");
             // Reine Wrapper (nur ExecSource Placeholder) überspringen – kein eigener Output.
             if (storedProcedure.IsPureWrapper)
             {
@@ -483,7 +484,7 @@ public class StoredProcedureGenerator(
             {
                 var col = firstSet.Columns[0];
                 bool isNVarChar = (col.SqlTypeName?.StartsWith("nvarchar", StringComparison.OrdinalIgnoreCase) ?? false);
-                bool isLegacyJsonSentinel = col.Name.Equals("JSON_F52E2B61-18A1-11d1-B105-00805F49916B", StringComparison.OrdinalIgnoreCase);
+                bool isLegacyJsonSentinel = string.Equals(col?.Name, "JSON_F52E2B61-18A1-11d1-B105-00805F49916B", StringComparison.OrdinalIgnoreCase);
                 bool hasRoot = !string.IsNullOrWhiteSpace(firstSet.JsonRootProperty);
                 bool flatPath = col.IsNestedJson != true;
                 if (isNVarChar && !isLegacyJsonSentinel && !hasRoot && flatPath)

@@ -53,9 +53,17 @@ public class CodeGenerationOrchestrator(
         // Steps: CodeBase (lib only), TableTypes, Inputs, Outputs, Models, StoredProcedures
         var genMode = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant();
         if (string.IsNullOrWhiteSpace(genMode)) genMode = "dual"; // default
+        var legacyPipelineEnabled = genMode != "next";
         var dbCtxEnabled = genMode is "dual" or "next";
-        var totalSteps = roleKind == RoleKindEnum.Extension ? 5 : 6;
-        if (dbCtxEnabled) totalSteps += 1; // additional optional step
+        var totalSteps = 0;
+        if (legacyPipelineEnabled)
+        {
+            totalSteps += roleKind == RoleKindEnum.Extension ? 5 : 6;
+        }
+        if (dbCtxEnabled)
+        {
+            totalSteps += 1; // additional optional step
+        }
         var currentStep = 0;
 
         HasErrors = false;
@@ -63,44 +71,51 @@ public class CodeGenerationOrchestrator(
         try
         {
             var codeBaseAlreadyExists = roleKind == RoleKindEnum.Extension;
-            if (!codeBaseAlreadyExists && outputConfig != null)
+            if (legacyPipelineEnabled)
             {
+                if (!codeBaseAlreadyExists && outputConfig != null)
+                {
+                    currentStep++;
+                    consoleService.PrintSubTitle($"Generating CodeBase (Step {currentStep}/{totalSteps})");
+                    stopwatch.Start();
+                    outputService.GenerateCodeBase(outputConfig, isDryRun);
+                    elapsed.Add("CodeBase", stopwatch.ElapsedMilliseconds);
+                }
+
                 currentStep++;
-                consoleService.PrintSubTitle($"Generating CodeBase (Step {currentStep}/{totalSteps})");
-                stopwatch.Start();
-                outputService.GenerateCodeBase(outputConfig, isDryRun);
-                elapsed.Add("CodeBase", stopwatch.ElapsedMilliseconds);
+                stopwatch.Restart();
+                consoleService.PrintSubTitle($"Generating TableTypes (Step {currentStep}/{totalSteps})");
+                await GenerateDataContextTableTypesAsync(isDryRun);
+                elapsed.Add("TableTypes", stopwatch.ElapsedMilliseconds);
+
+                currentStep++;
+                stopwatch.Restart();
+                consoleService.PrintSubTitle($"Generating Inputs (Step {currentStep}/{totalSteps})");
+                await GenerateDataContextInputsAsync(isDryRun);
+                elapsed.Add("Inputs", stopwatch.ElapsedMilliseconds);
+
+                currentStep++;
+                stopwatch.Restart();
+                consoleService.PrintSubTitle($"Generating Outputs (Step {currentStep}/{totalSteps})");
+                await GenerateDataContextOutputsAsync(isDryRun);
+                elapsed.Add("Outputs", stopwatch.ElapsedMilliseconds);
+
+                currentStep++;
+                stopwatch.Restart();
+                consoleService.PrintSubTitle($"Generating Output Models (Step {currentStep}/{totalSteps})");
+                await GenerateDataContextModelsAsync(isDryRun);
+                elapsed.Add("Models", stopwatch.ElapsedMilliseconds);
+
+                currentStep++;
+                stopwatch.Restart();
+                consoleService.PrintSubTitle($"Generating StoredProcedures (Step {currentStep}/{totalSteps})");
+                await GenerateDataContextStoredProceduresAsync(isDryRun);
+                elapsed.Add("StoredProcedures", stopwatch.ElapsedMilliseconds);
             }
-
-            currentStep++;
-            stopwatch.Restart();
-            consoleService.PrintSubTitle($"Generating TableTypes (Step {currentStep}/{totalSteps})");
-            await GenerateDataContextTableTypesAsync(isDryRun);
-            elapsed.Add("TableTypes", stopwatch.ElapsedMilliseconds);
-
-            currentStep++;
-            stopwatch.Restart();
-            consoleService.PrintSubTitle($"Generating Inputs (Step {currentStep}/{totalSteps})");
-            await GenerateDataContextInputsAsync(isDryRun);
-            elapsed.Add("Inputs", stopwatch.ElapsedMilliseconds);
-
-            currentStep++;
-            stopwatch.Restart();
-            consoleService.PrintSubTitle($"Generating Outputs (Step {currentStep}/{totalSteps})");
-            await GenerateDataContextOutputsAsync(isDryRun);
-            elapsed.Add("Outputs", stopwatch.ElapsedMilliseconds);
-
-            currentStep++;
-            stopwatch.Restart();
-            consoleService.PrintSubTitle($"Generating Output Models (Step {currentStep}/{totalSteps})");
-            await GenerateDataContextModelsAsync(isDryRun);
-            elapsed.Add("Models", stopwatch.ElapsedMilliseconds);
-
-            currentStep++;
-            stopwatch.Restart();
-            consoleService.PrintSubTitle($"Generating StoredProcedures (Step {currentStep}/{totalSteps})");
-            await GenerateDataContextStoredProceduresAsync(isDryRun);
-            elapsed.Add("StoredProcedures", stopwatch.ElapsedMilliseconds);
+            else
+            {
+                consoleService.Verbose("[generator] Legacy pipeline skipped (mode=next)");
+            }
 
             if (dbCtxEnabled)
             {
@@ -164,19 +179,28 @@ public class CodeGenerationOrchestrator(
     public async Task GenerateAllAsync(bool isDryRun)
     {
         HasErrors = false;
+        var genMode = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(genMode)) genMode = "dual";
+        var legacyPipelineEnabled = genMode != "next";
+        var dbCtxEnabled = genMode is "dual" or "next";
 
         try
         {
             consoleService.StartProgress("Generating code...");
 
-            await GenerateDataContextTableTypesAsync(isDryRun);
-            await GenerateDataContextInputsAsync(isDryRun);
-            await GenerateDataContextOutputsAsync(isDryRun);
-            await GenerateDataContextModelsAsync(isDryRun);
-            await GenerateDataContextStoredProceduresAsync(isDryRun);
-            var genMode = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant();
-            if (string.IsNullOrWhiteSpace(genMode)) genMode = "dual";
-            var dbCtxEnabled = genMode is "dual" or "next";
+            if (legacyPipelineEnabled)
+            {
+                await GenerateDataContextTableTypesAsync(isDryRun);
+                await GenerateDataContextInputsAsync(isDryRun);
+                await GenerateDataContextOutputsAsync(isDryRun);
+                await GenerateDataContextModelsAsync(isDryRun);
+                await GenerateDataContextStoredProceduresAsync(isDryRun);
+            }
+            else
+            {
+                consoleService.Verbose("[generator] Legacy pipeline skipped (mode=next)");
+            }
+
             if (dbCtxEnabled)
                 await dbContextGenerator.GenerateAsync(isDryRun);
 
@@ -222,30 +246,64 @@ public class CodeGenerationOrchestrator(
     public async Task GenerateSelectedAsync(bool isDryRun)
     {
         HasErrors = false;
+        var genMode = Environment.GetEnvironmentVariable("SPOCR_GENERATOR_MODE")?.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(genMode)) genMode = "dual";
+        var legacyPipelineEnabled = genMode != "next";
+        var dbCtxEnabled = genMode is "dual" or "next";
 
         try
         {
             consoleService.StartProgress("Generating selected generator types...");
 
             if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.TableTypes))
-                await GenerateDataContextTableTypesAsync(isDryRun);
+            {
+                if (legacyPipelineEnabled)
+                    await GenerateDataContextTableTypesAsync(isDryRun);
+                else
+                    consoleService.Verbose("[generator] Skipping legacy TableTypes generation (mode=next)");
+            }
 
             if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.Inputs))
-                await GenerateDataContextInputsAsync(isDryRun);
+            {
+                if (legacyPipelineEnabled)
+                    await GenerateDataContextInputsAsync(isDryRun);
+                else
+                    consoleService.Verbose("[generator] Skipping legacy Inputs generation (mode=next)");
+            }
 
             if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.Outputs))
-                await GenerateDataContextOutputsAsync(isDryRun);
+            {
+                if (legacyPipelineEnabled)
+                    await GenerateDataContextOutputsAsync(isDryRun);
+                else
+                    consoleService.Verbose("[generator] Skipping legacy Outputs generation (mode=next)");
+            }
 
             if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.Models))
-                await GenerateDataContextModelsAsync(isDryRun);
+            {
+                if (legacyPipelineEnabled)
+                    await GenerateDataContextModelsAsync(isDryRun);
+                else
+                    consoleService.Verbose("[generator] Skipping legacy Models generation (mode=next)");
+            }
 
             if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.StoredProcedures))
-                await GenerateDataContextStoredProceduresAsync(isDryRun);
+            {
+                if (legacyPipelineEnabled)
+                    await GenerateDataContextStoredProceduresAsync(isDryRun);
+                else
+                    consoleService.Verbose("[generator] Skipping legacy StoredProcedures generation (mode=next)");
+            }
 
             if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.DbContext))
-                await dbContextGenerator.GenerateAsync(isDryRun);
+            {
+                if (dbCtxEnabled)
+                    await dbContextGenerator.GenerateAsync(isDryRun);
+                else
+                    consoleService.Verbose("[generator] DbContext generation disabled (mode=legacy)");
+            }
 
-            if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.DbContext) && !isDryRun)
+            if (EnabledGeneratorTypes.HasFlag(GeneratorTypes.DbContext) && dbCtxEnabled && !isDryRun)
             {
                 try
                 {
