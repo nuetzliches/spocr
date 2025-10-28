@@ -47,17 +47,26 @@
 
 ## Dokumentation & Kommunikation
 
-- [ ] Doku auf IST-Stand konsolidieren (README, Developer Guides, CLI-Hilfe, Release Notes).
-- [ ] Migrationstipps bereitstellen (`MIGRATION-V5.md`, `migration-v5.instructions`, `.NET 8` Hinweis).
+- [~] Doku auf IST-Stand konsolidieren (README, Developer Guides, CLI-Hilfe, Release Notes).
+  - README & MIGRATION Guide aktualisiert (2025-10-27/29); Roadmap & Referenzseiten folgen.
+- [>] Migrationstipps bereitstellen (`MIGRATION-V5.md`, `migration-v5.instructions`, `.NET 8` Hinweis).
   - 2025-10-29: `migration-v5.instructions` auf SOLL-Zustand begrenzt, MIGRATION Guide auf Zielarchitektur aktualisiert; Veröffentlichung via Docs offen.
-- [ ] Docs/content: GitHub Pages auf aktuellen CLI-Zustand fokussieren, historische Erzählungen in Legacy-Stream verschieben.
+- [~] Docs/content: GitHub Pages auf aktuellen CLI-Zustand fokussieren, historische Erzählungen in Legacy-Stream verschieben.
   - 2025-10-29: MIGRATION Inhalte bereinigt, verbleibende Seiten in `docs/content` benötigen Kürzung.
-  - 2025-10-29: Konfigurations-Referenz auf `.env`/`SPOCR_*` Zielzustand angepasst.
+  - 2025-10-29: `docs/content/3.reference/configuration-schema.md` auf `.env`/`SPOCR_*` Zielzustand angepasst.
   - 2025-10-29: Roadmap-Seiten (`development-tasks`, `optional-features`, `output-strategies`, `json-support-design`, `json-procedure-models`) neu aufgesetzt.
   - 2025-10-29: `docs/content/5.roadmap/migration-v5.md` beschreibt den Cutover-Prozess vollständig.
-  - 2025-10-29: CLI Testdokumentation (`docs/content/2.cli/test.md`) validiert `.env`/`SPOCR_*` Setup.
-- [ ] Kommunikationsplan für Kunden/Partner erstellen (Zeitplan, Forced-Upgrade-Botschaft, Supportkanäle).
-- [ ] Feedbackschleifen etablieren (Pilotkunden, Beta, Telemetrieauswertung).
+  - 2025-10-29: `docs/content/5.roadmap/removed-heuristics-v5.md`, `v5-differences.md`, `api-changes-v5.md` ohne Platzhalter überarbeitet.
+  - 2025-10-29: Roadmap Landing Page (`docs/content/5.roadmap/index.md`) an v5 Fokus angepasst.
+  - 2025-10-29: `docs/content/5.roadmap/testing-framework.md` bündelt Phasen/Artefakte & Backlog.
+  - 2025-10-29: `docs/content/5.roadmap/development-tasks.md` auf generated DbContext/`.env` Fokus gebracht; Legacy DataContext-Referenzen entfernt.
+  - 2025-10-29: `docs/content/5.roadmap/json-support-design.md` spiegelt typed Default + Preview Flags wider.
+  - 2025-10-29: `docs/content/3.reference/json-procedures.md` dokumentiert typed Default & Preview Keys.
+  - 2025-10-29: `docs/content/3.reference/env-bootstrap.md` um JSON Preview Keys / kommentierte Beispiele erweitert.
+  - 2025-10-29: `samples/restapi/.env.example` trägt kommentierte Preview Keys.
+  - Next: CLI Hilfetexte / `spocr init` Output auf Preview-Hinweise prüfen.
+- [>] Kommunikationsplan für Kunden/Partner erstellen (Zeitplan, Forced-Upgrade-Botschaft, Supportkanäle).
+- [>] Feedbackschleifen etablieren (Pilotkunden, Beta, Telemetrieauswertung).
 - [~] SpocR Freeze-Kommunikation vorbereiten: v4.5 finalisiert, deutet auf `nuetzliches/xtraq` (Namespace `Xtraq`, Version `1.0.0`).
   - Kommunikationspfad in README, CHANGELOG und Migration-Anleitungen hinterlegt (2025-10-29).
 

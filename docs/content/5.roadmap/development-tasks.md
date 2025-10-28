@@ -17,9 +17,9 @@ aiTags: [roadmap, development, tasks, implementation]
   - [ ] Implement code generation for nested JSON (generateNestedModels/autoDeserialize flags)
   - [ ] Update README/documentation with examples for nested payloads
 
-- [ ] **Output DataContext enhancements**: Extend C# DataContext with "SET NO COUNT" option
-  - [ ] Surface toggle via generator `.env`/`SPOCR_*` key and host `AddSpocRDbContext` options
-  - [ ] Plan implementation with session scope considerations
+- [ ] **Generated DbContext instrumentation**: Extend the modern `SpocRDbContext` pipeline with `SET NOCOUNT` and diagnostics hooks
+  - [ ] Introduce `.env`/`SPOCR_*` toggle (and CLI flag) that maps into `AddSpocRDbContext` options
+  - [ ] Plan implementation with session scope considerations (avoid leaking state across commands)
 
 ### Medium Priority
 
@@ -36,9 +36,9 @@ aiTags: [roadmap, development, tasks, implementation]
 ### Future Considerations
 
 - [ ] **Performance optimizations**: `SpocR.DataContext.Queries.StoredProcedureQueries` optimization
-  - [ ] Analyze current implementation for redundant ObjectId queries
-  - [ ] Extend StoredProcedureListAsync to include ObjectId, Definition, Inputs and Outputs
-  - [ ] Update all call sites to use extended results
+  - [ ] Analyze generated DbContext invocation path for redundant metadata queries
+  - [ ] Extend stored procedure inventory (e.g., `SpocRDbContextProcedures`) to expose ObjectId, Definition, Inputs, Outputs in one pass
+  - [ ] Update all call sites to rely on the enriched metadata surface
 
 - [ ] **Naming conventions flexibility**: Make naming conventions configurable
   - [ ] Document existing naming conventions
@@ -86,4 +86,4 @@ Tasks marked with checkboxes indicate completion status:
 - [ ] Not started
 - [x] Completed
 
-Last updated: October 2025
+Last updated: October 2025 (v5 alignment)

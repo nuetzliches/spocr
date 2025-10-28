@@ -87,17 +87,27 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 ## Dokumentation & Kommunikation
 
 - [x] Rewrite `README.md` to remove historical context, focus on the SpocR CLI value proposition (DB admins enabling BI layers; developers working with stored procedures only), and push deep technical documentation to the GitHub Pages site. (2025-10-27)
-- [ ] Docs/content: keep GitHub Pages articles focused on current CLI behavior; migrate historical or migration notes to the legacy stream.
+- [>] Docs/content: keep GitHub Pages articles focused on current CLI behavior; migrate historical or migration notes to the legacy stream.
   - 2025-10-29: MIGRATION-Seiten auf Zielzustand gebracht; restliche `docs/content` Artikel noch auf IST kürzen.
   - 2025-10-29: `docs/content/3.reference/configuration-schema.md` auf `.env`/`SPOCR_*` umgestellt; Roadmap-Seiten mit legacy Fokus offen.
   - 2025-10-29: Roadmap-Seiten (`development-tasks`, `optional-features`, `output-strategies`, `json-support-design`, `json-procedure-models`) auf `.env`/Snapshot Zielzustand gebracht.
   - 2025-10-29: `docs/content/5.roadmap/migration-v5.md` führt den Cutover-Flow ohne Platzhalter.
+  - 2025-10-29: Roadmap-Dokumente (`removed-heuristics-v5`, `v5-differences`, `api-changes-v5`) aktualisiert; Placeholder-Inhalte entfernt.
+  - 2025-10-29: Roadmap Landing (`docs/content/5.roadmap/index.md`) an `.env`-/Snapshot Fokus angepasst.
+  - 2025-10-29: `docs/content/5.roadmap/testing-framework.md` aktualisiert (Phasen/Artefakte, Backlog).
+  - 2025-10-29: `docs/content/5.roadmap/development-tasks.md` auf generated DbContext/`.env` Fokus gebracht; Legacy DataContext-Referenzen entfernt.
+  - 2025-10-29: Preview-Key Roadmap (`docs/content/5.roadmap/optional-features.md`, `output-strategies.md`) an `.env` Flags (`SPOCR_ENABLE_JSON_*`) angepasst.
+  - 2025-10-29: `docs/content/5.roadmap/json-support-design.md` auf typed Default + Preview Flags aktualisiert.
+  - 2025-10-29: `docs/content/3.reference/json-procedures.md` ergänzt (typed Default, Preview Keys, CLI Warnungen).
+  - 2025-10-29: `docs/content/3.reference/env-bootstrap.md` um JSON Preview Keys & kommentierte Beispiele erweitert.
+  - 2025-10-29: `samples/restapi/.env.example` um JSON Preview Key Kommentare ergänzt.
+  - Next: CLI Hilfetexte/`spocr init` Ausgabe prüfen, ob Preview-Hinweise konsistent sind.
   - 2025-10-29: MIGRATION Docs auf Zielzustand gesetzt, Legacy-Narrative in Hauptseiten noch zu kürzen.
 - [x] README/Docs: Namespace-Ableitung & Override mit Beispiel diff ergänzen. (docs/content/3.reference/env-bootstrap.md)
-- [ ] CHANGELOG v4.5-rc/v5 vorbereiten (Removed Keys, neue CLI, Bridge Policy).
-- [ ] Migration Guide `MIGRATION-V5.md` + `migration-v5.instructions` synchronisieren.
+- [>] CHANGELOG v4.5-rc/v5 vorbereiten (Removed Keys, neue CLI, Bridge Policy).
+- [>] Migration Guide `MIGRATION-V5.md` + `migration-v5.instructions` synchronisieren.
   - 2025-10-29: `migration-v5.instructions` auf SOLL-Status eingeschränkt, MIGRATION Guide auf Zielzustand fokussiert; finale Abnahme ausstehend.
-- [ ] Docs Build (Nuxt/Bun) verifizieren und Deployment-Workflow (`docs-pages`) planen.
+- [>] Docs Build (Nuxt/Bun) verifizieren und Deployment-Workflow (`docs-pages`) planen.
 - [~] TableType/JSON Änderungen in Doku nachziehen (Verweis auf neue Artefakte).
   - JSON Snapshot Flags aktualisiert (`docs/content/3.reference/json-procedures.md`).
 - [~] SpocR Freeze-Kommunikation dokumentieren: v4.5 weist auf `nuetzliches/xtraq` (Namespace `Xtraq`, Version `1.0.0`) als Nachfolger hin.

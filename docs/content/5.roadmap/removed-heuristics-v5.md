@@ -1,30 +1,41 @@
----
-title: Removed Heuristics (v5 Preview)
-description: Heuristic removals and rationale for simplification in v5.
+title: Removed Heuristics (v5)
+description: Heuristic removals and rationale for a deterministic v5 generator.
 version: 5.0
 ---
 
-# Removed Heuristics (v5 Preview)
+# Removed Heuristics (v5)
 
-> Placeholder documenting heuristics slated for removal or adjustment.
+The v5 generator removes ad-hoc heuristics that previously papered over gaps in metadata. This section documents what changed, why it was removed, and how the CLI enforces the new deterministic behavior.
 
-Targets:
+## Summary
 
-- Legacy DataContext naming quirks (suffix normalization removed earlier; full removal confirmed in v5).
-- Disable flag concept (decided: no disable for ResultSet naming; always-on remains).
-- Legacy role-based generation path (`Project.Role.Kind`).
+- Generation now relies exclusively on SnapshotBuilder metadata emitted during `spocr pull`. The CLI no longer inspects legacy `spocr.json` hints or hidden defaults.
+- Output ordering aligns with the schema order captured in `.spocr/schema/*.json`. No post-processing reorders models or stored procedure wrappers.
+- Result-set naming is derived from concrete metadata (table names, JSON flags, CTE aliases) instead of guessing based on procedure name suffixes.
+- Legacy disable flags (`Project.Role.Kind`, `Project.Output.NamespaceFallback`, various `Disable*` switches) were removed; the modern CLI treats missing metadata as validation errors.
 
-Evaluation list:
+## Removed Heuristics
 
-- Any implicit column trimming logic still present?
-- Hidden ordering heuristics in consolidated procedure file generation.
+| Area                         | Legacy Behavior (v4.5)                                               | v5 Behavior                                                                    |
+| ---------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| DataContext naming           | Suffix normalization + directory mirroring in `DataContext/`         | DataContext generation removed; modern outputs live under configurable folders. |
+| Namespace fallback           | Auto-inserted fallback namespace when configuration missing          | Fails with guidance to populate `SPOCR_NAMESPACE` (or pass `--namespace`).      |
+| ResultSet guesswork          | Guessed names for JSON/CTE result sets via string slicing heuristics | Uses SnapshotBuilder `ResultSets[]` metadata; aliases captured at pull time.    |
+| Column trimming              | Dropped columns flagged as duplicates to avoid diff churn            | Emits every column recorded in the snapshot; callers own filtering logic.       |
+| Ordering normalization       | Sorted procedures/models alphabetically post-generation              | Preserves discovery order for deterministic diffs (hash manifests rely on it).  |
 
-Rationale:
-Simpler, deterministic generation reduces diff noise, accelerates review cycles, and lowers maintenance overhead.
+## Verification Guidance
 
-Impact Mitigation:
+- Run the diagnostics pull described in `migration-v5.instructions` to capture verbose metadata. Compare snapshots before/after removing heuristics to confirm deterministic output.
+- Strict diff mode (exit codes 21/23) surfaces any reintroduced heuristics once coverage ≥60 % unlocks the gate.
+- Unit and integration tests cover ordering, namespace validation, and JSON metadata fidelity. Extend the suites when introducing new snapshot fields.
 
-- Unit tests added for ordering & naming stability.
-- Strict diff mode (post coverage gate) will highlight any residual churn.
+## Reporting Gaps
 
-Feedback: File issues with label `heuristics-removal` including examples of remaining heuristics you consider problematic.
+Open issues with label `heuristics-removal` when you encounter residual heuristic behavior. Include:
+
+- Stored procedure definition or schema artifact that reproduces the issue.
+- Relevant `debug/.spocr/schema/*.json` entries.
+- CLI command (`spocr pull`, `spocr build`, etc.) and `.env` excerpt used during the run.
+
+This documentation remains the canonical record of heuristic debt. Update it whenever new cleanups land or when deferred heuristics require temporary exceptions.

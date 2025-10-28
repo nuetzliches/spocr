@@ -53,8 +53,10 @@ These keys remain disabled until their respective features ship. Keep them docum
 | -------------------------------- | ------------------------------------------- | ------------------------------------------------------- |
 | `SPOCR_STRICT_DIFF`              | Core coverage ≥60% & diff allow-list stable | Fails build on unexpected generator diffs               |
 | `SPOCR_STRICT_GOLDEN`            | Same as strict diff                         | Enforces golden hash manifests                          |
-| `SPOCR_ENABLE_JSON_DUAL`         | JSON dual-mode release                      | Emits raw + materialized JSON helpers                   |
-| `SPOCR_ENABLE_ROW_STREAMING`     | Streaming helpers ready                     | Enables `IAsyncEnumerable`-based row streaming          |
+| `SPOCR_ENABLE_JSON_DUAL`         | JSON dual-mode preview                      | Adds raw helpers alongside typed JSON outputs           |
+| `SPOCR_ENABLE_JSON_STREAMING`    | Streaming preview ready                     | Enables `IAsyncEnumerable<JsonDocument>` helpers        |
+| `SPOCR_ENABLE_JSON_MODELS`       | Nested JSON preview                         | Generates typed nested JSON payload models              |
+| `SPOCR_ENABLE_JSON_AUTODESERIALIZE` | Nested auto-deserialize preview          | Populates nested payload models automatically           |
 | `SPOCR_ENABLE_ANALYZER_WARNINGS` | Analyzer package shipping                   | Surfaces generator diagnostics as compile-time warnings |
 | `SPOCR_STRICT_NULLABLE`          | Nullable enforcement finalized              | Promotes nullable analysis warnings to errors           |
 | `SPOCR_GENERATE_API_ENDPOINTS`   | API endpoint templating GA                  | Generates minimal API endpoint stubs                    |
@@ -104,11 +106,13 @@ SPOCR_BUILD_SCHEMAS=core,identity
 SPOCR_STRICT_DIFF=1
 SPOCR_STRICT_GOLDEN=1
 SPOCR_ENABLE_JSON_DUAL=1
-SPOCR_ENABLE_ROW_STREAMING=1
+#SPOCR_ENABLE_JSON_STREAMING=0
+#SPOCR_ENABLE_JSON_MODELS=0
+#SPOCR_ENABLE_JSON_AUTODESERIALIZE=0
 SPOCR_ENABLE_ANALYZER_WARNINGS=1
 ```
 
-> Only enable preview flags in feature branches. Capture the rationale and rollback plan in the checklist when activating them.
+> Only enable preview flags in feature branches. Capture the rationale and rollback plan in the checklist when activating them, and keep disabled keys commented (`#KEY=0`) until the feature graduates.
 
 ## FAQ
 

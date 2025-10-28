@@ -1,61 +1,70 @@
 # JSON Support Design
 
-Status: In Progress (Raw + Deserialize implemented, XML docs added)
-Target Version: Next Minor
+Status: In Progress (Typed helpers baseline; dual/streaming in preview design)
+Target Version: v5 lifecycle (opt-in previews)
 
 ## 1. Current State
 
-- Stored procedures with a JSON first result set are detected via parser flags (`ResultSets[0].ReturnsJson`, plus shape flags `ReturnsJsonArray`, `ReturnsJsonWithoutArrayWrapper`).
-- The generated method for JSON returning procedures keeps returning `Task<string>` (raw JSON) e.g. `Task<string> FooListAsync(...)`.
-- JSON model generation was recently added. Models are generated when a procedure returns JSON and we inferred columns or produce an empty class as fallback.
-- Runtime JSON access happens via `ReadJsonAsync` / `ReadJsonAsync<T>` in `AppDbContextExtensions.base.cs`.
-- Potential breaking behavior: Existing JSON-returning procedures now yield typed return values where previously a raw string may have been expected.
+- SnapshotBuilder flags JSON procedures via `ResultSets[].ReturnsJson`, including shape hints (`ReturnsJsonArray`, `ReturnsJsonWithoutArrayWrapper`).
+- Generated DbContext helpers return typed collections by default: `Task<IReadOnlyList<FooModel>> FooAsync(...)`.
+- Raw JSON helpers (`FooRawAsync`) can be added through preview key `SPOCR_ENABLE_JSON_DUAL` (off by default).
+- JSON model generation is unconditional when metadata exists; empty models include a doc comment explaining missing columns.
+- Runtime access flows through generated extensions; manual use of `AppDbContextPipe` is no longer required.
 
 ## 2. Goals
 
-1. Avoid breaking changes: Keep existing methods returning `string` for JSON payloads while adding typed overloads.
-2. Always generate JSON models (no config flag) so they can be referenced in e.g. `[ProducesResponseType]` even if consumer uses raw string.
-3. Prepare (optional) future structure for multiple result sets via an internal `ResultSets` concept (no deprecation of `Output` in config, only internal evolution).
-4. Provide clear, non-breaking evolution without introducing deprecated markers into consumer-facing configuration.
+1. Keep typed helpers as the baseline experience while offering opt-in raw/streaming variants.
+2. Maintain deterministic output across `.env` configurations (preview keys only add content).
+3. Expand metadata and generation to support nested JSON payloads without manual intervention.
+4. Prepare for multi-result JSON scenarios by evolving SnapshotBuilder (`ResultSets[]`).
 
 ## 3. Proposed API Evolution
 
-### 3.1 StoredProcedureExtensions Overloads (Raw + Deserialize)
-
-Current (raw JSON method to keep):
+### 3.1 Typed Helper Baseline
 
 ```csharp
-Task<string> FooListAsync(...)
+// default output when no preview flags enabled
+Task<IReadOnlyList<FooModel>> FooAsync(CancellationToken cancellationToken = default);
 ```
 
-Added typed deserialize overload (array case):
+- Typed methods remain the primary surface; cancellation tokens and namespace overrides are honored.
+- Raw strings are no longer the default return type.
+
+### 3.2 Dual Mode (Preview `SPOCR_ENABLE_JSON_DUAL`)
 
 ```csharp
-Task<List<FooList>> FooListDeserializeAsync(...)
+// generated in addition to typed helper when dual mode enabled
+Task<string> FooRawAsync(CancellationToken cancellationToken = default);
 ```
 
-Single-object JSON (WITHOUT ARRAY WRAPPER):
+- Both methods share parameter lists and leverage the same command pipeline.
+- Generated DbContext options expose `JsonMaterialization = JsonMaterialization.Dual` to align runtime expectations.
+- Snapshot metadata records `JsonFeatures.Dual = true` for determinism checks.
+
+### 3.3 Streaming Mode (Preview `SPOCR_ENABLE_JSON_STREAMING`)
 
 ```csharp
-Task<FooFind> FooFindDeserializeAsync(...)
+// future enhancement: stream JSON documents for large payloads
+IAsyncEnumerable<JsonDocument> FooStreamAsync(CancellationToken cancellationToken = default);
 ```
 
-Implementation notes:
+- Prototype relies on incremental `SqlDataReader` reading and minimal buffering.
+- Requires coordinating `ExecuteReaderAsync` pipeline and disposal semantics.
 
-- Keep raw method name exactly as-is to avoid breaking change.
-- Add `DeserializeAsync` suffix for the typed variant.
-- Internally call raw method then `JsonSerializer.Deserialize<T>`.
-- Generate both pipe-based and context-based overloads consistent with existing pattern.
-- Collision handling: If `FooListDeserializeAsync` already exists, fall back to `FooListToModelAsync`.
+### 3.4 Nested JSON Models (Preview `SPOCR_ENABLE_JSON_MODELS`)
 
-### 3.2 Always Generate Models
+```csharp
+public sealed class FooModel
+{
+  public string OrdersJson { get; set; } = string.Empty;
+  public OrdersPayload? Orders { get; set; } // populated when auto-deserialize enabled
+}
+```
 
-Change: Remove conditional guards; generate a model class whenever `ReturnsJson == true` even if zero columns detected.
+- Companion models (`OrdersPayload`, `OrderItemPayload`) generated when nested metadata exists.
+- Auto-deserialize controlled by future flag `SPOCR_ENABLE_JSON_AUTODESERIALIZE`.
 
-- Empty model remains valid.
-- Add XML doc comment: `// Generated JSON model (no columns detected; raw structure not introspectable at generation time).`
-
-### 3.3 ResultSets (Multi-Result Support – Internal Future Capability)
+### 3.5 ResultSets (Multi-Result Support – Internal Future Capability)
 
 Problem: Single `Output` array limits model expressiveness for multi result scenarios.
 
@@ -82,71 +91,73 @@ Mapping / semantics (future intent):
 
 | Aspect                 | Strategy                                             |
 | ---------------------- | ---------------------------------------------------- |
-| Raw JSON method naming | Keep existing `<Name>Async` returning `Task<string>` |
-| Typed JSON overload    | Add `<Name>DeserializeAsync` (array/single)          |
-| JSON models            | Always generated (no config flag)                    |
+| Typed helper baseline  | Maintain `<Name>Async` with `IReadOnlyList<T>`       |
+| Raw helper (preview)   | Emit `<Name>RawAsync` when `SPOCR_ENABLE_JSON_DUAL`  |
+| Streaming (preview)    | Emit `<Name>StreamAsync` when streaming flag active  |
+| JSON models            | Always generated (empty models doc-commented)        |
 | Multi-result (future)  | Internal evolution, no external deprecation          |
 
 ## 4. Implementation Plan (Phased)
 
-Phase 1 (Current Sprint):
+Phase 1 (Done):
 
-- Add `DeserializeAsync` overload generation for JSON procedures (keep raw method intact).
-- Ensure models always generated (remove any conditional remnants).
-- Add XML doc comments to JSON models (especially empty models).
+- Typed helper baseline established; JSON models generated unconditionally.
+- Raw helper via preview key (`SPOCR_ENABLE_JSON_DUAL`) with CLI warning.
+- XML docs for raw + typed helpers and empty models.
 
-Phase 2:
+Phase 2 (In progress):
 
-- Introduce internal model classes `ResultSetModel` & adapt schema parsing.
-- Backwards mapping from `Output` -> single `ResultSet`.
-- Adjust generators to handle N result sets (composite model + enumerations).
+- Add snapshot markers (`JsonFeatures.*`) for active preview combinations.
+- Provide generated DbContext option binding for dual mode.
+- Draft sandbox integration tests covering typed vs. raw outputs.
 
-Phase 3:
+Phase 3 (Planned):
 
-- Parser enhancements to statically infer multiple result sets (if feasible with ScriptDom or fallback heuristics).
-- Add tests (snapshot + runtime) for multi result consumption.
+- Prototype streaming helper; validate resource usage and disposal semantics.
+- Surface `SPOCR_ENABLE_JSON_STREAMING` in `.env.example` (commented) and CLI docs.
+- Extend `TestCommand` scenarios to exercise streaming preview.
 
-Phase 4:
+Phase 4 (Future):
 
-- (Optional) Introduce internal experimentation for multi-result container generation.
-- Documentation & changelog updates.
+- Nested JSON model generation and optional auto-deserialization.
+- Parser enhancements for multi-result detection.
+- Documentation and changelog updates once features graduate from preview.
 
 ## 5. Edge Cases & Risks
 
 | Case                                                            | Mitigation                                             |
 | --------------------------------------------------------------- | ------------------------------------------------------ |
-| JSON proc name collision with DeserializeAsync suffix existing  | Fallback to `ToModelAsync` suffix                      |
-| Empty JSON model confusing                                      | Add doc comment + console info once per generation run |
+| JSON helper name collision (RawAsync)                           | Fallback to `FooToJsonAsync` suffix                    |
+| Empty JSON model confusing                                      | Doc comment + console info once per generation run     |
 | Multi result complexity (different column counts per execution) | Scope: Only static shapes supported in generation      |
 | Performance overhead generating extra overloads                 | Minimal (source gen incremental)                       |
 
 ## 6. Open Questions
 
-- Should RawAsync overload also surface `JsonSerializerOptions` parameter? (Optional future)
-- Provide `CancellationToken` consistently for all overloads (yes, align with existing pattern).
-- Need a feature switch to suppress RawAsync? (Probably unnecessary.)
+- Should raw helpers accept `JsonSerializerOptions`? (Maybe expose in dual mode.)
+- When streaming is enabled, should typed helpers adopt streaming internally (breaking change risk)?
+- How should nested model previews handle partial metadata (mixed typed/raw columns)?
 
 ## 7. Next Actions
 
 Completed This Iteration:
 
-- [x] `StoredProcedureGenerator` emits `*DeserializeAsync` overloads for JSON procedures (pipe + context versions).
-- [x] Typed overload calls raw JSON method internally and deserializes via `System.Text.Json.JsonSerializer`.
-- [x] XML documentation for raw JSON and deserialize overload methods.
+- [x] Typed helper baseline in generated DbContext.
+- [x] Preview flag `SPOCR_ENABLE_JSON_DUAL` emits `*RawAsync` alongside typed helper.
+- [x] XML documentation for typed + raw helpers; empty models annotated.
 
 Pending / Planned:
 
-- [ ] XML doc comments for generated JSON model classes (empty model explanation).
-- [ ] Snapshot tests validating Raw + Deserialize method generation pattern.
-- [ ] Integration test exercising real JSON proc -> typed model path.
-- [x] Evaluate removal or deprecation notice for `JsonGenerationOptionsModel` (options marked obsolete; defaults no longer assign values explicitly).
-- [ ] Helper methods (`IsJsonArray`, `IsJsonSingle`) for potential consumer ergonomics (optional).
-- [ ] Draft internal `ResultSetModel` abstraction (future multi-result groundwork).
+- [ ] Snapshot tests validating typed + dual outputs (hash determinism).
+- [ ] Integration test exercising JSON dual mode for sandbox procedures.
+- [ ] Add optional helper methods (`IsJsonArray`, `IsJsonSingle`) for consumers.
+- [ ] Draft internal `ResultSetModel` abstraction (multi-result groundwork).
+- [ ] Prototype streaming helper and document sandbox findings.
 
 Nice-To-Have / Stretch:
 
 - [ ] Optional `JsonSerializerOptions` parameter overloads without breaking base API.
-- [ ] Config toggle to suppress typed overload generation (only if requested by users).
+- [ ] Runtime helper for on-the-fly model validation (json schema inference).
 
 ---
 

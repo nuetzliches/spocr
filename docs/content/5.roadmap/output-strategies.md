@@ -1,6 +1,5 @@
----
 title: Output Strategies
-description: Flexible approaches for handling nested JSON and complex data structures
+description: Roadmap for nested JSON handling and dual-output features in the v5 CLI.
 versionIntroduced: 5.0.0
 experimental: true
 authoritative: true
@@ -9,71 +8,69 @@ aiTags: [roadmap, output, json, strategies, nested]
 
 # Nested JSON Output Strategy
 
-## Current State Assessment
+## Current State
 
-- Output models currently generate flat classes that don't explicitly model `FOR JSON` results
-- Nested JSON (e.g., `Orders` within `Users`) ends up as `string` without structured support
-- Generators don't distinguish between JSON strings and relational result sets
+- SnapshotBuilder marks procedures with `ReturnsJson`, nested column metadata, and JSON shape hints.
+- Generated models expose raw JSON strings; typed nested models remain in planning.
+- Preview keys (`SPOCR_ENABLE_JSON_DUAL`, `SPOCR_ENABLE_JSON_STREAMING`) exist but default to off.
 
 ## Objectives
 
-- Nested JSON should optionally be generated as strongly typed objects (`NestedOrder`, `OrderItem`, etc.)
-- A variant must remain that keeps the original JSON as `string` (for streaming/raw scenarios)
-- Configuration must control whether nested objects are available as models ("Flatten") or separate `JsonPayload` property
+- Allow opt-in generation of nested JSON models when metadata captures relationships.
+- Preserve raw payload access for streaming or pass-through APIs.
+- Keep configuration environment-first and deterministic (no legacy JSON files or manual toggles in generated code).
 
 ## Implementation Approach
 
 ### 1. Inventory & Classification
 
-- `.env` / environment variables: introduce `SPOCR_JSON_MODELS_GENERATE` and related flags
-- Detection per Stored Procedure whether `ReturnsJson` and whether nested JSON `Columns` (via `StoredProcedureContentModel.Columns` – renamed from JsonColumns in v7)
-- New flags in Definition.Model (`HasJsonPayload`, `JsonShape`)
+- SnapshotBuilder already records nested JSON metadata (`Columns`, `JsonShape`).
+- `.env` preview keys will activate nested model generation (`SPOCR_ENABLE_JSON_DUAL` as prerequisite, future `SPOCR_ENABLE_JSON_MODELS`).
+- Generator surfaces metadata via `JsonFeatures` nodes so deterministic snapshots capture feature usage.
 
 ### 2. Model Generation
 
-- For JSON columns: generate `public string OrdersJson { get; set; }` (existing behavior)
-- If `generateNestedJsonModels = true`:
-  - Generate additional classes (`OrdersPayload`, `OrderItemPayload`)
-  - Output model gets two properties: `public string OrdersJson { get; set; }` and `public OrdersPayload Orders { get; set; }`
-  - Optionally introduce `JsonSerializable` attributes
-- Template extension in Model Generator: iterate JSON column list, use `JsonSchemaService`
+- Baseline keeps `string` payload properties (current behavior).
+- Preview work generates companion models (`OrdersPayload`, `OrderItemPayload`) when nested columns exist.
+- Output models expose both raw (`OrdersJson`) and typed (`Orders`) properties under dual mode.
+- Potential use of `JsonSerializable` attributes considered for high-throughput scenarios.
 
 ### 3. Deserialization Hook
 
-- New helpers in Output layer: `JsonPayloadFactory.Parse<T>(string json)`
-- Option `autoDeserializeNestedJson`: bool
-  - When true: `SqlDataReaderExtensions` calls `JsonPayloadFactory` and fills `Orders` in `ConvertToObject<T>`
-  - When false: Property remains null, consumer can use `Factory.Parse` manually
+- Runtime helper (`JsonPayloadFactory`) parses nested payloads when preview keys demand it.
+- `.env` flag (future `SPOCR_ENABLE_JSON_AUTODESERIALIZE`) would control auto-materialization vs. manual parsing.
+- Generated DbContext options mirror the `.env` setting to maintain runtime parity.
 
 ### 4. Generator/Configuration Changes
 
-Configuration example:
+- Preview keys:
 
 ```dotenv
-# Enable generation of nested JSON models alongside raw payload
-SPOCR_JSON_MODELS_GENERATE=true
-# Control automatic deserialization into nested models (optional)
-SPOCR_JSON_MODELS_AUTODESERIALIZE=false
+# Enable nested JSON model generation (builds on dual mode)
+SPOCR_ENABLE_JSON_MODELS=0
+
+# Auto-deserialize nested payloads into typed properties (planned)
+SPOCR_ENABLE_JSON_AUTODESERIALIZE=0
 ```
 
-- Engine reads the `SPOCR_JSON_MODELS_*` flags and influences template processing
-- CLI documentation adjustments, default `generateNestedModels=false` (no breaking changes)
+- Defaults keep these features disabled to match today’s output.
+- Documentation and CLI help must highlight that enabling any preview key should be reflected in team checklists.
 
 ### 5. Test Plan
 
-- Integration test with example procedure `UserOrderHierarchyJson`
-- Snapshot test for generated models with/without flag
-- Unit test: `SqlDataReaderExtensions.ConvertToObject` with JSON column → with active `autoDeserialize`, nested object gets filled
-- Performance test: Compare `autoDeserialize=true` vs. `false` (benchmark)
+- Add sandbox procedure `UserOrderHierarchyJson` to validate nested model generation.
+- Snapshot tests for each preview flag combination.
+- Integration tests verifying `JsonPayloadFactory` behavior when auto-deserialize is active.
+- Benchmark nested materialization vs. raw to measure overhead.
 
 ## Recommendations
 
-1. **Incremental implementation**: first model generation (optional), then auto-deserialization
-2. **Integration interface**: leverage optional JSON deserialization concepts
-3. **Documentation**: README extension + example code for new payload objects
+1. Ship features incrementally: dual mode → nested models → auto-deserialize → streaming.
+2. Align runtime options with `.env` preview keys to avoid divergence.
+3. Update docs/samples when preview features turn on; reference `CHECKLIST.md` for evidence.
 
 ## Status
 
-- **Current Phase**: Design & Planning
-- **Dependencies**: JSON Procedure Models (Phase 3)
-- **Target Release**: v5.0.0
+- **Current Phase**: Preview design for nested models and streaming.
+- **Dependencies**: JSON procedure metadata, optional features roadmap.
+- **Target Release**: Opt-in during v5 lifecycle after validation; defaults remain unchanged until flagged otherwise.

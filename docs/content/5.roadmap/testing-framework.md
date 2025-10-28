@@ -1,56 +1,59 @@
----
-title: Testing Framework
-description: Comprehensive testing infrastructure for automated validation and KI-Agent integration
+title: Testing Framework (v5)
+description: Current state and roadmap for the SpocR CLI validation pipeline.
 ---
 
-# Testing Framework
+# Testing Framework (v5)
+
+The modern CLI ships with a consolidated testing command that exercises generated code, verifies snapshot determinism, and produces machine-readable artifacts for CI/CD. This page documents the steady state, how to use `spocr test`, and which enhancements remain on the roadmap.
 
 ## Overview
 
-SpocR's Testing Framework provides a comprehensive multi-layer testing architecture designed for both KI-Agent automation and CI/CD pipeline integration. The framework ensures code quality, validates generated output, and enables automated testing workflows.
+- **Command**: `spocr test`
+- **Phases**: unit, integration, validation (configurable)
+- **Artifacts**: JSON summary (`test-summary.json`), optional JUnit XML, TRX logs
+- **Exit Codes**: 0 = success, 41/42/43 = phase failures, 50+ reserved for validation/automation issues
 
-## Architecture
+The CLI relies on `.env`/`SPOCR_*` for configuration when spinning up integration environments. No legacy `spocr.json` settings are consulted.
 
-### 🔄 Self-Validation Layer (KI-Agent)
+## Phase Breakdown
 
-- **Generated Code Validation** - Automatic syntax and compilation checking
-- **Schema Consistency Tests** - Database schema validation and change detection
-- **Regression Detection** - Automated detection of breaking changes
-- **Rollback Mechanisms** - Safe recovery from failed generations
+### Unit Tests
 
-### 🧪 Integration Test Layer (CI/CD)
+- Executes `tests/SpocR.Tests/SpocR.Tests.csproj`
+- Filters out meta suites via `Category!=Meta`
+- Emits `unit.trx` under `.artifacts` in CI mode
 
-- **Database Schema Tests** - Full schema validation with SQL Server
-- **End-to-End Scenarios** - Complete generation pipeline testing
-- **Performance Benchmarks** - Code generation and runtime performance
-- **Cross-Platform Testing** - Multi-framework validation (.NET 8.0/9.0)
+### Integration Tests
 
-### 🏗️ Unit Test Layer (Development)
+- Runs `tests/SpocR.IntegrationTests/SpocR.IntegrationTests.csproj`
+- Uses the generator sandbox connection string defined in `.env`
+- Produces `integration.trx` when CI mode is active
 
-- **Manager & Service Tests** - Core business logic validation
-- **Code Generator Tests** - Roslyn-based generation testing
-- **Configuration Tests** - SpocR configuration validation
-- **Extension Method Tests** - Utility function testing
+### Validation Checks
+
+- Verifies project structure, configuration, and generated code health
+- Ensures `.env` contains required keys and that generated artefacts compile
+- Enforced by default unless `--no-validation` is passed
 
 ## Features
 
 ### Commands
 
-```bash
-# Execute all tests
+```cmd
+:: Execute all phases sequentially
 spocr test
 
-# Validate generated code only
+:: Validate generated code only (no unit/integration)
 spocr test --validate
 
-# Run performance benchmarks
-spocr test --benchmark
+:: Skip validation phase when running the full suite
+spocr test --no-validation
 
-# Execute with rollback on failure
-spocr test --rollback
+:: Limit execution to specific phases (CSV)
+spocr test --only unit,integration
 
-# CI-friendly mode with reports
-spocr test --ci --output junit.xml
+:: Produce CI artefacts (JSON + JUnit)
+spocr test --ci --junit
 ```
 
 ### Test Types
@@ -64,24 +67,20 @@ spocr test --ci --output junit.xml
 
 #### 2. **Database Integration Tests**
 
-- SQL Server schema validation using Testcontainers
+- SQL Server schema validation using containerized instances (Testcontainers planned) or local developer databases
 - Stored procedure metadata accuracy
-- Connection string validation
-- Multi-database environment testing
+- Runtime integration with generated DbContext extensions
 
-#### 3. **Performance Benchmarks**
-
-- Code generation speed measurements
-- Memory usage profiling
-- Database query performance
-- Large schema handling tests
-
-#### 4. **Snapshot Testing**
+#### 3. **Snapshot Testing**
 
 - Generated code snapshot comparisons
 - Schema change detection
 - Breaking change alerts
 - Version compatibility testing
+
+#### 4. **Performance Benchmarks (Planned)**
+
+- BenchmarkDotNet integration remains on the backlog (`--benchmark` currently prints a placeholder warning)
 
 ## Implementation Details
 
@@ -109,10 +108,8 @@ src/
 
 - **xUnit** – Primary test framework for unit and integration tests
 - **Shouldly** – Human-readable assertions
-- **Testcontainers** – Docker-based SQL Server integration testing
-- **Microsoft.Extensions.Testing** – Dependency injection support in tests
 - **Verify** – Snapshot testing for generated code
-- **BenchmarkDotNet** – Performance benchmarking
+- **BenchmarkDotNet** – Planned for future benchmarking support
 
 ### CI/CD Integration
 
@@ -147,75 +144,24 @@ jobs:
 - Code coverage reports
 - Performance trend tracking
 
-## Benefits
-
-### For KI-Agents
-
-- **Automatic Quality Assurance** - Immediate feedback on code changes
-- **Self-Correcting Workflows** - Rollback mechanisms prevent broken states
-- **Iterative Improvements** - Test-driven development cycles
-- **Confidence in Changes** - Comprehensive coverage for safe refactoring
-
-### For CI/CD Pipelines
-
-- **Native Integration** - Standard `dotnet test` compatibility
-- **Parallel Execution** - Fast test execution with isolated environments
-- **Detailed Reporting** - JUnit XML, coverage reports, trend analysis
-- **Regression Detection** - Automatic detection of breaking changes
-
-## Roadmap
-
-### Phase 1: Foundation (v4.1)
-
-- [x] Test project structure
-- [x] Basic unit test framework
-- [x] TestCommand implementation
-- [ ] Core manager/service tests
-
-### Phase 2: Integration (v4.2)
-
-- [ ] Testcontainers SQL Server setup
-- [ ] End-to-end generation tests
-- [ ] Schema validation tests
-- [ ] Performance benchmarking
-
-### Phase 3: Advanced Features (v4.3)
-
-- [ ] Snapshot testing with Verify
-- [ ] Self-validation framework
-- [ ] CI/CD pipeline templates
-- [ ] Advanced reporting
-
-### Phase 4: KI-Agent Integration (v5.0)
-
-- [ ] Automated rollback mechanisms
-- [ ] Real-time validation feedback
-- [ ] Adaptive test selection
-- [ ] Machine learning insights
-
-## Recent Enhancements (v4.1.x – v4.1.y)
-
-These items have been implemented on the `feature/testing` branch and are now part of the active toolchain:
+## Recent Enhancements
 
 | Area          | Feature                                     | Status | Notes                                                                              |
 | ------------- | ------------------------------------------- | ------ | ---------------------------------------------------------------------------------- |
 | Orchestration | Sequential phase execution                  | Done   | Removed race conditions for TRX parsing.                                           |
-| Reporting     | JSON summary artifact (`test-summary.json`) | Done   | Provides aggregate + per-suite metrics.                                            |
-| Reporting     | Per-suite stats (unit/integration)          | Done   | Nested JSON: `tests.unit`, `tests.integration`.                                    |
-| Reporting     | Failure details extraction                  | Done   | `failureDetails[]` with name + message. Stack traces pending.                      |
-| CLI           | `--only` phase filter                       | Done   | Accepts CSV: unit,integration,validation. Validation auto-included unless skipped. |
+| Reporting     | JSON summary artifact (`test-summary.json`) | Done   | Provides aggregate + per-suite metrics (`tests.unit`, `tests.integration`).        |
+| Reporting     | Failure details extraction                  | Done   | `failureDetails[]` with name + message. Stack traces remain on the backlog.        |
+| CLI           | `--only` phase filter                       | Done   | Accepts CSV: unit,integration,validation (validation implied unless skipped).      |
 | CLI           | `--no-validation` flag                      | Done   | Skips validation phase entirely.                                                   |
 | CLI           | Granular exit subcodes 41/42/43             | Done   | Unit / Integration / Validation failure precedence.                                |
 | CLI           | Console failure summary                     | Done   | Prints top (<=10) failing tests with suite origin.                                 |
-| CLI           | JUnit output (single-suite)                 | Done   | `--junit` emits aggregate JUnit XML. Multi-suite planned.                          |
+| CLI           | JUnit output (single-suite)                 | Done   | `--junit` emits aggregate JUnit XML; multi-suite output is tracked as follow-up.   |
 | Stability     | TRX parsing retries & logging               | Done   | Robust against transient file locks.                                               |
-| Tooling       | Process cleanup script                      | Done   | `eng/kill-testhosts.ps1` terminates stale hosts.                                   |
-| Metrics       | Durations & timestamps                      | Done   | `startedAtUtc`, `endedAtUtc`, per-phase ms fields.                                 |
-| Metrics       | Skipped test count capture                  | Done   | Added `skipped` per aggregate and suite.                                           |
+| Tooling       | Process cleanup script                      | Done   | `eng/kill-testhosts.ps1` terminates stale test hosts.                              |
+| Metrics       | Durations & timestamps                      | Done   | `startedAtUtc`, `endedAtUtc`, per-phase millisecond fields.                        |
+| Metrics       | Skipped test count capture                  | Done   | Aggregated plus per-suite `skipped` totals.                                        |
 
-## Remaining Open Items (Post-Core Completion)
-
-Core testing feature set is considered COMPLETE for the current milestone. The following items are explicitly deferred and tracked for prioritization:
+## Backlog & Triggers
 
 | Rank | Item                                | Purpose                                         | Status   |
 | ---- | ----------------------------------- | ----------------------------------------------- | -------- |
@@ -227,22 +173,18 @@ Core testing feature set is considered COMPLETE for the current milestone. The f
 | 6    | History log (`test-history.jsonl`)  | Longitudinal quality & performance tracking     | Proposed |
 | 7    | Configurable failure list size      | Tune console verbosity (`--max-fail-list`)      | Proposed |
 
-Once two or more of the top three are completed, re-evaluate remaining backlog vs. new requirements.
-
-### Design Constraints
-
-1. JSON schema evolves additively (no breaking key renames before major version).
-2. Exit codes remain stable; new codes occupy unused numeric slots only.
-3. TRX parsing must degrade gracefully: warnings over hard failures when partial data occurs.
-4. CLI flags should be composable (`--only` + `--no-validation` + `--junit`).
-
-### Next Step Triggers
-
-Implementation proceeds only if one of these triggers occurs:
+Backlog work kicks off when:
 
 1. CI consumers request per-suite visualization (→ Multi-suite JUnit).
-2. False-positive green builds due to zero-test scenarios (→ `--require-tests`).
-3. Repeated need to inspect raw TRX for stack traces (→ stack trace capture).
+2. Teams observe false positives due to zero-test suites (→ `--require-tests`).
+3. Engineers repeatedly dive into raw TRX for stack traces (→ stack trace capture).
+
+Design guardrails:
+
+1. JSON summary schema must evolve additively (no breaking key renames prior to a major release).
+2. Exit codes stay stable; new codes occupy unused numeric ranges.
+3. TRX parsing errors degrade gracefully into warnings rather than hard failures.
+4. CLI flags remain composable (`--only`, `--no-validation`, `--junit`).
 
 ---
 

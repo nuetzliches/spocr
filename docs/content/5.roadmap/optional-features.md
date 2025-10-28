@@ -1,89 +1,81 @@
----
 title: Optional Features
-description: Configurable functionality enhancements and optional deserialization strategies
+description: Preview configuration flags for JSON materialization in the v5 CLI.
 versionIntroduced: 5.0.0
 experimental: true
 authoritative: true
 aiTags: [roadmap, optional, deserialization, json, performance]
 ---
 
-# Optional JSON Deserialization Concept
+# Optional JSON Materialization
 
 ## Current Situation
 
-- `AppDbContextPipe.ReadJsonAsync<T>` always deserializes results via `JsonSerializer.Deserialize<T>`
-- Generator automatically replaces JSON procedures with `ReadJsonAsync<T>`, creating fixed model classes and losing the raw JSON stream
-- Callers who want to pass JSON directly to clients (e.g., HTTP Response Streaming) pay the cost of deserialization and re-serialization
+- The generated `SpocRDbContext` emits typed JSON helpers (`Task<IReadOnlyList<T>>`) derived from SnapshotBuilder metadata.
+- Some consumers still need raw JSON (`string` or `JsonDocument`) for streaming or pass-through scenarios.
+- Preview work explores dual-mode and streaming outputs without reintroducing legacy configuration files.
 
 ## Target Vision
 
-- JSON results should optionally be available as `string` or `JsonDocument` without forced deserialization
-- Configurable via `.env` (`SPOCR_JSON_MATERIALIZATION`) and at runtime (`AppDbContextOptions` or pipe overrides)
-- Generators remain deterministic: identical output for identical configuration
+- JSON results available as typed models, raw payloads, or streaming sequences based on environment-first configuration.
+- `.env` preview keys (`SPOCR_ENABLE_JSON_DUAL`, `SPOCR_ENABLE_JSON_STREAMING`) guard the new behavior; defaults remain typed-only.
+- Runtime overrides surface through `AddSpocRDbContext` options, keeping generated code immutable.
 
 ## Architecture Proposal
 
 ### 1. Configurable Materialization Strategy
 
-New generator key in `.env` (`SPOCR_JSON_MATERIALIZATION`):
+Preview `.env` keys:
 
 ```dotenv
-# Controls JSON materialization for generated DbContext methods
-SPOCR_JSON_MATERIALIZATION=Deserialize  # Options: Deserialize, Raw, Hybrid
+# Enable dual output (raw + typed) for JSON procedures (preview)
+SPOCR_ENABLE_JSON_DUAL=0
+
+# Enable streaming helpers for large JSON payloads (preview)
+SPOCR_ENABLE_JSON_STREAMING=0
 ```
 
-- `Deserialize` (Default): current behavior maintained
-- `Raw`: Generator creates methods with `Task<string>` (or `Task<JsonDocument>`). No model output; consumer uses JSON directly
-- `Hybrid`: Generator provides both variants (e.g., `Task<string> ExecuteFooRawAsync(...)` plus `Task<Foo> ExecuteFooAsync(...)`)
+- `SPOCR_ENABLE_JSON_DUAL=1` emits both typed and raw helper methods.
+- `SPOCR_ENABLE_JSON_STREAMING=1` will introduce streaming APIs once implemented (currently scoped to design).
+- Leaving keys unset keeps the baseline typed helper experience.
 
-### 2. Runtime Switch in DataContext
+### 2. Generated DbContext Options
 
-`AppDbContextOptions` extended with `JsonMaterializationMode` (same enum as configuration). Pipe gets corresponding property plus fluent API:
+`AddSpocRDbContext` exposes an options callback so host applications can align runtime behavior with preview keys:
 
 ```csharp
-public enum JsonMaterializationMode { Deserialize, Raw }
-
-public class AppDbContextOptions
+services.AddSpocRDbContext(configuration, options =>
 {
-    public int CommandTimeout { get; set; } = 30;
-    public JsonMaterializationMode JsonMaterializationMode { get; set; } = JsonMaterializationMode.Deserialize;
-}
-
-public interface IAppDbContextPipe
-{
-    JsonMaterializationMode? JsonMaterializationOverride { get; set; }
-}
-
-public static IAppDbContextPipe WithJsonMaterialization(this IAppDbContext context, JsonMaterializationMode mode)
-    => context.CreatePipe().WithJsonMaterialization(mode);
+    options.JsonMaterialization = JsonMaterialization.Typed; // Typed, Raw, Dual (preview)
+    options.EnableJsonStreaming = false;                     // Maps to SPOCR_ENABLE_JSON_STREAMING when enabled
+});
 ```
 
 ### 3. Return Value API Form
 
-- `Deserialize` mode: unchanged `Task<T>`
-- `Raw` mode: Generator replaces `ReadJsonAsync<T>` with `ReadJsonRawAsync` and method type becomes `Task<string>`
-- `Hybrid` mode: Generator creates both methods (typed and raw). Naming suggestion: `ExecuteFooAsync` (typed) and `ExecuteFooRawAsync` (raw)
+- Typed default: `Task<IReadOnlyList<CustomerModel>> CustomersAsync(...)`
+- Raw helper (dual mode): `Task<string> CustomersRawAsync(...)`
+- Streaming preview candidate: `IAsyncEnumerable<JsonDocument> CustomersStreamAsync(...)`
 
 ### 4. Generator Adjustments
 
-- `StoredProcedureGenerator` reads `SPOCR_JSON_MATERIALIZATION` (Fall back to defaults when unset) and sets `returnType` plus `returnExpression` accordingly
-- For `Hybrid`, generator uses template duplicate for raw variant, parameter and pipe setup share code
-- Models only generated when needed
+- Respect preview keys consistently across templates, runtime helpers, and diagnostics output.
+- Capture active preview features in snapshots (`JsonFeatures.Dual`, `JsonFeatures.Streaming`) to maintain determinism.
+- Keep typed helpers as the baseline output even when preview flags toggle additional methods.
 
 ### 5. Migration and Compatibility
 
-- Default remains `Deserialize`, existing projects get identical output
-- `AppDbContextOptions` maintains default value for existing `IOptions` configurations
-- Callers can set `context.WithJsonMaterialization(JsonMaterializationMode.Raw)` at runtime
+- Defaults produce typed helpers only; enabling preview keys requires explicit `.env` opt-in tracked in `CHECKLIST.md`.
+- Document usage and rollback plans before activating preview features in shared environments.
+- CLI surfaces warnings when preview flags are active to encourage teams to log findings.
 
 ### 6. Performance Strategy
 
-- Unit tests for `ReadJsonAsync<T>` and `ReadJsonRawAsync` with all mode combinations
-- Integration tests with sample procedures for typed vs. raw
-- Performance measurement via BenchmarkDotNet: compare `Deserialize` vs. `Raw` with large JSON
+- Unit tests comparing typed vs. raw helpers; future coverage for streaming once implemented.
+- Integration tests using sandbox procedures to observe payload size and throughput impacts.
+- BenchmarkDotNet experiments planned post-implementation to quantify materialization overhead.
 
 ## Status
 
-- **Current Phase**: Design & Concept
-- **Dependencies**: Output Strategies implementation
-- **Target Release**: v5.0.0
+- **Current Phase**: Preview design (`SPOCR_ENABLE_JSON_DUAL`, `SPOCR_ENABLE_JSON_STREAMING`).
+- **Dependencies**: output strategies roadmap, SnapshotBuilder JSON metadata.
+- **Target Release**: Opt-in during v5 lifecycle with typed-only default.
