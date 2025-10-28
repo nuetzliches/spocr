@@ -69,6 +69,22 @@ These keys remain disabled until their respective features ship. Keep them docum
 
 Golden hash manifests summarize generator output for regression checks. Within the SpocR repository we maintain them under `debug/` for framework development, but consumer projects keep them alongside their configured output directory (default `SpocR/`). Gating remains opt-in until coverage and diff allow-list criteria are met. When you activate `SPOCR_STRICT_GOLDEN`, ensure checklists capture the decision and update automation accordingly.
 
+## Namespace Override Example
+
+Override the namespace via CLI flag or `.env` and inspect the diff to confirm the new root takes effect. The example below captures how `spocr build` responds when `SPOCR_NAMESPACE` changes from `Acme.App` to `Contoso.Billing`.
+
+```diff
+--- a/SpocR/SpocRDbContext.cs
++++ b/SpocR/SpocRDbContext.cs
+-namespace Acme.App.SpocR;
++namespace Contoso.Billing.SpocR;
+
+-public static class SpocRDbContextServiceCollectionExtensions
++public static class SpocRDbContextServiceCollectionExtensions
+```
+
+Tip: run `spocr build --namespace Contoso.Billing` to test overrides without editing the `.env`. When the diff looks correct, update `SPOCR_NAMESPACE` in the project `.env` and commit the change alongside regenerated artifacts.
+
 ## Example `.env` (Minimal)
 
 ```dotenv

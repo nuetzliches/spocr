@@ -82,7 +82,7 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 
 - [x] Rewrite `README.md` to remove historical context, focus on the SpocR CLI value proposition (DB admins enabling BI layers; developers working with stored procedures only), and push deep technical documentation to the GitHub Pages site. (2025-10-27)
 - [ ] Docs/content: keep GitHub Pages articles focused on current CLI behavior; migrate historical or migration notes to the legacy stream.
-- [ ] README/Docs: Namespace-Ableitung & Override mit Beispiel diff ergänzen.
+- [x] README/Docs: Namespace-Ableitung & Override mit Beispiel diff ergänzen. (docs/content/3.reference/env-bootstrap.md)
 - [ ] CHANGELOG v4.5-rc/v5 vorbereiten (Removed Keys, neue CLI, Bridge Policy).
 - [ ] Migration Guide `MIGRATION-V5.md` + `migration-v5.instructions` synchronisieren.
 - [ ] Docs Build (Nuxt/Bun) verifizieren und Deployment-Workflow (`docs-pages`) planen.
