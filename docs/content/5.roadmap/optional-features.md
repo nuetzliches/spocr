@@ -18,25 +18,18 @@ aiTags: [roadmap, optional, deserialization, json, performance]
 ## Target Vision
 
 - JSON results should optionally be available as `string` or `JsonDocument` without forced deserialization
-- Configurable via `spocr.json` and at runtime (`AppDbContextOptions` or Pipe)
+- Configurable via `.env` (`SPOCR_JSON_MATERIALIZATION`) and at runtime (`AppDbContextOptions` or pipe overrides)
 - Generators remain deterministic: identical output for identical configuration
 
 ## Architecture Proposal
 
 ### 1. Configurable Materialization Strategy
 
-New setting in `spocr.json` (`jsonMaterialization`):
+New generator key in `.env` (`SPOCR_JSON_MATERIALIZATION`):
 
-```jsonc
-{
-  "project": {
-    "output": {
-      "dataContext": {
-        "jsonMaterialization": "Deserialize" // Options: "Deserialize", "Raw", "Hybrid"
-      }
-    }
-  }
-}
+```dotenv
+# Controls JSON materialization for generated DbContext methods
+SPOCR_JSON_MATERIALIZATION=Deserialize  # Options: Deserialize, Raw, Hybrid
 ```
 
 - `Deserialize` (Default): current behavior maintained
@@ -73,7 +66,7 @@ public static IAppDbContextPipe WithJsonMaterialization(this IAppDbContext conte
 
 ### 4. Generator Adjustments
 
-- `StoredProcedureGenerator` reads `jsonMaterialization` and sets `returnType` plus `returnExpression` accordingly
+- `StoredProcedureGenerator` reads `SPOCR_JSON_MATERIALIZATION` (Fall back to defaults when unset) and sets `returnType` plus `returnExpression` accordingly
 - For `Hybrid`, generator uses template duplicate for raw variant, parameter and pipe setup share code
 - Models only generated when needed
 

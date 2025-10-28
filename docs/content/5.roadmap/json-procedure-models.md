@@ -23,7 +23,7 @@ Enhanced JSON procedure model generation to support complex nested JSON structur
 
 ### Phase 1 – Configuration & Infrastructure
 
-- Extend spocr.json schema to include JsonProcedures section with mode, file settings, schema settings, and sample caching options
+- Introduce `.env` / `SPOCR_JSON_*` keys to define JsonProcedures mode, sample caching options, and schema inference behavior
 - Implement configuration validation + new POCOs
 - Create interfaces: IJsonProcedureSource, IJsonSchemaService, IJsonModelGenerator for dependency-injection-friendly architecture
 

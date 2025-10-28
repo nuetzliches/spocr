@@ -16,7 +16,7 @@ Target Version: Next Minor
 1. Avoid breaking changes: Keep existing methods returning `string` for JSON payloads while adding typed overloads.
 2. Always generate JSON models (no config flag) so they can be referenced in e.g. `[ProducesResponseType]` even if consumer uses raw string.
 3. Prepare (optional) future structure for multiple result sets via an internal `ResultSets` concept (no deprecation of `Output` in config, only internal evolution).
-4. Provide clear, non-breaking evolution (no external deprecation markers in spocr.json).
+4. Provide clear, non-breaking evolution without introducing deprecated markers into consumer-facing configuration.
 
 ## 3. Proposed API Evolution
 
@@ -59,7 +59,7 @@ Change: Remove conditional guards; generate a model class whenever `ReturnsJson 
 
 Problem: Single `Output` array limits model expressiveness for multi result scenarios.
 
-Possible future internal structure (illustrative; not added to `spocr.json` yet):
+Possible future internal snapshot structure (illustrative; not yet emitted in `.spocr/schema`):
 
 ```jsonc
 {

@@ -18,7 +18,7 @@ aiTags: [roadmap, development, tasks, implementation]
   - [ ] Update README/documentation with examples for nested payloads
 
 - [ ] **Output DataContext enhancements**: Extend C# DataContext with "SET NO COUNT" option
-  - [ ] Make configurable via spocr.json and AppDbContextOptions
+  - [ ] Surface toggle via generator `.env`/`SPOCR_*` key and host `AddSpocRDbContext` options
   - [ ] Plan implementation with session scope considerations
 
 ### Medium Priority
@@ -56,7 +56,7 @@ aiTags: [roadmap, development, tasks, implementation]
 - [ ] **Docker-based testing**: Multi-tier testing approach
   - [ ] Set up docker-compose for MSSQL test database with init scripts
   - [ ] Automate stored procedure and custom type deployment in container
-  - [ ] Generate reference spocr.json from Docker setup for comparisons
+  - [ ] Capture reference `.env` and snapshot output (`.spocr/schema/`) from Docker setup for comparisons
   - [ ] Implement integration tests that verify model generation against reference
   - [ ] Integrate new tests into CI/Build pipeline
 
@@ -71,7 +71,7 @@ aiTags: [roadmap, development, tasks, implementation]
 
 ### Testing Strategy
 - Use Docker containers with MSSQL DB containing testable stored procedures
-- Generate reference outputs (spocr.json) for validation
+- Generate reference `.spocr/schema/` snapshots and generator outputs for validation
 - Implement multi-stage tests for model generation verification
 
 ### Development Process

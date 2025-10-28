@@ -60,7 +60,7 @@ Benchmark support was removed from near-term scope to focus on stability and cor
 ### Validation Tests
 
 - **Project Structure** - Verifies critical files exist (SpocR.csproj, Program.cs, etc.)
-- **Configuration** - Validates spocr.json schema and settings
+- **Configuration** - Validates `.env` / `SPOCR_*` configuration and required keys
 - **Generated Code** - Checks syntax and compilation of generated C# code
 
 ### Unit Tests

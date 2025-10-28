@@ -25,7 +25,7 @@ aiTags: [roadmap, output, json, strategies, nested]
 
 ### 1. Inventory & Classification
 
-- `spocr.json`: new `output.jsonModels` section
+- `.env` / environment variables: introduce `SPOCR_JSON_MODELS_GENERATE` and related flags
 - Detection per Stored Procedure whether `ReturnsJson` and whether nested JSON `Columns` (via `StoredProcedureContentModel.Columns` – renamed from JsonColumns in v7)
 - New flags in Definition.Model (`HasJsonPayload`, `JsonShape`)
 
@@ -49,20 +49,14 @@ aiTags: [roadmap, output, json, strategies, nested]
 
 Configuration example:
 
-```jsonc
-{
-  "project": {
-    "output": {
-      "jsonModels": {
-        "generateNestedModels": true,
-        "autoDeserialize": false,
-      },
-    },
-  },
-}
+```dotenv
+# Enable generation of nested JSON models alongside raw payload
+SPOCR_JSON_MODELS_GENERATE=true
+# Control automatic deserialization into nested models (optional)
+SPOCR_JSON_MODELS_AUTODESERIALIZE=false
 ```
 
-- Engine reads flags and influences template processing
+- Engine reads the `SPOCR_JSON_MODELS_*` flags and influences template processing
 - CLI documentation adjustments, default `generateNestedModels=false` (no breaking changes)
 
 ### 5. Test Plan
