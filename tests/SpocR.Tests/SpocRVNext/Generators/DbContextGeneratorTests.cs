@@ -25,7 +25,7 @@ public class DbContextGeneratorTests
         {
             Directory.SetCurrentDirectory(temp.FullName);
             DirectoryUtils.SetBasePath(temp.FullName);
-            File.WriteAllText(Path.Combine(temp.FullName, ".env"), "SPOCR_NAMESPACE=Test.App\n");
+            File.WriteAllText(Path.Combine(temp.FullName, ".env"), "SPOCR_NAMESPACE=Test.App\nSPOCR_GENERATOR_DB=Server=test;Database=db;\n");
             var gen = CreateGenerator();
             await gen.GenerateAsync(isDryRun: false);
             // Diagnose: liste alle Dateien unter temp

@@ -21,7 +21,8 @@
 - [ ] CLI-Konzept aktualisieren (Command-Matrix, UX-Flows, Telemetrie, Breaking-Change-Kommunikation).
 - [ ] Teststrategie festziehen: neue Suite definieren, Legacy-Abschaltung planen, Smoke/Integration festhalten.
 - [ ] Stakeholder-Kommunikation vorbereiten (Forced Upgrade, Beta-Programm, Support-Kanäle).
-- [ ] Post-Migration Zielbild finalisieren: neues Repository `nuetzliches/xtraq` (Namespace `Xtraq`, Version `1.0.0`, ohne SpocR-Historie) und Freeze-Hinweis aus SpocR v4.5 auf den Nachfolger.
+- [~] Post-Migration Zielbild finalisieren: neues Repository `nuetzliches/xtraq` (Namespace `Xtraq`, Version `1.0.0`, ohne SpocR-Historie) und Freeze-Hinweis aus SpocR v4.5 auf den Nachfolger.
+  - Dokumentation aktualisiert (`MIGRATION_SpocRVNext.md`, `migration-v5.instructions`, `README.md`, `CHANGELOG.md`) mit Xtraq-Hand-off (2025-10-29).
 
 ## Bereinigung & Umsetzung
 
@@ -47,7 +48,8 @@
 - [ ] Migrationstipps bereitstellen (`MIGRATION-V5.md`, `migration-v5.instructions`, `.NET 8` Hinweis).
 - [ ] Kommunikationsplan für Kunden/Partner erstellen (Zeitplan, Forced-Upgrade-Botschaft, Supportkanäle).
 - [ ] Feedbackschleifen etablieren (Pilotkunden, Beta, Telemetrieauswertung).
-- [ ] SpocR Freeze-Kommunikation vorbereiten: v4.5 finalisiert, deutet auf `nuetzliches/xtraq` (Namespace `Xtraq`, Version `1.0.0`).
+- [~] SpocR Freeze-Kommunikation vorbereiten: v4.5 finalisiert, deutet auf `nuetzliches/xtraq` (Namespace `Xtraq`, Version `1.0.0`).
+  - Kommunikationspfad in README, CHANGELOG und Migration-Anleitungen hinterlegt (2025-10-29).
 
 ## Nachlauf (Legacy v4.5)
 

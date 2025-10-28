@@ -49,7 +49,7 @@ This sample participates in the SpocR v4.5 → v5 bridge phase. You can experime
 
 Environment precedence (highest wins):
 
-CLI > Environment Variables > `.env` file > `spocr.json` (legacy fallback – will be removed in v5).
+CLI > Environment Variables > `.env` file (spocr.json is no longer read; ensure `SPOCR_GENERATOR_DB` is set).
 
 Copy the example file and adjust values:
 

@@ -14,7 +14,7 @@ public class TableTypesGeneratorTests
     public void GeneratesFiles_WithStubProvider()
     {
         var root = Directory.CreateTempSubdirectory();
-    File.WriteAllText(Path.Combine(root.FullName, ".env"), "SPOCR_NAMESPACE=Test.App\nSPOCR_BUILD_SCHEMAS=Alpha\n");
+        File.WriteAllText(Path.Combine(root.FullName, ".env"), "SPOCR_NAMESPACE=Test.App\nSPOCR_BUILD_SCHEMAS=Alpha\nSPOCR_GENERATOR_DB=Server=test;Database=db;\n");
         var cfg = EnvConfiguration.Load(projectRoot: root.FullName);
         var stub = new StubProvider(("Alpha", "UserIdList"));
         var templatesDir = Path.Combine(root.FullName, "src", "SpocRVNext", "Templates");
@@ -36,7 +36,7 @@ public class TableTypesGeneratorTests
     {
         var root = Directory.CreateTempSubdirectory();
         // Only allow schema 'Alpha'
-    File.WriteAllText(Path.Combine(root.FullName, ".env"), "SPOCR_NAMESPACE=Test.App\nSPOCR_BUILD_SCHEMAS=Alpha\nSPOCR_TABLETYPES_MODE=strict\n");
+        File.WriteAllText(Path.Combine(root.FullName, ".env"), "SPOCR_NAMESPACE=Test.App\nSPOCR_BUILD_SCHEMAS=Alpha\nSPOCR_TABLETYPES_MODE=strict\nSPOCR_GENERATOR_DB=Server=test;Database=db;\n");
         var cfg = EnvConfiguration.Load(projectRoot: root.FullName);
         var stub = new StubProvider(
             ("Alpha", "UserImport"),
@@ -60,7 +60,7 @@ public class TableTypesGeneratorTests
     public void PreservesOriginalNames_NoRenaming()
     {
         var root = Directory.CreateTempSubdirectory();
-    File.WriteAllText(Path.Combine(root.FullName, ".env"), "SPOCR_NAMESPACE=Test.App\n");
+        File.WriteAllText(Path.Combine(root.FullName, ".env"), "SPOCR_NAMESPACE=Test.App\nSPOCR_GENERATOR_DB=Server=test;Database=db;\n");
         var cfg = EnvConfiguration.Load(projectRoot: root.FullName);
         var stub = new StubProvider(
             ("dbo", "CustomerTT"),

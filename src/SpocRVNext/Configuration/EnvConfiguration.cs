@@ -7,7 +7,7 @@ namespace SpocRVNext.Configuration;
 
 /// <summary>
 /// Strongly typed configuration for vNext generator with precedence:
-/// CLI overrides > Environment Variables > .env file > (bridge) spocr.json fallback for connection
+/// CLI overrides > Environment Variables > .env file (spocr.json fallback removed)
 /// </summary>
 public sealed class EnvConfiguration
 {
@@ -81,35 +81,12 @@ public sealed class EnvConfiguration
             return string.Empty;
         }
 
-    var fullConn = NullIfEmpty(Get("SPOCR_GENERATOR_DB"));
-    const string modeResolved = "next";
+        var fullConn = NullIfEmpty(Get("SPOCR_GENERATOR_DB"));
+        const string modeResolved = "next";
         var buildSchemasList = ParseList(NullIfEmpty(Get("SPOCR_BUILD_SCHEMAS")));
-
-    if (string.IsNullOrWhiteSpace(fullConn))
+        if (string.IsNullOrWhiteSpace(fullConn) && verbose)
         {
-            try
-            {
-                var nearestConfig = FindNearestConfig(projectRoot);
-                if (nearestConfig != null)
-                {
-                    using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(nearestConfig));
-                    var root = doc.RootElement;
-                    string? conn = root.TryGetProperty("Project", out var p) && p.TryGetProperty("DataBase", out var db) && db.TryGetProperty("ConnectionString", out var csEl) ? csEl.GetString() : null;
-                    if (!string.IsNullOrWhiteSpace(conn))
-                    {
-                        fullConn = conn;
-                        if (verbose) Console.Out.WriteLine("[spocr vNext] Info: SPOCR_GENERATOR_DB not set – using spocr.json connection (bridge). Consider adding SPOCR_GENERATOR_DB to .env.");
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.Error.WriteLine($"[spocr vNext] Warning: spocr.json connection fallback failed: {ex.Message}");
-            }
-        }
-    else if (!string.IsNullOrWhiteSpace(fullConn))
-        {
-            if (verbose) Console.Out.WriteLine("[spocr vNext] Info: Connection from SPOCR_GENERATOR_DB resolved. spocr.json ignored.");
+            Console.Error.WriteLine("[spocr vNext] Warning: SPOCR_GENERATOR_DB is not set. Run 'spocr init' or provide the connection string via environment variables.");
         }
 
         var cfg = new EnvConfiguration
@@ -183,7 +160,6 @@ public sealed class EnvConfiguration
                 filePairs = LoadDotEnv(envFilePath);
             }
         }
-
         Validate(cfg, envFilePath);
         return cfg;
     }
@@ -200,13 +176,15 @@ public sealed class EnvConfiguration
         }
         if (!string.IsNullOrWhiteSpace(cfg.OutputDir) && cfg.OutputDir.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
             throw new InvalidOperationException($"SPOCR_OUTPUT_DIR '{cfg.OutputDir}' contains invalid chars.");
-    if (cfg.GeneratorMode == "next")
+        if (cfg.GeneratorMode == "next")
         {
             if (string.IsNullOrEmpty(envFilePath) || !File.Exists(envFilePath))
                 throw new InvalidOperationException("In dual/next a .env file must exist.");
             var hasMarker = File.ReadLines(envFilePath).Any(l => l.Contains("SPOCR_", StringComparison.OrdinalIgnoreCase));
             if (!hasMarker)
                 throw new InvalidOperationException(".env file has no SPOCR_ marker lines.");
+            if (string.IsNullOrWhiteSpace(cfg.GeneratorConnectionString))
+                throw new InvalidOperationException("SPOCR_GENERATOR_DB must be configured (no spocr.json fallback). Run 'spocr init' or add the connection string to .env.");
         }
         foreach (var schema in cfg.BuildSchemas)
         {
@@ -287,13 +265,6 @@ public sealed class EnvConfiguration
             File.WriteAllLines(envPath, lines);
             return envPath;
         }
-        catch { return null; }
-    }
-
-    private static string? FindNearestConfig(string projectRoot)
-    {
-        if (File.Exists(Path.Combine(projectRoot, "spocr.json"))) return Path.Combine(projectRoot, "spocr.json");
-        try { return Directory.EnumerateFiles(projectRoot, "spocr.json", SearchOption.AllDirectories).FirstOrDefault(); }
         catch { return null; }
     }
 }

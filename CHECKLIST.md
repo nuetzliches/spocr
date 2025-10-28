@@ -51,7 +51,8 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 - [ ] DbContext-Implementierung zu schlankem DB-Adapter für die `spocr pull`-Pipeline umbauen (Basis für `src/SpocRVNext/Templates/DbContext`).
 - [ ] Guardrails für DbContext-Oberflächen definieren (interner Kontext darf Ad-hoc/Diagnostics, generierter Kontext nur Execute-Aufrufe) und Tests/Docs ableiten.
 - [ ] Klare Trennung „SpocR Source“ vs. „SpocR Runtime“ ausarbeiten (Packages/Namespaces/Deploymentpfade) und im Architektur-Abschnitt dokumentieren.
-- [ ] Post-Migration Repo-Aufspaltung planen: neues Repository `nuetzliches/xtraq` mit Namespace `Xtraq`, Startversion `1.0.0`, keine historischen SpocR-Verweise; SpocR wird bei v4.5 eingefroren und verweist auf Xtraq.
+- [~] Post-Migration Repo-Aufspaltung planen: neues Repository `nuetzliches/xtraq` mit Namespace `Xtraq`, Startversion `1.0.0`, keine historischen SpocR-Verweise; SpocR wird bei v4.5 eingefroren und verweist auf Xtraq.
+  - `CHANGELOG.md`, `README.md`, `MIGRATION_SpocRVNext.md` und `migration-v5.instructions` dokumentieren den Xtraq-Nachfolger (2025-10-29).
 
 ## SnapshotBuilder & Analyzer (vgl. `src/SpocRVNext/SnapshotBuilder/CHECKLIST.md`)
 
@@ -91,7 +92,8 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 - [ ] Docs Build (Nuxt/Bun) verifizieren und Deployment-Workflow (`docs-pages`) planen.
 - [~] TableType/JSON Änderungen in Doku nachziehen (Verweis auf neue Artefakte).
   - JSON Snapshot Flags aktualisiert (`docs/content/3.reference/json-procedures.md`).
-- [ ] SpocR Freeze-Kommunikation dokumentieren: v4.5 weist auf `nuetzliches/xtraq` (Namespace `Xtraq`, Version `1.0.0`) als Nachfolger hin.
+- [~] SpocR Freeze-Kommunikation dokumentieren: v4.5 weist auf `nuetzliches/xtraq` (Namespace `Xtraq`, Version `1.0.0`) als Nachfolger hin.
+  - README, CHANGELOG, Migration Guide & Instructions um Hinweis auf Xtraq ergänzt (2025-10-29).
 - [ ] Inhalte aus `src/SpocRVNext` eine Ebene höher ziehen und konsolidierte Struktur dokumentieren.
 - [ ] `.ai/` Inhalte nach jeder relevanten Änderung prüfen und synchronisieren (Guidelines, Prompts, README).
 

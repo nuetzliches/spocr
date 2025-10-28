@@ -7,7 +7,7 @@ Format loosely inspired by Keep a Changelog. Dates use ISO 8601 (UTC).
 
 ### Planned
 
-- (none currently) – add new items here.
+- Post-Migration: Repository `nuetzliches/xtraq` (Namespace `Xtraq`, Version `1.0.0`) übernimmt den aktiven Generator; SpocR bleibt als v4.5-Freeze bestehen und verweist auf den Nachfolger.
 
 ### Added
 
@@ -50,6 +50,7 @@ Exit codes 21, 22, 23 are RESERVED for future strict determinism enforcement (Go
 
 - Legacy generator freeze (EPIC E001): No further functional enhancements to the existing DataContext code after introduction of this note. Only security or stability critical bug fixes allowed. Sentinel file `legacy-freeze.txt` denotes active freeze. Freeze effective date: 2025-10-13 (previous internal draft 2025-10-12 updated).
 - Bridge Policy: Direct major upgrade attempts require transitional version path unless `SPOCR_ALLOW_DIRECT_MAJOR=1` is set. Documented to reduce accidental skipping of migration steps.
+- Cutover Preview: Nach Abschluss der Migration zeigt SpocR v4.5 in README/CHANGELOG/Auto-Updater auf das neue Xtraq-Projekt (`nuetzliches/xtraq`, Namespace `Xtraq`, Startversion `1.0.0`) als fortgeführte Plattform.
 
 ## [4.5.0-alpha.12] - 2025-10-07
 

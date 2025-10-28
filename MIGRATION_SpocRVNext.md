@@ -34,7 +34,7 @@ Current Snapshot Parser Version: 8 (recursive JSON type enrichment + pruning IsN
 
 Note: "Removed" means loader/parser will ignore & no longer bind; warning verbosity may increase shortly before v5.
 
-> Upcoming (v5) Removal of `spocr.json` Dependency: In v4.5 the file is still read as a fallback (only when `SPOCR_GENERATOR_DB` is absent). In v5.0 the generator will neither read nor parse `spocr.json`. If the file still exists a one‑time WARNING will be emitted advising to delete it (fully .env / ENV driven operation). No feature will rely on its contents post‑cutover.
+> Update (2025-10-29): The generator no longer reads `spocr.json`. Provide `SPOCR_GENERATOR_DB` via `.env` or environment variables before running vNext. Legacy files may remain for reference but are ignored.
 
 ## Dual CLI Strategy
 
@@ -55,11 +55,10 @@ Removed (planned / already removed):
 ### Upcoming (vNext) Configuration Model
 
 - Transitioning from `spocr.json` to environment variable / `.env` driven configuration for runtime & generation parameters.
-- Phase-in: BOTH `spocr.json` (legacy) and `.env` are read during v4.x. Full removal of JSON fallback happens in v5.0.
-- v5 behavior: Presence of `spocr.json` only triggers a warning (no parsing, no fallback). Safe to delete once `.env` / ENV contains required `SPOCR_*` keys.
+- Phase-out complete: `.env` / environment variables are now the sole configuration inputs; `spocr.json` is ignored by the generator.
+- Presence of `spocr.json` triggers a warning only. Delete it after mirroring the required values into `.env`.
 - Rationale: Simplify deployment, enable secret-less container usage, reduce JSON schema churn.
-- Precedence order (current draft): CLI flag > Environment variable > `.env` file > (legacy) `spocr.json` (fallback until v5.0 only).
-- Precedence order (updated): CLI flag > Environment variable > `.env` file > (legacy) `spocr.json` fallback (only used in dual|next if `SPOCR_GENERATOR_DB` is absent; ignored when `SPOCR_GENERATOR_DB` is present). Will be removed entirely in v5.0.
+- Precedence order: CLI flag > Environment variable > `.env` file.
 - `spocr pull` no longer overwrites local configuration (it may still read schema & augment in-memory state).
 - Migration path: Existing keys map to `SPOCR_*` variables (mapping table to be added). Users can gradually mirror required values into `.env`.
 - Example template file now lives at `samples/restapi/.env.example` (moved from repository root for clarity).

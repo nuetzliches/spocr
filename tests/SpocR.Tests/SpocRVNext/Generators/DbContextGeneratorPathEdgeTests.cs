@@ -24,7 +24,7 @@ public class DbContextGeneratorPathEdgeTests
         {
             Directory.SetCurrentDirectory(dotted);
             DirectoryUtils.SetBasePath(dotted);
-            File.WriteAllText(Path.Combine(dotted, ".env"), "SPOCR_NAMESPACE=Edge.Dot\n");
+            File.WriteAllText(Path.Combine(dotted, ".env"), "SPOCR_NAMESPACE=Edge.Dot\nSPOCR_GENERATOR_DB=Server=test;Database=db;\n");
             var gen = CreateGenerator();
             await gen.GenerateAsync(false);
             var spocrDir = Path.Combine(dotted, "SpocR");

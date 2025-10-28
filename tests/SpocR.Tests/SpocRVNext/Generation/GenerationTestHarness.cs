@@ -18,8 +18,13 @@ internal static class GenerationTestHarness
     public static RunResult RunFromSnapshotJson(string snapshotJson, string? explicitNamespace = null)
     {
         var root = Directory.CreateTempSubdirectory("spocr_vnext_" + Guid.NewGuid().ToString("N"));
-    var envContent = explicitNamespace != null ? $"SPOCR_NAMESPACE={explicitNamespace}\n" : string.Empty;
-    File.WriteAllText(Path.Combine(root.FullName, ".env"), envContent);
+        var envContent = new StringBuilder();
+        if (explicitNamespace != null)
+        {
+            envContent.AppendLine($"SPOCR_NAMESPACE={explicitNamespace}");
+        }
+        envContent.AppendLine("SPOCR_GENERATOR_DB=Server=test;Database=db;");
+        File.WriteAllText(Path.Combine(root.FullName, ".env"), envContent.ToString());
         var schemaDir = Path.Combine(root.FullName, ".spocr", "schema");
         Directory.CreateDirectory(schemaDir);
         File.WriteAllText(Path.Combine(schemaDir, "snapshot.json"), snapshotJson);
@@ -60,7 +65,14 @@ internal static class GenerationTestHarness
     public static RunResult RunAgainstProject(string projectRoot)
     {
         var envFile = Path.Combine(projectRoot, ".env");
-    if (!File.Exists(envFile)) File.WriteAllText(envFile, string.Empty);
+        if (!File.Exists(envFile))
+        {
+            File.WriteAllText(envFile, "SPOCR_GENERATOR_DB=Server=test;Database=db;\n");
+        }
+        else if (!File.ReadAllLines(envFile).Any(l => l.StartsWith("SPOCR_GENERATOR_DB", StringComparison.OrdinalIgnoreCase)))
+        {
+            File.AppendAllText(envFile, "SPOCR_GENERATOR_DB=Server=test;Database=db;\n");
+        }
         var cfg = EnvConfiguration.Load(projectRoot: projectRoot);
         var renderer = new SimpleTemplateEngine();
         var gen = new SpocRGenerator(renderer, schemaProviderFactory: () => new SchemaMetadataProvider(projectRoot));

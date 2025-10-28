@@ -12,7 +12,8 @@ public class NamespaceResolverTests
         var repoRoot = FindRepoRoot();
         var overrides = new System.Collections.Generic.Dictionary<string, string?>
         {
-            {"SPOCR_NAMESPACE", "Custom.Namespace"}
+            {"SPOCR_NAMESPACE", "Custom.Namespace"},
+            {"SPOCR_GENERATOR_DB", "Server=test;Database=db;"}
         };
         var envCfg = EnvConfiguration.Load(projectRoot: repoRoot, cliOverrides: overrides);
         var resolver = new NamespaceResolver(envCfg);
@@ -43,7 +44,8 @@ public class NamespaceResolverTests
         var repoRoot = FindRepoRoot();
         var overrides = new System.Collections.Generic.Dictionary<string, string?>
         {
-            {"SPOCR_NAMESPACE", "1Bad"}
+            {"SPOCR_NAMESPACE", "1Bad"},
+            {"SPOCR_GENERATOR_DB", "Server=test;Database=db;"}
         };
         var prev = System.Environment.GetEnvironmentVariable("SPOCR_DISABLE_ENV_BOOTSTRAP");
         System.Environment.SetEnvironmentVariable("SPOCR_DISABLE_ENV_BOOTSTRAP", "1");

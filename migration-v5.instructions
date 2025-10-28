@@ -6,13 +6,13 @@ scope: spocr-v5-cutover
 
 ## Environment Bootstrapping
 
-1. Run `spocr init` in every repository that still relies on `spocr.json`.
+1. Run `spocr init` in every repository that still relies on `spocr.json`; the v5 CLI ignores the legacy file now, so migrate values before the next run.
 2. Validate the generated `.env` contains the minimum generator keys:
    - `SPOCR_GENERATOR_DB`
    - `SPOCR_NAMESPACE` (only when auto namespace cannot infer the correct value)
    - `SPOCR_BUILD_SCHEMAS` or schema specific overrides when selective generation is required.
 3. Remove secrets from `.env`; runtime connection strings now live in host configuration (`AddSpocRDbContext`).
-4. Keep `SPOCR_GENERATOR_DB` (and related secrets) inside `.env`; the pull/build pipeline still relies on this value. Treat the file as sensitive (use repo-level secret handling) while runtime code fetches its connection string via `AddSpocRDbContext` and host configuration. Delete stale `spocr.json` files after mirroring the values; in the bridge phase keep a backup only when dual validation is ongoing.
+4. Keep `SPOCR_GENERATOR_DB` (and related secrets) inside `.env`; the pull/build pipeline still relies on this value. Treat the file as sensitive (use repo-level secret handling) while runtime code fetches its connection string via `AddSpocRDbContext` and host configuration. Delete stale `spocr.json` files after mirroring the values; the generator does not read them anymore, so store backups outside the working tree when you still need historical reference during dual validation.
 
 ## SnapshotBuilder Verification Flow
 
@@ -46,7 +46,7 @@ scope: spocr-v5-cutover
 ## Dual CLI Strategy
 
 1. Ship a frozen v4 CLI as the NuGet tool `spocrv4`. It continues to read `spocr.json` and writes the legacy `DataContext/` output without touching the v5 pipeline.
-2. Während der Bridge-Phase bleibt die moderne CLI unter dem Namen `spocr` aktiv und arbeitet ausschließlich mit `.env`/`SPOCR_*` Keys sowie den SnapshotBuilder-Artefakten.
+2. Während der Bridge-Phase bleibt die moderne CLI unter dem Namen `spocr` aktiv und arbeitet ausschließlich mit `.env`/`SPOCR_*` Keys sowie den SnapshotBuilder-Artefakten; `spocr.json` is now treated as a legacy artefact and is ignored during execution.
 3. Zum Cutover erfolgt der Umzug in das neue Repository `nuetzliches/xtraq`; die Nachfolge-CLI veröffentlicht dort als Tool/Package `xtraq` (Namespace `Xtraq`, Version `1.0.0`) ohne historische SpocR-Verweise. Das eingefrorene SpocR-Repository (v4.5) verweist in README/Changelog auf Xtraq.
 4. `spocr` prüft weiterhin auf Legacy-Artefakte (z.B. `spocr.json`, `DataContext/`, `debug/spocr.json`) und verlinkt auf `MIGRATION_SpocRVNext.md`, diese Anleitung sowie – nach Cutover – direkt auf das Xtraq-Repository.
 5. Kommuniziere in Release Notes, dass die Tools parallel installiert werden können und ergänze nach dem Cutover den Xtraq-Befehl:
