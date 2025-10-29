@@ -3,7 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using SpocR.Enums;
 
-namespace SpocR.Converters;
+namespace SpocRVNext.Configuration;
 
 public class TargetFrameworkConverter : JsonConverter<string>
 {

@@ -2,8 +2,7 @@ using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace SpocR.Converters;
-
+namespace SpocRVNext.Configuration;
 
 public class StringVersionConverter : JsonConverter<Version>
 {

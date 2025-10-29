@@ -4,11 +4,10 @@ using System.Linq;
 using SpocR.Extensions;
 using SpocR.Models;
 
-namespace SpocR.Contracts;
+namespace SpocR.SpocRVNext.Core;
 
 public static class Definition
 {
-
     public static Schema ForSchema(SchemaModel schema)
     {
         return new Schema(schema);
@@ -54,28 +53,14 @@ public static class Definition
         private string _sqlObjectName;
         private string _name;
 
-        //
-        // Returns:
-        //     The sql object name of the StoredProcedure
         public string SqlObjectName => _sqlObjectName ??= $"[{schema.Identifier}].[{Name}]";
 
-        //
-        // Returns:
-        //     The FullName of the StoredProcedure
         public string Name => _name ??= storedProcedure.Name;
 
-        //
-        // Returns:
-        //     The part of the Name before the [Operation] starts. 
-        //     e.g.: "User" from Name "UserCreate"
-        // Removed obsolete OperationKind/ReadWriteKind/ResultKind logic.
-        // If similar semantics are needed in future, derive externally from ResultSets / parse flags.
-        // Expose only raw ResultSets; callers must inspect sets explicitly (no flattened convenience properties)
         public IReadOnlyList<StoredProcedureContentModel.ResultSet> ResultSets => storedProcedure.ResultSets;
 
         public IEnumerable<StoredProcedureInputModel> Input => storedProcedure.Input ?? [];
 
-        // Pure Wrapper Erkennung: exakt ein ResultSet, das ausschließlich ExecSource Metadata trägt und keine eigenen Columns oder JSON Kennzeichnung
         public bool IsPureWrapper
         {
             get
@@ -96,17 +81,10 @@ public static class Definition
         private string _sqlObjectName;
         private string _name;
 
-        //
-        // Returns:
-        //     The sql object name of the TableType
         public string SqlObjectName => _sqlObjectName ??= $"[{schema.Name.ToLower()}].[{Name}]";
 
-        //
-        // Returns:
-        //     The FullName of the TableType
         public string Name => _name ??= tableType.Name;
 
         public IEnumerable<ColumnModel> Columns => tableType.Columns ?? [];
     }
 }
-
