@@ -26,19 +26,6 @@ public sealed class EnvConfiguration
     {
         var verbose = string.Equals(Environment.GetEnvironmentVariable("SPOCR_VERBOSE"), "1", StringComparison.Ordinal);
         projectRoot ??= Directory.GetCurrentDirectory();
-        void TrySetProjectRootFromLocalConfig()
-        {
-            try
-            {
-                var localCfg = Directory.EnumerateFiles(projectRoot, "spocr.json", SearchOption.TopDirectoryOnly).FirstOrDefault();
-                if (localCfg != null)
-                {
-                    var cfgDir = Path.GetDirectoryName(Path.GetFullPath(localCfg));
-                    if (!string.IsNullOrWhiteSpace(cfgDir)) projectRoot = cfgDir!;
-                }
-            }
-            catch { }
-        }
 
         if (!string.IsNullOrWhiteSpace(explicitConfigPath))
         {
@@ -54,19 +41,11 @@ public sealed class EnvConfiguration
                 {
                     projectRoot = resolvedExplicit;
                 }
-                else
-                {
-                    TrySetProjectRootFromLocalConfig();
-                }
             }
             catch
             {
-                TrySetProjectRootFromLocalConfig();
+                if (verbose) Console.Error.WriteLine("[spocr vNext] Warning: explicitConfigPath resolution failed; using default project root.");
             }
-        }
-        else
-        {
-            TrySetProjectRootFromLocalConfig();
         }
 
         var envFilePath = ResolveEnvFile(projectRoot);
@@ -136,20 +115,6 @@ public sealed class EnvConfiguration
                 if (!string.IsNullOrWhiteSpace(disableBootstrap) && disableBootstrap != "0")
                     throw new InvalidOperationException(".env bootstrap disabled via SPOCR_DISABLE_ENV_BOOTSTRAP; required for SpocR vNext.");
 
-                try
-                {
-                    var autoPrefill = TryPrefillFromConfig(projectRoot);
-                    if (autoPrefill != null)
-                    {
-                        envFilePath = autoPrefill;
-                        filePairs = LoadDotEnv(envFilePath);
-                    }
-                }
-                catch (Exception px)
-                {
-                    if (verbose) Console.Error.WriteLine($"[spocr vNext] Prefill skipped: {px.Message}");
-                }
-
                 var bootstrapPath = SpocR.SpocRVNext.Cli.EnvBootstrapper.EnsureEnvAsync(projectRoot).GetAwaiter().GetResult();
                 if (!File.Exists(bootstrapPath))
                 {
@@ -184,7 +149,7 @@ public sealed class EnvConfiguration
             if (!hasMarker)
                 throw new InvalidOperationException(".env file has no SPOCR_ marker lines.");
             if (string.IsNullOrWhiteSpace(cfg.GeneratorConnectionString))
-                throw new InvalidOperationException("SPOCR_GENERATOR_DB must be configured (no spocr.json fallback). Run 'spocr init' or add the connection string to .env.");
+                throw new InvalidOperationException("SPOCR_GENERATOR_DB must be configured via environment variables or .env. Run 'spocr init' to scaffold the file.");
         }
         foreach (var schema in cfg.BuildSchemas)
         {
@@ -235,36 +200,4 @@ public sealed class EnvConfiguration
                   .ToList();
     }
 
-    private static string? TryPrefillFromConfig(string projectRoot)
-    {
-        string? targetConfig = null;
-        if (File.Exists(Path.Combine(projectRoot, "spocr.json"))) targetConfig = Path.Combine(projectRoot, "spocr.json");
-        else
-        {
-            try { targetConfig = Directory.EnumerateFiles(projectRoot, "spocr.json", SearchOption.AllDirectories).FirstOrDefault(); } catch { }
-        }
-        if (targetConfig == null) return null;
-        var cfgDir = Path.GetDirectoryName(targetConfig)!;
-        var envPath = Path.Combine(cfgDir, ".env");
-        if (File.Exists(envPath)) return envPath;
-        try
-        {
-            using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(targetConfig));
-            var root = doc.RootElement;
-            string? ns = root.TryGetProperty("Project", out var p) && p.TryGetProperty("Output", out var o) && o.TryGetProperty("Namespace", out var nsEl) ? nsEl.GetString() : null;
-            string? tfm = root.TryGetProperty("TargetFramework", out var tfmEl) ? tfmEl.GetString() : null;
-            string? conn = root.TryGetProperty("Project", out p) && p.TryGetProperty("DataBase", out var db) && db.TryGetProperty("ConnectionString", out var cs) ? cs.GetString() : null;
-            var lines = new List<string>
-            {
-                "# Auto-prefilled by SpocR vNext",
-                ns is not null ? $"SPOCR_NAMESPACE={ns}" : "# SPOCR_NAMESPACE=Your.Project.Namespace",
-                "SPOCR_OUTPUT_DIR=SpocR",
-                tfm is not null ? $"SPOCR_TFM={tfm}" : "# SPOCR_TFM=net9.0",
-                conn is not null ? $"SPOCR_GENERATOR_DB={conn}" : "# SPOCR_GENERATOR_DB=FullConnectionStringHere"
-            };
-            File.WriteAllLines(envPath, lines);
-            return envPath;
-        }
-        catch { return null; }
-    }
 }

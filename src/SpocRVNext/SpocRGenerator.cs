@@ -138,20 +138,6 @@ public sealed class SpocRGenerator
             Console.Out.WriteLine("[spocr vNext] Info: Skipping minimal DbContext generation (full DbContext already present).");
         }
 
-        // Mode-specific messaging if legacy config file still present
-        try
-        {
-            var hasLegacyConfig = Directory.EnumerateFiles(projectRoot, "spocr.json", SearchOption.AllDirectories).Any();
-            if (hasLegacyConfig)
-            {
-                if (cfg.GeneratorMode == "dual")
-                    Console.Out.WriteLine("[spocr vNext] Info: spocr.json detected (dual mode) – legacy + vNext coexist.");
-                else if (cfg.GeneratorMode == "next")
-                    Console.Error.WriteLine("[spocr vNext] Warning: spocr.json detected while running in 'next' mode – consider removing or migrating configuration.");
-            }
-        }
-        catch { }
-
         // Base output directory: ensure we point at .../SpocR for sample so schema folders appear beneath it
         var baseStructuredOut = projectRoot.EndsWith(Path.DirectorySeparatorChar + "SpocR", StringComparison.OrdinalIgnoreCase)
             ? projectRoot

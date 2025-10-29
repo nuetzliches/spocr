@@ -47,6 +47,7 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 - [~] Inventar `DataContext/` + `spocr.json` Konsumenten schließen; Ablösepfad nachhalten. (Legacy `DataContext/` Artefakte entfernt, verbleibende `spocr.json` Prüfrunden offen)
   - 2025-10-29: CLI ignoriert `spocr.json`; Tests angepasst, Rest-Inventar (Skripte/CI) offen.
   - 2025-10-29: Entwickler-Dokus & determinism workflow auf Projektpfad (`-p <dir>`) aktualisiert; verbleibende Legacy-Referenzen in Roadmap-Dokumenten prüfen.
+  - 2025-10-30: vNext EnvConfiguration/Bootstrapper/Generators entfernen `spocr.json` Fallbacks; neue Tests stellen `.env`-Pflicht sicher.
 - [ ] Neue CLI (`init`, `pull`, `build`, `rebuild`) finalisieren und Kommunikationspaket vorbereiten.
 - [ ] Teststrategie v5 definieren (Smoke/Integration vs. Legacy-Abschaltung) und CI entsprechend planen.
 - [ ] Forced-Upgrade Kommunikation (Zeitplan, Beta-Programm, Supportkanäle) aufsetzen.

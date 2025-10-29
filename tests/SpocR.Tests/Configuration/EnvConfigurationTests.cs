@@ -78,7 +78,6 @@ public class EnvConfigurationTests
     {
         var tempDir = Directory.CreateTempSubdirectory();
     File.WriteAllText(Path.Combine(tempDir.FullName, ".env"), "SPOCR_NAMESPACE=Conn.Test\nSPOCR_GENERATOR_DB=Server=env;Database=db;\n");
-    File.WriteAllText(Path.Combine(tempDir.FullName, "spocr.json"), "{\"Project\":{\"DataBase\":{\"ConnectionString\":\"Server=legacy;Database=db;\"}}}");
         var cfg = EnvConfiguration.Load(projectRoot: tempDir.FullName);
         Assert.Equal("Server=env;Database=db;", cfg.GeneratorConnectionString);
     }
@@ -109,5 +108,14 @@ public class EnvConfigurationTests
         {
             Environment.SetEnvironmentVariable("SPOCR_NAMESPACE", prevNs);
         }
+    }
+
+    [Fact]
+    public void LegacyConfig_Ignored_WhenEnvMissing()
+    {
+        var tempDir = Directory.CreateTempSubdirectory();
+        File.WriteAllText(Path.Combine(tempDir.FullName, "spocr.json"), "{\"Project\":{\"DataBase\":{\"ConnectionString\":\"Server=legacy;Database=db;\"}}}");
+        var ex = Assert.Throws<InvalidOperationException>(() => EnvConfiguration.Load(projectRoot: tempDir.FullName));
+        Assert.Contains("SPOCR_GENERATOR_DB", ex.Message);
     }
 }

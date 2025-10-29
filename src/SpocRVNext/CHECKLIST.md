@@ -30,6 +30,7 @@
 - [~] `.env`-Pfad finalisieren, Migration `spocr.json` → `.env` über `spocr init` absichern.
   - Debug-Sandbox `.env` bereinigt; `SPOCR_GENERATOR_MODE` entfernt, next-only Verhalten bestätigt (2025-10-29).
   - Generator liest keine `spocr.json`-Fallbacks mehr; `spocr init`/CI Inventory bleibt zu aktualisieren (2025-10-29).
+  - 2025-10-30: EnvConfiguration & EnvBootstrapper entfernen Legacy-Scans; ProceduresGenerator nutzt ausschließlich ENV Overrides.
   - Tests aktualisiert (`SpocR.Tests`, `SpocR.IntegrationTests`), um neue Pflichtwerte zu setzen (2025-10-29).
   - CI & Entwickler-Dokus auf Projektpfad-Kommandos umgestellt (`-p <dir>`); Roadmap-Referenzen folgen (2025-10-29).
 - [x] Generator-Mode-Fallbacks entfernen (`SPOCR_GENERATOR_MODE`, `--mode`); next-only Verhalten dokumentiert und getestet.

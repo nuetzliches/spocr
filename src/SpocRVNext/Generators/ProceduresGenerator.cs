@@ -142,34 +142,14 @@ public sealed class ProceduresGenerator
         }
         */
 
-        // 2) Dynamic negative filter only when no positive list is active
-        //    Reads ignored schemas from spocr.json (if present) and/or ENV override
+    // 2) Dynamic negative filter only when no positive list is active
+    //    Reads ignored schemas from SPOCR_IGNORED_SCHEMAS env override
         List<string> ignoredSchemas = new();
-        try
+        var envIgnored = Environment.GetEnvironmentVariable("SPOCR_IGNORED_SCHEMAS");
+        if (!string.IsNullOrWhiteSpace(envIgnored))
         {
-            var configPath = Path.Combine(_projectRoot, "spocr.json");
-            if (File.Exists(configPath))
-            {
-                var json = File.ReadAllText(configPath);
-                ConfigurationModel? cfg = null;
-                try { cfg = JsonSerializer.Deserialize<ConfigurationModel>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true }); } catch { /* ignore parse errors */ }
-                if (cfg?.Project?.IgnoredSchemas != null)
-                {
-                    ignoredSchemas.AddRange(cfg.Project.IgnoredSchemas.Where(s => !string.IsNullOrWhiteSpace(s)));
-                }
-                else if (cfg?.Schema?.Any() == true)
-                {
-                    ignoredSchemas.AddRange(cfg.Schema.Where(s => s.Status == SchemaStatusEnum.Ignore).Select(s => s.Name));
-                }
-            }
-            // ENV Override (Komma-separiert): SPOCR_IGNORED_SCHEMAS
-            var envIgnored = Environment.GetEnvironmentVariable("SPOCR_IGNORED_SCHEMAS");
-            if (!string.IsNullOrWhiteSpace(envIgnored))
-            {
-                ignoredSchemas.AddRange(envIgnored.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()));
-            }
+            ignoredSchemas.AddRange(envIgnored.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()));
         }
-        catch { /* silent */ }
         if ((buildSchemas == null || buildSchemas.Count == 0) && ignoredSchemas.Count > 0)
         {
             var ignoredSet = new HashSet<string>(ignoredSchemas, StringComparer.OrdinalIgnoreCase);

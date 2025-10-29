@@ -24,6 +24,7 @@
   - DTO & Metadata Loader aktualisiert; Writer/Tests stehen aus.
 - [~] Tabellen-Metadaten exportieren und JSON-Typisierung darauf aufsetzen.
   - 2025-10-29: `SchemaArtifactWriter` legt tabellenbezogene Artefakte (`.spocr/schema/tables`) ohne ObjectId/ModifyDate an; SchemaCache v3 (`.spocr/cache/<fingerprint>.json`) enthält Table-Summaries mit Column-Hash. Das frühere `.spocr/cache/tables`-Verzeichnis wurde entfernt. Analyzer konsumiert Tabellen noch nicht, Sandbox-DB liefert keine Tabellen → Seed/Resolver-Aufgaben offen.
+- [ ] Cache-Strategie auf sämtliche Schemaobjekte ausweiten (Procedures, Functions, Views, Tables, UDTT/UDT) inkl. Delta-Erkennung pro Objektklasse.
 - [ ] Eigenständige JSON-/Aggregate-Analyzer finalisieren (AVG/SUM/COUNT, Nested JSON, Exec Forwarding ohne Legacy-Parser).
 - [ ] Abschlusskriterien erfüllen: vollständige Test-Suite reaktivieren, Legacy-Brücke abbauen, Determinism-Checks grün.
 - [x] Snapshot-spezifische Schritte in `migration-v5.instructions` dokumentieren (ENV-Migration, neue Artefakte, CLI-Hinweise).
