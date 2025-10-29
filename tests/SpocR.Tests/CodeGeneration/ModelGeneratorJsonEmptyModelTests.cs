@@ -9,6 +9,7 @@ using SpocR.Contracts;
 using SpocR.Managers;
 using SpocR.Models;
 using SpocR.Services;
+using SpocR.SpocRVNext.Data.Models;
 using Xunit;
 
 namespace SpocR.Tests.CodeGeneration;
@@ -44,7 +45,7 @@ public class ModelGeneratorJsonEmptyModelTests
         }
 
         // Create StoredProcedureModel with ReturnsJson but without JSON columns and Outputs
-        var spModel = new StoredProcedureModel(new SpocR.DataContext.Models.StoredProcedure { Name = spName, SchemaName = "dbo" })
+        var spModel = new StoredProcedureModel(new StoredProcedure { Name = spName, SchemaName = "dbo" })
         {
             Input = new List<StoredProcedureInputModel>(),
         };

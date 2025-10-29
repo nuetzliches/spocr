@@ -7,8 +7,9 @@ using Xunit;
 using SpocR.Managers;
 using SpocR.Models;
 using SpocR.Services;
-using SpocR.DataContext.Models;
+using SpocR.SpocRVNext.Data.Models;
 using SpocR.Enums;
+using Microsoft.Data.SqlClient;
 
 namespace SpocR.Tests;
 
@@ -45,12 +46,12 @@ public class StoredProcedureJsonAstOnlyTests
         public void UpdateProgressStatus(string status, bool success = true, int? percentage = null) { }
     }
 
-    private sealed class FakeDbContext : SpocR.DataContext.DbContext
+    private sealed class FakeDbContext : SpocR.SpocRVNext.Data.DbContext
     {
         private readonly List<StoredProcedure> _procedures;
         private readonly List<(string Schema, string Proc, StoredProcedureOutput Output)> _outputs;
         private readonly Dictionary<string, string> _definitions;
-        private readonly List<SpocR.DataContext.Models.Schema> _schemas;
+        private readonly List<Schema> _schemas;
 
         public FakeDbContext(IConsoleService console, List<StoredProcedure> procedures, List<(string Schema, string Proc, StoredProcedureOutput Output)> outputs, Dictionary<string, string> definitions)
             : base(console)
@@ -58,7 +59,7 @@ public class StoredProcedureJsonAstOnlyTests
             _procedures = procedures;
             _outputs = outputs;
             _definitions = definitions;
-            _schemas = procedures.Select(p => p.SchemaName).Distinct(StringComparer.OrdinalIgnoreCase).Select(s => new SpocR.DataContext.Models.Schema { Name = s }).ToList();
+            _schemas = procedures.Select(p => p.SchemaName).Distinct(StringComparer.OrdinalIgnoreCase).Select(s => new Schema { Name = s }).ToList();
         }
 
         public Task<List<StoredProcedure>> StoredProcedureListAsync(string schemaListCsv, CancellationToken cancellationToken = default)
@@ -72,15 +73,15 @@ public class StoredProcedureJsonAstOnlyTests
         public Task<List<string>> SchemaListRawAsync() => Task.FromResult(_procedures.Select(p => p.SchemaName).Distinct(StringComparer.OrdinalIgnoreCase).ToList());
 
         // Intercept raw query based schema listing used via extension SchemaListAsync
-        protected override Task<List<T>> OnListAsync<T>(string queryString, List<Microsoft.Data.SqlClient.SqlParameter> parameters, CancellationToken cancellationToken, AppSqlTransaction transaction)
+        protected override Task<List<T>?> OnListAsync<T>(string queryString, List<SqlParameter> parameters, CancellationToken cancellationToken, AppSqlTransaction? transaction)
         {
             if (queryString.Contains("FROM sys.schemas", StringComparison.OrdinalIgnoreCase))
             {
                 // Return our fake schemas cast to requested type
                 var cast = _schemas.Cast<T>().ToList();
-                return Task.FromResult(cast);
+                return Task.FromResult<List<T>?>(cast);
             }
-            return Task.FromResult<List<T>>(null); // fall back to base (which will NRE in real call we avoid)
+            return Task.FromResult<List<T>?>(null); // fall back to base (which will NRE in real call we avoid)
         }
     }
 

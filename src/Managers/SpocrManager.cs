@@ -9,13 +9,10 @@ using Microsoft.Data.SqlClient;
 using SpocR.AutoUpdater;
 using SpocR.CodeGenerators;
 using SpocR.Commands;
-using SpocR.DataContext;
 using SpocR.Enums;
 using SpocR.Extensions;
 using SpocR.Services;
 using SpocR.Models;
-using SpocR.DataContext.Queries;
-using SpocR.DataContext.Models;
 using SpocR.SpocRVNext.Engine; // vNext template engine
 using SpocR.SpocRVNext; // dispatcher & generator
 using SpocRVNext.Configuration; // EnvConfiguration
@@ -47,7 +44,6 @@ public class SpocrManager(
     SnapshotBuildOrchestrator snapshotBuildOrchestrator,
     FileManager<GlobalConfigurationModel> globalConfigFile,
     FileManager<ConfigurationModel> configFile,
-    DbContext dbContext,
     SpocR.SpocRVNext.Data.DbContext vnextDbContext,
     AutoUpdaterService autoUpdaterService
 )
@@ -167,8 +163,7 @@ public class SpocrManager(
             return ExecuteResultEnum.Error;
         }
 
-    dbContext.SetConnectionString(connectionString);
-    vnextDbContext.SetConnectionString(connectionString);
+        vnextDbContext.SetConnectionString(connectionString);
 
         if (options.Verbose)
         {
@@ -354,7 +349,6 @@ public class SpocrManager(
 
         try
         {
-            dbContext.SetConnectionString(connectionString);
             vnextDbContext.SetConnectionString(connectionString);
             if (options.Verbose)
             {

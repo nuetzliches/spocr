@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
 using SpocR.Services;
-using LegacyDbContextExtensions = SpocR.DataContext.DbContextServiceCollectionExtensions;
 
 namespace SpocR.SpocRVNext.Data;
 
@@ -287,7 +286,6 @@ internal static class DbContextServiceCollectionExtensions
     public static IServiceCollection AddDbContext(this IServiceCollection services)
     {
         services.AddSingleton(provider => new DbContext(provider.GetRequiredService<IConsoleService>()));
-        LegacyDbContextExtensions.AddDbContext(services);
         return services;
     }
 }

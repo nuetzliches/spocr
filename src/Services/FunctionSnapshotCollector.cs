@@ -5,8 +5,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Text.RegularExpressions;
 using Microsoft.SqlServer.TransactSql.ScriptDom;
-using SpocR.DataContext;
-using SpocR.DataContext.Queries;
+using SpocR.SpocRVNext.Data;
+using SpocR.SpocRVNext.Data.Queries;
 using SpocR.Services;
 using SpocR.SpocRVNext.Metadata;
 

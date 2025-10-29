@@ -9,7 +9,8 @@ using SpocR.Managers;
 using SpocR.Models;
 using SpocR.Services;
 using SpocR.Enums;
-using SpocR.DataContext.Models; // StoredProcedure, StoredProcedureDefinition, StoredProcedureInput/Output
+using SpocR.SpocRVNext.Data.Models; // StoredProcedure, StoredProcedureDefinition, StoredProcedureInput/Output
+using Microsoft.Data.SqlClient;
 using Microsoft.CodeAnalysis.Text;
 using SpocR.CodeGenerators.Models;
 using SpocR.Contracts;
@@ -49,11 +50,11 @@ public class WrapperForwardingMixedTests
         public void UpdateProgressStatus(string status, bool success = true, int? percentage = null) { }
     }
 
-    private sealed class FakeDbContext : SpocR.DataContext.DbContext
+    private sealed class FakeDbContext : SpocR.SpocRVNext.Data.DbContext
     {
         private readonly List<StoredProcedure> _procedures;
         private readonly Dictionary<string, string> _definitions;
-        private readonly List<SpocR.DataContext.Models.Schema> _schemas;
+        private readonly List<Schema> _schemas;
 
         public FakeDbContext(IConsoleService console, List<StoredProcedure> procedures, Dictionary<string, string> definitions)
                 : base(console)
@@ -63,7 +64,7 @@ public class WrapperForwardingMixedTests
             _schemas = procedures
                 .Select(p => p.SchemaName)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Select(s => new SpocR.DataContext.Models.Schema { Name = s })
+                .Select(s => new Schema { Name = s })
                 .ToList();
         }
 
@@ -84,19 +85,19 @@ public class WrapperForwardingMixedTests
         public Task<List<StoredProcedureInput>> StoredProcedureInputListAsync(string schemaName, string procedureName, CancellationToken cancellationToken = default)
             => Task.FromResult(new List<StoredProcedureInput>());
         public Task<List<string>> SchemaListRawAsync() => Task.FromResult(_procedures.Select(p => p.SchemaName).Distinct(StringComparer.OrdinalIgnoreCase).ToList());
-        protected override Task<List<T>> OnListAsync<T>(string queryString, List<Microsoft.Data.SqlClient.SqlParameter> parameters, CancellationToken cancellationToken, AppSqlTransaction transaction)
+        protected override Task<List<T>?> OnListAsync<T>(string queryString, List<SqlParameter> parameters, CancellationToken cancellationToken, AppSqlTransaction? transaction)
         {
-            if (typeof(T) == typeof(SpocR.DataContext.Models.Schema) && queryString != null && queryString.Contains("sys.schemas", StringComparison.OrdinalIgnoreCase))
+            if (typeof(T) == typeof(Schema) && queryString != null && queryString.Contains("sys.schemas", StringComparison.OrdinalIgnoreCase))
             {
                 // Return deterministic schema list for SchemaManager queries
                 var typed = _schemas.Cast<T>().ToList();
-                return Task.FromResult(typed);
+                return Task.FromResult<List<T>?>(typed);
             }
             if (typeof(T) == typeof(StoredProcedure) && queryString != null && queryString.Contains("sys.objects", StringComparison.OrdinalIgnoreCase))
             {
-                return Task.FromResult(_procedures.Cast<T>().ToList());
+                return Task.FromResult<List<T>?>(_procedures.Cast<T>().ToList());
             }
-            if (typeof(T) == typeof(SpocR.DataContext.Models.DbObject) && queryString != null && queryString.Contains("sys.objects", StringComparison.OrdinalIgnoreCase))
+            if (typeof(T) == typeof(DbObject) && queryString != null && queryString.Contains("sys.objects", StringComparison.OrdinalIgnoreCase))
             {
                 var schemaParam = parameters?.FirstOrDefault(p => string.Equals(p.ParameterName, "@schemaName", StringComparison.OrdinalIgnoreCase));
                 var nameParam = parameters?.FirstOrDefault(p => string.Equals(p.ParameterName, "@name", StringComparison.OrdinalIgnoreCase));
@@ -106,9 +107,9 @@ public class WrapperForwardingMixedTests
                 var list = new List<T>();
                 if (match != null)
                 {
-                    list.Add((T)(object)new SpocR.DataContext.Models.DbObject { Id = match.Id });
+                    list.Add((T)(object)new DbObject { Id = match.Id });
                 }
-                return Task.FromResult(list);
+                return Task.FromResult<List<T>?>(list);
             }
             if (typeof(T) == typeof(StoredProcedureDefinition) && queryString != null && queryString.Contains("sys.sql_modules", StringComparison.OrdinalIgnoreCase))
             {
@@ -128,7 +129,7 @@ public class WrapperForwardingMixedTests
                         });
                     }
                 }
-                return Task.FromResult(list);
+                return Task.FromResult<List<T>?>(list);
             }
             if (typeof(T) == typeof(StoredProcedureOutput) && queryString != null && queryString.Contains("sys.dm_exec_describe_first_result_set_for_object", StringComparison.OrdinalIgnoreCase))
             {
@@ -149,10 +150,10 @@ public class WrapperForwardingMixedTests
                         });
                     }
                 }
-                return Task.FromResult(list);
+                return Task.FromResult<List<T>?>(list);
             }
             // Default fallback: avoid hitting real database by returning empty list
-            return Task.FromResult(new List<T>());
+            return Task.FromResult<List<T>?>(new List<T>());
         }
     }
 

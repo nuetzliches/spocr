@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using SpocR.DataContext.Models;
+using SpocR.SpocRVNext.Data.Models;
 using SpocR.Enums;
 using SpocR.Models;
 using SpocR.Services;

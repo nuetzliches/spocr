@@ -11,6 +11,7 @@ using SpocR.Contracts;
 using SpocR.Managers;
 using SpocR.Models;
 using SpocR.Services;
+using SpocR.SpocRVNext.Data.Models;
 using Xunit;
 
 namespace SpocR.Tests.CodeGeneration;
@@ -68,7 +69,7 @@ public class StoredProcedureGeneratorSnapshotTests
 
     private static StoredProcedureModel CreateSp(string name, bool returnsJson, bool returnsJsonArray)
     {
-        var spModel = new StoredProcedureModel(new SpocR.DataContext.Models.StoredProcedure { Name = name, SchemaName = "dbo" })
+        var spModel = new StoredProcedureModel(new StoredProcedure { Name = name, SchemaName = "dbo" })
         {
             Input = new List<StoredProcedureInputModel>(),
         };

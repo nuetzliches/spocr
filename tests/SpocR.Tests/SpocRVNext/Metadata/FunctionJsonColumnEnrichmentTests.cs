@@ -7,8 +7,9 @@ using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using SpocR.Services; // FunctionSnapshotCollector + Snapshot models
-using SpocR.DataContext; // DbContext base
-using SpocR.DataContext.Queries; // FunctionRow / ParamRow models
+using SpocR.SpocRVNext.Data; // DbContext base
+using SpocR.SpocRVNext.Data.Queries; // FunctionRow / ParamRow models
+using Microsoft.Data.SqlClient;
 
 namespace SpocR.Tests.SpocRVNext.Metadata;
 
@@ -130,7 +131,7 @@ public class FunctionJsonColumnEnrichmentTests
             SetConnectionString("Server=(local);Database=mock;Trusted_Connection=True;");
         }
 
-        protected override Task<List<T>> OnListAsync<T>(string queryString, List<Microsoft.Data.SqlClient.SqlParameter> parameters, CancellationToken cancellationToken, AppSqlTransaction transaction)
+        protected override Task<List<T>?> OnListAsync<T>(string queryString, List<SqlParameter> parameters, CancellationToken cancellationToken, AppSqlTransaction? transaction)
         {
             if (typeof(T) == typeof(FunctionRow))
             {
@@ -171,7 +172,7 @@ BEGIN
     );
 END",
                 };
-                return Task.FromResult((List<T>)(object)new List<FunctionRow> { row });
+                return Task.FromResult<List<T>?>(new List<T> { (T)(object)row });
             }
             if (typeof(T) == typeof(FunctionParamRow))
             {
@@ -184,20 +185,21 @@ END",
                 list.Add(MakeParam(objectId, ordinal++, "@CreatedDt", "datetime2", 8));
                 list.Add(MakeParam(objectId, ordinal++, "@UpdatedUserId", "int", 4));
                 list.Add(MakeParam(objectId, ordinal++, "@UpdatedDt", "datetime2", 8));
-                return Task.FromResult((List<T>)(object)list);
+                var casted = list.Select(item => (T)(object)item).ToList();
+                return Task.FromResult<List<T>?>(casted);
             }
             if (typeof(T) == typeof(FunctionColumnRow))
             {
-                return Task.FromResult((List<T>)(object)new List<FunctionColumnRow>()); // not TVF
+                return Task.FromResult<List<T>?>(new List<T>());
             }
             if (typeof(T) == typeof(FunctionDependencyRow))
             {
-                return Task.FromResult((List<T>)(object)new List<FunctionDependencyRow>());
+                return Task.FromResult<List<T>?>(new List<T>());
             }
-            return Task.FromResult<List<T>>(null);
+            return Task.FromResult<List<T>?>(null);
         }
 
-        private static FunctionParamRow MakeParam(int objectId, int ordinal, string name, string sqlType, int length, string userTypeName = null, string userTypeSchema = null, int? userTypeIsNullable = null)
+    private static FunctionParamRow MakeParam(int objectId, int ordinal, string name, string sqlType, int length, string userTypeName = null, string userTypeSchema = null, int? userTypeIsNullable = null)
         {
             return new FunctionParamRow
             {

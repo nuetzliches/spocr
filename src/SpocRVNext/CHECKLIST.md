@@ -27,7 +27,8 @@
 ## Bereinigung & Umsetzung
 
 - [ ] `DataContext/`-Abhängigkeiten entfernen oder ersetzen; verbleibende Nutzung markieren.
-  - 2025-10-29: SnapshotBuilder nutzt `SpocRVNext.Data.DbContext`; CLI Buildpfad entfernt die alte Abhängigkeit noch nicht (Nachlauf).
+  - 2025-10-29: SnapshotBuilder nutzt `SpocRVNext.Data.DbContext`; CLI Buildpfad setzt kein `SpocR.DataContext` mehr voraus (SetConnectionString entfernt).
+  - 2025-10-31: DI-Registrierung verzichtet auf `SpocR.DataContext.DbContextServiceCollectionExtensions`; Legacy-Ordner `src/DataContext/` für kontrollierte Stilllegung vormerken.
 - [~] `.env`-Pfad finalisieren, Migration `spocr.json` → `.env` über `spocr init` absichern.
   - Debug-Sandbox `.env` bereinigt; `SPOCR_GENERATOR_MODE` entfernt, next-only Verhalten bestätigt (2025-10-29).
   - Generator liest keine `spocr.json`-Fallbacks mehr; `spocr init`/CI Inventory bleibt zu aktualisieren (2025-10-29).

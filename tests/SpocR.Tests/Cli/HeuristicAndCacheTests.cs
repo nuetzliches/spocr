@@ -7,8 +7,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Shouldly;
 using Moq;
-using SpocR.DataContext;
-using SpocR.DataContext.Models;
+using SpocR.SpocRVNext.Data;
+using SpocR.SpocRVNext.Data.Models;
 using SpocR.Managers;
 using SpocR.Models;
 using SpocR.Services;
@@ -73,7 +73,7 @@ public class HeuristicAndCacheTests
             return Task.FromResult(_inputs.TryGetValue(key, out var l) ? l : new List<StoredProcedureInput>());
         }
 
-        protected override Task<List<T>> OnListAsync<T>(string queryString, List<SqlParameter> parameters, CancellationToken cancellationToken, AppSqlTransaction transaction)
+        protected override Task<List<T>?> OnListAsync<T>(string queryString, List<SqlParameter> parameters, CancellationToken cancellationToken, AppSqlTransaction? transaction)
         {
             var normalized = queryString?.ToLowerInvariant() ?? string.Empty;
 
@@ -84,7 +84,7 @@ public class HeuristicAndCacheTests
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .Select(name => (T)(object)new Schema { Name = name })
                     .ToList();
-                return Task.FromResult(schemas);
+                return Task.FromResult<List<T>?>(schemas);
             }
 
             if (typeof(T) == typeof(StoredProcedure) && normalized.Contains("from sys.objects") && normalized.Contains("where o.type = n'p'"))
@@ -92,7 +92,7 @@ public class HeuristicAndCacheTests
                 var list = _storedProcedures
                     .Select(sp => (T)(object)new StoredProcedure { SchemaName = sp.SchemaName, Name = sp.Name, Modified = sp.Modified })
                     .ToList();
-                return Task.FromResult(list);
+                return Task.FromResult<List<T>?>(list);
             }
 
             if (typeof(T) == typeof(DbObject) && normalized.Contains("from sys.objects") && normalized.Contains("object_id"))
@@ -100,9 +100,9 @@ public class HeuristicAndCacheTests
                 var key = GetSchemaKey(parameters);
                 if (!string.IsNullOrEmpty(key) && _objectIds.TryGetValue(key, out var id))
                 {
-                    return Task.FromResult(new List<T> { (T)(object)new DbObject { Id = id } });
+                    return Task.FromResult<List<T>?>(new List<T> { (T)(object)new DbObject { Id = id } });
                 }
-                return Task.FromResult(new List<T>());
+                return Task.FromResult<List<T>?>(new List<T>());
             }
 
             if (typeof(T) == typeof(StoredProcedureDefinition) && normalized.Contains("sys.sql_modules"))
@@ -113,9 +113,9 @@ public class HeuristicAndCacheTests
                     DefinitionCalls++;
                     var parts = key.Split('.', 2);
                     var def = new StoredProcedureDefinition { SchemaName = parts[0], Name = parts[1], Id = objectId.Value, Definition = definition };
-                    return Task.FromResult(new List<T> { (T)(object)def });
+                    return Task.FromResult<List<T>?>(new List<T> { (T)(object)def });
                 }
-                return Task.FromResult(new List<T>());
+                return Task.FromResult<List<T>?>(new List<T>());
             }
 
             if (typeof(T) == typeof(StoredProcedureOutput) && normalized.Contains("dm_exec_describe_first_result_set_for_object"))
@@ -131,9 +131,9 @@ public class HeuristicAndCacheTests
                         MaxLength = o.MaxLength,
                         IsIdentityColumn = o.IsIdentityColumn
                     }).ToList();
-                    return Task.FromResult(clones);
+                    return Task.FromResult<List<T>?>(clones);
                 }
-                return Task.FromResult(new List<T>());
+                return Task.FromResult<List<T>?>(new List<T>());
             }
 
             if (typeof(T) == typeof(StoredProcedureInput) && normalized.Contains("sys.parameters"))
@@ -154,19 +154,19 @@ public class HeuristicAndCacheTests
                         UserTypeSchemaName = i.UserTypeSchemaName,
                         TableTypeColumns = i.TableTypeColumns
                     }).ToList();
-                    return Task.FromResult(clones);
+                    return Task.FromResult<List<T>?>(clones);
                 }
-                return Task.FromResult(new List<T>());
+                return Task.FromResult<List<T>?>(new List<T>());
             }
 
             if (typeof(T) == typeof(TableType) && normalized.Contains("from sys.table_types"))
             {
-                return Task.FromResult(new List<T>());
+                return Task.FromResult<List<T>?>(new List<T>());
             }
 
             if (typeof(T) == typeof(Column) && normalized.Contains("from sys.table_types") && normalized.Contains("sys.columns"))
             {
-                return Task.FromResult(new List<T>());
+                return Task.FromResult<List<T>?>(new List<T>());
             }
 
             if (typeof(T) == typeof(StoredProcedureContent) && normalized.Contains("select definition"))
@@ -175,9 +175,9 @@ public class HeuristicAndCacheTests
                 if (objectId.HasValue && _objectLookup.TryGetValue(objectId.Value, out var key) && _definitions.TryGetValue(key, out var definition))
                 {
                     var content = new StoredProcedureContent { Definition = definition };
-                    return Task.FromResult(new List<T> { (T)(object)content });
+                    return Task.FromResult<List<T>?>(new List<T> { (T)(object)content });
                 }
-                return Task.FromResult(new List<T>());
+                return Task.FromResult<List<T>?>(new List<T>());
             }
 
             return base.OnListAsync<T>(queryString, parameters, cancellationToken, transaction);
@@ -215,13 +215,13 @@ public class HeuristicAndCacheTests
 
         // Minimal shims for other required calls in manager path
         public Task<List<TableType>> TableTypeListAsync(string schemaList, CancellationToken ct) => Task.FromResult(new List<TableType>());
-        public Task<Column> TableColumnAsync(string schema, string table, string column, CancellationToken ct) => Task.FromResult<Column>(null!);
+        public Task<Column?> TableColumnAsync(string schema, string table, string column, CancellationToken ct) => Task.FromResult<Column?>(null);
         public Task<List<Schema>> SchemaListAsync(CancellationToken ct) => Task.FromResult(_storedProcedures.Select(s => s.SchemaName).Distinct().Select(n => new Schema { Name = n }).ToList());
         public Task<List<Column>> TableTypeColumnListAsync(int id, CancellationToken ct) => Task.FromResult(new List<Column>());
-        public Task<DbObject> ObjectAsync(string schema, string name, CancellationToken ct)
+        public Task<DbObject?> ObjectAsync(string schema, string name, CancellationToken ct)
         {
             var key = $"{schema}.{name}";
-            return Task.FromResult(_objectIds.TryGetValue(key, out var id) ? new DbObject { Id = id } : null)!;
+            return Task.FromResult(_objectIds.TryGetValue(key, out var id) ? new DbObject { Id = id } : null);
         }
     }
 

@@ -5,6 +5,7 @@ using System.Linq;
 using SpocR.Managers;
 using SpocR.Models;
 using SpocRVNext.Configuration; // for EnvConfiguration
+using SpocR.SpocRVNext.Data.Models;
 
 namespace SpocR.Services;
 
@@ -204,7 +205,7 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
                     */
 
                     var spList = proceduresInSchema
-                        .Select(p => new StoredProcedureModel(new DataContext.Models.StoredProcedure
+                        .Select(p => new StoredProcedureModel(new SpocR.SpocRVNext.Data.Models.StoredProcedure
                         {
                             SchemaName = p.Schema,
                             Name = p.Name,
@@ -215,7 +216,7 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
                             ModifiedTicks = null,
                             Input = p.Inputs.Select(i =>
                             {
-                                var storedInput = new DataContext.Models.StoredProcedureInput
+                                var storedInput = new SpocR.SpocRVNext.Data.Models.StoredProcedureInput
                                 {
                                     Name = i.Name,
                                     IsNullable = i.IsNullable ?? false,
@@ -285,7 +286,7 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
                         }).ToList();
                     var ttList = snapshot.UserDefinedTableTypes
                         .Where(u => u.Schema.Equals(s.Name, StringComparison.OrdinalIgnoreCase))
-                        .Select(u => new TableTypeModel(new DataContext.Models.TableType
+                        .Select(u => new TableTypeModel(new SpocR.SpocRVNext.Data.Models.TableType
                         {
                             Name = u.Name,
                             SchemaName = u.Schema,
@@ -342,9 +343,9 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
         return _schemas;
     }
 
-    private static DataContext.Models.Column MapUdttColumnToModel(SnapshotUdttColumn column, IDictionary<string, SnapshotUserDefinedType> userTypeLookup)
+    private static Column MapUdttColumnToModel(SnapshotUdttColumn column, IDictionary<string, SnapshotUserDefinedType> userTypeLookup)
     {
-        var mapped = new DataContext.Models.Column
+        var mapped = new Column
         {
             Name = column.Name,
             IsNullable = column.IsNullable ?? false,

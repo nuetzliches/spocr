@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
-using SpocR.DataContext.Models;
+using SpocR.SpocRVNext.Data.Models;
 
 namespace SpocR.Models;
 

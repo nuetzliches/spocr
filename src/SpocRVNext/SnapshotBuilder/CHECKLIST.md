@@ -24,7 +24,7 @@
   - DTO & Metadata Loader aktualisiert; Writer/Tests stehen aus.
 - [~] Tabellen-Metadaten exportieren und JSON-Typisierung darauf aufsetzen.
   - 2025-10-29: `SchemaArtifactWriter` legt tabellenbezogene Artefakte (`.spocr/schema/tables`) ohne ObjectId/ModifyDate an; SchemaCache v3 (`.spocr/cache/<fingerprint>.json`) enthält Table-Summaries mit Column-Hash. Das frühere `.spocr/cache/tables`-Verzeichnis wurde entfernt. Analyzer konsumiert Tabellen noch nicht, Sandbox-DB liefert keine Tabellen → Seed/Resolver-Aufgaben offen.
-  - 2025-10-29: Collector/Analyzer nutzen `SpocRVNext.Data.*` statt `SpocR.DataContext.*`; Legacy-Bridge bleibt für CLI-Build bestehen.
+  - 2025-10-29: Collector/Analyzer nutzen `SpocRVNext.Data.*` statt `SpocR.DataContext.*`; seit 2025-10-31 hängt die CLI-DI-Registrierung nicht mehr an der Legacy-Bridge.
 - [ ] Cache-Strategie auf sämtliche Schemaobjekte ausweiten (Procedures, Functions, Views, Tables, UDTT/UDT) inkl. Delta-Erkennung pro Objektklasse.
 - [ ] Eigenständige JSON-/Aggregate-Analyzer finalisieren (AVG/SUM/COUNT, Nested JSON, Exec Forwarding ohne Legacy-Parser).
 - [ ] Abschlusskriterien erfüllen: vollständige Test-Suite reaktivieren, Legacy-Brücke abbauen, Determinism-Checks grün.

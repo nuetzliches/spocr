@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Serialization;
-using SpocR.DataContext.Models;
+using SpocR.SpocRVNext.Data.Models;
 
 namespace SpocR.Models;
 

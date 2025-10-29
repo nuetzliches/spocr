@@ -1,4 +1,4 @@
-using SpocR.DataContext.Models;
+using SpocR.SpocRVNext.Data.Models;
 
 namespace SpocR.Models;
 

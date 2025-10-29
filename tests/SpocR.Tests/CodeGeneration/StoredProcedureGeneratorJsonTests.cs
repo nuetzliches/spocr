@@ -9,6 +9,7 @@ using SpocR.Services;
 using SpocR.Managers;
 using SpocR.Models;
 using SpocR.Contracts;
+using SpocR.SpocRVNext.Data.Models;
 using System.Collections.Generic;
 
 namespace SpocR.Tests.CodeGeneration;
@@ -72,7 +73,7 @@ public class StoredProcedureGeneratorJsonTests
         };
 
         // manually set private backing via constructor then attach content
-        var spModel = new StoredProcedureModel(new SpocR.DataContext.Models.StoredProcedure { Name = name, SchemaName = "dbo", Modified = DateTime.UtcNow })
+        var spModel = new StoredProcedureModel(new StoredProcedure { Name = name, SchemaName = "dbo", Modified = DateTime.UtcNow })
         {
             Input = new List<StoredProcedureInputModel>(),
         };

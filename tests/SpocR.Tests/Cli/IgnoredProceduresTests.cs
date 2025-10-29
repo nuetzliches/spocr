@@ -4,8 +4,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using Shouldly;
 using Moq;
-using SpocR.DataContext;
-using SpocR.DataContext.Models;
+using SpocR.SpocRVNext.Data;
+using SpocR.SpocRVNext.Data.Models;
 using SpocR.Managers;
 using SpocR.Models;
 using SpocR.Services;
@@ -33,10 +33,10 @@ public class IgnoredProceduresTests
         public Task<List<Schema>> SchemaListAsync(System.Threading.CancellationToken ct) => Task.FromResult(_sps.Select(s => s.SchemaName).Distinct().Select(n => new Schema { Name = n }).ToList());
         public Task<List<TableType>> TableTypeListAsync(string schemaList, System.Threading.CancellationToken ct) => Task.FromResult(new List<TableType>()); // none needed
         public Task<List<Column>> TableTypeColumnListAsync(int id, System.Threading.CancellationToken ct) => Task.FromResult(new List<Column>());
-        protected override Task<List<T>> OnListAsync<T>(string qs, List<Microsoft.Data.SqlClient.SqlParameter> p, System.Threading.CancellationToken c, AppSqlTransaction t)
+        protected override Task<List<T>?> OnListAsync<T>(string qs, List<Microsoft.Data.SqlClient.SqlParameter> p, System.Threading.CancellationToken c, AppSqlTransaction? t)
         {
             // Prevent base DbContext from attempting real SQL queries in unit tests
-            return Task.FromResult(new List<T>());
+            return Task.FromResult<List<T>?>(new List<T>());
         }
     }
 

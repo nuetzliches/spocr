@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Shouldly;
 using SpocR.Models;
+using SpocR.SpocRVNext.Data.Models;
 using Xunit;
 
 namespace SpocR.Tests.Cli;
@@ -45,7 +46,7 @@ public class JsonParserV5InferenceTests
 
     private static async Task EnrichAsync(StoredProcedureContentModel content)
     {
-        var spModel = new SpocR.Models.StoredProcedureModel(new SpocR.DataContext.Models.StoredProcedure { Name = "Test", SchemaName = "dbo", Modified = DateTime.UtcNow })
+    var spModel = new SpocR.Models.StoredProcedureModel(new StoredProcedure { Name = "Test", SchemaName = "dbo", Modified = DateTime.UtcNow })
         {
             Content = content
         };

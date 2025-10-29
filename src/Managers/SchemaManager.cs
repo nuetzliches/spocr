@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using SpocR.DataContext;
-using SpocR.DataContext.Queries;
-using SpocR.DataContext.Models;
+using SpocR.SpocRVNext.Data;
+using SpocR.SpocRVNext.Data.Queries;
+using SpocR.SpocRVNext.Data.Models;
 using SpocR.Models;
 using SpocR.Services;
 

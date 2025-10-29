@@ -466,7 +466,7 @@ public class ModelGenerator(
                 {
                     var modelName = rIndex == 0 ? storedProcedure.Name : storedProcedure.Name + "_" + rIndex;
                     // Always build a synthetic single-set StoredProcedureModel for clarity & symmetry
-                    var spModel = new SpocR.Models.StoredProcedureModel(new SpocR.DataContext.Models.StoredProcedure
+                    var spModel = new SpocR.Models.StoredProcedureModel(new SpocR.SpocRVNext.Data.Models.StoredProcedure
                     {
                         Name = modelName,
                         SchemaName = schema.Name

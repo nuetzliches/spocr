@@ -10,6 +10,7 @@ using SpocR.Managers;
 using SpocR.Models;
 using SpocR.Services;
 using Xunit;
+using SpocR.SpocRVNext.Data.Models;
 
 namespace SpocR.Tests.CodeGeneration;
 
@@ -47,7 +48,7 @@ public class ModelGeneratorMultiResultSetTests
         }
 
         // Build StoredProcedure with 3 result sets
-        var spModel = new StoredProcedureModel(new SpocR.DataContext.Models.StoredProcedure { Name = "UserReport", SchemaName = "dbo" })
+        var spModel = new StoredProcedureModel(new StoredProcedure { Name = "UserReport", SchemaName = "dbo" })
         {
             Input = new List<StoredProcedureInputModel>()
         };
@@ -111,7 +112,7 @@ public class ModelGeneratorMultiResultSetTests
         {
             var rs = sp.ResultSets[r];
             var splitName = r == 0 ? sp.Name : sp.Name + "_" + r;
-            var synthetic = new StoredProcedureModel(new SpocR.DataContext.Models.StoredProcedure
+            var synthetic = new StoredProcedureModel(new StoredProcedure
             {
                 Name = splitName,
                 SchemaName = schema.Name

@@ -7,7 +7,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 using SpocR.Contracts;
-using SpocR.DataContext;
+using SpocR.SpocRVNext.Data;
 using SpocR.Enums;
 using SpocR.Extensions;
 using SpocR.Managers;

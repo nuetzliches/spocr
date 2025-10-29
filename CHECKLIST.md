@@ -50,7 +50,8 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
   - 2025-10-30: vNext EnvConfiguration/Bootstrapper/Generators entfernen `spocr.json` Fallbacks; neue Tests stellen `.env`-Pflicht sicher.
   - 2025-10-30: CLI `--path` Argument & Project Manager Prompts verweisen nur noch auf `.env`/Projektverzeichnis; keine automatische `spocr.json`-Auflösung mehr, `SPOCR_CONFIG_PATH`/`SPOCR_PROJECT_ROOT` spiegeln `.env`-Pfade.
   - 2025-10-30: Projekt-Registry speichert nur noch `.env`-Pfade; Pull/Build-Hinweise fordern explizit `SPOCR_GENERATOR_DB` statt `spocr.json`-Änderungen ein.
-  - Follow-up: CLI Build-Pfad & Generatoren dürfen `SpocR.DataContext` nicht mehr voraussetzen (Tracking 2025-10-29).
+  - 2025-10-29: CLI Build-Pfad setzt kein `SpocR.DataContext` mehr voraus (`SpocrManager` nutzt nur noch den vNext DbContext); Legacy-Brücke bleibt für Restarbeiten.
+  - 2025-10-31: Service-Registrierung lässt die `SpocR.DataContext`-Bridge fallen; Tests laufen nur noch auf `SpocRVNext.Data`. `src/DataContext/` bleibt als Legacy-Ordner für das Aufräum-Follow-up markiert.
 - [ ] Neue CLI (`init`, `pull`, `build`, `rebuild`) finalisieren und Kommunikationspaket vorbereiten.
 - [ ] Teststrategie v5 definieren (Smoke/Integration vs. Legacy-Abschaltung) und CI entsprechend planen.
 - [x] DbContext-Implementierung zu schlankem DB-Adapter für die `spocr pull`-Pipeline umbauen (Basis für `src/SpocRVNext/Templates/DbContext`).
@@ -90,6 +91,7 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 - [ ] Review-Findings (Konzeptfehler, unsauberer Code, Unschärfen, fehlende Tests/Qualität) laufend pflegen und priorisieren.
   - [x] RestApi-Sample kompiliert nach Result-Typ-Refresh (`dotnet build samples/restapi/RestApi.csproj -c Debug`, 2025-10-28). Endpunkte bleiben bewusst per `#if false` deaktiviert, bis JSON-Aggregate finalisiert sind.
   - [x] Debug-Sandbox `.env` bereinigt; `SPOCR_GENERATOR_MODE` entfernt, next-only Standard bestätigt (2025-10-29).
+  - [ ] Legacy-Ordner `src/DataContext/` verbleibt als Frozen Artefakt; Ausstiegsplan und Archivierung vorbereiten, sobald Snapshot- und CLI-Tests ohne Bridge stabil bleiben.
 
 ## Dokumentation & Kommunikation
 
