@@ -1,7 +1,6 @@
 using System;
+using System.Collections.Generic;
 using System.CommandLine;
-using System.CommandLine.Builder;
-using System.CommandLine.Parsing;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using SpocR.SpocRVNext;
@@ -19,14 +18,9 @@ namespace SpocR;
 internal static class ProgramVNextCLI
 {
     private static readonly bool Verbose = string.Equals(Environment.GetEnvironmentVariable("SPOCR_VERBOSE"), "1", StringComparison.Ordinal);
-    public static async Task<int> TryRunAsync(string[] args)
+    public static IEnumerable<Command> BuildExperimentalCommands()
     {
-        if (!IsEnabled()) return -999; // signal not executed
-
-        var root = new RootCommand("SpocR vNext experimental CLI")
-        {
-            TreatUnmatchedTokensAsErrors = true
-        };
+        if (!IsEnabled()) yield break;
 
         var pathOption = new Option<string>(
             name: "--path",
@@ -34,6 +28,7 @@ internal static class ProgramVNextCLI
         var forceOption = new Option<bool>(
             name: "--force",
             description: "Force overwrite existing target file (for init-env)");
+
         var demoCommand = new Command("generate-demo", "Run a demo template render using the vNext generator");
         demoCommand.SetHandler((string? path) =>
             {
@@ -65,7 +60,7 @@ internal static class ProgramVNextCLI
                     success: success));
             }, pathOption);
 
-        root.Add(demoCommand);
+        yield return demoCommand;
 
         var generateNextCommand = new Command("generate-next", "Generate demo outputs (next-only) and hash manifest (experimental)");
         generateNextCommand.SetHandler((string? path) =>
@@ -81,7 +76,7 @@ internal static class ProgramVNextCLI
             if (Verbose) Console.WriteLine(message);
             if (Verbose) Console.WriteLine("Hash manifest (if next output) written under debug/codegen-demo/next/manifest.hash.json");
         }, pathOption);
-        root.Add(generateNextCommand);
+        yield return generateNextCommand;
 
         // golden-hash write command
         var writeGolden = new Command("write-golden", "Write (or overwrite) golden hash manifest for current vNext output under debug/golden-hash.json")
@@ -94,7 +89,7 @@ internal static class ProgramVNextCLI
             var exit = GoldenHashCommands.WriteGolden(targetRoot);
             if (Verbose) Console.WriteLine(exit.Message);
         }, pathOption);
-        root.Add(writeGolden);
+        yield return writeGolden;
 
         // golden-hash verify command
         var verifyGolden = new Command("verify-golden", "Verify current vNext output against golden hash manifest (relaxed unless SPOCR_STRICT_DIFF=1 or SPOCR_STRICT_GOLDEN=1)")
@@ -108,7 +103,7 @@ internal static class ProgramVNextCLI
             if (Verbose) Console.WriteLine(result.Message);
             if (result.ExitCode != 0) Environment.ExitCode = result.ExitCode; // do not throw
         }, pathOption);
-        root.Add(verifyGolden);
+        yield return verifyGolden;
 
         // init-env command
         var initEnv = new Command("init-env", "Create or update a .env in the target path (non-interactive unless --no-auto).")
@@ -122,13 +117,7 @@ internal static class ProgramVNextCLI
             var envPath = await SpocR.SpocRVNext.Cli.EnvBootstrapper.EnsureEnvAsync(target, autoApprove: true, force: force);
             if (Verbose) Console.WriteLine($"Initialized .env at: {envPath}");
         }, pathOption, forceOption);
-        root.Add(initEnv);
-
-        var builder = new CommandLineBuilder(root)
-            .UseDefaults();
-
-        var parser = builder.Build();
-        return await parser.InvokeAsync(args);
+        yield return initEnv;
     }
 
     private static bool IsEnabled() =>

@@ -2,7 +2,6 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
-using McMaster.Extensions.CommandLineUtils;
 using SpocR.SpocRVNext.Generators;
 using SpocR.Extensions;
 using SpocR.CodeGenerators;
@@ -59,7 +58,6 @@ public class DbContextGeneratorTests
     private static DbContextGenerator CreateGenerator()
     {
         var services = new ServiceCollection();
-        services.AddSingleton<IConsole>(PhysicalConsole.Singleton);
         // Registriere zuerst unsere eigene ICommandOptions Instanz mit Verbose=true
         services.AddSingleton<ICommandOptions>(new TestOptionsVerbose());
         // Danach den CommandOptions Wrapper, damit ConsoleService.Verbose greift
@@ -71,7 +69,7 @@ public class DbContextGeneratorTests
         services.AddSingleton<SpocR.SpocRVNext.Engine.ITemplateRenderer, SpocR.SpocRVNext.Engine.SimpleTemplateEngine>();
         services.AddSingleton<SpocR.SpocRVNext.Engine.ITemplateLoader>(_ => new SpocR.SpocRVNext.Engine.FileSystemTemplateLoader(tempTemplates));
         var provider = services.BuildServiceProvider();
-    var fm = provider.GetRequiredService<FileManager<SpocR.Models.ConfigurationModel>>();
+        var fm = provider.GetRequiredService<FileManager<SpocR.Models.ConfigurationModel>>();
         if (string.IsNullOrWhiteSpace(fm.Config.Project.Output.Namespace))
         {
             fm.Config.Project.Output.Namespace = "Test.App";

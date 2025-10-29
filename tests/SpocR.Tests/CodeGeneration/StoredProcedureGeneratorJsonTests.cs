@@ -146,6 +146,8 @@ public class StoredProcedureGeneratorJsonTests
 
     private class TestConsoleService : SpocR.Services.IConsoleService
     {
+        public bool IsVerbose => false;
+        public bool IsQuiet => false;
         public void Info(string message) { }
         public void Error(string message) { }
         public void Warn(string message) { }

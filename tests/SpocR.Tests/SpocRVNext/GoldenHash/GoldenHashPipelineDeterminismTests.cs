@@ -48,7 +48,7 @@ public class GoldenHashPipelineDeterminismTests
             var stdout = proc.StandardOutput.ReadToEnd();
             var stderr = proc.StandardError.ReadToEnd();
             proc.WaitForExit();
-            stdout.ShouldContain("Pulled 8 stored procedures");
+            stdout.ShouldContain("Pulled 10 stored procedures across 1 schema(s): samples(10)");
             proc.ExitCode.ShouldBe(0, stderr + "\n" + stdout);
             return stdout;
         }

@@ -16,6 +16,8 @@ public class JsonParserV5InferenceTests
     // Direct parser invocation tests (no DB / manager dependency)
     private sealed class TestConsole : SpocR.Services.IConsoleService
     {
+        public bool IsVerbose => false;
+        public bool IsQuiet => false;
         public void Info(string message) { }
         public void Error(string message) { }
         public void Warn(string message) { }

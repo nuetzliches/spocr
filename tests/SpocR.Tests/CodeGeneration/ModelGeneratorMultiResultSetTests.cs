@@ -136,6 +136,8 @@ public class ModelGeneratorMultiResultSetTests
 
     private class TestConsoleService : IConsoleService
     {
+        public bool IsVerbose => false;
+        public bool IsQuiet => false;
         public void Info(string message) { }
         public void Error(string message) { }
         public void Warn(string message) { }

@@ -17,6 +17,8 @@ public class BridgePolicyTests
     {
         private readonly List<string> _log = new();
         private void W(string tag, string msg) => _log.Add($"[{tag}] {msg}");
+        public bool IsVerbose => false;
+        public bool IsQuiet => false;
         public void Info(string message) => W("INFO", message);
         public void Error(string message) => W("ERR", message);
         public void Warn(string message) => W("WARN", message);

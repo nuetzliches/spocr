@@ -4,7 +4,6 @@ using Xunit;
 using SpocR.Utils;
 using SpocR.SpocRVNext.Generators;
 using Microsoft.Extensions.DependencyInjection;
-using McMaster.Extensions.CommandLineUtils;
 using SpocR.Extensions;
 using SpocR.Commands;
 using SpocR.Infrastructure;
@@ -41,13 +40,12 @@ public class DbContextGeneratorPathEdgeTests
     private static DbContextGenerator CreateGenerator()
     {
         var services = new ServiceCollection();
-        services.AddSingleton<IConsole>(PhysicalConsole.Singleton);
         services.AddSingleton<ICommandOptions>(new TestOptionsVerbose());
         services.AddSingleton(sp => new CommandOptions(sp.GetRequiredService<ICommandOptions>()));
         services.AddSpocR();
         services.AddSingleton<SpocR.SpocRVNext.Engine.ITemplateRenderer, SpocR.SpocRVNext.Engine.SimpleTemplateEngine>();
         var provider = services.BuildServiceProvider();
-    var fm = provider.GetRequiredService<FileManager<SpocR.Models.ConfigurationModel>>();
+        var fm = provider.GetRequiredService<FileManager<SpocR.Models.ConfigurationModel>>();
         if (string.IsNullOrWhiteSpace(fm.Config.Project.Output.Namespace))
         {
             fm.Config.Project.Output.Namespace = "Edge.Dot";

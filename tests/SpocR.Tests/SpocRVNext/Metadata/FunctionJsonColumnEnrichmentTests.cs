@@ -199,7 +199,7 @@ END",
             return Task.FromResult<List<T>?>(null);
         }
 
-    private static FunctionParamRow MakeParam(int objectId, int ordinal, string name, string sqlType, int length, string userTypeName = null, string userTypeSchema = null, int? userTypeIsNullable = null)
+        private static FunctionParamRow MakeParam(int objectId, int ordinal, string name, string sqlType, int length, string userTypeName = null, string userTypeSchema = null, int? userTypeIsNullable = null)
         {
             return new FunctionParamRow
             {
@@ -224,6 +224,8 @@ END",
 
     private sealed class NullConsoleService : IConsoleService
     {
+        public bool IsVerbose => false;
+        public bool IsQuiet => false;
         public void Info(string message) { }
         public void Error(string message) { }
         public void Warn(string message) { }

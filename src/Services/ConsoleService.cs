@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using McMaster.Extensions.CommandLineUtils;
 using SpocR.Commands;
 using SpocR.Enums;
 using SpocR.Models;
@@ -11,10 +11,13 @@ using SpocR.Models;
 namespace SpocR.Services;
 
 /// <summary>
-/// Unified console service interface combining reporting, user interaction, and progress tracking
+/// Interface describing the console abstraction used by the CLI and generators.
 /// </summary>
 public interface IConsoleService
 {
+    bool IsVerbose { get; }
+    bool IsQuiet { get; }
+
     void Info(string message);
     void Error(string message);
     void Warn(string message);
@@ -23,166 +26,59 @@ public interface IConsoleService
     void Success(string message);
     void DrawProgressBar(int percentage, int barSize = 40);
 
-    // Color helpers
     void Green(string message);
     void Yellow(string message);
     void Red(string message);
     void Gray(string message);
 
-    // User interaction methods
     Choice GetSelection(string prompt, List<string> options);
     Choice GetSelectionMultiline(string prompt, List<string> options);
     bool GetYesNo(string prompt, bool isDefaultConfirmed, ConsoleColor? promptColor = null, ConsoleColor? promptBgColor = null);
     string GetString(string prompt, string defaultValue = "", ConsoleColor? promptColor = null);
 
-    // Formatted output methods
     void PrintTitle(string title);
     void PrintImportantTitle(string title);
     void PrintSubTitle(string title);
-    void PrintSummary(IEnumerable<string> summary, string headline = null);
+    void PrintSummary(IEnumerable<string> summary, string? headline = null);
     void PrintTotal(string total);
-    void PrintDryRunMessage(string message = null);
+    void PrintDryRunMessage(string? message = null);
     void PrintConfiguration(ConfigurationModel config);
     void PrintFileActionMessage(string fileName, FileActionEnum fileAction);
     void PrintCorruptConfigMessage(string message);
 
-    // Progress Tracking
     void StartProgress(string message);
-    void CompleteProgress(bool success = true, string message = null);
+    void CompleteProgress(bool success = true, string? message = null);
     void UpdateProgressStatus(string status, bool success = true, int? percentage = null);
 }
 
-
 /// <summary>
-/// Unified console service that combines reporting, user interaction, and progress tracking
+/// System.Console based implementation intentionally independent from external console libraries.
 /// </summary>
-public class ConsoleService(
-    IConsole console,
-    CommandOptions commandOptions
-) : IConsoleService
+public sealed class ConsoleService : IConsoleService
 {
+    private readonly CommandOptions _commandOptions;
     private readonly object _writeLock = new();
-    private readonly IConsole _console = console ?? throw new ArgumentNullException(nameof(console));
-    private readonly CommandOptions _commandOptions = commandOptions ?? throw new ArgumentNullException(nameof(commandOptions));
+
     private readonly string _lineStar = new('*', 50);
     private readonly string _lineMinus = new('-', 50);
     private readonly string _lineUnderscore = new('_', 50);
 
-    /// <summary>
-    /// Is verbose output displayed.
-    /// </summary>
-    public bool IsVerbose => _commandOptions?.Verbose ?? false;
+    public ConsoleService(CommandOptions commandOptions)
+    {
+        _commandOptions = commandOptions ?? throw new ArgumentNullException(nameof(commandOptions));
+    }
 
-    /// <summary>
-    /// Is verbose output and regular output hidden.
-    /// </summary>
+    public bool IsVerbose => _commandOptions?.Verbose ?? false;
     public bool IsQuiet => _commandOptions?.Quiet ?? false;
 
-    #region Basic Reporting Methods
+    private static TextWriter StdOut => Console.Out;
+    private static TextWriter StdErr => Console.Error;
 
-    protected virtual void WriteLine(TextWriter writer, string message, ConsoleColor? foregroundColor, ConsoleColor? backgroundColor = default)
-    {
-        lock (_writeLock)
-        {
-            if (foregroundColor.HasValue)
-            {
-                _console.ForegroundColor = foregroundColor.Value;
-            }
+    public void Info(string message) => Output(message);
 
-            if (backgroundColor.HasValue)
-            {
-                _console.BackgroundColor = backgroundColor.Value;
-            }
+    public void Error(string message) => WriteLine(StdErr, message, ConsoleColor.Red);
 
-            writer.WriteLine(message);
-
-            if (foregroundColor.HasValue || backgroundColor.HasValue)
-            {
-                _console.ResetColor();
-            }
-        }
-    }
-
-    protected virtual void Write(TextWriter writer, string text, ConsoleColor? foregroundColor, ConsoleColor? backgroundColor = default)
-    {
-        lock (_writeLock)
-        {
-            if (foregroundColor.HasValue)
-            {
-                _console.ForegroundColor = foregroundColor.Value;
-            }
-
-            if (backgroundColor.HasValue)
-            {
-                _console.BackgroundColor = backgroundColor.Value;
-            }
-
-            writer.Write(text);
-
-            if (foregroundColor.HasValue || backgroundColor.HasValue)
-            {
-                _console.ResetColor();
-            }
-        }
-    }
-
-    public void DrawProgressBar(int percentage, int barSize = 40)
-    {
-        if (IsQuiet)
-        {
-            return;
-        }
-
-        lock (_writeLock)
-        {
-            // Clear the current line instead of using SetCursorPosition
-            _console.Out.Write("\r");
-
-            percentage = Math.Max(0, Math.Min(100, percentage));
-            int filledPositions = (int)Math.Floor(percentage / 100.0 * barSize);
-
-            try
-            {
-                // Render the progress bar efficiently by minimizing color changes
-                _console.ForegroundColor = ConsoleColor.DarkGray;
-                _console.Out.Write("[");
-
-                _console.ForegroundColor = ConsoleColor.Green;
-                _console.Out.Write(new string('#', filledPositions));
-
-                _console.ForegroundColor = ConsoleColor.DarkGray;
-                _console.Out.Write(new string('-', barSize - filledPositions));
-                _console.Out.Write("] ");
-
-                _console.ForegroundColor = ConsoleColor.Cyan;
-                _console.Out.Write($"{percentage}%");
-
-                // Add spaces to ensure we overwrite any previous output of different length
-                _console.ResetColor();
-                _console.Out.Write("    ");
-
-                // Ensure a newline is written on completion so subsequent separator lines are not appended
-                if (percentage == 100)
-                {
-                    _console.Out.WriteLine();
-                }
-            }
-            catch (Exception)
-            {
-                // Fail gracefully if console operations aren't supported
-                _console.ResetColor();
-            }
-        }
-    }
-
-    public void Error(string message)
-        => WriteLine(_console.Error, message, ConsoleColor.Red);
-
-    public void Warn(string message)
-        => WriteLine(_console.Out, message, ConsoleColor.Yellow);
-
-    public void Success(string message)
-        => WriteLine(_console.Out, message, ConsoleColor.Green);
+    public void Warn(string message) => WriteLine(StdOut, message, ConsoleColor.Yellow);
 
     public void Output(string message)
     {
@@ -191,259 +87,143 @@ public class ConsoleService(
             return;
         }
 
-        WriteLine(_console.Out, message, foregroundColor: null);
+        WriteLine(StdOut, message, foregroundColor: null);
     }
 
     public void Verbose(string message)
     {
-        if (!IsVerbose && !_commandOptions.Verbose)
+        if (!IsVerbose || IsQuiet)
         {
             return;
         }
 
-        WriteLine(_console.Out, message, ConsoleColor.DarkGray);
+        WriteLine(StdOut, message, ConsoleColor.DarkGray);
     }
 
-    // Color helpers
+    public void Success(string message) => WriteLine(StdOut, message, ConsoleColor.Green);
+
+    public void DrawProgressBar(int percentage, int barSize = 40)
+    {
+        if (IsQuiet)
+        {
+            return;
+        }
+
+        percentage = Math.Clamp(percentage, 0, 100);
+        barSize = Math.Max(10, barSize);
+
+        lock (_writeLock)
+        {
+            try
+            {
+                Console.CursorVisible = false;
+            }
+            catch
+            {
+                // ignore cursor visibility errors (stdout redirected)
+            }
+
+            StdOut.Write('\r');
+
+            var filled = (int)Math.Round(barSize * (percentage / 100.0));
+            var empty = barSize - filled;
+
+            TrySetColors(ConsoleColor.DarkGray, null);
+            StdOut.Write('[');
+
+            TrySetColors(ConsoleColor.Green, null);
+            StdOut.Write(new string('#', filled));
+
+            TrySetColors(ConsoleColor.DarkGray, null);
+            StdOut.Write(new string('-', empty));
+            StdOut.Write("] ");
+
+            TrySetColors(ConsoleColor.Cyan, null);
+            StdOut.Write($"{percentage}%");
+            TryResetColors();
+
+            if (percentage == 100)
+            {
+                StdOut.WriteLine();
+                try
+                {
+                    Console.CursorVisible = true;
+                }
+                catch
+                {
+                }
+            }
+        }
+    }
+
     public void Green(string message) => Success(message);
     public void Yellow(string message) => Warn(message);
     public void Red(string message) => Error(message);
     public void Gray(string message) => Verbose(message);
 
-    public void Info(string message) => Output(message);
-
-    #endregion
-
-    #region User Interaction Methods
-
-    private static int NavigateOptions(int currentIndex, int optionsCount, ConsoleKey key)
-    {
-        if (key == ConsoleKey.UpArrow)
-        {
-            return (currentIndex > 0)
-                ? currentIndex - 1
-                : optionsCount - 1;
-        }
-        else if (key == ConsoleKey.DownArrow || key == ConsoleKey.Tab)
-        {
-            return (currentIndex < optionsCount - 1)
-                ? currentIndex + 1
-                : 0;
-        }
-
-        return currentIndex;
-    }
-
     public Choice GetSelection(string prompt, List<string> options)
     {
-        if (options == null || options.Count == 0)
-            throw new ArgumentException("Options list cannot be empty", nameof(options));
-
-        var currentSelectedIndex = 0;
-        var answerHint = options[currentSelectedIndex];
-        var result = options[currentSelectedIndex];
-
-        Write(_console.Out, $"{prompt} ", null);
-        Write(_console.Out, $"[{string.Join(", ", options)}] ", ConsoleColor.White);
-        Write(_console.Out, "(Use <tab> or <up/down> to choose)", null);
-        Write(_console.Out, ": ", null);
-        Write(_console.Out, answerHint, ConsoleColor.Green);
-
-        ConsoleKeyInfo keyInfo = Console.ReadKey(true);
-
-        // user hitted enter
-        while (keyInfo.Key != ConsoleKey.Enter)
-        {
-            // user hitted up, down, or tab
-            if (keyInfo.Key == ConsoleKey.UpArrow || keyInfo.Key == ConsoleKey.DownArrow || keyInfo.Key == ConsoleKey.Tab)
-            {
-                // display next option
-                ClearInput(result.Length);
-
-                // Update selection index using shared navigation method
-                currentSelectedIndex = NavigateOptions(currentSelectedIndex, options.Count, keyInfo.Key);
-
-                // write next option to screen
-                result = options[currentSelectedIndex];
-                Write(_console.Out, result, ConsoleColor.Green);
-            }
-
-            keyInfo = Console.ReadKey(true);
-        }
-
-        return new Choice(currentSelectedIndex, result);
+        return GetSelectionInternal(prompt, options, multiline: false);
     }
 
     public Choice GetSelectionMultiline(string prompt, List<string> options)
     {
-        if (options == null || options.Count == 0)
-            throw new ArgumentException("Options list cannot be empty", nameof(options));
-
-        var currentSelectedIndex = 0;
-        var result = options[currentSelectedIndex];
-
-        Write(_console.Out, $"{prompt} ", null);
-        Write(_console.Out, "(Use <tab> or <up/down> to choose)", null);
-        Write(_console.Out, ": \n\r", null);
-        WriteOptions(options, currentSelectedIndex);
-
-        ConsoleKeyInfo keyInfo = Console.ReadKey(true);
-
-        // user hitted enter
-        while (keyInfo.Key != ConsoleKey.Enter)
-        {
-            // user hitted up, down, or tab
-            if (keyInfo.Key == ConsoleKey.UpArrow || keyInfo.Key == ConsoleKey.DownArrow || keyInfo.Key == ConsoleKey.Tab)
-            {
-                try
-                {
-                    // Clear previous options
-                    foreach (var option in options)
-                    {
-                        Console.SetCursorPosition(0, Console.CursorTop - 1);
-                        ClearCurrentConsoleLine();
-                    }
-
-                    // Update selection index using shared navigation method
-                    currentSelectedIndex = ConsoleService.NavigateOptions(currentSelectedIndex, options.Count, keyInfo.Key);
-
-                    // write next option to screen
-                    result = options[currentSelectedIndex];
-                    WriteOptions(options, currentSelectedIndex);
-                }
-                catch (Exception)
-                {
-                    Output("\nPlease choose an option:");
-                    WriteOptions(options, currentSelectedIndex);
-                }
-            }
-
-            keyInfo = Console.ReadKey(true);
-        }
-
-        return new Choice(currentSelectedIndex, result);
+        return GetSelectionInternal(prompt, options, multiline: true);
     }
 
     public bool GetYesNo(string prompt, bool isDefaultConfirmed, ConsoleColor? promptColor = null, ConsoleColor? promptBgColor = null)
     {
-        var confirmed = isDefaultConfirmed;
-        var output = isDefaultConfirmed ? "yes" : "no";
-
-        Write(_console.Out, $"{prompt} ", promptColor, promptBgColor);
-        Write(_console.Out, "(Use <tab> or <up/down> to choose)", null);
-        Write(_console.Out, ": ", null);
-        Write(_console.Out, output, ConsoleColor.Green);
-
-        ConsoleKeyInfo keyInfo;
-
-        keyInfo = Console.ReadKey(true);
-
-        // user hitted enter
-        while (keyInfo.Key != ConsoleKey.Enter)
+        var defaultLabel = isDefaultConfirmed ? "Y/n" : "y/N";
+        while (true)
         {
-            // user hitted up, down, or tab
-            if (keyInfo.Key == ConsoleKey.UpArrow || keyInfo.Key == ConsoleKey.DownArrow || keyInfo.Key == ConsoleKey.Tab)
+            Write(StdOut, $"{prompt} ", promptColor, promptBgColor);
+            Write(StdOut, $"[{defaultLabel}]", ConsoleColor.White);
+            Write(StdOut, ": ", null);
+
+            var line = Console.ReadLine();
+            if (string.IsNullOrWhiteSpace(line))
             {
-                // display next option
-                ClearInput(output.Length);
-
-                // write next option to screen
-                confirmed = !confirmed;
-                var newOption = confirmed ? "yes" : "no";
-                Write(_console.Out, newOption, ConsoleColor.Green);
-
-                output = newOption;
+                return isDefaultConfirmed;
             }
 
-            keyInfo = Console.ReadKey(true);
+            line = line.Trim();
+            if (line.Equals("y", StringComparison.OrdinalIgnoreCase) ||
+                line.Equals("yes", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (line.Equals("n", StringComparison.OrdinalIgnoreCase) ||
+                line.Equals("no", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            Warn("Please answer with 'y' or 'n'.");
         }
-
-        WriteLine(_console.Out, "", null);
-        WriteLine(_console.Out, "", null);
-
-        return confirmed;
     }
 
     public string GetString(string prompt, string defaultValue = "", ConsoleColor? promptColor = null)
     {
-        Write(_console.Out, $"{prompt} ", promptColor);
-
+        Write(StdOut, $"{prompt} ", promptColor);
         if (!string.IsNullOrEmpty(defaultValue))
         {
-            Write(_console.Out, $"[{defaultValue}] ", ConsoleColor.White);
+            Write(StdOut, $"[{defaultValue}] ", ConsoleColor.White);
         }
 
-        Write(_console.Out, ": ", null);
-
-        string result = Console.ReadLine();
-
-        // Use default value if input is empty
-        if (string.IsNullOrEmpty(result) && !string.IsNullOrEmpty(defaultValue))
+        Write(StdOut, ": ", null);
+        var response = Console.ReadLine();
+        if (string.IsNullOrEmpty(response))
         {
-            result = defaultValue;
+            response = defaultValue;
         }
 
-        return result;
+        return response ?? string.Empty;
     }
-
-    private static void ClearCurrentConsoleLine()
-    {
-        try
-        {
-            int currentLineCursor = Console.CursorTop;
-            Console.SetCursorPosition(0, Console.CursorTop);
-            Console.Write(new string(' ', Console.WindowWidth));
-            Console.SetCursorPosition(0, currentLineCursor);
-        }
-        catch (Exception)
-        {
-            Console.WriteLine();
-        }
-    }
-
-    private void WriteOptions(List<string> options, int currentSelectedIndex)
-    {
-        try
-        {
-            for (var i = 0; i < options.Count; i++)
-            {
-                if (i == currentSelectedIndex)
-                {
-                    var output = $"> {options[i]}{Environment.NewLine}";
-                    Write(_console.Out, output, ConsoleColor.Green);
-                }
-                else
-                {
-                    var output = $"  {options[i]}{Environment.NewLine}";
-                    Write(_console.Out, output, null);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Error($"Console output could not be rendered completely: {ex.Message}");
-            foreach (var option in options)
-            {
-                Output($"- {option}");
-            }
-        }
-    }
-
-    private static void ClearInput(int lengthToClear)
-    {
-        for (int i = 0; i < lengthToClear; i++)
-        {
-            Console.Write("\b" + " " + "\b");
-        }
-    }
-
-    #endregion
-
-    #region Formatted Output Methods
 
     public void PrintTitle(string title)
     {
-        Output("");
+        Output(string.Empty);
         Output(_lineStar);
         Output(title);
         Output(_lineStar);
@@ -451,51 +231,52 @@ public class ConsoleService(
 
     public void PrintImportantTitle(string title)
     {
-        Red("");
-        Red(_lineStar);
-        Red(title);
-        Red(_lineStar);
+        Output(string.Empty);
+        WriteLine(StdOut, _lineStar, ConsoleColor.Red);
+        WriteLine(StdOut, title, ConsoleColor.Red);
+        WriteLine(StdOut, _lineStar, ConsoleColor.Red);
     }
 
     public void PrintSubTitle(string title)
     {
-        Output("");
+        Output(string.Empty);
         Output(title);
         Output(_lineUnderscore);
     }
 
-    public void PrintSummary(IEnumerable<string> summary, string headline = null)
+    public void PrintSummary(IEnumerable<string> summary, string? headline = null)
     {
-        using (new CursorState())
-        {
-            Green("");
-            Green(_lineStar);
-            if (headline != null)
-            {
-                var linePartLength = (_lineStar.Length - (headline.Length + 2)) / 2;
-                var linePartPlus = new string('+', linePartLength);
-                Green($"{linePartPlus} {headline} {linePartPlus}");
-                Green(_lineStar);
-            }
+        Output(string.Empty);
+        Success(_lineStar);
 
-            foreach (var message in summary)
-            {
-                Green(message);
-            }
+        if (!string.IsNullOrWhiteSpace(headline))
+        {
+            var normalized = headline.Trim();
+            var padding = (_lineStar.Length - (normalized.Length + 2)) / 2;
+            var pad = new string('+', Math.Max(1, padding));
+            Success($"{pad} {normalized} {pad}");
+            Success(_lineStar);
+        }
+
+        foreach (var message in summary)
+        {
+            Success(message);
         }
     }
 
     public void PrintTotal(string total)
     {
-        Green(_lineMinus);
-        Green(total);
-        Green("");
+        Success(_lineMinus);
+        Success(total);
+        Success(string.Empty);
     }
 
-    public void PrintDryRunMessage(string message = null)
+    public void PrintDryRunMessage(string? message = null)
     {
-        if (message != null)
+        if (!string.IsNullOrWhiteSpace(message))
+        {
             Output(message);
+        }
 
         Output(_lineMinus);
         Output("Run with \"dry run\" means no changes were made");
@@ -504,26 +285,32 @@ public class ConsoleService(
 
     public void PrintConfiguration(ConfigurationModel config)
     {
-        // Kopie erzeugen um Ausgabe zu normalisieren (Role entfernen bei Default)
-        var clone = config == null ? null : new ConfigurationModel
+        if (config == null)
         {
-            Version = config.Version,
-            TargetFramework = config.TargetFramework,
-            Project = config.Project == null ? null : new ProjectModel
-            {
-                DataBase = config.Project.DataBase,
-                Output = config.Project.Output,
-                DefaultSchemaStatus = config.Project.DefaultSchemaStatus,
-                IgnoredSchemas = config.Project.IgnoredSchemas,
-                IgnoredProcedures = config.Project.IgnoredProcedures,
-                JsonTypeLogLevel = config.Project.JsonTypeLogLevel,
-                Role = config.Project.Role
-            },
-            Schema = config.Schema
-        };
+            Warn("No configuration available to display.");
+            return;
+        }
 
+        ConfigurationModel? clone = null;
         try
         {
+            clone = new ConfigurationModel
+            {
+                Version = config.Version,
+                TargetFramework = config.TargetFramework,
+                Project = config.Project == null ? null : new ProjectModel
+                {
+                    DataBase = config.Project.DataBase,
+                    Output = config.Project.Output,
+                    DefaultSchemaStatus = config.Project.DefaultSchemaStatus,
+                    IgnoredSchemas = config.Project.IgnoredSchemas,
+                    IgnoredProcedures = config.Project.IgnoredProcedures,
+                    JsonTypeLogLevel = config.Project.JsonTypeLogLevel,
+                    Role = config.Project.Role
+                },
+                Schema = config.Schema
+            };
+
 #pragma warning disable CS0618
             if (clone?.Project?.Role?.Kind == RoleKindEnum.Default && string.IsNullOrWhiteSpace(clone.Project.Role.LibNamespace))
             {
@@ -531,9 +318,12 @@ public class ConsoleService(
             }
 #pragma warning restore CS0618
         }
-        catch { }
+        catch
+        {
+            clone = config;
+        }
 
-        var jsonSettings = new JsonSerializerOptions()
+        var jsonSettings = new JsonSerializerOptions
         {
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
             WriteIndented = true,
@@ -542,7 +332,7 @@ public class ConsoleService(
 
         var json = JsonSerializer.Serialize(clone, jsonSettings);
         Warn(json);
-        Output("");
+        Output(string.Empty);
     }
 
     public void PrintFileActionMessage(string fileName, FileActionEnum fileAction)
@@ -550,15 +340,16 @@ public class ConsoleService(
         switch (fileAction)
         {
             case FileActionEnum.Created:
-                Green($"{fileName} (created)");
+                Success($"{fileName} (created)");
                 break;
-
             case FileActionEnum.Modified:
                 Yellow($"{fileName} (modified)");
                 break;
-
             case FileActionEnum.UpToDate:
                 Gray($"{fileName} (up to date)");
+                break;
+            default:
+                Output($"{fileName} ({fileAction})");
                 break;
         }
     }
@@ -570,27 +361,29 @@ public class ConsoleService(
 
     public void StartProgress(string message)
     {
-        Green("");
-        Green($"► {message}");
+        Success(string.Empty);
+        Success($"► {message}");
         Output(_lineMinus);
     }
 
-    public void CompleteProgress(bool success = true, string message = null)
+    public void CompleteProgress(bool success = true, string? message = null)
     {
         Output(_lineMinus);
         if (success)
         {
-            Green($"✓ Completed");
+            Success("✓ Completed");
         }
         else
         {
-            Red($"✗ Failed");
+            Error("✗ Failed");
         }
-        if (!string.IsNullOrEmpty(message))
+
+        if (!string.IsNullOrWhiteSpace(message))
         {
             Gray($"  {message}");
         }
-        Green("");
+
+        Success(string.Empty);
     }
 
     public void UpdateProgressStatus(string status, bool success = true, int? percentage = null)
@@ -601,7 +394,7 @@ public class ConsoleService(
         }
         else
         {
-            Red($"  {status}");
+            Error($"  {status}");
         }
 
         if (percentage.HasValue)
@@ -610,66 +403,114 @@ public class ConsoleService(
         }
     }
 
-    #endregion
-
-    #region Cursor Handling
-
-    private class CursorState : IDisposable
+    private Choice GetSelectionInternal(string prompt, List<string> options, bool multiline)
     {
-        private readonly bool _original;
-
-        public CursorState()
+        if (options == null || options.Count == 0)
         {
-            try
-            {
-                if (OperatingSystem.IsWindows())
-                {
-                    _original = Console.CursorVisible;
-                }
-                else
-                {
-                    _original = true;
-                }
-            }
-            catch
-            {
-                // some platforms throw System.PlatformNotSupportedException
-                // Assume the cursor should be shown
-                _original = true;
-            }
-
-            TrySetVisible(true);
+            throw new ArgumentException("Options list cannot be empty", nameof(options));
         }
 
-        private static void TrySetVisible(bool visible)
+        if (multiline)
         {
-            try
+            Output(prompt);
+            for (var i = 0; i < options.Count; i++)
             {
-                if (OperatingSystem.IsWindows() || OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
-                {
-                    Console.CursorVisible = visible;
-                }
-            }
-            catch (Exception)
-            {
-                // Setting cursor may fail if output is piped or permission is denied
+                Output($"  [{i + 1}] {options[i]}");
             }
         }
-
-        public void Dispose()
+        else
         {
-            TrySetVisible(_original);
+            Output($"{prompt} [{string.Join(", ", options)}]");
+        }
+
+        while (true)
+        {
+            Write(StdOut, "Select option (number): ", ConsoleColor.Green);
+            var line = Console.ReadLine();
+            if (!string.IsNullOrWhiteSpace(line) && int.TryParse(line, out var index))
+            {
+                index -= 1;
+                if (index >= 0 && index < options.Count)
+                {
+                    return new Choice(index, options[index]);
+                }
+            }
+
+            Warn("Invalid selection, please enter the number shown in the list.");
         }
     }
 
-    #endregion
+    private void WriteLine(TextWriter writer, string message, ConsoleColor? foregroundColor, ConsoleColor? backgroundColor = null)
+    {
+        lock (_writeLock)
+        {
+            TrySetColors(foregroundColor, backgroundColor);
+            writer.WriteLine(message);
+            if (foregroundColor.HasValue || backgroundColor.HasValue)
+            {
+                TryResetColors();
+            }
+        }
+    }
+
+    private void Write(TextWriter writer, string text, ConsoleColor? foregroundColor, ConsoleColor? backgroundColor = null)
+    {
+        lock (_writeLock)
+        {
+            TrySetColors(foregroundColor, backgroundColor);
+            writer.Write(text);
+            if (foregroundColor.HasValue || backgroundColor.HasValue)
+            {
+                TryResetColors();
+            }
+        }
+    }
+
+    private static void TrySetColors(ConsoleColor? foregroundColor, ConsoleColor? backgroundColor)
+    {
+        try
+        {
+            if (foregroundColor.HasValue)
+            {
+                Console.ForegroundColor = foregroundColor.Value;
+            }
+
+            if (backgroundColor.HasValue)
+            {
+                Console.BackgroundColor = backgroundColor.Value;
+            }
+        }
+        catch
+        {
+            // ignore coloring failures
+        }
+    }
+
+    private static void TryResetColors()
+    {
+        try
+        {
+            Console.ResetColor();
+        }
+        catch
+        {
+            // ignore reset failures (e.g. redirected output)
+        }
+    }
 }
 
 /// <summary>
-/// A response chosen by the user
+/// Simple container representing an answer chosen by the user.
 /// </summary>
-public class Choice(int key, string value)
+public sealed class Choice
 {
-    public int Key { get; set; } = key;
-    public string Value { get; set; } = value;
+    public Choice(int key, string value)
+    {
+        Key = key;
+        Value = value;
+    }
+
+    public int Key { get; set; }
+    public string Value { get; set; }
 }
+

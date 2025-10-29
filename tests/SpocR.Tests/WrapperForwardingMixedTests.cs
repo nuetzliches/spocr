@@ -22,6 +22,8 @@ public class WrapperForwardingMixedTests
 {
     private sealed class TestConsole : IConsoleService
     {
+        public bool IsVerbose => false;
+        public bool IsQuiet => false;
         public void Info(string message) { }
         public void Error(string message) { }
         public void Warn(string message) { }
@@ -55,7 +57,7 @@ public class WrapperForwardingMixedTests
     {
         private readonly List<StoredProcedure> _procedures;
         private readonly Dictionary<string, string> _definitions;
-    private readonly List<DbSchema> _schemas;
+        private readonly List<DbSchema> _schemas;
 
         public FakeDbContext(IConsoleService console, List<StoredProcedure> procedures, Dictionary<string, string> definitions)
                 : base(console)

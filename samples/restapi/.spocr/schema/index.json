@@ -7,8 +7,8 @@
   },
   "Stats": {
     "ProcedureTotal": 10,
-    "ProcedureSkipped": 2,
-    "ProcedureLoaded": 8,
+    "ProcedureSkipped": 0,
+    "ProcedureLoaded": 10,
     "UdttTotal": 3,
     "TableTotal": 2,
     "ViewTotal": 0,

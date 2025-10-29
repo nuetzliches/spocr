@@ -1,61 +1,7 @@
 using System;
 using System.Threading;
-using System.Threading.Tasks;
-using McMaster.Extensions.CommandLineUtils;
-using SpocR.Enums;
-using SpocR.Utils;
 
 namespace SpocR.Commands;
-
-public abstract class CommandBase : IAppCommand, ICommandOptions
-{
-    [Option("-p|--path", "Path to the project root containing .env (legacy spocr.json paths are ignored)", CommandOptionType.SingleValue)]
-    public virtual string Path { get; set; }
-
-    [Option("-d|--dry-run", "Run command without making any changes", CommandOptionType.NoValue)]
-    public virtual bool DryRun { get; set; }
-
-    [Option("-f|--force", "Run command even if we got warnings", CommandOptionType.NoValue)]
-    public virtual bool Force { get; set; }
-
-    [Option("-q|--quiet", "Run without user interactions and dont check for updates", CommandOptionType.NoValue)]
-    public virtual bool Quiet { get; set; }
-
-    [Option("-v|--verbose", "Show non necessary information", CommandOptionType.NoValue)]
-    public virtual bool Verbose { get; set; }
-
-    [Option("-nvc|--no-version-check", "Ignore version missmatch between installation and config file", CommandOptionType.NoValue)]
-    public virtual bool NoVersionCheck { get; set; }
-
-    [Option("-nau|--no-auto-update", "Ignore auto update", CommandOptionType.NoValue)]
-    public virtual bool NoAutoUpdate { get; set; }
-
-    [Option("--debug", "Use debug environment.", CommandOptionType.NoValue)]
-    public virtual bool Debug { get; set; }
-
-    [Option("--no-cache", "Do not load or save the local procedure metadata cache (forces full re-parse)", CommandOptionType.NoValue)]
-    public virtual bool NoCache { get; set; }
-
-    [Option("--procedure", "Process only specific procedures (comma-separated, format: schema.procedurename)", CommandOptionType.SingleValue)]
-    public virtual string Procedure { get; set; }
-
-    public virtual async Task<int> OnExecuteAsync()
-    {
-        DirectoryUtils.SetBasePath(Path);
-        // Propagate no-cache flag for downstream providers to force snapshot reload.
-        try { SpocR.Utils.CacheControl.ForceReload = NoCache; } catch { }
-
-        // Propagate procedure filter as environment variable
-        if (!string.IsNullOrWhiteSpace(Procedure))
-        {
-            Environment.SetEnvironmentVariable("SPOCR_BUILD_PROCEDURES", Procedure);
-        }
-
-        return await Task.FromResult((int)ExecuteResultEnum.Succeeded);
-    }
-
-    public ICommandOptions CommandOptions => new CommandOptions(this);
-}
 
 public interface ICommandOptions
 {
@@ -148,4 +94,21 @@ public class CommandOptions : ICommandOptions
         public bool NoCache { get; set; }
         public string Procedure { get; set; }
     }
+}
+
+/// <summary>
+/// Mutable implementation used by the CLI to pass parsed options to the runtime.
+/// </summary>
+public sealed class CliCommandOptions : ICommandOptions
+{
+    public string Path { get; set; }
+    public bool DryRun { get; set; }
+    public bool Force { get; set; }
+    public bool Quiet { get; set; }
+    public bool Verbose { get; set; }
+    public bool NoVersionCheck { get; set; }
+    public bool NoAutoUpdate { get; set; }
+    public bool Debug { get; set; }
+    public bool NoCache { get; set; }
+    public string Procedure { get; set; }
 }

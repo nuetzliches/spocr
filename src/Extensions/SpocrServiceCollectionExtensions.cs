@@ -1,5 +1,4 @@
 using System.IO;
-using McMaster.Extensions.CommandLineUtils;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -36,13 +35,11 @@ namespace SpocR.Extensions
                 });
 
             // Core Services
-            services.AddSingleton(PhysicalConsole.Singleton);
             services.TryAddSingleton<CommandOptions>();
 
             // Console service with enhanced logging capabilities
             services.AddSingleton<IConsoleService>(provider =>
                 new ConsoleService(
-                    provider.GetRequiredService<IConsole>(),
                     provider.GetRequiredService<CommandOptions>()));
 
             // Core SpocR services
