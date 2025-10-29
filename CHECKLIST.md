@@ -52,6 +52,7 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
   - 2025-10-30: Projekt-Registry speichert nur noch `.env`-Pfade; Pull/Build-Hinweise fordern explizit `SPOCR_GENERATOR_DB` statt `spocr.json`-Änderungen ein.
   - 2025-10-29: CLI Build-Pfad setzt kein `SpocR.DataContext` mehr voraus (`SpocrManager` nutzt nur noch den vNext DbContext); Legacy-Brücke bleibt für Restarbeiten.
   - 2025-10-31: Service-Registrierung lässt die `SpocR.DataContext`-Bridge fallen; Tests laufen nur noch auf `SpocRVNext.Data`. `src/DataContext/` bleibt als Legacy-Ordner für das Aufräum-Follow-up markiert.
+  - 2025-10-31: SnapshotSchemaMetadataProvider bezieht Filter ausschließlich aus `.env`/Env-Variablen; `FileManager<ConfigurationModel>` entfällt.
 - [ ] Neue CLI (`init`, `pull`, `build`, `rebuild`) finalisieren und Kommunikationspaket vorbereiten.
 - [ ] Teststrategie v5 definieren (Smoke/Integration vs. Legacy-Abschaltung) und CI entsprechend planen.
 - [x] DbContext-Implementierung zu schlankem DB-Adapter für die `spocr pull`-Pipeline umbauen (Basis für `src/SpocRVNext/Templates/DbContext`).
@@ -83,15 +84,15 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 
 ## Qualität & Tests
 
-- [ ] Coverage-Baseline >=60 % messen und Reporting einschalten (Vorbereitung Strict Golden Hash).
+- [>] Coverage-Baseline >=60 % messen und Reporting einschalten (Vorbereitung Strict Golden Hash).
 - [x] Negative Tests für ENV-Kombinationen (z.B. fehlende DB-Verbindung) ergänzen. (2025-10-29)
-- [ ] `eng/quality-gates.ps1` in CI integrieren oder dokumentieren (inkl. `eng/kill-testhosts.ps1`).
-- [ ] Namespace-Kollisionstests für konsolidierte Outputs (Multi-ResultSet) ergänzen.
-- [ ] Test-Hosts Cleanup in Doku/CI verankern.
+- [>] `eng/quality-gates.ps1` in CI integrieren oder dokumentieren (inkl. `eng/kill-testhosts.ps1`).
+- [>] Namespace-Kollisionstests für konsolidierte Outputs (Multi-ResultSet) ergänzen.
+- [>] Test-Hosts Cleanup in Doku/CI verankern.
 - [ ] Review-Findings (Konzeptfehler, unsauberer Code, Unschärfen, fehlende Tests/Qualität) laufend pflegen und priorisieren.
   - [x] RestApi-Sample kompiliert nach Result-Typ-Refresh (`dotnet build samples/restapi/RestApi.csproj -c Debug`, 2025-10-28). Endpunkte bleiben bewusst per `#if false` deaktiviert, bis JSON-Aggregate finalisiert sind.
   - [x] Debug-Sandbox `.env` bereinigt; `SPOCR_GENERATOR_MODE` entfernt, next-only Standard bestätigt (2025-10-29).
-  - [ ] Legacy-Ordner `src/DataContext/` verbleibt als Frozen Artefakt; Ausstiegsplan und Archivierung vorbereiten, sobald Snapshot- und CLI-Tests ohne Bridge stabil bleiben.
+  - [ ] CLI-Manager entkoppeln verbleibende `FileManager<ConfigurationModel>`-Verwendung und ziehen `.env`-Optionen nach.
 
 ## Dokumentation & Kommunikation
 
@@ -127,18 +128,18 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 
 ## CI, Automatisierung & Release
 
-- [ ] Diff-/Model-Report Workflow (`debug/model-diff-report.md`) stabilisieren und in Builds referenzieren.
-- [ ] Dokumentation "Golden Hash Update Workflow" (manuelles `write-golden`) ergänzen.
-- [ ] NuGet/Bun Cache-Strategie für CI optimieren.
-- [ ] Release-Vorbereitung: Version bump, Release Notes, NuGet Smoke Test, Clean Git Status orchestrieren.
-- [ ] Upgrade-Safety Tests erweitern (Minor erlaubt, Direct-Major mit Override protokolliert) & Env Override Doku ergänzen.
+- [>] Diff-/Model-Report Workflow (`debug/model-diff-report.md`) stabilisieren und in Builds referenzieren.
+- [>] Dokumentation "Golden Hash Update Workflow" (manuelles `write-golden`) ergänzen.
+- [>] NuGet/Bun Cache-Strategie für CI optimieren.
+- [>] Release-Vorbereitung: Version bump, Release Notes, NuGet Smoke Test, Clean Git Status orchestrieren.
+- [>] Upgrade-Safety Tests erweitern (Minor erlaubt, Direct-Major mit Override protokolliert) & Env Override Doku ergänzen.
 
 ## Sicherheit & Wartung
 
-- [ ] Secret-Scan (Connection Strings) automatisieren oder dokumentieren.
-- [ ] `dotnet list package --outdated` Review durchführen und sicherheitsrelevante Updates planen.
-- [ ] Lizenzprüfung der genutzten NuGet-Pakete durchführen.
-- [ ] DB-Testnutzer auf Least-Privilege prüfen und festhalten.
+- [>] Secret-Scan (Connection Strings) automatisieren oder dokumentieren.
+- [>] `dotnet list package --outdated` Review durchführen und sicherheitsrelevante Updates planen.
+- [>] Lizenzprüfung der genutzten NuGet-Pakete durchführen.
+- [>] DB-Testnutzer auf Least-Privilege prüfen und festhalten.
 - [ ] Roslyn-, `McMaster.Extensions.CommandLineUtils`-, `Microsoft.AspNet.WebApi.Client`- und `Microsoft.CodeAnalysis.CSharp`-Abhängigkeiten auf vNext-Relevanz prüfen und nach Möglichkeit entfernen.
 
 ## EPIC Status (Kurzfassung)

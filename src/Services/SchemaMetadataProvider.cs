@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using SpocR.Managers;
 using SpocR.Models;
 using SpocRVNext.Configuration; // for EnvConfiguration
 using SpocR.SpocRVNext.Data.Models;
@@ -23,16 +22,14 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
 {
     private readonly ISchemaSnapshotService _snapshotService;
     private readonly IConsoleService _console;
-    private readonly FileManager<ConfigurationModel> _configFile; // for deriving ignored schemas dynamically
     private IReadOnlyList<SchemaModel> _schemas; // cached after first load
     private DateTime _lastLoadUtc = DateTime.MinValue;
     private string _fingerprint; // last loaded fingerprint
 
-    public SnapshotSchemaMetadataProvider(ISchemaSnapshotService snapshotService, IConsoleService console, FileManager<ConfigurationModel> configFile = null)
+    public SnapshotSchemaMetadataProvider(ISchemaSnapshotService snapshotService, IConsoleService console)
     {
         _snapshotService = snapshotService;
         _console = console;
-        _configFile = configFile; // optional (tests may omit)
     }
 
     public IReadOnlyList<SchemaModel> GetSchemas()
@@ -108,41 +105,58 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
 
         // Fingerprint logging already emitted above depending on layout
 
-        // Load current config (best-effort) to derive IgnoredSchemas dynamically; if unavailable fallback to snapshot status field.
-        List<string> ignored = null; SchemaStatusEnum defaultStatus = SchemaStatusEnum.Build;
-        List<string> buildSchemas = null; // SPOCR_BUILD_SCHEMAS positive allow-list
+        // Load BuildSchemas allow-list from .env and process dynamic ignore lists via environment variables.
+    List<string> ignored = new();
+    SchemaStatusEnum defaultStatus = SchemaStatusEnum.Build;
+        List<string>? buildSchemas = null; // SPOCR_BUILD_SCHEMAS positive allow-list
+
         try
         {
-            var cfg = _configFile?.Config; // FileManager keeps last loaded config
-            ignored = cfg?.Project?.IgnoredSchemas ?? new List<string>();
-            defaultStatus = cfg?.Project?.DefaultSchemaStatus ?? SchemaStatusEnum.Build;
-
-            // Load build schemas from .env file (same logic as vNext generators)
-            try
+            var workingDir = Utils.DirectoryUtils.GetWorkingDirectory();
+            var envConfig = EnvConfiguration.Load(projectRoot: workingDir);
+            if (envConfig.BuildSchemas != null && envConfig.BuildSchemas.Count > 0)
             {
-                var workingDir = Utils.DirectoryUtils.GetWorkingDirectory();
-                var envConfig = EnvConfiguration.Load(projectRoot: workingDir);
-                if (envConfig.BuildSchemas != null && envConfig.BuildSchemas.Count > 0)
-                {
-                    buildSchemas = envConfig.BuildSchemas.ToList();
-                    _console.Verbose($"[snapshot-provider] using BuildSchemas from .env: {string.Join(",", buildSchemas)}");
-                }
+                buildSchemas = envConfig.BuildSchemas.ToList();
+                _console.Verbose($"[snapshot-provider] using BuildSchemas from .env: {string.Join(",", buildSchemas)}");
             }
-            catch
+        }
+        catch (Exception envEx)
+        {
+            _console.Verbose($"[snapshot-provider] env configuration load failed: {envEx.Message}");
+            var buildSchemasRaw = Environment.GetEnvironmentVariable("SPOCR_BUILD_SCHEMAS");
+            if (!string.IsNullOrWhiteSpace(buildSchemasRaw))
             {
-                // Fallback to direct environment variable check (legacy behavior)
-                var buildSchemasRaw = Environment.GetEnvironmentVariable("SPOCR_BUILD_SCHEMAS");
-                if (!string.IsNullOrWhiteSpace(buildSchemasRaw))
+                buildSchemas = buildSchemasRaw.Split(',')
+                    .Select(s => s.Trim())
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .ToList();
+                if (buildSchemas.Count > 0)
                 {
-                    buildSchemas = buildSchemasRaw.Split(',')
-                        .Select(s => s.Trim())
-                        .Where(s => !string.IsNullOrWhiteSpace(s))
-                        .ToList();
                     _console.Verbose($"[snapshot-provider] using SPOCR_BUILD_SCHEMAS from environment: {string.Join(",", buildSchemas)}");
                 }
             }
         }
-        catch { ignored = new List<string>(); }
+
+        var ignoredSchemasRaw = Environment.GetEnvironmentVariable("SPOCR_IGNORED_SCHEMAS");
+        if (!string.IsNullOrWhiteSpace(ignoredSchemasRaw))
+        {
+            ignored = ignoredSchemasRaw.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => s.Trim())
+                .Where(s => s.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (ignored.Count > 0)
+            {
+                _console.Verbose($"[snapshot-provider] using IgnoredSchemas from environment: {string.Join(",", ignored)}");
+            }
+        }
+
+        var defaultStatusRaw = Environment.GetEnvironmentVariable("SPOCR_DEFAULT_SCHEMA_STATUS");
+        if (!string.IsNullOrWhiteSpace(defaultStatusRaw) && Enum.TryParse<SchemaStatusEnum>(defaultStatusRaw, true, out var parsedStatus) && parsedStatus != SchemaStatusEnum.Undefined)
+        {
+            defaultStatus = parsedStatus;
+            _console.Verbose($"[snapshot-provider] default schema status overridden via SPOCR_DEFAULT_SCHEMA_STATUS={defaultStatus}.");
+        }
 
         bool hasIgnored = ignored?.Any() == true;
         if (hasIgnored) _console.Verbose($"[snapshot-provider] deriving schema statuses via IgnoredSchemas ({ignored.Count})");
@@ -162,12 +176,6 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
                             : SchemaStatusEnum.Ignore;
                     }
                     // Otherwise use legacy logic with IgnoredSchemas
-                    else if (defaultStatus == SchemaStatusEnum.Ignore)
-                    {
-                        status = ignored.Contains(s.Name, StringComparer.OrdinalIgnoreCase)
-                            ? SchemaStatusEnum.Ignore
-                            : SchemaStatusEnum.Build;
-                    }
                     else
                     {
                         status = ignored.Contains(s.Name, StringComparer.OrdinalIgnoreCase)
