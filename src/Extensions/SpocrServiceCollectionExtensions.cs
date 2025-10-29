@@ -2,7 +2,7 @@ using System.IO;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
-using SpocR.Commands;
+using SpocR.SpocRVNext.Cli;
 using SpocR.Infrastructure;
 using SpocR.Runtime;
 using SpocR.Schema;

@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using SpocR.Commands;
+using SpocR.SpocRVNext.Cli;
 using SpocR.Enums;
 using SpocR.Models;
 

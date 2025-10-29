@@ -1,7 +1,7 @@
 using SpocR.Enums;
 using SpocR.Infrastructure;
 
-namespace SpocR.Commands;
+namespace SpocR.SpocRVNext.Cli;
 
 public static class CommandResultMapper
 {

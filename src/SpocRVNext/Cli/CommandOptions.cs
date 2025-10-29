@@ -1,6 +1,8 @@
+#nullable disable
+
 using System;
 
-namespace SpocR.Commands;
+namespace SpocR.SpocRVNext.Cli;
 
 public interface ICommandOptions
 {

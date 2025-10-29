@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using SpocR.SpocRVNext.Generators;
 using SpocR.Extensions;
-using SpocR.Commands;
+using SpocR.SpocRVNext.Cli;
 using SpocR.SpocRVNext.Engine;
 using SpocR.Utils;
 using SpocR.Infrastructure;

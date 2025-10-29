@@ -1,6 +1,6 @@
 - [x] Migriere benötigtes aus `src\Attributes` nach `src\SpocRVNext` und lösche dann das Verzeichnis. (2025-10-29: Unused `WriteProtectedBySystem` attribute removed; directory deleted.)
 - [x] Entferne `AutoUpdater` komplett. (2025-10-29: Removed legacy auto-update services and NuGet helper; runtime no longer invokes update checks.)
-- [ ] Migriere benötigtes aus `src\Commands` nach `src\SpocRVNext` und lösche dann das Verzeichnis.
+- [x] Migriere benötigtes aus `src\Commands` nach `src\SpocRVNext` und lösche dann das Verzeichnis. (2025-10-29: Promoted CLI option helpers into `SpocRVNext/Cli`; removed legacy `src/Commands` folder.)
 - [ ] Migriere benötigtes aus `src\Contracts` nach `src\SpocRVNext` und lösche dann das Verzeichnis.
 - [ ] Migriere benötigtes aus `src\Converters` nach `src\SpocRVNext` und lösche dann das Verzeichnis.
 - [ ] Migriere benötigtes aus `src\Enums` nach `src\SpocRVNext` und lösche dann das Verzeichnis.

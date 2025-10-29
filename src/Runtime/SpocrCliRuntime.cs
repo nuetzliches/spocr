@@ -7,7 +7,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Data.SqlClient;
 using SpocR;
-using SpocR.Commands;
+using SpocR.SpocRVNext.Cli;
 using SpocR.Enums;
 using SpocR.Extensions;
 using SpocR.Services;
