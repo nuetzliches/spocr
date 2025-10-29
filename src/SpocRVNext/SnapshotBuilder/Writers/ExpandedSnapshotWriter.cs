@@ -24,6 +24,7 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
         IConsoleService console,
         DbContext dbContext,
         ISchemaSnapshotService? legacySnapshotService,
+        ITableMetadataProvider tableMetadataProvider,
         ITableTypeMetadataProvider tableTypeMetadataProvider,
         IUserDefinedTypeMetadataProvider userDefinedTypeMetadataProvider)
     {
@@ -33,12 +34,14 @@ internal sealed class ExpandedSnapshotWriter : ISnapshotWriter
             throw new ArgumentNullException(nameof(dbContext));
         }
 
+        var tableProvider = tableMetadataProvider ?? throw new ArgumentNullException(nameof(tableMetadataProvider));
         var tableTypeProvider = tableTypeMetadataProvider ?? throw new ArgumentNullException(nameof(tableTypeMetadataProvider));
         var userDefinedTypeProvider = userDefinedTypeMetadataProvider ?? throw new ArgumentNullException(nameof(userDefinedTypeMetadataProvider));
 
         _schemaArtifactWriter = new SchemaArtifactWriter(
             _console,
             dbContext,
+            tableProvider,
             tableTypeProvider,
             userDefinedTypeProvider,
             WriteArtifactAsync);

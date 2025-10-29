@@ -8,6 +8,30 @@ namespace SpocR.DataContext.Queries;
 
 public static class TableQueries
 {
+    public static Task<List<Table>> TableListAsync(this DbContext context, string schemaName, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(schemaName))
+        {
+            return Task.FromResult(new List<Table>());
+        }
+
+        var parameters = new List<SqlParameter>
+        {
+            new("@schemaName", schemaName)
+        };
+
+        const string queryString = @"SELECT tbl.object_id,
+               tbl.name AS table_name,
+               s.name AS schema_name,
+               tbl.modify_date
+        FROM sys.tables AS tbl
+        INNER JOIN sys.schemas AS s ON s.schema_id = tbl.schema_id
+        WHERE s.name = @schemaName
+        ORDER BY tbl.name;";
+
+        return context.ListAsync<Table>(queryString, parameters, cancellationToken);
+    }
+
     public static async Task<Column> TableColumnAsync(this DbContext context, string schemaName, string tableName, string columnName, CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(schemaName) || string.IsNullOrWhiteSpace(tableName) || string.IsNullOrWhiteSpace(columnName))

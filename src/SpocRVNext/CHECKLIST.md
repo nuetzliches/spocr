@@ -42,16 +42,18 @@
 - [ ] Tests und Golden Snapshots anheben, Legacy-Brücke abbauen.
 - [~] Obsolete Snapshot-Felder entfernen und Konsumenten migrieren.
   - SchemaSnapshotService & SchemaMetadataProvider nutzen nur noch flattening; Writer/Tests noch offen.
+- [~] Tabellen-Metadaten schreiben und Analyzer anbinden.
+  - 2025-10-29: Schema-Writer legt `.spocr/schema/tables` ohne technische IDs und ein Cache-Pendant unter `.spocr/cache/tables` an; Debug-Datenbank liefert noch keine Tabellen, Seed/Analyzer-Aufgaben bleiben offen.
 - [ ] Analyzer-Verbesserungen & Diagnose-Läufe durchführen, Ergebnisse dokumentieren.
 - [ ] Abschlusskriterien bestätigen (Determinism, vollständige Test-Suite).
 
 ## Dokumentation & Kommunikation
 
-- [~] Doku auf IST-Stand konsolidieren (README, Developer Guides, CLI-Hilfe, Release Notes).
+- [>] Doku auf IST-Stand konsolidieren (README, Developer Guides, CLI-Hilfe, Release Notes).
   - README & MIGRATION Guide aktualisiert (2025-10-27/29); Roadmap & Referenzseiten folgen.
 - [>] Migrationstipps bereitstellen (`MIGRATION-V5.md`, `migration-v5.instructions`, `.NET 8` Hinweis).
   - 2025-10-29: `migration-v5.instructions` auf SOLL-Zustand begrenzt, MIGRATION Guide auf Zielarchitektur aktualisiert; Veröffentlichung via Docs offen.
-- [~] Docs/content: GitHub Pages auf aktuellen CLI-Zustand fokussieren, historische Erzählungen in Legacy-Stream verschieben.
+- [>] Docs/content: GitHub Pages auf aktuellen CLI-Zustand fokussieren, historische Erzählungen in Legacy-Stream verschieben.
   - 2025-10-29: MIGRATION Inhalte bereinigt, verbleibende Seiten in `docs/content` benötigen Kürzung.
   - 2025-10-29: `docs/content/3.reference/configuration-schema.md` auf `.env`/`SPOCR_*` Zielzustand angepasst.
   - 2025-10-29: Roadmap-Seiten (`development-tasks`, `optional-features`, `output-strategies`, `json-support-design`, `json-procedure-models`) neu aufgesetzt.
@@ -68,7 +70,7 @@
   - Next: `docs/content/2.cli` Befehlsreferenzen auf neuen Hilfetext synchronisieren.
 - [>] Kommunikationsplan für Kunden/Partner erstellen (Zeitplan, Forced-Upgrade-Botschaft, Supportkanäle).
 - [>] Feedbackschleifen etablieren (Pilotkunden, Beta, Telemetrieauswertung).
-- [~] SpocR Freeze-Kommunikation vorbereiten: v4.5 finalisiert, deutet auf `nuetzliches/xtraq` (Namespace `Xtraq`, Version `1.0.0`).
+- [>] SpocR Freeze-Kommunikation vorbereiten: v4.5 finalisiert, deutet auf `nuetzliches/xtraq` (Namespace `Xtraq`, Version `1.0.0`).
   - Kommunikationspfad in README, CHANGELOG und Migration-Anleitungen hinterlegt (2025-10-29).
 
 ## Nachlauf (Legacy v4.5)

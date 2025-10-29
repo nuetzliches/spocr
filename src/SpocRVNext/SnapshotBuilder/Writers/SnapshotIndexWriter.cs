@@ -81,6 +81,33 @@ internal sealed class SnapshotIndexWriter
             };
         }
 
+        var tableEntries = new Dictionary<string, IndexTableEntry>(StringComparer.OrdinalIgnoreCase);
+        if ((schemaArtifacts?.Tables == null || schemaArtifacts.Tables.Count == 0) && existing?.Tables != null)
+        {
+            foreach (var entry in existing.Tables)
+            {
+                if (entry == null || string.IsNullOrWhiteSpace(entry.Schema) || string.IsNullOrWhiteSpace(entry.Name))
+                {
+                    continue;
+                }
+
+                tableEntries[SnapshotWriterUtilities.BuildKey(entry.Schema, entry.Name)] = entry;
+            }
+        }
+
+        if (schemaArtifacts?.Tables != null)
+        {
+            foreach (var entry in schemaArtifacts.Tables)
+            {
+                if (entry == null || string.IsNullOrWhiteSpace(entry.Schema) || string.IsNullOrWhiteSpace(entry.Name))
+                {
+                    continue;
+                }
+
+                tableEntries[SnapshotWriterUtilities.BuildKey(entry.Schema, entry.Name)] = entry;
+            }
+        }
+
         var tableTypeEntries = new Dictionary<string, IndexTableTypeEntry>(StringComparer.OrdinalIgnoreCase);
         if ((schemaArtifacts?.TableTypes == null || schemaArtifacts.TableTypes.Count == 0) && existing?.TableTypes != null)
         {
@@ -176,6 +203,12 @@ internal sealed class SnapshotIndexWriter
             .ThenBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+        var tableList = tableEntries.Values
+            .Where(e => !string.IsNullOrWhiteSpace(e.File))
+            .OrderBy(e => e.Schema, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(e => e.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
         var tableTypeList = tableTypeEntries.Values
             .Where(e => !string.IsNullOrWhiteSpace(e.File))
             .OrderBy(e => e.Schema, StringComparer.OrdinalIgnoreCase)
@@ -205,12 +238,14 @@ internal sealed class SnapshotIndexWriter
         var loaded = updated?.Count ?? 0;
         stats.ProcedureLoaded = loaded;
         stats.ProcedureSkipped = Math.Max(0, stats.ProcedureTotal - stats.ProcedureLoaded);
+        stats.TableTotal = tableList.Count;
         stats.UdttTotal = tableTypeList.Count;
         stats.UserDefinedTypeTotal = userDefinedTypeList.Count;
         stats.FunctionTotal = functionList.Count;
 
         var fingerprintParts = new List<string>();
         fingerprintParts.AddRange(procedureList.Select(p => $"proc:{p.Schema}.{p.Name}:{p.Hash}"));
+        fingerprintParts.AddRange(tableList.Select(t => $"tbl:{t.Schema}.{t.Name}:{t.Hash}"));
         fingerprintParts.AddRange(tableTypeList.Select(t => $"tt:{t.Schema}.{t.Name}:{t.Hash}"));
         fingerprintParts.AddRange(userDefinedTypeList.Select(t => $"udt:{t.Schema}.{t.Name}:{t.Hash}"));
         fingerprintParts.AddRange(functionList.Select(f => $"fn:{f.Schema}.{f.Name}:{f.Hash}"));
@@ -224,6 +259,7 @@ internal sealed class SnapshotIndexWriter
             Parser = parser,
             Stats = stats,
             Procedures = procedureList,
+            Tables = tableList,
             TableTypes = tableTypeList,
             UserDefinedTypes = userDefinedTypeList,
             FunctionsVersion = functionsVersion,

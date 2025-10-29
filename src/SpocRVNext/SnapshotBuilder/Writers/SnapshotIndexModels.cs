@@ -13,6 +13,7 @@ internal sealed class IndexDocument
     public List<IndexUserDefinedTypeEntry> UserDefinedTypes { get; set; } = new();
     public int FunctionsVersion { get; set; }
     public List<IndexFunctionEntry> Functions { get; set; } = new();
+    public List<IndexTableEntry> Tables { get; set; } = new();
 }
 
 internal sealed class IndexParser
@@ -42,6 +43,14 @@ internal sealed class IndexProcedureEntry
 }
 
 internal sealed class IndexTableTypeEntry
+{
+    public string Schema { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public string File { get; set; } = string.Empty;
+    public string Hash { get; set; } = string.Empty;
+}
+
+internal sealed class IndexTableEntry
 {
     public string Schema { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;

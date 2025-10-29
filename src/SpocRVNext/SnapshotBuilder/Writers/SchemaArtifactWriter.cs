@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -18,6 +19,7 @@ internal sealed class SchemaArtifactWriter
 {
     private readonly IConsoleService _console;
     private readonly DbContext _dbContext;
+    private readonly ITableMetadataProvider _tableMetadataProvider;
     private readonly ITableTypeMetadataProvider _tableTypeMetadataProvider;
     private readonly IUserDefinedTypeMetadataProvider _userDefinedTypeMetadataProvider;
     private readonly Func<string, byte[], CancellationToken, Task<ArtifactWriteOutcome>> _artifactWriter;
@@ -25,12 +27,14 @@ internal sealed class SchemaArtifactWriter
     public SchemaArtifactWriter(
         IConsoleService console,
         DbContext dbContext,
+        ITableMetadataProvider tableMetadataProvider,
         ITableTypeMetadataProvider tableTypeMetadataProvider,
         IUserDefinedTypeMetadataProvider userDefinedTypeMetadataProvider,
         Func<string, byte[], CancellationToken, Task<ArtifactWriteOutcome>> artifactWriter)
     {
         _console = console ?? throw new ArgumentNullException(nameof(console));
         _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
+        _tableMetadataProvider = tableMetadataProvider ?? throw new ArgumentNullException(nameof(tableMetadataProvider));
         _tableTypeMetadataProvider = tableTypeMetadataProvider ?? throw new ArgumentNullException(nameof(tableTypeMetadataProvider));
         _userDefinedTypeMetadataProvider = userDefinedTypeMetadataProvider ?? throw new ArgumentNullException(nameof(userDefinedTypeMetadataProvider));
         _artifactWriter = artifactWriter ?? throw new ArgumentNullException(nameof(artifactWriter));
@@ -85,6 +89,14 @@ internal sealed class SchemaArtifactWriter
         if (functionSummary.Functions.Count > 0)
         {
             summary.Functions.AddRange(functionSummary.Functions);
+        }
+
+        var tableSummary = await WriteTableArtifactsAsync(schemaRoot, schemaSet, requiredTypeRefs, cancellationToken).ConfigureAwait(false);
+        summary.FilesWritten += tableSummary.FilesWritten;
+        summary.FilesUnchanged += tableSummary.FilesUnchanged;
+        if (tableSummary.Tables.Count > 0)
+        {
+            summary.Tables.AddRange(tableSummary.Tables);
         }
 
         IReadOnlyList<TableTypeMetadata> tableTypes = Array.Empty<TableTypeMetadata>();
@@ -203,6 +215,89 @@ internal sealed class SchemaArtifactWriter
         });
 
         summary.UserDefinedTypes.Sort((a, b) =>
+        {
+            var schemaCompare = string.Compare(a.Schema, b.Schema, StringComparison.OrdinalIgnoreCase);
+            return schemaCompare != 0 ? schemaCompare : string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
+        });
+
+        return summary;
+    }
+
+    private async Task<TableArtifactSummary> WriteTableArtifactsAsync(
+        string schemaRoot,
+        ISet<string> schemaSet,
+        ISet<string> requiredTypeRefs,
+        CancellationToken cancellationToken)
+    {
+        var summary = new TableArtifactSummary();
+
+        IReadOnlyList<TableMetadata> tableMetadata = Array.Empty<TableMetadata>();
+        try
+        {
+            tableMetadata = await _tableMetadataProvider.GetTablesAsync(schemaSet, cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _console.Verbose($"[snapshot-table] metadata provider failed: {ex.Message}");
+            return summary;
+        }
+
+        if (tableMetadata == null || tableMetadata.Count == 0)
+        {
+            return summary;
+        }
+
+        var tableRoot = Path.Combine(schemaRoot, "tables");
+        Directory.CreateDirectory(tableRoot);
+        var validTableFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        var spocrRoot = Directory.GetParent(schemaRoot)?.FullName ?? schemaRoot;
+        var tableCacheRoot = Path.Combine(spocrRoot, "cache", "tables");
+        Directory.CreateDirectory(tableCacheRoot);
+        var validTableCacheFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var tableEntry in tableMetadata)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var table = tableEntry?.Table;
+            if (table == null || string.IsNullOrWhiteSpace(table.SchemaName) || string.IsNullOrWhiteSpace(table.Name))
+            {
+                continue;
+            }
+
+            var columns = tableEntry?.Columns ?? Array.Empty<Column>();
+            var jsonBytes = BuildTableJson(table, columns, requiredTypeRefs);
+            var fileName = SnapshotWriterUtilities.BuildArtifactFileName(table.SchemaName, table.Name);
+            var filePath = Path.Combine(tableRoot, fileName);
+            var outcome = await _artifactWriter(filePath, jsonBytes, cancellationToken).ConfigureAwait(false);
+            if (outcome.Wrote)
+            {
+                summary.FilesWritten++;
+            }
+            else
+            {
+                summary.FilesUnchanged++;
+            }
+
+            validTableFiles.Add(fileName);
+            var cacheBytes = BuildTableCacheJson(table, columns);
+            var cachePath = Path.Combine(tableCacheRoot, fileName);
+            await SnapshotWriterUtilities.PersistSnapshotAsync(cachePath, cacheBytes, cancellationToken).ConfigureAwait(false);
+            validTableCacheFiles.Add(fileName);
+
+            summary.Tables.Add(new IndexTableEntry
+            {
+                Schema = table.SchemaName,
+                Name = table.Name,
+                File = fileName,
+                Hash = outcome.Hash
+            });
+        }
+
+        PruneExtraneousFiles(tableRoot, validTableFiles);
+        PruneExtraneousFiles(tableCacheRoot, validTableCacheFiles);
+
+        summary.Tables.Sort((a, b) =>
         {
             var schemaCompare = string.Compare(a.Schema, b.Schema, StringComparison.OrdinalIgnoreCase);
             return schemaCompare != 0 ? schemaCompare : string.Compare(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
@@ -734,6 +829,124 @@ internal sealed class SchemaArtifactWriter
         }
 
         return stream.ToArray();
+    }
+
+    private static byte[] BuildTableJson(Table table, IReadOnlyList<Column> columns, ISet<string>? requiredTypeRefs)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true }))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("Schema", table?.SchemaName ?? string.Empty);
+            writer.WriteString("Name", table?.Name ?? string.Empty);
+            WriteTableColumns(writer, columns, requiredTypeRefs);
+            writer.WriteEndObject();
+        }
+
+        return stream.ToArray();
+    }
+
+    private static byte[] BuildTableCacheJson(Table table, IReadOnlyList<Column> columns)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true }))
+        {
+            writer.WriteStartObject();
+            writer.WriteString("Schema", table?.SchemaName ?? string.Empty);
+            writer.WriteString("Name", table?.Name ?? string.Empty);
+
+            if (table?.ObjectId > 0)
+            {
+                writer.WriteNumber("ObjectId", table.ObjectId);
+            }
+
+            if (table != null && table.ModifyDate != default)
+            {
+                var adjusted = table.ModifyDate.Kind == DateTimeKind.Unspecified
+                    ? DateTime.SpecifyKind(table.ModifyDate, DateTimeKind.Local)
+                    : table.ModifyDate;
+                writer.WriteString("ModifyDateUtc", adjusted.ToUniversalTime().ToString("o", CultureInfo.InvariantCulture));
+            }
+
+            WriteTableColumns(writer, columns, null);
+            writer.WriteEndObject();
+        }
+
+        return stream.ToArray();
+    }
+
+    private static void WriteTableColumns(Utf8JsonWriter writer, IReadOnlyList<Column> columns, ISet<string>? requiredTypeRefs)
+    {
+        writer.WritePropertyName("Columns");
+        writer.WriteStartArray();
+        if (columns != null)
+        {
+            foreach (var column in columns)
+            {
+                if (column == null)
+                {
+                    continue;
+                }
+
+                writer.WriteStartObject();
+                if (!string.IsNullOrWhiteSpace(column.Name))
+                {
+                    writer.WriteString("Name", column.Name);
+                }
+
+                var columnTypeRef = SnapshotWriterUtilities.BuildTypeRef(column);
+                var effectiveTypeRef = columnTypeRef;
+                if (string.IsNullOrWhiteSpace(effectiveTypeRef) && !string.IsNullOrWhiteSpace(column.SqlTypeName))
+                {
+                    var normalized = SnapshotWriterUtilities.NormalizeSqlTypeName(column.SqlTypeName);
+                    if (!string.IsNullOrWhiteSpace(normalized))
+                    {
+                        effectiveTypeRef = SnapshotWriterUtilities.BuildTypeRef("sys", normalized);
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(effectiveTypeRef))
+                {
+                    writer.WriteString("TypeRef", effectiveTypeRef);
+                    SnapshotWriterUtilities.RegisterTypeRef(requiredTypeRefs, effectiveTypeRef);
+                }
+                else if (!string.IsNullOrWhiteSpace(column.SqlTypeName))
+                {
+                    writer.WriteString("SqlTypeName", column.SqlTypeName);
+                }
+
+                if (SnapshotWriterUtilities.ShouldEmitIsNullable(column.IsNullable, effectiveTypeRef ?? column.SqlTypeName))
+                {
+                    writer.WriteBoolean("IsNullable", true);
+                }
+
+                if (SnapshotWriterUtilities.ShouldEmitMaxLength(column.MaxLength, effectiveTypeRef))
+                {
+                    writer.WriteNumber("MaxLength", column.MaxLength);
+                }
+
+                var precision = column.Precision;
+                if (SnapshotWriterUtilities.ShouldEmitPrecision(precision, effectiveTypeRef))
+                {
+                    writer.WriteNumber("Precision", precision.GetValueOrDefault());
+                }
+
+                var scale = column.Scale;
+                if (SnapshotWriterUtilities.ShouldEmitScale(scale, effectiveTypeRef))
+                {
+                    writer.WriteNumber("Scale", scale.GetValueOrDefault());
+                }
+
+                if (column.IsIdentityRaw.HasValue && column.IsIdentityRaw.Value == 1)
+                {
+                    writer.WriteBoolean("IsIdentity", true);
+                }
+
+                writer.WriteEndObject();
+            }
+        }
+
+        writer.WriteEndArray();
     }
 
     private static byte[] BuildTableTypeJson(TableType tableType, IReadOnlyList<Column> columns, ISet<string>? requiredTypeRefs)
