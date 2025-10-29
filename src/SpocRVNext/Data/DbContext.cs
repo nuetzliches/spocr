@@ -18,8 +18,47 @@ public class DbContext(IConsoleService consoleService) : IDisposable
 
     public void SetConnectionString(string connectionString)
     {
-        _connection = new SqlConnection(connectionString);
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new ArgumentException("Connection string must not be null or whitespace.", nameof(connectionString));
+        }
+
+        if (_transactions?.Count > 0)
+        {
+            foreach (var transaction in _transactions.ToArray())
+            {
+                try
+                {
+                    RollbackTransaction(transaction);
+                }
+                catch (Exception ex)
+                {
+                    consoleService.Verbose($"[dbctx] rollback during reconfigure failed: {ex.Message}");
+                }
+            }
+        }
+
+        if (_connection != null)
+        {
+            try
+            {
+                if (_connection.State != ConnectionState.Closed)
+                {
+                    _connection.Close();
+                }
+            }
+            catch (Exception ex)
+            {
+                consoleService.Verbose($"[dbctx] close during reconfigure failed: {ex.Message}");
+            }
+            finally
+            {
+                _connection.Dispose();
+            }
+        }
+
         _transactions = [];
+        _connection = new SqlConnection(connectionString);
     }
 
     public void Dispose()

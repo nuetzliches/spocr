@@ -50,10 +50,13 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
   - 2025-10-30: vNext EnvConfiguration/Bootstrapper/Generators entfernen `spocr.json` Fallbacks; neue Tests stellen `.env`-Pflicht sicher.
   - 2025-10-30: CLI `--path` Argument & Project Manager Prompts verweisen nur noch auf `.env`/Projektverzeichnis; keine automatische `spocr.json`-Auflösung mehr, `SPOCR_CONFIG_PATH`/`SPOCR_PROJECT_ROOT` spiegeln `.env`-Pfade.
   - 2025-10-30: Projekt-Registry speichert nur noch `.env`-Pfade; Pull/Build-Hinweise fordern explizit `SPOCR_GENERATOR_DB` statt `spocr.json`-Änderungen ein.
+  - Follow-up: CLI Build-Pfad & Generatoren dürfen `SpocR.DataContext` nicht mehr voraussetzen (Tracking 2025-10-29).
 - [ ] Neue CLI (`init`, `pull`, `build`, `rebuild`) finalisieren und Kommunikationspaket vorbereiten.
 - [ ] Teststrategie v5 definieren (Smoke/Integration vs. Legacy-Abschaltung) und CI entsprechend planen.
-- [ ] DbContext-Implementierung zu schlankem DB-Adapter für die `spocr pull`-Pipeline umbauen (Basis für `src/SpocRVNext/Templates/DbContext`).
-- [ ] Guardrails für DbContext-Oberflächen definieren (interner Kontext darf Ad-hoc/Diagnostics, generierter Kontext nur Execute-Aufrufe) und Tests/Docs ableiten.
+- [x] DbContext-Implementierung zu schlankem DB-Adapter für die `spocr pull`-Pipeline umbauen (Basis für `src/SpocRVNext/Templates/DbContext`).
+  - 2025-10-29: SnapshotBuilder nutzt `SpocRVNext.Data.DbContext`; CLI propagiert Verbindung in beide Kontexte.
+- [~] Guardrails für DbContext-Oberflächen definieren (interner Kontext darf Ad-hoc/Diagnostics, generierter Kontext nur Execute-Aufrufe) und Tests/Docs ableiten.
+  - 2025-10-29: `SetConnectionString` bereinigt bestehende Verbindung, rollt Transaktionen zurück und prüft Leerstrings; Tests/Doku folgen.
 - [ ] Klare Trennung „SpocR Source“ vs. „SpocR Runtime“ ausarbeiten (Packages/Namespaces/Deploymentpfade) und im Architektur-Abschnitt dokumentieren.
 - [~] Post-Migration Repo-Aufspaltung planen: neues Repository `nuetzliches/xtraq` mit Namespace `Xtraq`, Startversion `1.0.0`, keine historischen SpocR-Verweise; SpocR wird bei v4.5 eingefroren und verweist auf Xtraq.
   - `CHANGELOG.md`, `README.md`, `MIGRATION_SpocRVNext.md` und `migration-v5.instructions` dokumentieren den Xtraq-Nachfolger (2025-10-29).
