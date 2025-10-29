@@ -1,8 +1,7 @@
 ﻿using System.Threading.Tasks;
 using McMaster.Extensions.CommandLineUtils;
 using SpocR.CodeGenerators;
-using SpocR.Managers;
-using SpocR.Utils;
+using SpocR.Runtime;
 
 namespace SpocR.Commands.Spocr;
 
@@ -23,9 +22,8 @@ public interface IBuildCommandOptions : ICommandOptions
     Description = "Generate vNext client code from current snapshots using .env",
     ExtendedHelpText = "Configures output via .env (use 'spocr init' to scaffold). JSON helpers generate by default; no preview flags needed.")]
 public class BuildCommand(
-    SpocrManager spocrManager,
-    SpocrProjectManager spocrProjectManager
-) : SpocrCommandBase(spocrProjectManager), IBuildCommandOptions
+    SpocrCliRuntime cliRuntime
+) : SpocrCommandBase, IBuildCommandOptions
 {
     [Option("--generators", "Generator types to execute (TableTypes,Inputs,Models,StoredProcedures)", CommandOptionType.SingleValue)]
     public string GeneratorTypesString { get; set; }
@@ -50,21 +48,8 @@ public class BuildCommand(
 
     public override async Task<int> OnExecuteAsync()
     {
-    // Legacy project alias support: resolve configured path (still stored as config file entry)
-        if (!string.IsNullOrEmpty(Project))
-        {
-            var project = spocrProjectManager.FindByName(Project);
-            if (project != null)
-                Path = project.ConfigFile;
-        }
-        else if (!string.IsNullOrEmpty(Path) && !DirectoryUtils.IsPath(Path))
-        {
-            var project = spocrProjectManager.FindByName(Path);
-            Path = project.ConfigFile;
-        }
-
         await base.OnExecuteAsync();
-        var result = await spocrManager.BuildAsync(this);
+        var result = await cliRuntime.BuildAsync(this);
         return CommandResultMapper.Map(result); // unified exit code mapping
     }
 }

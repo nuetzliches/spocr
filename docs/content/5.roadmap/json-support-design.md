@@ -115,7 +115,7 @@ Phase 3 (Planned):
 
 - Prototype streaming helper; validate resource usage and disposal semantics.
 - Document streaming helper usage and CLI guidance once feature lands.
-- Extend `TestCommand` scenarios to exercise streaming behavior.
+- Extend automated validation tooling to exercise streaming behavior.
 
 Phase 4 (Future):
 

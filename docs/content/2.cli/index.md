@@ -5,34 +5,42 @@ description: Overview of SpocR command-line interface and global options.
 
 # CLI Overview
 
-The SpocR CLI provides commands for project initialization, synchronization, and code generation.
+The SpocR CLI operates against `.env` files that declare connection strings, namespaces, and generator flags. Run `spocr init` once to scaffold the configuration, then reuse the generated `.env` across `pull`, `build`, and future commands.
 
-## Global Options (Excerpt)
+## Global Options
 
-| Option      | Description     |
-| ----------- | --------------- |
-| `--help`    | Show help       |
-| `--verbose` | Verbose logging |
+| Option | Description |
+| ------ | ----------- |
+| `-p, --path <dir>` | Override the working directory (must contain the target `.env`). |
+| `-d, --dry-run` | Print a dry-run banner after execution (writes still occur in the current pipeline). |
+| `-f, --force` | Continue despite warnings when a command supports it. |
+| `-q, --quiet` | Suppress interactive prompts and skip auto-update checks. |
+| `-v, --verbose` | Emit detailed logging (pipeline steps, timings, cache hints). |
+| `--no-cache` | Force a full snapshot rebuild in `pull`, ignoring cached metadata. |
+| `--procedure <schema.proc>` | Limit `pull` (and future generators) to matching stored procedures (wildcards supported). |
+| `--no-auto-update` | Skip the auto-update probe (useful for CI). |
+| `--no-version-check` | Suppress version compatibility checks against generated artifacts. |
+| `--debug` | Use the debug environment wiring (mirrors legacy `--debug` switch).
 
 ## Core Commands
 
-| Command   | Purpose                                       |
-| --------- | --------------------------------------------- |
-| `init`    | Bootstrap `.env` configuration and namespace  |
-| `pull`    | Read stored procedures & schema from database |
-| `build`   | Execute code generation                       |
-| `rebuild` | Clean and regenerate                          |
-| `remove`  | Remove generated artifacts                    |
-| `test`    | Run tests and validations                     |
-| `version` | Show version                                  |
-| `config`  | Manage configuration files and templates      |
-| `project` | Project-related operations                    |
-| `schema`  | Work with database schema                     |
+| Command   | Purpose                                                                 |
+| --------- | ----------------------------------------------------------------------- |
+| `init`    | Bootstrap `.env` configuration and namespace metadata                   |
+| `pull`    | Read stored procedures & schema into `.spocr` using `.env` credentials  |
+| `build`   | Generate runtime artifacts (table types, helpers) from the current snapshot |
+| `rebuild` | Run `pull` and `build` in sequence for a clean refresh                   |
+| `remove`  | Legacy placeholder (prints deprecation notice)                          |
+| `version` | Display installed and latest CLI versions                               |
+| `config`  | Manage `.env` defaults and template paths                               |
+| `project` | List or modify registered project roots                                 |
+| `schema`  | Legacy placeholder retained for compatibility (no active subcommands)   |
 
 ## Examples
 
 ```bash
-spocr build --verbose
-spocr pull --connection "Server=.;Database=AppDb;Trusted_Connection=True;"
-spocr test --validate
+spocr init --namespace Acme.Product.Data --connection "Server=.;Database=AppDb;Trusted_Connection=True;"
+spocr pull -p debug --no-cache --verbose
+spocr build -p debug --generators TableTypes,StoredProcedures
+dotnet test tests/Tests.sln
 ```

@@ -9,10 +9,11 @@ using Shouldly;
 using Moq;
 using SpocR.SpocRVNext.Data;
 using SpocR.SpocRVNext.Data.Models;
-using SpocR.Managers;
 using SpocR.Models;
 using SpocR.Services;
 using Xunit;
+using SchemaManager = SpocR.Schema.SchemaManager;
+using DbSchema = SpocR.SpocRVNext.Data.Models.Schema;
 
 namespace SpocR.Tests.Cli;
 
@@ -77,12 +78,12 @@ public class HeuristicAndCacheTests
         {
             var normalized = queryString?.ToLowerInvariant() ?? string.Empty;
 
-            if (typeof(T) == typeof(Schema) && normalized.Contains("from sys.schemas"))
+            if (typeof(T) == typeof(DbSchema) && normalized.Contains("from sys.schemas"))
             {
                 var schemas = _storedProcedures
                     .Select(sp => sp.SchemaName)
                     .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .Select(name => (T)(object)new Schema { Name = name })
+                    .Select(name => (T)(object)new DbSchema { Name = name })
                     .ToList();
                 return Task.FromResult<List<T>?>(schemas);
             }
@@ -216,7 +217,7 @@ public class HeuristicAndCacheTests
         // Minimal shims for other required calls in manager path
         public Task<List<TableType>> TableTypeListAsync(string schemaList, CancellationToken ct) => Task.FromResult(new List<TableType>());
         public Task<Column?> TableColumnAsync(string schema, string table, string column, CancellationToken ct) => Task.FromResult<Column?>(null);
-        public Task<List<Schema>> SchemaListAsync(CancellationToken ct) => Task.FromResult(_storedProcedures.Select(s => s.SchemaName).Distinct().Select(n => new Schema { Name = n }).ToList());
+        public Task<List<DbSchema>> SchemaListAsync(CancellationToken ct) => Task.FromResult(_storedProcedures.Select(s => s.SchemaName).Distinct().Select(n => new DbSchema { Name = n }).ToList());
         public Task<List<Column>> TableTypeColumnListAsync(int id, CancellationToken ct) => Task.FromResult(new List<Column>());
         public Task<DbObject?> ObjectAsync(string schema, string name, CancellationToken ct)
         {

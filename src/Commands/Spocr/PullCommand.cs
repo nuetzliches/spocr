@@ -1,5 +1,5 @@
 ﻿using McMaster.Extensions.CommandLineUtils;
-using SpocR.Managers;
+using SpocR.Runtime;
 using System.Threading.Tasks;
 using SpocR.Enums;
 using SpocR.Infrastructure;
@@ -12,14 +12,13 @@ namespace SpocR.Commands.Spocr;
     Description = "Pull database metadata into .spocr snapshots using .env settings",
     ExtendedHelpText = "Requires SPOCR_GENERATOR_DB from .env (seed via 'spocr init'). JSON helpers ship enabled by default.")]
 public class PullCommand(
-    SpocrManager spocrManager,
-    SpocrProjectManager spocrProjectManager
-) : SpocrCommandBase(spocrProjectManager)
+    SpocrCliRuntime cliRuntime
+) : SpocrCommandBase
 {
     public override async Task<int> OnExecuteAsync()
     {
         await base.OnExecuteAsync();
-        var result = await spocrManager.PullAsync(CommandOptions);
+        var result = await cliRuntime.PullAsync(CommandOptions);
         return Map(result);
     }
 

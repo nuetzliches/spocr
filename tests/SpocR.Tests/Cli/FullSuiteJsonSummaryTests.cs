@@ -23,6 +23,12 @@ public class FullSuiteJsonSummaryTests
         var root = global::SpocR.TestFramework.TestPaths.RepoRoot;
         var summary = global::SpocR.TestFramework.TestPaths.Artifacts("test-summary.json");
         if (File.Exists(summary)) File.Delete(summary);
+        var testCommandType = typeof(global::SpocR.Program).Assembly.GetType("SpocR.Commands.Spocr.TestCommand");
+        if (testCommandType == null)
+        {
+            Console.WriteLine("[FullSuiteJsonSummaryTests] Skipping CLI validation run (test command unavailable).\n- Ensure SPOCR legacy test command removed.");
+            return;
+        }
         var prevCwd = Directory.GetCurrentDirectory();
         Directory.SetCurrentDirectory(root); // ensure repository context for validation (looks for src/SpocR.csproj)
         int exit;

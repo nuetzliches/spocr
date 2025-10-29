@@ -27,8 +27,6 @@ public class InitCommand : SpocrCommandBase
     [Option("-s|--schemas", "Comma separated allow-list (SPOCR_BUILD_SCHEMAS)", CommandOptionType.SingleValue)]
     public string Schemas { get; set; }
 
-    public InitCommand(SpocR.Managers.SpocrProjectManager projectManager) : base(projectManager) { }
-
     public override async Task<int> OnExecuteAsync()
     {
         await base.OnExecuteAsync();

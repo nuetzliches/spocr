@@ -1,18 +1,17 @@
 ﻿using System.Threading.Tasks;
 using McMaster.Extensions.CommandLineUtils;
-using SpocR.Managers;
+using SpocR.Runtime;
 
 namespace SpocR.Commands.Spocr;
 
 [Command("version", Description = "Show version information")]
 public class VersionCommand(
-    SpocrManager spocrManager,
-    SpocrProjectManager spocrProjectManager
-) : SpocrCommandBase(spocrProjectManager)
+    SpocrCliRuntime cliRuntime
+) : SpocrCommandBase
 {
     public override async Task<int> OnExecuteAsync()
     {
         await base.OnExecuteAsync();
-        return (int)await spocrManager.GetVersionAsync();
+        return (int)await cliRuntime.GetVersionAsync();
     }
 }

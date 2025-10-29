@@ -9,7 +9,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 using SpocR.Enums;
 using SpocR.Extensions;
-using SpocR.Managers;
+using SpocR.Infrastructure;
 using SpocR.Models;
 using SpocR.Services;
 

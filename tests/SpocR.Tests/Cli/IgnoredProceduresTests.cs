@@ -4,12 +4,13 @@ using System.Linq;
 using System.Threading.Tasks;
 using Shouldly;
 using Moq;
+using Xunit;
 using SpocR.SpocRVNext.Data;
 using SpocR.SpocRVNext.Data.Models;
-using SpocR.Managers;
 using SpocR.Models;
 using SpocR.Services;
-using Xunit;
+
+using DbSchema = SpocR.SpocRVNext.Data.Models.Schema;
 
 namespace SpocR.Tests.Cli;
 
@@ -24,15 +25,29 @@ public class IgnoredProceduresTests
             _sps = sps.ToList();
             _defs = defs;
         }
-        public Task<List<StoredProcedure>> StoredProcedureListAsync(string schemaList, System.Threading.CancellationToken ct) => Task.FromResult(_sps);
+        public Task<List<StoredProcedure>> StoredProcedureListAsync(string schemaList, System.Threading.CancellationToken ct)
+            => Task.FromResult(_sps);
+
         public Task<StoredProcedureDefinition> StoredProcedureDefinitionAsync(string schema, string name, System.Threading.CancellationToken ct)
         {
             var key = $"{schema}.{name}";
-            return Task.FromResult(new StoredProcedureDefinition { SchemaName = schema, Name = name, Definition = _defs.TryGetValue(key, out var d) ? d : null });
+            var definition = _defs.TryGetValue(key, out var d) ? d : null;
+            return Task.FromResult(new StoredProcedureDefinition
+            {
+                SchemaName = schema,
+                Name = name,
+                Definition = definition
+            });
         }
-        public Task<List<Schema>> SchemaListAsync(System.Threading.CancellationToken ct) => Task.FromResult(_sps.Select(s => s.SchemaName).Distinct().Select(n => new Schema { Name = n }).ToList());
-        public Task<List<TableType>> TableTypeListAsync(string schemaList, System.Threading.CancellationToken ct) => Task.FromResult(new List<TableType>()); // none needed
-        public Task<List<Column>> TableTypeColumnListAsync(int id, System.Threading.CancellationToken ct) => Task.FromResult(new List<Column>());
+
+        public Task<List<DbSchema>> SchemaListAsync(System.Threading.CancellationToken ct)
+            => Task.FromResult(_sps.Select(s => s.SchemaName).Distinct().Select(n => new DbSchema { Name = n }).ToList());
+
+        public Task<List<TableType>> TableTypeListAsync(string schemaList, System.Threading.CancellationToken ct)
+            => Task.FromResult(new List<TableType>()); // none needed
+
+        public Task<List<Column>> TableTypeColumnListAsync(int id, System.Threading.CancellationToken ct)
+            => Task.FromResult(new List<Column>());
         protected override Task<List<T>?> OnListAsync<T>(string qs, List<Microsoft.Data.SqlClient.SqlParameter> p, System.Threading.CancellationToken c, AppSqlTransaction? t)
         {
             // Prevent base DbContext from attempting real SQL queries in unit tests

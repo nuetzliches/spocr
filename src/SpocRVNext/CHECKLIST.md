@@ -41,8 +41,11 @@
   - CI & Entwickler-Dokus auf Projektpfad-Kommandos umgestellt (`-p <dir>`); Roadmap-Referenzen folgen (2025-10-29).
   - 2025-10-30: CLI `--path` verarbeitet nur noch Projektverzeichnisse/.env; Legacy `spocr.json`-Automatik entfernt, Project Manager Prompts aktualisiert, `SPOCR_CONFIG_PATH`/`SPOCR_PROJECT_ROOT` normalisieren auf `.env`.
   - 2025-10-30: Projektverwaltung speichert `.env`-Ziele und Fehlermeldungen fordern `SPOCR_GENERATOR_DB` statt `spocr.json`-Mutationen ein.
+  - 2025-10-31: DbContextGenerator leitet Namespace & Ausgabeverzeichnis direkt aus `.env` ab; `spocr.json` bleibt lediglich für Legacy-Diagnosen verfügbar.
+  - 2025-10-29: Unbenutzte Inputs/Outputs/Results Generator-Stubs in `SpocRVNext` gelöscht; konsolidierte Procedures-Generierung bleibt alleiniger Pfad.
 - [x] Generator-Mode-Fallbacks entfernen (`SPOCR_GENERATOR_MODE`, `--mode`); next-only Verhalten dokumentiert und getestet.
-- [ ] Legacy-Code nach `src/SpocRVNext` verschieben oder entfernen; Projektstruktur bereinigen.
+- [~] Legacy-Code nach `src/SpocRVNext` verschieben oder entfernen; Projektstruktur bereinigen.
+  - 2025-10-29: Unbenutzte Inputs/Outputs/Results Generator-Stubs entfernt; verbleibende Konsolidierungsschritte folgen mit Procedures-/TableType-Pipeline.
 - [ ] Legacy-Tests deaktivieren, Nachfolge-Tests (Smoke/Integration) vorbereiten.
 - [ ] Deployment-/Release-Pipeline für v5 aufsetzen; parallele Betriebsfähigkeit sicherstellen.
 
@@ -77,7 +80,8 @@
   - 2025-10-30: CLI-Hilfen/Roadmap notieren `--path` Normalisierung, `SPOCR_CONFIG_PATH`/`SPOCR_PROJECT_ROOT` spiegeln `.env` Pfade.
   - 2025-10-28: CLI Hilfetext & `spocr init` Output auf JSON-Default ausgerichtet (keine separaten JSON-Toggles mehr).
   - 2025-10-28: CLI `pull`/`build`/`rebuild` Hilfetexte auf `.env`-Kontext ohne Preview-Toggles umgestellt.
-  - Next: `docs/content/2.cli` Befehlsreferenzen auf neuen Hilfetext synchronisieren.
+  - 2025-10-31: CLI Test-Doku auf Entfernung des `spocr test` Verbs angepasst; Übergangshinweis auf `dotnet test` ergänzt.
+  - 2025-10-31: `docs/content/2.cli` Overview/pull/build Seiten auf `.env` Defaults, neue Optionen und Legacy-Platzhalter aktualisiert.
 - [>] Kommunikationsplan für Kunden/Partner erstellen (Zeitplan, Forced-Upgrade-Botschaft, Supportkanäle).
 - [>] Feedbackschleifen etablieren (Pilotkunden, Beta, Telemetrieauswertung).
 - [>] SpocR Freeze-Kommunikation vorbereiten: v4.5 finalisiert, deutet auf `nuetzliches/xtraq` (Namespace `Xtraq`, Version `1.0.0`).

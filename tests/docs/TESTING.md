@@ -7,15 +7,16 @@
 ### Running Tests
 
 ```bash
-# Run all tests
-spocr test
+# Run all tests (solution wide)
+dotnet test tests/Tests.sln
 
-# Validate generated code only
-spocr test --validate
+# Focus on unit tests only
+dotnet test tests/SpocR.Tests
 
 # (Planned) Structured CI output & JUnit XML (not yet implemented)
-# (Removed) Performance benchmark shortcut (de-scoped for now)
 ```
+
+> The legacy `spocr test` verb was removed from the vNext CLI on 2025-10-31. Until the replacement workflow ships, invoke `dotnet test` directly.
 
 ### Test Structure
 
@@ -76,8 +77,8 @@ Production code remains in `src/`.
 ## Example: Developer Workflow
 
 ```bash
+dotnet test tests/Tests.sln
 dotnet test tests/SpocR.Tests
-spocr test --validate
 ```
 
 ## Roadmap (condensed)

@@ -3,9 +3,7 @@ using System.Threading.Tasks;
 using McMaster.Extensions.CommandLineUtils;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using SpocR.Commands.Project;
 using SpocR.Commands.Spocr;
-using SpocR.Commands.Snapshot;
 using SpocR.SpocRVNext.Data;
 using SpocR.Extensions;
 using SpocR.AutoUpdater;
@@ -21,12 +19,7 @@ namespace SpocR;
 [Subcommand(typeof(PullCommand))]
 [Subcommand(typeof(BuildCommand))]
 [Subcommand(typeof(RebuildCommand))]
-[Subcommand(typeof(RemoveCommand))]
 [Subcommand(typeof(VersionCommand))]
-[Subcommand(typeof(ConfigCommand))]
-[Subcommand(typeof(ProjectCommand))]
-[Subcommand(typeof(SnapshotCommand))]
-[Subcommand(typeof(SpocR.Commands.Test.TestCommand))]
 [HelpOption("-?|-h|--help")]
 public class Program
 {

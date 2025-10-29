@@ -9,7 +9,7 @@ using SpocR.Services;
 using SpocR.SpocRVNext.Metadata;
 using SpocR.Utils;
 
-namespace SpocR.Managers;
+namespace SpocR.Schema;
 
 /// <summary>
 /// Aggregated statistics for JSON result type enrichment across all procedures in a pull run.

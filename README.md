@@ -29,8 +29,8 @@ spocr pull
 :: Generate code into the configured output folders
 spocr build
 
-:: Run validation + unit tests with CI formatting
-spocr test --ci --junit
+:: Run the .NET test suites (temporary until the new CLI test surface ships)
+dotnet test tests/Tests.sln --configuration Debug
 ```
 
 `spocr init` merges inferred settings with an `.env` template. Re-running the command safely updates keys without disrupting comments. The `.env` file is committed locally; CI can override any value via environment variables or CLI flags.
@@ -42,8 +42,9 @@ spocr test --ci --junit
 | `spocr init`           | Creates or updates `.env` with namespace, schema allow-list, and connection hints.               |
 | `spocr pull`           | Reads database metadata and writes versioned snapshots under `debug/` (or the selected profile). |
 | `spocr build`          | Generates the `SpocRDbContext`, inputs, models, result sets, and executor helpers.               |
-| `spocr test`           | Runs validation, unit, and (optional) integration suites with JSON / JUnit output.               |
 | `spocr snapshot clean` | Prunes historical snapshot files while keeping a configurable retention window.                  |
+
+> ℹ️ The legacy `spocr test` verb was removed from the v5 CLI. Until the new validation surface lands, use `dotnet test` (see Quick Start) to execute the unit and integration suites.
 
 Use `spocr --help` to discover all verbs and shared options (profiles, verbosity, dry-runs, etc.).
 
@@ -106,7 +107,7 @@ Follow the guardrails from `CHECKLIST.md` whenever generator-touching work is do
 
 1. `spocr pull`
 2. `spocr build`
-3. `spocr test --ci`
+3. `dotnet test tests/Tests.sln`
 4. `eng/quality-gates.ps1` (runs analyzers, coverage, and style checks)
 5. Refresh golden snapshots if `debug/*` output changes (`write-golden` / `verify-golden`)
 

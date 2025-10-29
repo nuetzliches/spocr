@@ -2,18 +2,20 @@ using System.Collections.Generic;
 using System.Linq;
 using SpocR.SpocRVNext.Data.Models;
 
+using DbSchema = SpocR.SpocRVNext.Data.Models.Schema;
+
 namespace SpocR.Models;
 
 public class SchemaModel
 {
-    private readonly Schema _item;
+    private readonly DbSchema _item;
 
     public SchemaModel() // required for json serialization
     {
-        _item = new Schema();
+    _item = new DbSchema();
     }
 
-    public SchemaModel(Schema item)
+    public SchemaModel(DbSchema item)
     {
         _item = item;
     }

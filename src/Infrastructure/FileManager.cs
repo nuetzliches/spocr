@@ -8,7 +8,7 @@ using SpocR.Interfaces;
 using SpocR.Services;
 using SpocR.Utils;
 
-namespace SpocR.Managers;
+namespace SpocR.Infrastructure;
 
 public interface IFileManager<TConfig> where TConfig : class, IVersioned
 {

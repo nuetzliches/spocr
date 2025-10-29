@@ -12,7 +12,7 @@ using SpocR.CodeGenerators.Utils;
 using SpocR.Contracts;
 using SpocR.Enums;
 using SpocR.Extensions;
-using SpocR.Managers;
+using SpocR.Infrastructure;
 using SpocR.Models;
 using SpocR.Services;
 using SpocR.Utils;

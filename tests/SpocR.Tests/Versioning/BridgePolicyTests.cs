@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Shouldly;
 using SpocR.AutoUpdater;
-using SpocR.Managers;
+using SpocR.Infrastructure;
 using SpocR.Models;
 using SpocR.Services;
 using Xunit;

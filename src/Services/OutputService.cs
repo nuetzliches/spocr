@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
 using SpocR.Enums;
 using SpocR.Extensions;
-using SpocR.Managers;
+using SpocR.Infrastructure;
 using SpocR.Models;
 using SpocR.Utils;
 

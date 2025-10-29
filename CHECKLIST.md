@@ -54,6 +54,8 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
   - 2025-10-31: Service-Registrierung lässt die `SpocR.DataContext`-Bridge fallen; Tests laufen nur noch auf `SpocRVNext.Data`. `src/DataContext/` bleibt als Legacy-Ordner für das Aufräum-Follow-up markiert.
   - 2025-10-31: SnapshotSchemaMetadataProvider bezieht Filter ausschließlich aus `.env`/Env-Variablen; `FileManager<ConfigurationModel>` entfällt.
   - 2025-10-31: Schema-CLI (`spocr schema`) deaktiviert; Manager & Commands bleiben als leere Platzhalter ohne `spocr.json`-Schreibpfad.
+  - 2025-10-31: DbContextGenerator liest Namespace & Output-Verzeichnis aus `.env`; `spocr.json` dient nur noch als Legacy-Diagnosereferenz.
+  - 2025-10-29: Unbenutzte vNext Inputs/Outputs/Results-Generatoren entfernt; konsolidierte Procedures-Generation bleibt aktiv.
 - [ ] Neue CLI (`init`, `pull`, `build`, `rebuild`) finalisieren und Kommunikationspaket vorbereiten.
 - [ ] Teststrategie v5 definieren (Smoke/Integration vs. Legacy-Abschaltung) und CI entsprechend planen.
 - [x] DbContext-Implementierung zu schlankem DB-Adapter für die `spocr pull`-Pipeline umbauen (Basis für `src/SpocRVNext/Templates/DbContext`).
@@ -113,7 +115,8 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
   - 2025-10-29: `samples/restapi/.env.example` bereinigt (keine JSON Preview Keys mehr nötig).
   - 2025-10-28: CLI Hilfetext und `spocr init` Ausgabe auf JSON-Default ausgerichtet (keine separaten JSON-Toggles mehr).
   - 2025-10-28: CLI `pull`/`build`/`rebuild` Hilfetexte auf `.env`-Kontext ohne Preview-Toggles umgestellt.
-  - Next: `docs/content/2.cli` Befehlsreferenzen auf neue `.env`-/JSON-Defaults prüfen und konsolidieren.
+  - 2025-10-31: CLI-Dokumentation auf den entfernten `spocr test`-Befehl angepasst (`README`, `docs/content/2.cli/*`, `tests/README.md`); Workaround über `dotnet test` beschrieben.
+  - 2025-10-31: `docs/content/2.cli` Befehlsreferenzen auf `.env`-/JSON-Defaults und neue Global-Optionen synchronisiert (Overview, pull, build).
   - 2025-10-29: MIGRATION Docs auf Zielzustand gesetzt, Legacy-Narrative in Hauptseiten noch zu kürzen.
 - [x] README/Docs: Namespace-Ableitung & Override mit Beispiel diff ergänzen. (docs/content/3.reference/env-bootstrap.md)
 - [>] CHANGELOG v4.5-rc/v5 vorbereiten (Removed Keys, neue CLI, Bridge Policy).
@@ -124,7 +127,7 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
   - JSON Snapshot Flags aktualisiert (`docs/content/3.reference/json-procedures.md`).
 - [~] SpocR Freeze-Kommunikation dokumentieren: v4.5 weist auf `nuetzliches/xtraq` (Namespace `Xtraq`, Version `1.0.0`) als Nachfolger hin.
   - README, CHANGELOG, Migration Guide & Instructions um Hinweis auf Xtraq ergänzt (2025-10-29).
-- [ ] Inhalte aus `src/SpocRVNext` eine Ebene höher ziehen und konsolidierte Struktur dokumentieren.
+- [ ] Inhalte aus `src/SpocRVNext` eine Ebene höher ziehen und Struktur konsolidieren.
 - [ ] `.ai/` Inhalte nach jeder relevanten Änderung prüfen und synchronisieren (Guidelines, Prompts, README).
 
 ## CI, Automatisierung & Release

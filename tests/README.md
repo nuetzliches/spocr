@@ -15,12 +15,14 @@ tests/
 ## Quick Start
 
 ```bash
-# Self-validation (generator + syntax)
-spocr test --validate
+# Run the complete solution tests (preferred during the CLI test hiatus)
+dotnet test tests/Tests.sln
 
-# Unit tests
+# Focus on unit tests only
 dotnet test tests/SpocR.Tests
 ```
+
+> The historical `spocr test` shortcut was removed from the v5 CLI. The suite now runs directly through `dotnet test` until the replacement workflow is finalized.
 
 ## Goals
 

@@ -9,42 +9,48 @@ aiTags: [cli, pull, sync]
 
 # pull
 
-Reads metadata (stored procedures, parameters, optionally tables) from a SQL Server database and updates internal models.
+Synchronizes stored procedures, parameters, and schema metadata into `.spocr/` using the connection defined in your `.env` file.
 
 ## Usage
 
 ```bash
-spocr pull --connection "<connection-string>" [Optionen]
+spocr pull [options]
 ```
 
-### Important Options
+## Configuration
 
-| Option            | Description                                                                   |
-| ----------------- | ----------------------------------------------------------------------------- |
-| `--schema <name>` | Limit to a single schema (repeatable).                                        |
-| `--verbose`       | Emit detailed per-procedure load / heuristic logs.                            |
-| `--no-cache`      | Force a full re-parse of every stored procedure (ignore & don't write cache). |
+- `SPOCR_GENERATOR_DB` **must** be set in `.env`. Run `spocr init` to scaffold the key or update it manually.
+- Optional allow-list filters come from `.env` (`SPOCR_BUILD_SCHEMAS=core,identity`).
+- Use `SPOCR_BUILD_PROCEDURES` (set via `--procedure`) to target specific stored procedures when triaging issues.
 
-When `--no-cache` is specified you will only see `[proc-loaded]` entries (no `[proc-skip]`) and a banner `[cache] Disabled (--no-cache)`. Use this after modifying parsing/JSON heuristics or when validating metadata changes.
+If the connection string is missing or empty, the command fails fast with guidance to update `.env`.
+
+## Options
+
+| Option | Description |
+| ------ | ----------- |
+| `-p, --path <dir>` | Point to a different project root that already contains `.env`. |
+| `--no-cache` | Ignore existing `.spocr/cache` entries and force a full re-parse. |
+| `--procedure <schema.proc>` | Comma-separated filter that maps to `SPOCR_BUILD_PROCEDURES` for the current run. |
+| `-v, --verbose` | Emit per-procedure progress, timings, and cache reuse hints. |
+| `-d, --dry-run` | Print a dry-run banner after execution (pipeline still performs its work). |
+| `-q, --quiet` | Suppress update checks and confirmations (CI-friendly). |
+
+> Additional global switches (`--no-auto-update`, `--no-version-check`, `--debug`, `-f/--force`) behave as described in the [CLI overview](../index.md).
+
+When `--no-cache` is specified you will only see `[proc-loaded]` entries (no `[proc-skip]`) and the banner `[cache] Disabled (--no-cache)`. Use this after modifying parsing/JSON heuristics or when validating metadata changes.
 
 ## Behavior Contract (Draft)
 
 ```json
 {
   "command": "pull",
-  "inputs": {
-    "--connection": { "type": "string", "required": true },
-    "--schema": { "type": "string", "required": false },
-    "--verbose": { "type": "boolean", "required": false }
-  },
-  "outputs": {
-    "writes": ["Schema Cache"],
-    "console": ["Summary", "Warnings", "Errors"],
-    "exitCodes": {
-      "0": "Success",
-      "1": "ConnectionFailed",
-      "2": "ExtractionError"
-    }
+  "reads": [".env"],
+  "writes": [".spocr/schema/**/*.json", ".spocr/cache/*.json"],
+  "exitCodes": {
+    "0": "Success",
+    "1": "ValidationError",
+    "2": "ExtractionError"
   }
 }
 ```
@@ -52,10 +58,12 @@ When `--no-cache` is specified you will only see `[proc-loaded]` entries (no `[p
 ## Examples
 
 ```bash
-spocr pull --connection "Server=.;Database=AppDb;Trusted_Connection=True;"
-spocr pull --connection "Server=.;Database=AppDb;Trusted_Connection=True;" --schema custom
-spocr pull --connection "Server=.;Database=AppDb;Trusted_Connection=True;" --no-cache --verbose
+# Standard metadata refresh using the current directory
+spocr pull
 
----
-Note: This document was translated from German on 2025-10-02 to comply with the English-only language policy.
+# Force fresh parsing while diagnosing snapshot issues
+spocr pull --no-cache --verbose
+
+# Run against the debug sandbox and inspect only the identity schema procedures
+spocr pull -p debug --procedure identity.%
 ```

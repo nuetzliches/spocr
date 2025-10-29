@@ -6,7 +6,7 @@ using Shouldly;
 using SpocR.CodeGenerators.Models;
 using SpocR.CodeGenerators.Utils;
 using SpocR.Services;
-using SpocR.Managers;
+using SpocR.Infrastructure;
 using SpocR.Models;
 using SpocR.Contracts;
 using SpocR.SpocRVNext.Data.Models;

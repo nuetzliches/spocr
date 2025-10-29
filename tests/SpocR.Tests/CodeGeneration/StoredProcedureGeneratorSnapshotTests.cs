@@ -8,7 +8,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using SpocR.CodeGenerators.Models;
 using SpocR.CodeGenerators.Utils;
 using SpocR.Contracts;
-using SpocR.Managers;
+using SpocR.Infrastructure;
 using SpocR.Models;
 using SpocR.Services;
 using SpocR.SpocRVNext.Data.Models;

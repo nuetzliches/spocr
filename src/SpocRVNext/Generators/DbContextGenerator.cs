@@ -3,7 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.Text;
-using SpocR.Managers;
+using SpocR.Infrastructure;
 using SpocR.Models;
 using SpocR.Services;
 using SpocR.Utils;
@@ -22,38 +22,54 @@ namespace SpocR.SpocRVNext.Generators;
 /// </summary>
 public class DbContextGenerator
 {
-    private readonly FileManager<ConfigurationModel> _configFile;
+    private readonly FileManager<ConfigurationModel>? _legacyConfig;
     private readonly OutputService _outputService;
     private readonly IConsoleService _console;
     private readonly ITemplateRenderer _renderer;
     private readonly ITemplateLoader? _loader;
-    private readonly IGeneratorModeProvider _modeProvider;
     private readonly Func<IReadOnlyList<ProcedureDescriptor>> _proceduresProvider;
 
-    public DbContextGenerator(FileManager<ConfigurationModel> configFile, OutputService outputService, IConsoleService console, ITemplateRenderer renderer, IGeneratorModeProvider modeProvider, ITemplateLoader? loader = null, Func<IReadOnlyList<ProcedureDescriptor>>? proceduresProvider = null)
+    public DbContextGenerator(FileManager<ConfigurationModel> configFile, OutputService outputService, IConsoleService console, ITemplateRenderer renderer, ITemplateLoader? loader = null, Func<IReadOnlyList<ProcedureDescriptor>>? proceduresProvider = null)
     {
-        _configFile = configFile;
+        _legacyConfig = configFile;
         _outputService = outputService;
         _console = console;
         _renderer = renderer;
         _loader = loader;
-        _modeProvider = modeProvider;
         _proceduresProvider = proceduresProvider ?? (() => Array.Empty<ProcedureDescriptor>());
     }
-    private bool IsEnabled() => _modeProvider.Mode is "dual" or "next";
 
     public Task GenerateAsync(bool isDryRun) => GenerateInternalAsync(isDryRun);
 
     private async Task GenerateInternalAsync(bool isDryRun)
     {
-        if (!IsEnabled())
+        // Load .env configuration (primary source) with safe fallback to legacy defaults.
+        var projectRoot = DirectoryUtils.GetWorkingDirectory();
+        EnvConfiguration envConfig;
+        try
         {
-            _console.Verbose("[dbctx] Skipped (generator mode disabled)");
-            return;
+            envConfig = EnvConfiguration.Load(projectRoot: projectRoot);
+        }
+        catch (Exception ex)
+        {
+            _console.Warn("[dbctx] Failed to load .env configuration: " + ex.Message);
+            envConfig = new EnvConfiguration();
         }
 
-        // Resolve base namespace via configuration / project structure (unified approach)
-        var explicitNs = _configFile.Config.Project.Output.Namespace?.Trim();
+        // Resolve namespace from .env first, fall back to legacy configuration.
+        string? explicitNs = envConfig.NamespaceRoot?.Trim();
+        if (string.IsNullOrWhiteSpace(explicitNs))
+        {
+            try
+            {
+                explicitNs = _legacyConfig?.Config.Project.Output.Namespace?.Trim();
+            }
+            catch (Exception legacyEx)
+            {
+                _console.Verbose("[dbctx] Legacy namespace fallback failed: " + legacyEx.Message);
+            }
+        }
+
         string baseNs;
         if (!string.IsNullOrWhiteSpace(explicitNs))
         {
@@ -63,40 +79,48 @@ public class DbContextGenerator
         {
             try
             {
-                // Use NamespaceResolver fallback (shared heuristic) – prevents silent skip in tests.
-                var envCfg = EnvConfiguration.Load();
-                var resolver = new NamespaceResolver(envCfg, msg => _console.Warn("[dbctx] ns-resolver: " + msg));
-                baseNs = resolver.Resolve(Directory.GetCurrentDirectory());
-                _console.Verbose($"[dbctx] Derived namespace '{baseNs}' (no explicit Project.Output.Namespace)");
+                var resolver = new NamespaceResolver(envConfig, msg => _console.Warn("[dbctx] ns-resolver: " + msg));
+                baseNs = resolver.Resolve(projectRoot);
+                _console.Verbose($"[dbctx] Derived namespace '{baseNs}' via resolver");
             }
             catch (Exception ex)
             {
-                _console.Warn("[dbctx] Missing Project.Output.Namespace – derivation failed: " + ex.Message);
+                _console.Warn("[dbctx] Unable to determine namespace: " + ex.Message);
                 return;
             }
         }
 
-        // Determine base directory (parent of DataContext) or override via ENV
-        var dcPath = _configFile.Config.Project.Output.DataContext.Path;
-        var dcDir = DirectoryUtils.GetWorkingDirectory(dcPath);
-        var rootDir = dcDir;
-        if (!string.IsNullOrWhiteSpace(dcPath) && dcPath.Trim('.', ' ', '/', '\\').Length > 0)
+        // Determine output directory using SPOCR_OUTPUT_DIR (defaults to SpocR).
+        string outputDir = string.IsNullOrWhiteSpace(envConfig.OutputDir) ? "SpocR" : envConfig.OutputDir.Trim();
+        string spocrDir;
+        if (Path.IsPathRooted(outputDir))
         {
-            var parent = Directory.GetParent(dcDir);
-            if (parent != null) rootDir = parent.FullName;
+            spocrDir = Path.GetFullPath(outputDir);
         }
-        var spocrDir = Path.Combine(rootDir, "SpocR");
+        else
+        {
+            spocrDir = Path.GetFullPath(Path.Combine(projectRoot, outputDir));
+        }
+
+        if (!Directory.Exists(spocrDir) && !isDryRun)
+        {
+            Directory.CreateDirectory(spocrDir);
+        }
+
         try
         {
-            // Zusatzdiagnose: aktuelle CWD und Raw WorkingDirectory ohne dcPath
-            var rawWorking = DirectoryUtils.GetWorkingDirectory();
-            _console.Verbose($"[dbctx] mode={_modeProvider.Mode} dcPath='{dcPath ?? "<null>"}' cwd={Directory.GetCurrentDirectory()} rawWorking={rawWorking} rootDir={rootDir} spocrDir={spocrDir}");
+            _console.Verbose($"[dbctx] output='{spocrDir}' namespace='{baseNs}' cwd={Directory.GetCurrentDirectory()}");
+            if (_legacyConfig != null)
+            {
+                var dcPath = _legacyConfig.Config.Project.Output.DataContext.Path;
+                var dcDir = DirectoryUtils.GetWorkingDirectory(dcPath);
+                _console.Verbose($"[dbctx] legacy dcPath='{dcPath ?? "<null>"}' resolved='{dcDir}'");
+            }
         }
-        catch (Exception ex)
+        catch (Exception diagEx)
         {
-            _console.Verbose($"[dbctx] diag-error: {ex.Message}");
+            _console.Verbose($"[dbctx] diag-error: {diagEx.Message}");
         }
-        if (!Directory.Exists(spocrDir) && !isDryRun) Directory.CreateDirectory(spocrDir);
 
         // Append .SpocR suffix only if not already present.
         var finalNs = baseNs.EndsWith(".SpocR", StringComparison.Ordinal) ? baseNs : baseNs + ".SpocR";

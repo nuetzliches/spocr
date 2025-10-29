@@ -49,7 +49,6 @@ public class GoldenHashPipelineDeterminismTests
             var stderr = proc.StandardError.ReadToEnd();
             proc.WaitForExit();
             stdout.ShouldContain("Pulled 8 stored procedures");
-            stdout.ShouldContain("skipping legacy DataContext build");
             proc.ExitCode.ShouldBe(0, stderr + "\n" + stdout);
             return stdout;
         }

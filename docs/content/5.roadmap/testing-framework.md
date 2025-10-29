@@ -6,9 +6,11 @@ description: Current state and roadmap for the SpocR CLI validation pipeline.
 
 The modern CLI ships with a consolidated testing command that exercises generated code, verifies snapshot determinism, and produces machine-readable artifacts for CI/CD. This page documents the steady state, how to use `spocr test`, and which enhancements remain on the roadmap.
 
+> ℹ️ **Current status (2025-10-31):** The `spocr test` verb is temporarily removed from the v5 CLI while the validation pipeline is consolidated. Use `dotnet test` (see Quick Start) for day-to-day execution; the content below continues to track the target command design.
+
 ## Overview
 
-- **Command**: `spocr test`
+- **Command (planned)**: `spocr test`
 - **Phases**: unit, integration, validation (configurable)
 - **Artifacts**: JSON summary (`test-summary.json`), optional JUnit XML, TRX logs
 - **Exit Codes**: 0 = success, 41/42/43 = phase failures, 50+ reserved for validation/automation issues
@@ -38,6 +40,8 @@ The CLI relies on `.env`/`SPOCR_*` for configuration when spinning up integratio
 ## Features
 
 ### Commands
+
+Until the CLI surface returns, run `dotnet test tests/Tests.sln` locally or in CI. The future CLI is expected to expose the options sketched below.
 
 ```cmd
 :: Execute all phases sequentially

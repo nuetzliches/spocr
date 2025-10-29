@@ -7,11 +7,12 @@ using SpocR.CodeGenerators;
 using SpocR.CodeGenerators.Models;
 using SpocR.CodeGenerators.Utils;
 using SpocR.Commands;
-using SpocR.Managers;
+using SpocR.Infrastructure;
+using SpocR.Runtime;
+using SpocR.Schema;
 using SpocR.Models;
 using SpocR.Services;
 using SpocR.Utils;
-using SpocRVNext.Configuration;
 using SpocR.SpocRVNext.SnapshotBuilder;
 
 namespace SpocR.Extensions
@@ -69,16 +70,11 @@ namespace SpocR.Extensions
             services.AddSingleton<OutputService>();
             services.AddSingleton<Services.SchemaSnapshotFileLayoutService>();
             services.AddSingleton<SchemaManager>();
-            services.AddSingleton<SpocrManager>();
-            services.AddSingleton<SpocrProjectManager>();
-            services.AddSingleton<SpocrConfigManager>();
+            services.AddSingleton<SpocrCliRuntime>();
             // Local metadata cache (stored procedure modify_date snapshot)
             services.AddSingleton<ILocalCacheService, LocalCacheService>();
             services.AddSingleton<ISchemaSnapshotService, SchemaSnapshotService>();
             services.AddSingleton<ISchemaMetadataProvider, SnapshotSchemaMetadataProvider>();
-            services.AddSingleton<SnapshotMaintenanceManager>();
-            // vNext mode provider
-            services.AddSingleton<IGeneratorModeProvider, EnvGeneratorModeProvider>();
         }
 
         /// <summary>

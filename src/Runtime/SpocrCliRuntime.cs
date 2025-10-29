@@ -15,12 +15,18 @@ using SpocR.SpocRVNext.Engine;
 using SpocR.SpocRVNext.Generators;
 using SpocR.SpocRVNext.SnapshotBuilder;
 using SpocR.SpocRVNext.SnapshotBuilder.Models;
+using SpocR.Utils;
 using SpocRVNext.Configuration;
 using SpocRVNext.Metadata;
 
-namespace SpocR.Managers;
+namespace SpocR.Runtime;
 
-public class SpocrManager(
+/// <summary>
+/// Central runtime orchestration for the vNext CLI commands (pull/build/rebuild/version).
+/// Previously implemented as SpocrManager under src/Managers.
+/// Consolidated here to retire the legacy manager layer.
+/// </summary>
+public class SpocrCliRuntime(
     SpocrService service,
     IConsoleService consoleService,
     SnapshotBuildOrchestrator snapshotBuildOrchestrator,
@@ -35,7 +41,7 @@ public class SpocrManager(
         EnvConfiguration envConfig;
         try
         {
-            var workingDirectory = Utils.DirectoryUtils.GetWorkingDirectory();
+            var workingDirectory = DirectoryUtils.GetWorkingDirectory();
             envConfig = EnvConfiguration.Load(projectRoot: workingDirectory);
         }
         catch (Exception envEx)
@@ -170,7 +176,7 @@ public class SpocrManager(
     public async Task<ExecuteResultEnum> BuildAsync(ICommandOptions options)
     {
         await RunAutoUpdateAsync(options);
-        var workingDirectory = Utils.DirectoryUtils.GetWorkingDirectory();
+        var workingDirectory = DirectoryUtils.GetWorkingDirectory();
         EnvConfiguration envConfig;
         try
         {

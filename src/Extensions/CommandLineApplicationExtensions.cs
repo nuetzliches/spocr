@@ -1,6 +1,6 @@
 using System;
 using McMaster.Extensions.CommandLineUtils;
-using SpocR.Managers;
+using SpocR.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using SpocR.Models;
 using System.Threading.Tasks;

@@ -5,7 +5,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using SpocR.Managers;
 using SpocR.Models;
 using SpocR.Services;
 using SpocR.Enums;
@@ -14,6 +13,8 @@ using Microsoft.Data.SqlClient;
 using Microsoft.CodeAnalysis.Text;
 using SpocR.CodeGenerators.Models;
 using SpocR.Contracts;
+using SchemaManager = SpocR.Schema.SchemaManager;
+using DbSchema = SpocR.SpocRVNext.Data.Models.Schema;
 
 namespace SpocR.Tests;
 
@@ -54,7 +55,7 @@ public class WrapperForwardingMixedTests
     {
         private readonly List<StoredProcedure> _procedures;
         private readonly Dictionary<string, string> _definitions;
-        private readonly List<Schema> _schemas;
+    private readonly List<DbSchema> _schemas;
 
         public FakeDbContext(IConsoleService console, List<StoredProcedure> procedures, Dictionary<string, string> definitions)
                 : base(console)
@@ -64,7 +65,7 @@ public class WrapperForwardingMixedTests
             _schemas = procedures
                 .Select(p => p.SchemaName)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Select(s => new Schema { Name = s })
+                .Select(s => new DbSchema { Name = s })
                 .ToList();
         }
 
@@ -87,7 +88,7 @@ public class WrapperForwardingMixedTests
         public Task<List<string>> SchemaListRawAsync() => Task.FromResult(_procedures.Select(p => p.SchemaName).Distinct(StringComparer.OrdinalIgnoreCase).ToList());
         protected override Task<List<T>?> OnListAsync<T>(string queryString, List<SqlParameter> parameters, CancellationToken cancellationToken, AppSqlTransaction? transaction)
         {
-            if (typeof(T) == typeof(Schema) && queryString != null && queryString.Contains("sys.schemas", StringComparison.OrdinalIgnoreCase))
+            if (typeof(T) == typeof(DbSchema) && queryString != null && queryString.Contains("sys.schemas", StringComparison.OrdinalIgnoreCase))
             {
                 // Return deterministic schema list for SchemaManager queries
                 var typed = _schemas.Cast<T>().ToList();

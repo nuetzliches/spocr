@@ -4,12 +4,13 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using SpocR.Managers;
 using SpocR.Models;
 using SpocR.Services;
 using SpocR.SpocRVNext.Data.Models;
 using SpocR.Enums;
 using Microsoft.Data.SqlClient;
+using SchemaManager = SpocR.Schema.SchemaManager;
+using DbSchema = SpocR.SpocRVNext.Data.Models.Schema;
 
 namespace SpocR.Tests;
 
@@ -51,7 +52,7 @@ public class StoredProcedureJsonAstOnlyTests
         private readonly List<StoredProcedure> _procedures;
         private readonly List<(string Schema, string Proc, StoredProcedureOutput Output)> _outputs;
         private readonly Dictionary<string, string> _definitions;
-        private readonly List<Schema> _schemas;
+    private readonly List<DbSchema> _schemas;
 
         public FakeDbContext(IConsoleService console, List<StoredProcedure> procedures, List<(string Schema, string Proc, StoredProcedureOutput Output)> outputs, Dictionary<string, string> definitions)
             : base(console)
@@ -59,7 +60,7 @@ public class StoredProcedureJsonAstOnlyTests
             _procedures = procedures;
             _outputs = outputs;
             _definitions = definitions;
-            _schemas = procedures.Select(p => p.SchemaName).Distinct(StringComparer.OrdinalIgnoreCase).Select(s => new Schema { Name = s }).ToList();
+            _schemas = procedures.Select(p => p.SchemaName).Distinct(StringComparer.OrdinalIgnoreCase).Select(s => new DbSchema { Name = s }).ToList();
         }
 
         public Task<List<StoredProcedure>> StoredProcedureListAsync(string schemaListCsv, CancellationToken cancellationToken = default)

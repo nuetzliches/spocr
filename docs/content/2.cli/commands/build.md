@@ -9,22 +9,26 @@ aiTags: [cli, build, generation]
 
 # build
 
-The `build` command generates all configured artifacts (table types, inputs, models, stored procedure extensions, base context files).
+Generates the vNext runtime artifacts (currently table-type builders and related helpers) using the metadata stored under `.spocr/`. JSON helpers ship enabled by default—no preview flags required.
 
 ## Usage
 
 ```bash
-spocr build [Optionen]
+spocr build [options]
 ```
 
-## Options (Excerpt)
+## Requirements
 
-| Option                | Type   | Description                                                       |
-| --------------------- | ------ | ----------------------------------------------------------------- |
-| `--project <name>`    | string | Override target project                                           |
-| `--force`             | flag   | Overwrite existing files if necessary                             |
-| `--generators <list>` | string | Comma-separated subset: TableTypes,Inputs,Models,StoredProcedures |
-| `--verbose`           | flag   | More verbose logging                                              |
+- A `.env` file seeded via `spocr init` that defines `SPOCR_NAMESPACE`, `SPOCR_GENERATOR_DB`, and optional output tweaks.
+- A fresh snapshot in `.spocr/` created by `spocr pull` (or `spocr rebuild`).
+
+## Command-Specific Options
+
+| Option | Description |
+| ------ | ----------- |
+| `--generators <list>` | Optional comma-separated filter (`TableTypes,Inputs,Models,StoredProcedures`). Only `TableTypes` is active in the current v5 toolchain; additional generators will light up as the pipeline expands. |
+
+> Global flags such as `-p/--path`, `-d/--dry-run`, `-f/--force`, `-v/--verbose`, and `--no-cache` are documented on the [CLI overview](../index.md) and apply to this command as well.
 
 ## Behavior Contract (Draft)
 
@@ -32,23 +36,18 @@ spocr build [Optionen]
 {
   "command": "build",
   "inputs": {
-    "--project": { "type": "string", "required": false },
-    "--force": { "type": "boolean", "required": false },
     "--generators": {
       "type": "string",
       "required": false,
       "format": "comma-list"
-    },
-    "--verbose": { "type": "boolean", "required": false }
-  },
-  "outputs": {
-    "writes": ["Output/**/*.cs"],
-    "console": ["SummaryTable", "Warnings", "Errors"],
-    "exitCodes": {
-      "0": "Success",
-      "1": "ValidationError",
-      "2": "GenerationError"
     }
+  },
+  "reads": [".env", ".spocr/schema/**/*.json"],
+  "writes": ["<OutputDir>/**/*.cs"],
+  "exitCodes": {
+    "0": "Success",
+    "1": "ValidationError",
+    "2": "GenerationError"
   }
 }
 ```
@@ -56,10 +55,12 @@ spocr build [Optionen]
 ## Examples
 
 ```bash
+# Generate artifacts for the current directory
 spocr build
-spocr build --verbose
-spocr build --generators Inputs,Models
 
----
-Note: This document was translated from German on 2025-10-02 to comply with the English-only language policy.
+# Target a sandbox project configured under debug/
+spocr build -p debug --verbose
+
+# Explicitly limit the generator pipeline (future-proof)
+spocr build --generators TableTypes
 ```
