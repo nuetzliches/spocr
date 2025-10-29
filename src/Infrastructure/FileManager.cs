@@ -7,6 +7,7 @@ using SpocR.Extensions;
 using SpocR.Interfaces;
 using SpocR.Services;
 using SpocR.Utils;
+using SpocRVNext.Configuration;
 
 namespace SpocR.Infrastructure;
 
@@ -122,7 +123,7 @@ public class FileManager<TConfig>(
             {
                 // Wenn Role vorhanden aber Kind == Default und kein LibNamespace => Role entfernen (Deprecation Pfad)
                 if (cfg?.Project?.Role != null
-                    && cfg.Project.Role.Kind == SpocR.Enums.RoleKindEnum.Default
+                    && cfg.Project.Role.Kind == RoleKindEnum.Default
                     && string.IsNullOrWhiteSpace(cfg.Project.Role.LibNamespace))
                 {
                     cfg.Project.Role = null; // Wird dank JsonIgnoreCondition.WhenWritingNull nicht geschrieben

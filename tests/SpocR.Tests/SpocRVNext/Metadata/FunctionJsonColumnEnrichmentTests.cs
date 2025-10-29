@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using SpocR.Services; // FunctionSnapshotCollector + Snapshot models
+using SpocR.SpocRVNext.Core;
 using SpocR.SpocRVNext.Data; // DbContext base
 using SpocR.SpocRVNext.Data.Queries; // FunctionRow / ParamRow models
 using Microsoft.Data.SqlClient;
@@ -248,7 +249,7 @@ END",
         public void PrintTotal(string total) { }
         public void PrintDryRunMessage(string message = null) { }
         public void PrintConfiguration(SpocR.Models.ConfigurationModel config) { }
-        public void PrintFileActionMessage(string fileName, SpocR.Enums.FileActionEnum fileAction) { }
+        public void PrintFileActionMessage(string fileName, FileActionEnum fileAction) { }
         public void PrintCorruptConfigMessage(string message) { }
         public void StartProgress(string message) { }
         public void CompleteProgress(bool success = true, string message = null) { }

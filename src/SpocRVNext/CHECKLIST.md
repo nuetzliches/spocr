@@ -3,7 +3,7 @@
 - [x] Migriere benötigtes aus `src\Commands` nach `src\SpocRVNext` und lösche dann das Verzeichnis. (2025-10-29: Promoted CLI option helpers into `SpocRVNext/Cli`; removed legacy `src/Commands` folder.)
 - [x] Migriere benötigtes aus `src\Contracts` nach `src\SpocRVNext` und lösche dann das Verzeichnis. (2025-10-31: Definition-Wrapper nach `SpocRVNext/Core` verschoben; Legacy-Verzeichnis entfernt.)
 - [x] Migriere benötigtes aus `src\Converters` nach `src\SpocRVNext` und lösche dann das Verzeichnis. (2025-10-31: JsonConverter-Helfer nach `SpocRVNext/Configuration` verschoben; Legacy-Ordner entfernt.)
-- [ ] Migriere benötigtes aus `src\Enums` nach `src\SpocRVNext` und lösche dann das Verzeichnis.
+- [x] Migriere benötigtes aus `src\Enums` nach `src\SpocRVNext` und lösche dann das Verzeichnis. (2025-10-31: CLI/FileAction/Role/TargetFramework Enums nach vNext verschoben; Legacy-Ordner entfernt.)
 - [ ] Migriere benötigtes aus `src\Extensions` nach `src\SpocRVNext` und lösche dann das Verzeichnis.
 - [ ] Migriere benötigtes aus `src\Infrastructure` nach `src\SpocRVNext` und lösche dann das Verzeichnis.
 - [ ] Migriere benötigtes aus `src\Interfaces` nach `src\SpocRVNext` und lösche dann das Verzeichnis.
@@ -14,7 +14,8 @@
 - [ ] Migriere benötigtes aus `src\Telemetry` nach `src\SpocRVNext` und lösche dann das Verzeichnis.
 - [ ] Migriere benötigtes aus `src\Utils` nach `src\SpocRVNext` und lösche dann das Verzeichnis.
 - [ ] Migriere benötigtes aus `src\Constants.cs` nach `src\SpocRVNext` und lösche dann die Datei.
+- [ ] `src\SpocRVNext\DualGenerationDispatcher.cs` raus migrieren, es gibt nur noch vnext
 - [ ] `src\ProgramVNextCLI.cs` umbenennen und als Default CLI verwenden
 - [ ] Wozu brauchen wir `src\Properties`?
-- [ ] Nicht verwendeten Code in `src\SpocRVNext` ausfindig machen und entfernen
+- [ ] Nicht verwendeten Code in `src\SpocRVNext` ausfindig machen und entfernen (rekursiv, bis alle unbenutzten Codezweige entfernt sind)
 - [ ] Optimiere und normalisiere `src\SpocRVNext`

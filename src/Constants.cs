@@ -1,4 +1,4 @@
-using SpocR.Enums;
+using SpocRVNext.Configuration;
 
 namespace SpocR;
 

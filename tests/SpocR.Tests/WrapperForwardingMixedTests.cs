@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using Xunit;
 using SpocR.Models;
 using SpocR.Services;
-using SpocR.Enums;
+using SpocR.SpocRVNext.Core;
 using SpocR.SpocRVNext.Data.Models; // StoredProcedure, StoredProcedureDefinition, StoredProcedureInput/Output
 using Microsoft.Data.SqlClient;
 using SchemaManager = SpocR.Schema.SchemaManager;

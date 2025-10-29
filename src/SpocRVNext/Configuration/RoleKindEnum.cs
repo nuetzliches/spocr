@@ -1,4 +1,4 @@
-namespace SpocR.Enums;
+namespace SpocRVNext.Configuration;
 
 public enum RoleKindEnum
 {

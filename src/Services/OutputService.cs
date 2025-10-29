@@ -2,11 +2,12 @@ using System.IO;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
-using SpocR.Enums;
+using SpocR.SpocRVNext.Core;
 using SpocR.Extensions;
 using SpocR.Infrastructure;
 using SpocR.Models;
 using SpocR.Utils;
+using SpocRVNext.Configuration;
 
 namespace SpocR.Services;
 

@@ -9,6 +9,7 @@ using SpocR.Services;
 using SpocR.SpocRVNext.SnapshotBuilder;
 using SpocR.SpocRVNext.SnapshotBuilder.Cache;
 using SpocR.SpocRVNext.SnapshotBuilder.Models;
+using SpocR.SpocRVNext.Core;
 using Xunit;
 
 namespace SpocR.Tests.SpocRVNext.SnapshotBuilder;
@@ -95,7 +96,7 @@ public sealed class FileSnapshotCacheTests
     public void PrintConfiguration(ConfigurationModel config) { }
     public void PrintCorruptConfigMessage(string message) { }
     public void PrintDryRunMessage(string message = null) { }
-    public void PrintFileActionMessage(string fileName, SpocR.Enums.FileActionEnum fileAction) { }
+    public void PrintFileActionMessage(string fileName, FileActionEnum fileAction) { }
     public void PrintImportantTitle(string title) { }
     public void PrintSubTitle(string title) { }
     public void PrintSummary(IEnumerable<string> summary, string headline = null) { }

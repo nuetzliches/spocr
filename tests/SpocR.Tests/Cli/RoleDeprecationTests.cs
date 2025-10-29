@@ -2,8 +2,8 @@ using System.Text.Json;
 using Shouldly;
 using Xunit;
 using SpocR.Models;
-using SpocR.Enums;
 using SpocR.Infrastructure;
+using SpocRVNext.Configuration;
 
 namespace SpocR.Tests.Cli;
 
@@ -24,7 +24,7 @@ public class RoleDeprecationTests
         };
         var service = new SpocR.Services.SpocrService();
         var tempFile = System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.IO.Path.GetRandomFileName() + ".json");
-    var fm = new FileManager<ConfigurationModel>(service, tempFile);
+        var fm = new FileManager<ConfigurationModel>(service, tempFile);
         await fm.SaveAsync(cfg);
         System.IO.File.Exists(tempFile).ShouldBeTrue();
         var json = System.IO.File.ReadAllText(tempFile);
@@ -45,7 +45,7 @@ public class RoleDeprecationTests
         };
         var service = new SpocR.Services.SpocrService();
         var tempFile = System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.IO.Path.GetRandomFileName() + ".json");
-    var fm = new FileManager<ConfigurationModel>(service, tempFile);
+        var fm = new FileManager<ConfigurationModel>(service, tempFile);
         await fm.SaveAsync(cfg);
         System.IO.File.Exists(tempFile).ShouldBeTrue();
         var json = System.IO.File.ReadAllText(tempFile);

@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Shouldly;
 using SpocR.Models;
+using SpocR.SpocRVNext.Core;
 using SpocR.SpocRVNext.Data.Models;
 using SpocR.Schema;
 using Xunit;
@@ -40,7 +41,7 @@ public class JsonParserV5InferenceTests
         public void PrintTotal(string total) { }
         public void PrintDryRunMessage(string message = "") { }
         public void PrintConfiguration(ConfigurationModel config) { }
-        public void PrintFileActionMessage(string fileName, SpocR.Enums.FileActionEnum action) { }
+        public void PrintFileActionMessage(string fileName, FileActionEnum action) { }
         public void PrintCorruptConfigMessage(string message) { }
         public void StartProgress(string message) { }
         public void CompleteProgress(bool success = true, string message = "") { }

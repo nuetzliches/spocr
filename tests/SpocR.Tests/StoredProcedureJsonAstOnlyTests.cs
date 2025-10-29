@@ -7,7 +7,7 @@ using Xunit;
 using SpocR.Models;
 using SpocR.Services;
 using SpocR.SpocRVNext.Data.Models;
-using SpocR.Enums;
+using SpocR.SpocRVNext.Core;
 using Microsoft.Data.SqlClient;
 using SchemaManager = SpocR.Schema.SchemaManager;
 using DbSchema = SpocR.SpocRVNext.Data.Models.Schema;

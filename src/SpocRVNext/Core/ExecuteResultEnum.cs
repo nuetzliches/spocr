@@ -1,4 +1,4 @@
-namespace SpocR.Enums;
+namespace SpocR.SpocRVNext.Core;
 
 public enum ExecuteResultEnum
 {

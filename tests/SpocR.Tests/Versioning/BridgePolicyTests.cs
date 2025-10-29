@@ -7,6 +7,7 @@ using SpocR.AutoUpdater;
 using SpocR.Infrastructure;
 using SpocR.Models;
 using SpocR.Services;
+using SpocR.SpocRVNext.Core;
 using Xunit;
 
 namespace SpocR.Tests.Versioning;
@@ -41,7 +42,7 @@ public class BridgePolicyTests
         public void PrintTotal(string total) { }
         public void PrintDryRunMessage(string message = null) { }
         public void PrintConfiguration(ConfigurationModel config) { }
-        public void PrintFileActionMessage(string fileName, SpocR.Enums.FileActionEnum fileAction) { }
+        public void PrintFileActionMessage(string fileName, FileActionEnum fileAction) { }
         public void PrintCorruptConfigMessage(string message) => W("CORRUPT", message);
         public void StartProgress(string message) { }
         public void CompleteProgress(bool success = true, string message = null) { }

@@ -5,7 +5,8 @@ using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using SpocR.SpocRVNext.Cli;
-using SpocR.Enums;
+using SpocR.SpocRVNext.Core;
+using SpocRVNext.Configuration;
 using SpocR.Models;
 
 namespace SpocR.Services;

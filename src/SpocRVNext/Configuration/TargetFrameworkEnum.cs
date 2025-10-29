@@ -1,4 +1,6 @@
-namespace SpocR.Enums;
+using SpocR;
+
+namespace SpocRVNext.Configuration;
 
 public enum TargetFrameworkEnum
 {
