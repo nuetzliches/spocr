@@ -33,6 +33,8 @@
   - 2025-10-30: EnvConfiguration & EnvBootstrapper entfernen Legacy-Scans; ProceduresGenerator nutzt ausschließlich ENV Overrides.
   - Tests aktualisiert (`SpocR.Tests`, `SpocR.IntegrationTests`), um neue Pflichtwerte zu setzen (2025-10-29).
   - CI & Entwickler-Dokus auf Projektpfad-Kommandos umgestellt (`-p <dir>`); Roadmap-Referenzen folgen (2025-10-29).
+  - 2025-10-30: CLI `--path` verarbeitet nur noch Projektverzeichnisse/.env; Legacy `spocr.json`-Automatik entfernt, Project Manager Prompts aktualisiert.
+  - 2025-10-30: Projektverwaltung speichert `.env`-Ziele und Fehlermeldungen fordern `SPOCR_GENERATOR_DB` statt `spocr.json`-Mutationen ein.
 - [x] Generator-Mode-Fallbacks entfernen (`SPOCR_GENERATOR_MODE`, `--mode`); next-only Verhalten dokumentiert und getestet.
 - [ ] Legacy-Code nach `src/SpocRVNext` verschieben oder entfernen; Projektstruktur bereinigen.
 - [ ] Legacy-Tests deaktivieren, Nachfolge-Tests (Smoke/Integration) vorbereiten.

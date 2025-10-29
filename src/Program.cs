@@ -83,13 +83,7 @@ public class Program
             }
             if (!string.IsNullOrWhiteSpace(cliConfig))
             {
-                // Normalize to full path; if it's a file (spocr.json) keep it; if directory append spocr.json if present
                 var full = Path.GetFullPath(cliConfig);
-                if (Directory.Exists(full))
-                {
-                    var candidate = Path.Combine(full, "spocr.json");
-                    if (File.Exists(candidate)) full = candidate; // prefer explicit file if exists
-                }
                 Environment.SetEnvironmentVariable("SPOCR_CONFIG_PATH", full);
             }
         }

@@ -147,12 +147,12 @@ public class SpocrManager(
         {
             if (string.IsNullOrWhiteSpace(envConfig.GeneratorConnectionString))
             {
-                consoleService.Error("Configuration file not found");
-                consoleService.Output($"\tTo create a configuration file, run '{Constants.Name} init'");
+                consoleService.Error("SPOCR_GENERATOR_DB is missing (.env not found or incomplete)");
+                consoleService.Output($"\tRun '{Constants.Name} init' to scaffold a .env or export SPOCR_GENERATOR_DB before running '{Constants.Name} pull'.");
                 return ExecuteResultEnum.Error;
             }
 
-            consoleService.Warn("[bridge] spocr.json missing – proceeding using .env (SPOCR_GENERATOR_DB). Some legacy-only features unavailable.");
+            consoleService.Warn("[bridge] no legacy configuration file detected - continuing with .env (SPOCR_GENERATOR_DB). Some legacy-only features unavailable.");
         }
 
         var connectionString = !string.IsNullOrWhiteSpace(envConfig.GeneratorConnectionString)
@@ -162,7 +162,7 @@ public class SpocrManager(
         if (string.IsNullOrWhiteSpace(connectionString))
         {
             consoleService.Error("Missing database connection string");
-            consoleService.Output($"\tAdd it to spocr.json (Project.DataBase.ConnectionString) or set SPOCR_GENERATOR_DB in your .env.");
+            consoleService.Output("\tSet SPOCR_GENERATOR_DB in your .env (or supply the value via CLI overrides).");
             return ExecuteResultEnum.Error;
         }
 
@@ -300,12 +300,12 @@ public class SpocrManager(
         {
             if (string.IsNullOrWhiteSpace(envConfig.GeneratorConnectionString))
             {
-                consoleService.Error("Configuration file not found");
-                consoleService.Output($"\tTo create a configuration file, run '{Constants.Name} init'");
+                consoleService.Error("SPOCR_GENERATOR_DB is missing (.env not found or incomplete)");
+                consoleService.Output($"\tRun '{Constants.Name} init' to scaffold a .env or export SPOCR_GENERATOR_DB before running '{Constants.Name} build'.");
                 return ExecuteResultEnum.Error;
             }
 
-            consoleService.Warn("[bridge] spocr.json missing – skipping legacy DataContext build (using .env values only).");
+            consoleService.Warn("[bridge] no legacy configuration file detected - skipping legacy DataContext build (using .env values only).");
             return ExecuteResultEnum.Succeeded;
         }
 
@@ -342,7 +342,7 @@ public class SpocrManager(
         if (string.IsNullOrWhiteSpace(connectionString))
         {
             consoleService.Error("Missing database connection string");
-            consoleService.Output($"\tAdd it to {Constants.ConfigurationFile} (Project.DataBase.ConnectionString) or run '{Constants.Name} set --cs \"your-connection-string\"'.");
+            consoleService.Output($"\tSet SPOCR_GENERATOR_DB in your .env (run '{Constants.Name} init' to bootstrap) before running '{Constants.Name} build'.");
             return ExecuteResultEnum.Error;
         }
         if (options.Verbose)

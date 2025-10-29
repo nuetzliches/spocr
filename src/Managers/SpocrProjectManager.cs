@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -22,13 +23,13 @@ public class SpocrProjectManager(
         {
             if (options.Quiet)
             {
-                consoleService.Error($"Path to spocr.json is required");
+                consoleService.Error("Path to the project root (containing .env) is required");
                 consoleService.Output($"\tPlease use '--path'");
                 return ExecuteResultEnum.Error;
             }
             else
             {
-                path = consoleService.GetString("Enter path to spocr.json, e.g. base directory of your project:", new DirectoryInfo(Directory.GetCurrentDirectory()).Name);
+                path = consoleService.GetString("Enter project root (directory with your .env):", new DirectoryInfo(Directory.GetCurrentDirectory()).Name);
             }
         }
 
@@ -192,16 +193,45 @@ public class SpocrProjectManager(
         return ExecuteResultEnum.Succeeded;
     }
 
-    private string CreateConfigFilePath(string path)
+    private static string CreateConfigFilePath(string path)
     {
-        var fileInfo = new FileInfo(path);
-        if (fileInfo.Name != Constants.ConfigurationFile)
+        if (string.IsNullOrWhiteSpace(path))
         {
-            path = path.EndsWith("/") ? path : $"{path}/";
-            path = Path.GetDirectoryName(path);
-            path = $"{Path.Combine(path, Constants.ConfigurationFile)}";
+            return path;
         }
-        return path?.Replace("\\", "/");
+
+        var expanded = Path.IsPathRooted(path)
+            ? path
+            : Path.Combine(Directory.GetCurrentDirectory(), path);
+
+        expanded = Path.GetFullPath(expanded);
+
+        if (Directory.Exists(expanded))
+        {
+            return Path.Combine(expanded, ".env").Replace("\\", "/");
+        }
+
+        var fileInfo = new FileInfo(expanded);
+
+        // Accept .env directly (preferred) and just normalize the separators
+        if (string.Equals(fileInfo.Name, ".env", StringComparison.OrdinalIgnoreCase))
+        {
+            return fileInfo.FullName.Replace("\\", "/");
+        }
+
+        // Historic project entries might still point at spocr.json – translate them to the colocated .env.
+        if (string.Equals(fileInfo.Name, Constants.ConfigurationFile, StringComparison.OrdinalIgnoreCase))
+        {
+            return Path.Combine(fileInfo.DirectoryName ?? Directory.GetCurrentDirectory(), ".env").Replace("\\", "/");
+        }
+
+        var directory = fileInfo.DirectoryName;
+        if (string.IsNullOrEmpty(directory))
+        {
+            directory = Directory.GetCurrentDirectory();
+        }
+
+        return Path.Combine(directory, ".env").Replace("\\", "/");
     }
 
     private string CreateDisplayNameFromPath(string path)
