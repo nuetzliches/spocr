@@ -61,6 +61,8 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
   - 2025-10-31: Schema-CLI (`spocr schema`) deaktiviert; Manager & Commands bleiben als leere Platzhalter ohne `spocr.json`-Schreibpfad.
   - 2025-10-31: CLI-Legacy-Scanner warnt bei `spocr.json`, `spocr.global.json` und `DataContext/`; Debug-Sandbox enthält keine `spocr.json` mehr.
   - 2025-10-29: Unbenutzte vNext Inputs/Outputs/Results-Generatoren entfernt; konsolidierte Procedures-Generation bleibt aktiv.
+  - 2025-10-31: `src/CodeGenerators` gelöscht; CLI/DI registrieren nur noch SnapshotBuilder- und DbContext-Komponenten.
+  - 2025-10-29: `src/Attributes` entfernt; `WriteProtectedBySystem` entfällt ohne Folgeabhängigkeiten.
 - [ ] Neue CLI (`init`, `pull`, `build`, `rebuild`) finalisieren und Kommunikationspaket vorbereiten.
 - [ ] Teststrategie v5 definieren (Smoke/Integration vs. Legacy-Abschaltung) und CI entsprechend planen.
 - [x] DbContext-Implementierung zu schlankem DB-Adapter für die `spocr pull`-Pipeline umbauen (Basis für `src/SpocRVNext/Templates/DbContext`).

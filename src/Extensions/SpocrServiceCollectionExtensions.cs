@@ -2,9 +2,6 @@ using System.IO;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
-using SpocR.CodeGenerators;
-using SpocR.CodeGenerators.Models;
-using SpocR.CodeGenerators.Utils;
 using SpocR.Commands;
 using SpocR.Infrastructure;
 using SpocR.Runtime;
@@ -51,9 +48,7 @@ namespace SpocR.Extensions
             // File management services
             AddFileManagers(services);
 
-            // Code generation services
-            AddCodeGenerators(services);
-
+            services.AddSingleton<SpocR.SpocRVNext.Generators.DbContextGenerator>();
             services.AddSnapshotBuilder();
 
             return services;
@@ -99,27 +94,6 @@ namespace SpocR.Extensions
                     spocrService.GetDefaultConfiguration());
             });
         }
-
-        /// <summary>
-        /// Registers code generation services in the service collection
-        /// </summary>
-        private static void AddCodeGenerators(IServiceCollection services)
-        {
-            // Template and generator services
-            services.AddSingleton<TemplateManager>();
-            services.AddSingleton<InputGenerator>();
-            services.AddSingleton<ModelGenerator>();
-            services.AddSingleton<OutputGenerator>();
-            services.AddSingleton<TableTypeGenerator>();
-            services.AddSingleton<StoredProcedureGenerator>();
-            services.AddSingleton<CrudResultGenerator>();
-            // vNext Generators (feature gated)
-            services.AddSingleton<SpocR.SpocRVNext.Generators.DbContextGenerator>();
-
-            // Register the orchestrator as the final component
-            services.AddSingleton<CodeGenerationOrchestrator>();
-        }
-
         /// <summary>
         /// Determines the path to the global configuration file
         /// </summary>

@@ -10,8 +10,6 @@ using SpocR.Services;
 using SpocR.Enums;
 using SpocR.SpocRVNext.Data.Models; // StoredProcedure, StoredProcedureDefinition, StoredProcedureInput/Output
 using Microsoft.Data.SqlClient;
-using Microsoft.CodeAnalysis.Text;
-using SpocR.CodeGenerators.Models;
 using SpocR.Contracts;
 using SchemaManager = SpocR.Schema.SchemaManager;
 using DbSchema = SpocR.SpocRVNext.Data.Models.Schema;

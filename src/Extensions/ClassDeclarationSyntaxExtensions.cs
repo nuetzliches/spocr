@@ -1,7 +1,6 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
-using SpocR.Roslyn.Helpers;
 
 namespace SpocR.Extensions
 {
@@ -9,8 +8,7 @@ namespace SpocR.Extensions
     {
         internal static ConstructorDeclarationSyntax CreateConstructor(this ClassDeclarationSyntax classDeclaration, string name)
         {
-            var constructorIdentifier = TokenHelper.Parse(name);
-
+            var constructorIdentifier = SyntaxFactory.Identifier(name);
             var constructorDeclaration =
                 SyntaxFactory.ConstructorDeclaration(constructorIdentifier)
                 .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))
@@ -22,8 +20,7 @@ namespace SpocR.Extensions
 
         internal static PropertyDeclarationSyntax CreateProperty(this ClassDeclarationSyntax classDeclaration, TypeSyntax type, string name)
         {
-            var propertyIdentifier = TokenHelper.Parse(name);
-
+            var propertyIdentifier = SyntaxFactory.Identifier(name);
             var propertyDeclaration =
                 SyntaxFactory.PropertyDeclaration(type, propertyIdentifier)
                 .AddModifiers(SyntaxFactory.Token(SyntaxKind.PublicKeyword))

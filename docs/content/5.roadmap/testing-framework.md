@@ -1,5 +1,6 @@
 title: Testing Framework (v5)
 description: Current state and roadmap for the SpocR CLI validation pipeline.
+
 ---
 
 # Testing Framework (v5)
@@ -96,7 +97,7 @@ src/
 ├── SpocR.Tests/               # Unit tests
 │   ├── Managers/
 │   ├── Services/
-│   ├── CodeGenerators/
+│   ├── SpocRVNext/
 │   └── Extensions/
 ├── SpocR.IntegrationTests/    # Integration tests
 │   ├── DatabaseTests/
@@ -150,20 +151,20 @@ jobs:
 
 ## Recent Enhancements
 
-| Area          | Feature                                     | Status | Notes                                                                              |
-| ------------- | ------------------------------------------- | ------ | ---------------------------------------------------------------------------------- |
-| Orchestration | Sequential phase execution                  | Done   | Removed race conditions for TRX parsing.                                           |
-| Reporting     | JSON summary artifact (`test-summary.json`) | Done   | Provides aggregate + per-suite metrics (`tests.unit`, `tests.integration`).        |
-| Reporting     | Failure details extraction                  | Done   | `failureDetails[]` with name + message. Stack traces remain on the backlog.        |
-| CLI           | `--only` phase filter                       | Done   | Accepts CSV: unit,integration,validation (validation implied unless skipped).      |
-| CLI           | `--no-validation` flag                      | Done   | Skips validation phase entirely.                                                   |
-| CLI           | Granular exit subcodes 41/42/43             | Done   | Unit / Integration / Validation failure precedence.                                |
-| CLI           | Console failure summary                     | Done   | Prints top (<=10) failing tests with suite origin.                                 |
-| CLI           | JUnit output (single-suite)                 | Done   | `--junit` emits aggregate JUnit XML; multi-suite output is tracked as follow-up.   |
-| Stability     | TRX parsing retries & logging               | Done   | Robust against transient file locks.                                               |
-| Tooling       | Process cleanup script                      | Done   | `eng/kill-testhosts.ps1` terminates stale test hosts.                              |
-| Metrics       | Durations & timestamps                      | Done   | `startedAtUtc`, `endedAtUtc`, per-phase millisecond fields.                        |
-| Metrics       | Skipped test count capture                  | Done   | Aggregated plus per-suite `skipped` totals.                                        |
+| Area          | Feature                                     | Status | Notes                                                                            |
+| ------------- | ------------------------------------------- | ------ | -------------------------------------------------------------------------------- |
+| Orchestration | Sequential phase execution                  | Done   | Removed race conditions for TRX parsing.                                         |
+| Reporting     | JSON summary artifact (`test-summary.json`) | Done   | Provides aggregate + per-suite metrics (`tests.unit`, `tests.integration`).      |
+| Reporting     | Failure details extraction                  | Done   | `failureDetails[]` with name + message. Stack traces remain on the backlog.      |
+| CLI           | `--only` phase filter                       | Done   | Accepts CSV: unit,integration,validation (validation implied unless skipped).    |
+| CLI           | `--no-validation` flag                      | Done   | Skips validation phase entirely.                                                 |
+| CLI           | Granular exit subcodes 41/42/43             | Done   | Unit / Integration / Validation failure precedence.                              |
+| CLI           | Console failure summary                     | Done   | Prints top (<=10) failing tests with suite origin.                               |
+| CLI           | JUnit output (single-suite)                 | Done   | `--junit` emits aggregate JUnit XML; multi-suite output is tracked as follow-up. |
+| Stability     | TRX parsing retries & logging               | Done   | Robust against transient file locks.                                             |
+| Tooling       | Process cleanup script                      | Done   | `eng/kill-testhosts.ps1` terminates stale test hosts.                            |
+| Metrics       | Durations & timestamps                      | Done   | `startedAtUtc`, `endedAtUtc`, per-phase millisecond fields.                      |
+| Metrics       | Skipped test count capture                  | Done   | Aggregated plus per-suite `skipped` totals.                                      |
 
 ## Backlog & Triggers
 

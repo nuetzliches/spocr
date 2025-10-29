@@ -1,5 +1,4 @@
 using System;
-using System.Threading;
 
 namespace SpocR.Commands;
 
@@ -19,9 +18,7 @@ public interface ICommandOptions
 
 public class CommandOptions : ICommandOptions
 {
-    private static readonly AsyncLocal<ICommandOptions> CurrentOptions = new();
-    private static readonly MutableCommandOptions DefaultOptions = new();
-    private readonly ICommandOptions _options;
+    private readonly CliCommandOptions _current = new();
 
     public CommandOptions()
     {
@@ -29,71 +26,49 @@ public class CommandOptions : ICommandOptions
 
     public CommandOptions(ICommandOptions options)
     {
-        _options = options ?? throw new ArgumentNullException(nameof(options));
-        CurrentOptions.Value = options;
+        Update(options);
     }
 
-    private ICommandOptions EffectiveOptions => _options ?? CurrentOptions.Value ?? DefaultOptions;
+    public void Update(ICommandOptions options)
+    {
+        if (options == null)
+        {
+            throw new ArgumentNullException(nameof(options));
+        }
 
-    public string Path => EffectiveOptions.Path?.Trim();
-    public bool DryRun => EffectiveOptions.DryRun;
-    public bool Force => EffectiveOptions.Force;
-    public bool Quiet => EffectiveOptions.Quiet;
-    public bool Verbose => EffectiveOptions.Verbose;
+        _current.Path = options.Path?.Trim() ?? string.Empty;
+        _current.DryRun = options.DryRun;
+        _current.Force = options.Force;
+        _current.Quiet = options.Quiet;
+        _current.Verbose = options.Verbose;
+        _current.NoVersionCheck = options.NoVersionCheck;
+        _current.NoAutoUpdate = options.NoAutoUpdate;
+        _current.Debug = options.Debug;
+        _current.NoCache = options.NoCache;
+        _current.Procedure = options.Procedure?.Trim() ?? string.Empty;
+    }
+
+    public string Path => _current.Path?.Trim();
+    public bool DryRun => _current.DryRun;
+    public bool Force => _current.Force;
+    public bool Quiet => _current.Quiet;
+    public bool Verbose => _current.Verbose;
 
     public bool NoVersionCheck
     {
-        get => EffectiveOptions.NoVersionCheck;
-        set
-        {
-            if (_options != null)
-            {
-                _options.NoVersionCheck = value;
-            }
-            else
-            {
-                var target = CurrentOptions.Value ?? DefaultOptions;
-                target.NoVersionCheck = value;
-                CurrentOptions.Value = target;
-            }
-        }
+        get => _current.NoVersionCheck;
+        set => _current.NoVersionCheck = value;
     }
 
     public bool NoAutoUpdate
     {
-        get => EffectiveOptions.NoAutoUpdate;
-        set
-        {
-            if (_options != null)
-            {
-                _options.NoAutoUpdate = value;
-            }
-            else
-            {
-                var target = CurrentOptions.Value ?? DefaultOptions;
-                target.NoAutoUpdate = value;
-                CurrentOptions.Value = target;
-            }
-        }
+        get => _current.NoAutoUpdate;
+        set => _current.NoAutoUpdate = value;
     }
 
-    public bool Debug => EffectiveOptions.Debug;
-    public bool NoCache => (EffectiveOptions as dynamic).NoCache; // dynamic to allow older instances; guaranteed on new builds
-    public string Procedure => EffectiveOptions.Procedure;
-
-    private sealed class MutableCommandOptions : ICommandOptions
-    {
-        public string Path { get; set; }
-        public bool DryRun { get; set; }
-        public bool Force { get; set; }
-        public bool Quiet { get; set; }
-        public bool Verbose { get; set; }
-        public bool NoVersionCheck { get; set; }
-        public bool NoAutoUpdate { get; set; }
-        public bool Debug { get; set; }
-        public bool NoCache { get; set; }
-        public string Procedure { get; set; }
-    }
+    public bool Debug => _current.Debug;
+    public bool NoCache => _current.NoCache;
+    public string Procedure => _current.Procedure;
 }
 
 /// <summary>

@@ -180,6 +180,7 @@ public static class Program
 
         using var serviceProvider = services.BuildServiceProvider();
         var runtime = serviceProvider.GetRequiredService<SpocrCliRuntime>();
+        var commandOptionsAccessor = serviceProvider.GetRequiredService<CommandOptions>();
 
         var pathOption = new Option<string?>("--path", "Path to the project root containing .env");
         pathOption.AddAlias("-p");
@@ -265,7 +266,7 @@ public static class Program
         {
             var options = BindOptions(context.ParseResult, pathOption, dryRunOption, forceOption, quietOption, verboseOption, noVersionCheckOption, noAutoUpdateOption, debugOption, noCacheOption, procedureOption);
             PrepareCommandEnvironment(options);
-            _ = new CommandOptions(options);
+            commandOptionsAccessor.Update(options);
             var result = await runtime.PullAsync(options).ConfigureAwait(false);
             context.ExitCode = CommandResultMapper.Map(result);
         });
@@ -277,7 +278,7 @@ public static class Program
         {
             var options = BindOptions(context.ParseResult, pathOption, dryRunOption, forceOption, quietOption, verboseOption, noVersionCheckOption, noAutoUpdateOption, debugOption, noCacheOption, procedureOption);
             PrepareCommandEnvironment(options);
-            _ = new CommandOptions(options);
+            commandOptionsAccessor.Update(options);
             var result = await runtime.BuildAsync(options).ConfigureAwait(false);
             context.ExitCode = CommandResultMapper.Map(result);
         });
@@ -289,7 +290,7 @@ public static class Program
         {
             var options = BindOptions(context.ParseResult, pathOption, dryRunOption, forceOption, quietOption, verboseOption, noVersionCheckOption, noAutoUpdateOption, debugOption, noCacheOption, procedureOption);
             PrepareCommandEnvironment(options);
-            _ = new CommandOptions(options);
+            commandOptionsAccessor.Update(options);
 
             var pullResult = await runtime.PullAsync(options).ConfigureAwait(false);
             if (CommandResultMapper.Map(pullResult) != ExitCodes.Success)
@@ -315,7 +316,7 @@ public static class Program
                 Verbose = context.ParseResult.GetValueForOption(verboseOption),
                 NoAutoUpdate = context.ParseResult.GetValueForOption(noAutoUpdateOption)
             };
-            _ = new CommandOptions(options);
+            commandOptionsAccessor.Update(options);
             context.ExitCode = CommandResultMapper.Map(await runtime.GetVersionAsync().ConfigureAwait(false));
         });
         root.AddCommand(versionCommand);

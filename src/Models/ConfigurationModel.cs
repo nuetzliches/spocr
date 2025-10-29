@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
-using SpocR.Attributes;
 using SpocR.Converters;
 using SpocR.Enums;
 using SpocR.Interfaces;
@@ -10,7 +9,7 @@ namespace SpocR.Models;
 
 public class GlobalConfigurationModel : IVersioned
 {
-    [JsonConverter(typeof(StringVersionConverter)), WriteProtectedBySystem]
+    [JsonConverter(typeof(StringVersionConverter))]
     public Version Version { get; set; }
 
     [JsonConverter(typeof(TargetFrameworkConverter))]
