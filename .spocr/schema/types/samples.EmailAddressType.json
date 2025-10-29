@@ -1,6 +1,0 @@
-{
-  "Schema": "samples",
-  "Name": "EmailAddressType",
-  "BaseSqlTypeName": "nvarchar",
-  "MaxLength": 256
-}

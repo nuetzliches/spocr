@@ -1,6 +1,0 @@
-{
-  "Schema": "samples",
-  "Name": "UserBioType",
-  "BaseSqlTypeName": "nvarchar",
-  "MaxLength": 512
-}

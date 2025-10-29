@@ -1,6 +1,0 @@
-{
-  "Schema": "samples",
-  "Name": "DisplayNameType",
-  "BaseSqlTypeName": "nvarchar",
-  "MaxLength": 128
-}

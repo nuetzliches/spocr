@@ -1,8 +1,0 @@
-{
-  "Schema": "samples",
-  "Name": "UtcDateTimeType",
-  "BaseSqlTypeName": "datetime2",
-  "MaxLength": 8,
-  "Precision": 27,
-  "Scale": 7
-}
