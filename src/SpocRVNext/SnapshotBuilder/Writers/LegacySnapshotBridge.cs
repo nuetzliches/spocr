@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using SpocR.DataContext.Models;
+using SpocR.SpocRVNext.Data.Models;
 using SpocR.Services;
 using SpocR.SpocRVNext.SnapshotBuilder.Models;
 using SpocR.SpocRVNext.Utils;

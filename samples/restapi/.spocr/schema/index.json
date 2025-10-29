@@ -1,6 +1,6 @@
 {
   "SchemaVersion": 1,
-  "Fingerprint": "AD3EF01F17077949",
+  "Fingerprint": "77E7A15855BFCF5D",
   "Parser": {
     "ToolVersion": "net9.0",
     "ResultSetParserVersion": 8
@@ -12,7 +12,7 @@
     "UdttTotal": 3,
     "TableTotal": 2,
     "ViewTotal": 0,
-    "UserDefinedTypeTotal": 5,
+    "UserDefinedTypeTotal": 6,
     "FunctionTotal": 0
   },
   "Procedures": [
@@ -118,6 +118,12 @@
     },
     {
       "Schema": "samples",
+      "Name": "OrderNoteType",
+      "File": "samples.OrderNoteType.json",
+      "Hash": "2EEB57CE844C4079"
+    },
+    {
+      "Schema": "samples",
       "Name": "UserBioType",
       "File": "samples.UserBioType.json",
       "Hash": "DB35BB85E565F3F5"
@@ -130,5 +136,19 @@
     }
   ],
   "FunctionsVersion": 2,
-  "Functions": []
+  "Functions": [],
+  "Tables": [
+    {
+      "Schema": "samples",
+      "Name": "Orders",
+      "File": "samples.Orders.json",
+      "Hash": "79582BB16DEC031B"
+    },
+    {
+      "Schema": "samples",
+      "Name": "Users",
+      "File": "samples.Users.json",
+      "Hash": "7B359D0093D345B3"
+    }
+  ]
 }

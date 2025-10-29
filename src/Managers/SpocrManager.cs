@@ -48,6 +48,7 @@ public class SpocrManager(
     FileManager<GlobalConfigurationModel> globalConfigFile,
     FileManager<ConfigurationModel> configFile,
     DbContext dbContext,
+    SpocR.SpocRVNext.Data.DbContext vnextDbContext,
     AutoUpdaterService autoUpdaterService
 )
 {
@@ -166,7 +167,8 @@ public class SpocrManager(
             return ExecuteResultEnum.Error;
         }
 
-        dbContext.SetConnectionString(connectionString);
+    dbContext.SetConnectionString(connectionString);
+    vnextDbContext.SetConnectionString(connectionString);
 
         if (options.Verbose)
         {
@@ -353,6 +355,7 @@ public class SpocrManager(
         try
         {
             dbContext.SetConnectionString(connectionString);
+            vnextDbContext.SetConnectionString(connectionString);
             if (options.Verbose)
             {
                 try

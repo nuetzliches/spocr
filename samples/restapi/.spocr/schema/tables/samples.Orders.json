@@ -4,42 +4,24 @@
   "Columns": [
     {
       "Name": "OrderId",
-      "SqlTypeName": "int",
-      "MaxLength": 4,
-      "IsIdentity": true,
-      "Precision": 10
+      "TypeRef": "sys.int",
+      "IsIdentity": true
     },
     {
       "Name": "UserId",
-      "SqlTypeName": "int",
-      "MaxLength": 4,
-      "Precision": 10
+      "TypeRef": "sys.int"
     },
     {
       "Name": "TotalAmount",
-      "SqlTypeName": "decimal",
-      "MaxLength": 9,
-      "UserTypeSchemaName": "samples",
-      "UserTypeName": "MoneyAmountType",
-      "Precision": 38,
-      "Scale": 38
+      "TypeRef": "samples.MoneyAmountType"
     },
     {
       "Name": "PlacedAt",
-      "SqlTypeName": "datetime2",
-      "MaxLength": 8,
-      "UserTypeSchemaName": "samples",
-      "UserTypeName": "UtcDateTimeType",
-      "Precision": 27,
-      "Scale": 7
+      "TypeRef": "samples.UtcDateTimeType"
     },
     {
       "Name": "Notes",
-      "SqlTypeName": "nvarchar",
-      "IsNullable": true,
-      "MaxLength": 1024,
-      "UserTypeSchemaName": "samples",
-      "UserTypeName": "OrderNoteType"
+      "TypeRef": "samples.OrderNoteType"
     }
   ]
 }

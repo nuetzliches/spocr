@@ -5,8 +5,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using SpocR.DataContext.Models;
-using SpocR.DataContext.Queries;
+using SpocR.SpocRVNext.Data.Models;
+using SpocR.SpocRVNext.Data.Queries;
 using SpocR.SpocRVNext.SnapshotBuilder.Models;
 using SpocR.SpocRVNext.Utils;
 

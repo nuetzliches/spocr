@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using SpocR.DataContext.Models;
+using SpocR.SpocRVNext.Data.Models;
 namespace SpocR.SpocRVNext.SnapshotBuilder.Models;
 
 public sealed class ProcedureAnalysisResult

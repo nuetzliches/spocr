@@ -7,7 +7,7 @@ using SpocR.Commands.Project;
 using SpocR.Commands.Schema;
 using SpocR.Commands.Spocr;
 using SpocR.Commands.Snapshot;
-using SpocR.DataContext;
+using SpocR.SpocRVNext.Data;
 using SpocR.Extensions;
 using SpocR.AutoUpdater;
 using System.IO;

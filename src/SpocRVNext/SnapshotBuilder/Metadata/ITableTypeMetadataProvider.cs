@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using SpocR.DataContext.Models;
+using SpocR.SpocRVNext.Data.Models;
 
 namespace SpocR.SpocRVNext.SnapshotBuilder.Metadata;
 

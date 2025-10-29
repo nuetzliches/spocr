@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.SqlClient;
-using SpocR.DataContext;
+using SpocR.SpocRVNext.Data;
 using SpocR.Services;
 
 namespace SpocR.SpocRVNext.SnapshotBuilder.Metadata;
