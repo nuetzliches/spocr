@@ -8,7 +8,8 @@
 ## Leitplanken v5.0
 
 - [ ] Forced Upgrade auf `.NET 8`, keine Legacy-Modi mehr, Dokumentation nur noch als IST-Stand.
-- [ ] `DataContext/`, `spocr.json`, `spocr.global.json` ablösen und neue Projektstruktur in `src/SpocRVNext` verankern.
+- [~] `DataContext/`, `spocr.json`, `spocr.global.json` ablösen und neue Projektstruktur in `src/SpocRVNext` verankern.
+  - 2025-10-31: CLI weist bei Legacy-Artefakten (spocr.json, spocr.user.\*.json, spocr.global.json, DataContext/) Warnungen aus; Debug-Repo enthält keine spocr.json mehr.
 - [ ] Neue CLI (`init`, `pull`, `build`, `rebuild`) als einziger Pfad; Legacy-CLI abschalten.
 - [ ] Parallelen Betrieb ermöglichen, bis Migration abgeschlossen ist; Optimierungen danach priorisieren.
 - [ ] Guardrails für DbContext-Oberflächen definieren (interner Kontext darf Ad-hoc/Diagnostics, generierter Kontext nur Execute-Aufrufe) und Tests/Docs ableiten.

@@ -43,12 +43,21 @@ public class DbContextGenerator
 
     private async Task GenerateInternalAsync(bool isDryRun)
     {
-        // Load .env configuration (primary source) with safe fallback to legacy defaults.
+        // Load .env configuration (primary source) with safe fallback to diagnostic defaults.
         var projectRoot = DirectoryUtils.GetWorkingDirectory();
         EnvConfiguration envConfig;
+        bool legacyConfigExists = false;
         try
         {
             envConfig = EnvConfiguration.Load(projectRoot: projectRoot);
+            try
+            {
+                legacyConfigExists = _legacyConfig?.Exists() == true;
+            }
+            catch (Exception legacyExistsEx)
+            {
+                _console.Verbose("[dbctx] Legacy config probe failed: " + legacyExistsEx.Message);
+            }
         }
         catch (Exception ex)
         {
@@ -56,13 +65,35 @@ public class DbContextGenerator
             envConfig = new EnvConfiguration();
         }
 
-        // Resolve namespace from .env first, fall back to legacy configuration.
-        string? explicitNs = envConfig.NamespaceRoot?.Trim();
-        if (string.IsNullOrWhiteSpace(explicitNs))
+        if (!legacyConfigExists)
         {
             try
             {
-                explicitNs = _legacyConfig?.Config.Project.Output.Namespace?.Trim();
+                legacyConfigExists = _legacyConfig?.Exists() == true;
+            }
+            catch (Exception probeEx)
+            {
+                _console.Verbose("[dbctx] Legacy config fallback probe failed: " + probeEx.Message);
+            }
+        }
+
+        if (legacyConfigExists)
+        {
+            _console.Warn("[dbctx] Legacy spocr.json detected. vNext generation ignores this file; remove it after migrating values to .env.");
+        }
+
+        // Resolve namespace from .env first, fall back to legacy configuration.
+        string? explicitNs = envConfig.NamespaceRoot?.Trim();
+        if (string.IsNullOrWhiteSpace(explicitNs) && legacyConfigExists)
+        {
+            try
+            {
+                var legacyNs = _legacyConfig?.Config.Project.Output.Namespace?.Trim();
+                if (!string.IsNullOrWhiteSpace(legacyNs))
+                {
+                    _console.Warn("[dbctx] Ignoring legacy namespace from spocr.json. Configure SPOCR_NAMESPACE in .env or rely on namespace inference.");
+                    _console.Verbose("[dbctx] Legacy namespace value ignored: " + legacyNs);
+                }
             }
             catch (Exception legacyEx)
             {
@@ -110,11 +141,11 @@ public class DbContextGenerator
         try
         {
             _console.Verbose($"[dbctx] output='{spocrDir}' namespace='{baseNs}' cwd={Directory.GetCurrentDirectory()}");
-            if (_legacyConfig != null)
+            if (legacyConfigExists && _legacyConfig != null)
             {
                 var dcPath = _legacyConfig.Config.Project.Output.DataContext.Path;
                 var dcDir = DirectoryUtils.GetWorkingDirectory(dcPath);
-                _console.Verbose($"[dbctx] legacy dcPath='{dcPath ?? "<null>"}' resolved='{dcDir}'");
+                _console.Verbose($"[dbctx] legacy dcPath='{dcPath ?? "<null>"}' resolved='{dcDir}' (legacy output ignored)");
             }
         }
         catch (Exception diagEx)

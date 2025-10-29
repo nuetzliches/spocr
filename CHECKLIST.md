@@ -1,25 +1,30 @@
-﻿---
+﻿- 2025-10-31: CLI-Legacy-Scanner warnt bei `spocr.json`, `spocr.user.*.json`, `spocr.global.json` und `DataContext/`; Debug-Sandbox enthält keine `spocr.json` mehr.
+
+---
+
 version: 1
 schema: checklist/v1
 description: SpocR CLI Delivery Checklist (feature branch)
 generated_for: ai-agent
 branch_scope:
-  note: "Branch-spezifisch (feature/vnext); vor Merge in master entfernen"
+note: "Branch-spezifisch (feature/vnext); vor Merge in master entfernen"
 status_conventions:
-  open: "[ ]"
-  done: "[x]"
-  deferred: "[>]"
-  partial: "[~]"
+open: "[ ]"
+done: "[x]"
+deferred: "[>]"
+partial: "[~]"
 categories:
-  - roadmap
-  - migration
-  - snapshotbuilder
-  - json
-  - quality
-  - documentation
-  - release
-  - automation
-depends_naming: "ID Referenzen in depends Feld"
+
+- roadmap
+- migration
+- snapshotbuilder
+- json
+- quality
+- documentation
+- release
+- automation
+  depends_naming: "ID Referenzen in depends Feld"
+
 ---
 
 > Hinweis: Diese Checkliste ist branch-spezifisch (`feature/vnext`) und muss vor einem Merge in `master` entfernt oder archiviert werden.
@@ -54,7 +59,7 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
   - 2025-10-31: Service-Registrierung lässt die `SpocR.DataContext`-Bridge fallen; Tests laufen nur noch auf `SpocRVNext.Data`. `src/DataContext/` bleibt als Legacy-Ordner für das Aufräum-Follow-up markiert.
   - 2025-10-31: SnapshotSchemaMetadataProvider bezieht Filter ausschließlich aus `.env`/Env-Variablen; `FileManager<ConfigurationModel>` entfällt.
   - 2025-10-31: Schema-CLI (`spocr schema`) deaktiviert; Manager & Commands bleiben als leere Platzhalter ohne `spocr.json`-Schreibpfad.
-  - 2025-10-31: DbContextGenerator liest Namespace & Output-Verzeichnis aus `.env`; `spocr.json` dient nur noch als Legacy-Diagnosereferenz.
+  - 2025-10-31: CLI-Legacy-Scanner warnt bei `spocr.json`, `spocr.global.json` und `DataContext/`; Debug-Sandbox enthält keine `spocr.json` mehr.
   - 2025-10-29: Unbenutzte vNext Inputs/Outputs/Results-Generatoren entfernt; konsolidierte Procedures-Generation bleibt aktiv.
 - [ ] Neue CLI (`init`, `pull`, `build`, `rebuild`) finalisieren und Kommunikationspaket vorbereiten.
 - [ ] Teststrategie v5 definieren (Smoke/Integration vs. Legacy-Abschaltung) und CI entsprechend planen.
@@ -72,7 +77,7 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 - [~] Obsolete Snapshot-Felder (`JsonPath`, `JsonResult`, `DeferredJsonColumns`) entfernen, Konsumenten migrieren.
   - SchemaSnapshotService & SchemaMetadataProvider bereinigt; Writer/Tests folgen.
 - [~] Tabellen-Metadaten in Snapshot/Cache ablegen, Analyzer anreichern.
-  - 2025-10-29: Writer erzeugt `.spocr/schema/tables` (ohne ObjectId/ModifyDate); SchemaCache v3 (``.spocr/cache/<fingerprint>.json``) hält Table-Summaries inkl. Column-Hash. Das historische `.spocr/cache/tables`-Verzeichnis ist entfernt. Analyzer konsumiert die Tabellen weiter nicht, Seed/Resolver-Follow-up offen.
+  - 2025-10-29: Writer erzeugt `.spocr/schema/tables` (ohne ObjectId/ModifyDate); SchemaCache v3 (`.spocr/cache/<fingerprint>.json`) hält Table-Summaries inkl. Column-Hash. Das historische `.spocr/cache/tables`-Verzeichnis ist entfernt. Analyzer konsumiert die Tabellen weiter nicht, Seed/Resolver-Follow-up offen.
 - [x] Analyzer-Verbesserungen dokumentieren und Telemetrie-Läufe (`--no-cache --verbose`) archivieren. (Referenz: `src/SpocRVNext/SnapshotBuilder/README.md` Abschnitt "Diagnostics & Type Resolution Runs"/"Snapshot Summary Payload")
 - [x] Snapshot-Schritte für Migration (`migration-v5.instructions`) ergänzen. (Siehe `migration-v5.instructions`)
 - [ ] Legacy-Bridge abbauen, sobald Abschlusskriterien (grüne Tests, deterministischer Pull) erfüllt sind.

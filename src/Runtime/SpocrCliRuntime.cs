@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Data.SqlClient;
+using SpocR;
 using SpocR.AutoUpdater;
 using SpocR.Commands;
 using SpocR.Enums;
@@ -34,6 +35,8 @@ public class SpocrCliRuntime(
     AutoUpdaterService autoUpdaterService
 )
 {
+    private bool _legacyWarningPrinted;
+
     public async Task<ExecuteResultEnum> PullAsync(ICommandOptions options)
     {
         await RunAutoUpdateAsync(options);
@@ -43,6 +46,7 @@ public class SpocrCliRuntime(
         {
             var workingDirectory = DirectoryUtils.GetWorkingDirectory();
             envConfig = EnvConfiguration.Load(projectRoot: workingDirectory);
+            WarnLegacyArtifacts(workingDirectory);
         }
         catch (Exception envEx)
         {
@@ -181,6 +185,7 @@ public class SpocrCliRuntime(
         try
         {
             envConfig = EnvConfiguration.Load(projectRoot: workingDirectory);
+            WarnLegacyArtifacts(workingDirectory);
         }
         catch (Exception envEx)
         {
@@ -314,5 +319,72 @@ public class SpocrCliRuntime(
             consoleService.Error("Unable to verify snapshot presence.");
             return false;
         }
+    }
+
+    private void WarnLegacyArtifacts(string workingDirectory)
+    {
+        if (string.IsNullOrWhiteSpace(workingDirectory) || _legacyWarningPrinted)
+        {
+            return;
+        }
+
+        var findings = new List<string>();
+
+        try
+        {
+            var legacyConfigPath = Path.Combine(workingDirectory, Constants.ConfigurationFile);
+            if (File.Exists(legacyConfigPath))
+            {
+                findings.Add($"Found legacy config '{Constants.ConfigurationFile}' at {legacyConfigPath}. SpocR vNext ignores this file.");
+            }
+
+            foreach (var userConfig in Directory.GetFiles(workingDirectory, "spocr.user.*.json", SearchOption.TopDirectoryOnly))
+            {
+                findings.Add($"Found legacy user config '{Path.GetFileName(userConfig)}' at {userConfig}. Remove or archive it after migration.");
+            }
+        }
+        catch (Exception ex)
+        {
+            consoleService.Verbose($"[legacy-scan] Unable to inspect legacy config files: {ex.Message}");
+        }
+
+        try
+        {
+            var globalPath = Path.Combine(workingDirectory, Constants.GlobalConfigurationFile);
+            if (File.Exists(globalPath))
+            {
+                findings.Add($"Found legacy global config '{Constants.GlobalConfigurationFile}' at {globalPath}. Remove it after migration.");
+            }
+        }
+        catch (Exception ex)
+        {
+            consoleService.Verbose($"[legacy-scan] Unable to inspect spocr.global.json: {ex.Message}");
+        }
+
+        try
+        {
+            var dataContextDir = Path.Combine(workingDirectory, "DataContext");
+            if (Directory.Exists(dataContextDir))
+            {
+                findings.Add($"Legacy DataContext directory detected at {dataContextDir}. The vNext pipeline no longer updates this output.");
+            }
+        }
+        catch (Exception ex)
+        {
+            consoleService.Verbose($"[legacy-scan] Unable to inspect DataContext directory: {ex.Message}");
+        }
+
+        if (findings.Count == 0)
+        {
+            return;
+        }
+
+        _legacyWarningPrinted = true;
+        consoleService.Warn("Legacy artifacts detected; SpocR vNext will not maintain these anymore.");
+        foreach (var note in findings)
+        {
+            consoleService.Warn("  - " + note);
+        }
+        consoleService.Warn("Clean up the legacy artifacts to complete the migration.");
     }
 }
