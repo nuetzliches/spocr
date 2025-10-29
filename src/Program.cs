@@ -6,7 +6,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using SpocR.AutoUpdater;
 using SpocR.Commands;
 using SpocR.Extensions;
 using SpocR.Infrastructure;
@@ -175,8 +174,6 @@ public static class Program
             Console.Error.WriteLine($"[spocr templates warn] {tex.Message}");
         }
 
-        services.AddTransient<AutoUpdaterService>();
-        services.AddTransient<IPackageManager, NugetService>();
 
         using var serviceProvider = services.BuildServiceProvider();
         var runtime = serviceProvider.GetRequiredService<SpocrCliRuntime>();

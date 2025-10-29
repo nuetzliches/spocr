@@ -7,7 +7,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Data.SqlClient;
 using SpocR;
-using SpocR.AutoUpdater;
 using SpocR.Commands;
 using SpocR.Enums;
 using SpocR.Extensions;
@@ -31,16 +30,13 @@ public class SpocrCliRuntime(
     SpocrService service,
     IConsoleService consoleService,
     SnapshotBuildOrchestrator snapshotBuildOrchestrator,
-    SpocR.SpocRVNext.Data.DbContext vnextDbContext,
-    AutoUpdaterService autoUpdaterService
+    SpocR.SpocRVNext.Data.DbContext vnextDbContext
 )
 {
     private bool _legacyWarningPrinted;
 
     public async Task<ExecuteResultEnum> PullAsync(ICommandOptions options)
     {
-        await RunAutoUpdateAsync(options);
-
         EnvConfiguration envConfig;
         try
         {
@@ -179,7 +175,6 @@ public class SpocrCliRuntime(
 
     public async Task<ExecuteResultEnum> BuildAsync(ICommandOptions options)
     {
-        await RunAutoUpdateAsync(options);
         var workingDirectory = DirectoryUtils.GetWorkingDirectory();
         EnvConfiguration envConfig;
         try
@@ -249,59 +244,20 @@ public class SpocrCliRuntime(
         }
     }
 
-    public async Task<ExecuteResultEnum> RemoveAsync(ICommandOptions options)
+    public Task<ExecuteResultEnum> RemoveAsync(ICommandOptions options)
     {
-        await RunAutoUpdateAsync(options);
-
         consoleService.Warn("remove is deprecated for the vNext CLI; delete generated files manually if required.");
-        return ExecuteResultEnum.Skipped;
+        return Task.FromResult(ExecuteResultEnum.Skipped);
     }
 
-    public async Task<ExecuteResultEnum> GetVersionAsync()
+    public Task<ExecuteResultEnum> GetVersionAsync()
     {
         var current = service.Version;
-        var latest = await autoUpdaterService.GetLatestVersionAsync();
-
         consoleService.Output($"Version: {current.ToVersionString()}");
-
-        if (current.IsGreaterThan(latest))
-            consoleService.Output($"Latest:  {latest?.ToVersionString()} (Development build)");
-        else
-            consoleService.Output($"Latest:  {latest?.ToVersionString() ?? current.ToVersionString()}");
-
-        return ExecuteResultEnum.Succeeded;
+        return Task.FromResult(ExecuteResultEnum.Succeeded);
     }
 
-    private async Task RunAutoUpdateAsync(ICommandOptions options)
-    {
-        if (options.NoAutoUpdate)
-        {
-            consoleService.Verbose("Auto-update skipped via --no-auto-update flag");
-            return;
-        }
-
-        // Environment variable guard (mirrors service internal check for early exit)
-        if (Environment.GetEnvironmentVariable("SPOCR_SKIP_UPDATE")?.Trim().ToLowerInvariant() is "1" or "true" or "yes" or "on" ||
-            Environment.GetEnvironmentVariable("SPOCR_NO_UPDATE")?.Trim().ToLowerInvariant() is "1" or "true" or "yes" or "on")
-        {
-            consoleService.Verbose("Auto-update skipped via environment variable before invoking service");
-            return;
-        }
-
-        if (!options.Quiet)
-        {
-            try
-            {
-                await autoUpdaterService.RunAsync();
-            }
-            catch (Exception ex)
-            {
-                consoleService.Warn($"Auto-update check failed: {ex.Message}");
-            }
-        }
-    }
-
-    private async Task<bool> EnsureSnapshotAsync(string workingDirectory)
+    private Task<bool> EnsureSnapshotAsync(string workingDirectory)
     {
         try
         {
@@ -310,14 +266,14 @@ public class SpocrCliRuntime(
             {
                 consoleService.Error("No snapshot found. Run 'spocr pull' before 'spocr build'.");
                 consoleService.Output("\tUse 'spocr rebuild' to run pull and build in a single step.");
-                return false;
+                return Task.FromResult(false);
             }
-            return true;
+            return Task.FromResult(true);
         }
         catch (Exception)
         {
             consoleService.Error("Unable to verify snapshot presence.");
-            return false;
+            return Task.FromResult(false);
         }
     }
 
