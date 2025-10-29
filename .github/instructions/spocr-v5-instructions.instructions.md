@@ -23,6 +23,7 @@ These instructions support the current CLI work on the `feature/vnext-only` bran
 - Run generators against the sandbox under `debug/` (e.g. `dotnet run --project src/SpocR.csproj -- rebuild -p debug ...`). Do not revive `DataContext/` output paths outside the sandbox.
 - Treat `debug/` as the real-world validation target for vNext development; once the artifacts are stable there, extract only the necessary outputs into `samples/` so the sample stays a consumer demo rather than the primary development surface.
 - Never hand-edit snapshot artifacts under `.spocr/`; change the upstream SQL (for example `samples/mssql/init/*.sql`) and rerun the generators so the metadata stays reproducible.
+- Avoid adding new legacy bridges or fallbacks. Update consumers to the current snapshot/cache formats instead of keeping backward-compat shims alive.
 
 ## 3. After editing functionality or docs
 

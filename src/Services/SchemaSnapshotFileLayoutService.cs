@@ -618,6 +618,8 @@ public sealed class SchemaSnapshotFileLayoutService
             Procedures = new List<SnapshotProcedure>(),
             UserDefinedTableTypes = new List<SnapshotUdtt>(),
             UserDefinedTypes = new List<SnapshotUserDefinedType>(),
+            Tables = new List<SnapshotTable>(),
+            Views = new List<SnapshotView>(),
             // Wichtig: Schemas wird aktuell nicht aus index.json rekonstruiert – wir leiten sie später ab.
             Schemas = new List<SnapshotSchema>()
         };
@@ -732,6 +734,48 @@ public sealed class SchemaSnapshotFileLayoutService
             }
             catch { }
         }
+        // Load tables
+        foreach (var tableEntry in index.Tables ?? Enumerable.Empty<FileHashEntry>())
+        {
+            var path = Path.Combine(baseDir, "tables", tableEntry.File);
+            if (!File.Exists(path)) continue;
+            try
+            {
+                var table = JsonSerializer.Deserialize<SnapshotTable>(File.ReadAllText(path), _jsonOptions);
+                if (table == null)
+                {
+                    continue;
+                }
+
+                table.Columns ??= new List<SnapshotTableColumn>();
+                snapshot.Tables.Add(table);
+            }
+            catch
+            {
+                // ignore individual table load failures
+            }
+        }
+        // Load views
+        foreach (var viewEntry in index.Views ?? Enumerable.Empty<FileHashEntry>())
+        {
+            var path = Path.Combine(baseDir, "views", viewEntry.File);
+            if (!File.Exists(path)) continue;
+            try
+            {
+                var view = JsonSerializer.Deserialize<SnapshotView>(File.ReadAllText(path), _jsonOptions);
+                if (view == null)
+                {
+                    continue;
+                }
+
+                view.Columns ??= new List<SnapshotViewColumn>();
+                snapshot.Views.Add(view);
+            }
+            catch
+            {
+                // ignore individual view load failures
+            }
+        }
         // Load functions preview
         if (index.FunctionsVersion.HasValue)
         {
@@ -753,6 +797,8 @@ public sealed class SchemaSnapshotFileLayoutService
         {
             var schemaNames = snapshot.Procedures.Select(p => p.Schema)
                 .Concat(snapshot.UserDefinedTableTypes.Select(u => u.Schema))
+                .Concat(snapshot.Tables.Select(t => t.Schema))
+                .Concat(snapshot.Views.Select(v => v.Schema))
                 .Where(s => !string.IsNullOrWhiteSpace(s))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .OrderBy(s => s)

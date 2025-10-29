@@ -43,7 +43,7 @@
 - [~] Obsolete Snapshot-Felder entfernen und Konsumenten migrieren.
   - SchemaSnapshotService & SchemaMetadataProvider nutzen nur noch flattening; Writer/Tests noch offen.
 - [~] Tabellen-Metadaten schreiben und Analyzer anbinden.
-  - 2025-10-29: Schema-Writer legt `.spocr/schema/tables` ohne technische IDs und ein Cache-Pendant unter `.spocr/cache/tables` an; Debug-Datenbank liefert noch keine Tabellen, Seed/Analyzer-Aufgaben bleiben offen.
+  - 2025-10-29: Schema-Writer legt `.spocr/schema/tables` ohne technische IDs an; SchemaCache v3 (`.spocr/cache/<fingerprint>.json`) trägt Table-Summaries inkl. Column-Hash. Das historische `.spocr/cache/tables`-Verzeichnis ist entfernt. Debug-Datenbank liefert noch keine Tabellen, Seed/Analyzer-Aufgaben bleiben offen.
 - [ ] Analyzer-Verbesserungen & Diagnose-Läufe durchführen, Ergebnisse dokumentieren.
 - [ ] Abschlusskriterien bestätigen (Determinism, vollständige Test-Suite).
 

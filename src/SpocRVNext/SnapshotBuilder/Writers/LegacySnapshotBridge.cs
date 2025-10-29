@@ -134,10 +134,15 @@ internal sealed class LegacySnapshotBridge
         try
         {
             var projectRoot = ProjectRootResolver.ResolveCurrent();
+            var cacheRoot = Path.Combine(projectRoot, ".spocr", "cache");
+            var legacyCacheRoot = Path.Combine(projectRoot, ".spocr", "cache", "schema");
+            var legacySchemaRoot = Path.Combine(projectRoot, ".spocr", "schema");
+
             var candidateDirs = new[]
             {
-                Path.Combine(projectRoot, ".spocr", "cache", "schema"),
-                Path.Combine(projectRoot, ".spocr", "schema")
+                cacheRoot,
+                legacyCacheRoot,
+                legacySchemaRoot
             };
 
             foreach (var dir in candidateDirs)

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -251,11 +250,6 @@ internal sealed class SchemaArtifactWriter
         Directory.CreateDirectory(tableRoot);
         var validTableFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        var spocrRoot = Directory.GetParent(schemaRoot)?.FullName ?? schemaRoot;
-        var tableCacheRoot = Path.Combine(spocrRoot, "cache", "tables");
-        Directory.CreateDirectory(tableCacheRoot);
-        var validTableCacheFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
         foreach (var tableEntry in tableMetadata)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -280,10 +274,6 @@ internal sealed class SchemaArtifactWriter
             }
 
             validTableFiles.Add(fileName);
-            var cacheBytes = BuildTableCacheJson(table, columns);
-            var cachePath = Path.Combine(tableCacheRoot, fileName);
-            await SnapshotWriterUtilities.PersistSnapshotAsync(cachePath, cacheBytes, cancellationToken).ConfigureAwait(false);
-            validTableCacheFiles.Add(fileName);
 
             summary.Tables.Add(new IndexTableEntry
             {
@@ -295,7 +285,7 @@ internal sealed class SchemaArtifactWriter
         }
 
         PruneExtraneousFiles(tableRoot, validTableFiles);
-        PruneExtraneousFiles(tableCacheRoot, validTableCacheFiles);
+        RemoveLegacyTableCacheArtifacts(Directory.GetParent(schemaRoot)?.FullName ?? schemaRoot);
 
         summary.Tables.Sort((a, b) =>
         {
@@ -846,35 +836,6 @@ internal sealed class SchemaArtifactWriter
         return stream.ToArray();
     }
 
-    private static byte[] BuildTableCacheJson(Table table, IReadOnlyList<Column> columns)
-    {
-        using var stream = new MemoryStream();
-        using (var writer = new Utf8JsonWriter(stream, new JsonWriterOptions { Indented = true }))
-        {
-            writer.WriteStartObject();
-            writer.WriteString("Schema", table?.SchemaName ?? string.Empty);
-            writer.WriteString("Name", table?.Name ?? string.Empty);
-
-            if (table?.ObjectId > 0)
-            {
-                writer.WriteNumber("ObjectId", table.ObjectId);
-            }
-
-            if (table != null && table.ModifyDate != default)
-            {
-                var adjusted = table.ModifyDate.Kind == DateTimeKind.Unspecified
-                    ? DateTime.SpecifyKind(table.ModifyDate, DateTimeKind.Local)
-                    : table.ModifyDate;
-                writer.WriteString("ModifyDateUtc", adjusted.ToUniversalTime().ToString("o", CultureInfo.InvariantCulture));
-            }
-
-            WriteTableColumns(writer, columns, null);
-            writer.WriteEndObject();
-        }
-
-        return stream.ToArray();
-    }
-
     private static void WriteTableColumns(Utf8JsonWriter writer, IReadOnlyList<Column> columns, ISet<string>? requiredTypeRefs)
     {
         writer.WritePropertyName("Columns");
@@ -1099,6 +1060,29 @@ internal sealed class SchemaArtifactWriter
         catch
         {
             // ignore cleanup failures
+        }
+    }
+
+    private static void RemoveLegacyTableCacheArtifacts(string spocrRoot)
+    {
+        if (string.IsNullOrWhiteSpace(spocrRoot))
+        {
+            return;
+        }
+
+        var cacheTables = Path.Combine(spocrRoot, "cache", "tables");
+        if (!Directory.Exists(cacheTables))
+        {
+            return;
+        }
+
+        try
+        {
+            Directory.Delete(cacheTables, recursive: true);
+        }
+        catch
+        {
+            // best effort cleanup only
         }
     }
 }

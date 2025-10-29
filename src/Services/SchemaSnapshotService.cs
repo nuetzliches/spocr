@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
@@ -7,6 +8,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using SpocR.Models;
+using SpocR.SpocRVNext.SnapshotBuilder.Writers;
 
 namespace SpocR.Services;
 
@@ -29,7 +31,7 @@ public class SchemaSnapshotService : ISchemaSnapshotService
     {
         var working = Utils.DirectoryUtils.GetWorkingDirectory();
         if (string.IsNullOrEmpty(working)) return null;
-        var dir = Path.Combine(working, ".spocr", "cache", "schema");
+        var dir = Path.Combine(working, ".spocr", "cache");
         try { Directory.CreateDirectory(dir); } catch { }
         return dir;
     }
@@ -56,22 +58,38 @@ public class SchemaSnapshotService : ISchemaSnapshotService
         {
             var cacheDir = EnsureDir();
             if (cacheDir == null) return null;
-            var cachePath = Path.Combine(cacheDir, fingerprint + ".json");
-            string pathToLoad = null;
-            if (File.Exists(cachePath))
+
+            var candidateDirs = new List<string>();
+            if (!string.IsNullOrEmpty(cacheDir))
             {
-                pathToLoad = cachePath;
+                candidateDirs.Add(cacheDir);
             }
-            else
+
+            var legacyCacheDir = ResolveLegacyCacheDir();
+            if (!string.IsNullOrEmpty(legacyCacheDir))
             {
-                var legacyDir = ResolveLegacySchemaDir();
-                if (!string.IsNullOrEmpty(legacyDir))
+                candidateDirs.Add(legacyCacheDir);
+            }
+
+            var legacySchemaDir = ResolveLegacySchemaDir();
+            if (!string.IsNullOrEmpty(legacySchemaDir))
+            {
+                candidateDirs.Add(legacySchemaDir);
+            }
+
+            string pathToLoad = null;
+            foreach (var dir in candidateDirs)
+            {
+                if (string.IsNullOrEmpty(dir))
                 {
-                    var legacyPath = Path.Combine(legacyDir, fingerprint + ".json");
-                    if (File.Exists(legacyPath))
-                    {
-                        pathToLoad = legacyPath;
-                    }
+                    continue;
+                }
+
+                var candidatePath = Path.Combine(dir, fingerprint + ".json");
+                if (File.Exists(candidatePath))
+                {
+                    pathToLoad = candidatePath;
+                    break;
                 }
             }
 
@@ -92,9 +110,9 @@ public class SchemaSnapshotService : ISchemaSnapshotService
                 cacheDocument = null;
             }
 
-            if (cacheDocument != null && cacheDocument.CacheVersion >= SchemaCacheDocument.CurrentVersion)
+            if (cacheDocument != null)
             {
-                if (RequiresLegacyConversion(cacheDocument, json))
+                if (cacheDocument.CacheVersion < SchemaCacheDocument.CurrentVersion && RequiresLegacyConversion(cacheDocument, json))
                 {
                     try
                     {
@@ -149,6 +167,19 @@ public class SchemaSnapshotService : ISchemaSnapshotService
                 .ThenBy(p => p.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
+            var tables = (snapshot.Tables ?? new List<SnapshotTable>())
+                .Where(t => !string.IsNullOrWhiteSpace(t?.Schema) && !string.IsNullOrWhiteSpace(t?.Name))
+                .Select(t => new SchemaCacheTable
+                {
+                    Schema = t.Schema,
+                    Name = t.Name,
+                    ColumnCount = t.Columns?.Count ?? 0,
+                    ColumnsHash = ComputeTableColumnsHash(t.Columns)
+                })
+                .OrderBy(t => t.Schema, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(t => t.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
             var document = new SchemaCacheDocument
             {
                 CacheVersion = SchemaCacheDocument.CurrentVersion,
@@ -162,11 +193,14 @@ public class SchemaSnapshotService : ISchemaSnapshotService
                     }
                     : null,
                 Schemas = schemaNames.Select(n => new SchemaCacheSchema { Name = n }).ToList(),
-                Procedures = procedures
+                Procedures = procedures,
+                Tables = tables
             };
 
             var json = JsonSerializer.Serialize(document, _jsonOptions);
             File.WriteAllText(path, json);
+
+            TryDeleteLegacyCacheSnapshot(snapshot.Fingerprint);
 
             PruneLegacySchemaSnapshots();
         }
@@ -180,6 +214,40 @@ public class SchemaSnapshotService : ISchemaSnapshotService
         var working = Utils.DirectoryUtils.GetWorkingDirectory();
         if (string.IsNullOrEmpty(working)) return string.Empty;
         return Path.Combine(working, ".spocr", "schema");
+    }
+
+    private static string ResolveLegacyCacheDir()
+    {
+        var working = Utils.DirectoryUtils.GetWorkingDirectory();
+        if (string.IsNullOrEmpty(working)) return string.Empty;
+        return Path.Combine(working, ".spocr", "cache", "schema");
+    }
+
+    private static void TryDeleteLegacyCacheSnapshot(string fingerprint)
+    {
+        if (string.IsNullOrWhiteSpace(fingerprint))
+        {
+            return;
+        }
+
+        try
+        {
+            var legacyDir = ResolveLegacyCacheDir();
+            if (string.IsNullOrEmpty(legacyDir) || !Directory.Exists(legacyDir))
+            {
+                return;
+            }
+
+            var legacyPath = Path.Combine(legacyDir, fingerprint + ".json");
+            if (File.Exists(legacyPath))
+            {
+                File.Delete(legacyPath);
+            }
+        }
+        catch
+        {
+            // best effort cleanup only
+        }
     }
 
     private static void PruneLegacySchemaSnapshots()
@@ -262,7 +330,8 @@ public class SchemaSnapshotService : ISchemaSnapshotService
             Fingerprint = legacy.Fingerprint ?? string.Empty,
             Database = legacy.Database,
             Schemas = legacy.Schemas ?? new List<SchemaCacheSchema>(),
-            Procedures = convertedProcedures
+            Procedures = convertedProcedures,
+            Tables = new List<SchemaCacheTable>()
         };
     }
 
@@ -307,7 +376,17 @@ public class SchemaSnapshotService : ISchemaSnapshotService
                 })
                 .ToList(),
             UserDefinedTableTypes = new List<SnapshotUdtt>(),
-            Tables = new List<SnapshotTable>(),
+            Tables = (document.Tables ?? new List<SchemaCacheTable>())
+                .Where(t => !string.IsNullOrWhiteSpace(t?.Schema) && !string.IsNullOrWhiteSpace(t?.Name))
+                .Select(t => new SnapshotTable
+                {
+                    Schema = t.Schema,
+                    Name = t.Name,
+                    ColumnCount = t.ColumnCount,
+                    ColumnsHash = t.ColumnsHash,
+                    Columns = new List<SnapshotTableColumn>()
+                })
+                .ToList(),
             Views = new List<SnapshotView>(),
             UserDefinedTypes = new List<SnapshotUserDefinedType>(),
             Parser = null,
@@ -372,15 +451,81 @@ public class SchemaSnapshotService : ISchemaSnapshotService
         return trimmed.Length == 0 ? null : trimmed;
     }
 
+    private static string ComputeTableColumnsHash(IReadOnlyList<SnapshotTableColumn> columns)
+    {
+        if (columns == null || columns.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var parts = new List<string>(columns.Count);
+        foreach (var column in columns)
+        {
+            if (column == null || string.IsNullOrWhiteSpace(column.Name))
+            {
+                continue;
+            }
+
+            var part = string.Join("|", new[]
+            {
+                column.Name.Trim(),
+                NormalizeTypeRef(column.TypeRef),
+                column.IsNullable == true ? "1" : "0",
+                FormatNumeric(column.MaxLength),
+                FormatNumeric(column.Precision),
+                FormatNumeric(column.Scale),
+                column.IsIdentity == true ? "1" : "0"
+            });
+
+            parts.Add(part);
+        }
+
+        if (parts.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var payload = string.Join(";", parts);
+        return string.IsNullOrEmpty(payload)
+            ? string.Empty
+            : SnapshotWriterUtilities.ComputeHash(payload);
+    }
+
+    private static string NormalizeTypeRef(string? typeRef)
+    {
+        if (string.IsNullOrWhiteSpace(typeRef))
+        {
+            return string.Empty;
+        }
+
+        return typeRef.Trim().ToLowerInvariant();
+    }
+
+    private static string FormatNumeric(int? value)
+    {
+        if (!value.HasValue)
+        {
+            return string.Empty;
+        }
+
+        if (value.Value <= 0)
+        {
+            return string.Empty;
+        }
+
+        return value.Value.ToString(CultureInfo.InvariantCulture);
+    }
+
     private sealed class SchemaCacheDocument
     {
-        public const int CurrentVersion = 2;
+        public const int CurrentVersion = 3;
         public int CacheVersion { get; set; } = CurrentVersion;
         public int SchemaVersion { get; set; }
         public string Fingerprint { get; set; } = string.Empty;
         public SchemaCacheDatabase Database { get; set; }
         public List<SchemaCacheSchema> Schemas { get; set; } = new();
         public List<SchemaCacheProcedure> Procedures { get; set; } = new();
+        public List<SchemaCacheTable> Tables { get; set; } = new();
     }
 
     private sealed class SchemaCacheSchema
@@ -407,6 +552,14 @@ public class SchemaSnapshotService : ISchemaSnapshotService
                 Parameters = value;
             }
         }
+    }
+
+    private sealed class SchemaCacheTable
+    {
+        public string Schema { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public int ColumnCount { get; set; }
+        public string ColumnsHash { get; set; } = string.Empty;
     }
 
     private sealed class SchemaCacheDatabase
@@ -606,6 +759,12 @@ public class SnapshotTable
 {
     public string Schema { get; set; }
     public string Name { get; set; }
+    [JsonIgnore]
+    public int? ColumnCount { get; set; }
+
+    [JsonIgnore]
+    public string? ColumnsHash { get; set; }
+
     public List<SnapshotTableColumn> Columns { get; set; } = new();
 }
 

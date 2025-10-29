@@ -40,9 +40,14 @@ Contents (current implementation – extend only when the roadmap checklist reco
   "CreatedUtc": "2025-10-04T12:34:56Z",
   "Procedures": [
     { "Schema": "dbo", "Name": "GetUsers", "ModifiedTicks": 638000000000000000 }
+  ],
+  "Tables": [
+    { "Schema": "dbo", "Name": "Users", "ColumnCount": 12, "ColumnsHash": "7D2F9E8A1B3C4D5E" }
   ]
 }
 ```
+
+Table fingerprints now live inside the schema cache fingerprint itself (`.spocr/cache/<fingerprint>.json`, SchemaCache v3). Each snapshot entry records only `Schema`, `Name`, `ColumnCount`, and `ColumnsHash`, leaving detailed column descriptors exclusively in `.spocr/schema/tables`.
 
 ## Growth Areas (Track in Checklist)
 

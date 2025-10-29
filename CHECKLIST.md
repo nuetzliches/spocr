@@ -62,7 +62,7 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 - [~] Obsolete Snapshot-Felder (`JsonPath`, `JsonResult`, `DeferredJsonColumns`) entfernen, Konsumenten migrieren.
   - SchemaSnapshotService & SchemaMetadataProvider bereinigt; Writer/Tests folgen.
 - [~] Tabellen-Metadaten in Snapshot/Cache ablegen, Analyzer anreichern.
-  - 2025-10-29: Writer erzeugt `.spocr/schema/tables` (ohne ObjectId/ModifyDate) und Cache-Duplikat unter `.spocr/cache/tables`; Sandbox liefert noch keine Tabelleneinträge, Seed/Analyzer-Follow-up offen.
+  - 2025-10-29: Writer erzeugt `.spocr/schema/tables` (ohne ObjectId/ModifyDate); SchemaCache v3 (``.spocr/cache/<fingerprint>.json``) hält Table-Summaries inkl. Column-Hash. Das historische `.spocr/cache/tables`-Verzeichnis ist entfernt. Analyzer konsumiert die Tabellen weiter nicht, Seed/Resolver-Follow-up offen.
 - [x] Analyzer-Verbesserungen dokumentieren und Telemetrie-Läufe (`--no-cache --verbose`) archivieren. (Referenz: `src/SpocRVNext/SnapshotBuilder/README.md` Abschnitt "Diagnostics & Type Resolution Runs"/"Snapshot Summary Payload")
 - [x] Snapshot-Schritte für Migration (`migration-v5.instructions`) ergänzen. (Siehe `migration-v5.instructions`)
 - [ ] Legacy-Bridge abbauen, sobald Abschlusskriterien (grüne Tests, deterministischer Pull) erfüllt sind.
