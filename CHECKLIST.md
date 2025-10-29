@@ -48,11 +48,10 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
   - 2025-10-29: CLI ignoriert `spocr.json`; Tests angepasst, Rest-Inventar (Skripte/CI) offen.
   - 2025-10-29: Entwickler-Dokus & determinism workflow auf Projektpfad (`-p <dir>`) aktualisiert; verbleibende Legacy-Referenzen in Roadmap-Dokumenten prüfen.
   - 2025-10-30: vNext EnvConfiguration/Bootstrapper/Generators entfernen `spocr.json` Fallbacks; neue Tests stellen `.env`-Pflicht sicher.
-  - 2025-10-30: CLI `--path` Argument & Project Manager Prompts verweisen nur noch auf `.env`/Projektverzeichnis; keine automatische `spocr.json`-Auflösung mehr.
+  - 2025-10-30: CLI `--path` Argument & Project Manager Prompts verweisen nur noch auf `.env`/Projektverzeichnis; keine automatische `spocr.json`-Auflösung mehr, `SPOCR_CONFIG_PATH`/`SPOCR_PROJECT_ROOT` spiegeln `.env`-Pfade.
   - 2025-10-30: Projekt-Registry speichert nur noch `.env`-Pfade; Pull/Build-Hinweise fordern explizit `SPOCR_GENERATOR_DB` statt `spocr.json`-Änderungen ein.
 - [ ] Neue CLI (`init`, `pull`, `build`, `rebuild`) finalisieren und Kommunikationspaket vorbereiten.
 - [ ] Teststrategie v5 definieren (Smoke/Integration vs. Legacy-Abschaltung) und CI entsprechend planen.
-- [ ] Forced-Upgrade Kommunikation (Zeitplan, Beta-Programm, Supportkanäle) aufsetzen.
 - [ ] DbContext-Implementierung zu schlankem DB-Adapter für die `spocr pull`-Pipeline umbauen (Basis für `src/SpocRVNext/Templates/DbContext`).
 - [ ] Guardrails für DbContext-Oberflächen definieren (interner Kontext darf Ad-hoc/Diagnostics, generierter Kontext nur Execute-Aufrufe) und Tests/Docs ableiten.
 - [ ] Klare Trennung „SpocR Source“ vs. „SpocR Runtime“ ausarbeiten (Packages/Namespaces/Deploymentpfade) und im Architektur-Abschnitt dokumentieren.

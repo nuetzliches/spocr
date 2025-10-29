@@ -83,8 +83,15 @@ public class Program
             }
             if (!string.IsNullOrWhiteSpace(cliConfig))
             {
-                var full = Path.GetFullPath(cliConfig);
-                Environment.SetEnvironmentVariable("SPOCR_CONFIG_PATH", full);
+                var (configHint, projectRoot) = NormalizeCliProjectHint(cliConfig);
+                if (!string.IsNullOrWhiteSpace(configHint))
+                {
+                    Environment.SetEnvironmentVariable("SPOCR_CONFIG_PATH", configHint);
+                }
+                if (!string.IsNullOrWhiteSpace(projectRoot))
+                {
+                    Environment.SetEnvironmentVariable("SPOCR_PROJECT_ROOT", projectRoot);
+                }
             }
         }
         catch { /* non-fatal */ }
@@ -234,6 +241,67 @@ public class Program
             catch { }
             return ExitCodes.InternalError;
         }
+    }
+
+    private static (string configPath, string? projectRoot) NormalizeCliProjectHint(string rawInput)
+    {
+        if (string.IsNullOrWhiteSpace(rawInput))
+        {
+            return (string.Empty, null);
+        }
+
+        string fullPath;
+        try
+        {
+            fullPath = Path.GetFullPath(rawInput.Trim());
+        }
+        catch
+        {
+            fullPath = rawInput.Trim();
+        }
+
+        static bool IsEnvFile(string value) => value.EndsWith(".env", StringComparison.OrdinalIgnoreCase) || value.EndsWith(".env.local", StringComparison.OrdinalIgnoreCase);
+        static bool IsLegacyConfig(string value) => value.EndsWith(Constants.ConfigurationFile, StringComparison.OrdinalIgnoreCase);
+
+        if (Directory.Exists(fullPath))
+        {
+            return (fullPath, fullPath);
+        }
+
+        if (File.Exists(fullPath))
+        {
+            var fileName = Path.GetFileName(fullPath);
+            if (IsEnvFile(fileName))
+            {
+                var root = Path.GetDirectoryName(fullPath) ?? Directory.GetCurrentDirectory();
+                return (fullPath, root);
+            }
+
+            if (IsLegacyConfig(fileName))
+            {
+                var root = Path.GetDirectoryName(fullPath) ?? Directory.GetCurrentDirectory();
+                var envPath = Path.Combine(root, ".env");
+                return (envPath, root);
+            }
+
+            var fallbackRoot = Path.GetDirectoryName(fullPath) ?? Directory.GetCurrentDirectory();
+            return (fallbackRoot, fallbackRoot);
+        }
+
+        if (IsEnvFile(fullPath))
+        {
+            var root = Path.GetDirectoryName(fullPath) ?? Directory.GetCurrentDirectory();
+            return (fullPath, root);
+        }
+
+        if (IsLegacyConfig(fullPath))
+        {
+            var root = Path.GetDirectoryName(fullPath) ?? Directory.GetCurrentDirectory();
+            var envPath = Path.Combine(root, ".env");
+            return (envPath, root);
+        }
+
+        return (fullPath, fullPath);
     }
 
     // Root command fallback: show help if no subcommand provided (McMaster looks for parameterless OnExecute/OnExecuteAsync)

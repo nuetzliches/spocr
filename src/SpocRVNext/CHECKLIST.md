@@ -33,7 +33,7 @@
   - 2025-10-30: EnvConfiguration & EnvBootstrapper entfernen Legacy-Scans; ProceduresGenerator nutzt ausschließlich ENV Overrides.
   - Tests aktualisiert (`SpocR.Tests`, `SpocR.IntegrationTests`), um neue Pflichtwerte zu setzen (2025-10-29).
   - CI & Entwickler-Dokus auf Projektpfad-Kommandos umgestellt (`-p <dir>`); Roadmap-Referenzen folgen (2025-10-29).
-  - 2025-10-30: CLI `--path` verarbeitet nur noch Projektverzeichnisse/.env; Legacy `spocr.json`-Automatik entfernt, Project Manager Prompts aktualisiert.
+  - 2025-10-30: CLI `--path` verarbeitet nur noch Projektverzeichnisse/.env; Legacy `spocr.json`-Automatik entfernt, Project Manager Prompts aktualisiert, `SPOCR_CONFIG_PATH`/`SPOCR_PROJECT_ROOT` normalisieren auf `.env`.
   - 2025-10-30: Projektverwaltung speichert `.env`-Ziele und Fehlermeldungen fordern `SPOCR_GENERATOR_DB` statt `spocr.json`-Mutationen ein.
 - [x] Generator-Mode-Fallbacks entfernen (`SPOCR_GENERATOR_MODE`, `--mode`); next-only Verhalten dokumentiert und getestet.
 - [ ] Legacy-Code nach `src/SpocRVNext` verschieben oder entfernen; Projektstruktur bereinigen.
@@ -68,6 +68,7 @@
   - 2025-10-29: `docs/content/5.roadmap/json-support-design.md` auf typed+raw Default überführt; Preview-Flag-Hinweise entfernt.
   - 2025-10-29: `docs/content/3.reference/json-procedures.md` & `env-bootstrap.md` dokumentieren JSON-Default ohne `.env`-Toggles.
   - 2025-10-29: `samples/restapi/.env.example` bereinigt (keine JSON Preview Keys mehr).
+  - 2025-10-30: CLI-Hilfen/Roadmap notieren `--path` Normalisierung, `SPOCR_CONFIG_PATH`/`SPOCR_PROJECT_ROOT` spiegeln `.env` Pfade.
   - 2025-10-28: CLI Hilfetext & `spocr init` Output auf JSON-Default ausgerichtet (keine separaten JSON-Toggles mehr).
   - 2025-10-28: CLI `pull`/`build`/`rebuild` Hilfetexte auf `.env`-Kontext ohne Preview-Toggles umgestellt.
   - Next: `docs/content/2.cli` Befehlsreferenzen auf neuen Hilfetext synchronisieren.
