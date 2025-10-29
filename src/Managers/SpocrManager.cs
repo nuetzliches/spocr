@@ -1,49 +1,29 @@
-using SpocR.Commands.Spocr;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Data.SqlClient;
 using SpocR.AutoUpdater;
-using SpocR.CodeGenerators;
 using SpocR.Commands;
 using SpocR.Enums;
 using SpocR.Extensions;
 using SpocR.Services;
-using SpocR.Models;
-using SpocR.SpocRVNext.Engine; // vNext template engine
-using SpocR.SpocRVNext; // dispatcher & generator
-using SpocRVNext.Configuration; // EnvConfiguration
-using SpocRVNext.Metadata; // vNext TableType metadata provider
-using SpocR.SpocRVNext.Generators; // vNext TableTypesGenerator
+using SpocR.SpocRVNext.Engine;
+using SpocR.SpocRVNext.Generators;
 using SpocR.SpocRVNext.SnapshotBuilder;
 using SpocR.SpocRVNext.SnapshotBuilder.Models;
+using SpocRVNext.Configuration;
+using SpocRVNext.Metadata;
 
 namespace SpocR.Managers;
 
-// Hilfs-Zeilenmodelle fÃƒÂ¼r generisches Mapping von Tabellen- und View-Namen
-internal class TableNameRow
-{
-    public string schema_name { get; set; }
-    public string table_name { get; set; }
-}
-
-internal class ViewNameRow
-{
-    public string schema_name { get; set; }
-    public string view_name { get; set; }
-}
-
 public class SpocrManager(
     SpocrService service,
-    OutputService output,
-    CodeGenerationOrchestrator orchestrator,
     IConsoleService consoleService,
     SnapshotBuildOrchestrator snapshotBuildOrchestrator,
-    FileManager<GlobalConfigurationModel> globalConfigFile,
-    FileManager<ConfigurationModel> configFile,
     SpocR.SpocRVNext.Data.DbContext vnextDbContext,
     AutoUpdaterService autoUpdaterService
 )
@@ -51,70 +31,6 @@ public class SpocrManager(
     public async Task<ExecuteResultEnum> PullAsync(ICommandOptions options)
     {
         await RunAutoUpdateAsync(options);
-
-        ConfigurationModel? config = null;
-
-        if (configFile.Exists())
-        {
-            config = await LoadAndMergeConfigurationsAsync();
-            if (config == null)
-            {
-                consoleService.Error("Failed to read configuration file");
-                return ExecuteResultEnum.Error;
-            }
-
-            var configUpdated = false;
-            try
-            {
-                if (config.Project != null && config.Schema != null)
-                {
-                    if ((config.Project.IgnoredSchemas == null || config.Project.IgnoredSchemas.Count == 0) && config.Schema.Count > 0)
-                    {
-                        var ignored = config.Schema
-                            .Where(s => s.Status == SchemaStatusEnum.Ignore)
-                            .Select(s => s.Name)
-                            .Distinct(StringComparer.OrdinalIgnoreCase)
-                            .ToList();
-                        if (ignored.Count > 0)
-                        {
-                            config.Project.IgnoredSchemas = ignored;
-                            consoleService.Info($"[migration] Collected {ignored.Count} ignored schema name(s) into Project.IgnoredSchemas");
-                            configUpdated = true;
-                        }
-                    }
-
-                    config.Schema = null;
-                    configUpdated = true;
-                }
-            }
-            catch (Exception mx)
-            {
-                consoleService.Verbose($"[migration-warn] {mx.Message}");
-            }
-
-            if (configUpdated)
-            {
-                try
-                {
-                    await configFile.SaveAsync(config);
-                }
-                catch (Exception saveEx)
-                {
-                    consoleService.Verbose($"[migration-warn] Failed to persist schema migration: {saveEx.Message}");
-                }
-            }
-
-            if (config.Project == null)
-            {
-                consoleService.Error("Configuration is invalid (project node missing)");
-                return ExecuteResultEnum.Error;
-            }
-
-            if (await RunConfigVersionCheckAsync(options) == ExecuteResultEnum.Aborted)
-            {
-                return ExecuteResultEnum.Aborted;
-            }
-        }
 
         EnvConfiguration envConfig;
         try
@@ -124,37 +40,11 @@ public class SpocrManager(
         }
         catch (Exception envEx)
         {
-            if (config == null)
-            {
-                consoleService.Error($"Failed to load environment configuration: {envEx.Message}");
-                return ExecuteResultEnum.Error;
-            }
-
-            consoleService.Verbose($"[snapshot] EnvConfiguration fallback: {envEx.Message}");
-            envConfig = new EnvConfiguration
-            {
-                GeneratorMode = "legacy",
-                GeneratorConnectionString = config.Project?.DataBase?.ConnectionString,
-                DefaultConnection = config.Project?.DataBase?.ConnectionString,
-                BuildSchemas = Array.Empty<string>()
-            };
+            consoleService.Error($"Failed to load environment configuration: {envEx.Message}");
+            return ExecuteResultEnum.Error;
         }
 
-        if (!configFile.Exists())
-        {
-            if (string.IsNullOrWhiteSpace(envConfig.GeneratorConnectionString))
-            {
-                consoleService.Error("SPOCR_GENERATOR_DB is missing (.env not found or incomplete)");
-                consoleService.Output($"\tRun '{Constants.Name} init' to scaffold a .env or export SPOCR_GENERATOR_DB before running '{Constants.Name} pull'.");
-                return ExecuteResultEnum.Error;
-            }
-
-            consoleService.Warn("[bridge] no legacy configuration file detected - continuing with .env (SPOCR_GENERATOR_DB). Some legacy-only features unavailable.");
-        }
-
-        var connectionString = !string.IsNullOrWhiteSpace(envConfig.GeneratorConnectionString)
-            ? envConfig.GeneratorConnectionString
-            : config?.Project?.DataBase?.ConnectionString;
+        var connectionString = envConfig.GeneratorConnectionString;
 
         if (string.IsNullOrWhiteSpace(connectionString))
         {
@@ -279,6 +169,7 @@ public class SpocrManager(
 
     public async Task<ExecuteResultEnum> BuildAsync(ICommandOptions options)
     {
+        await RunAutoUpdateAsync(options);
         var workingDirectory = Utils.DirectoryUtils.GetWorkingDirectory();
         EnvConfiguration envConfig;
         try
@@ -291,152 +182,34 @@ public class SpocrManager(
             return ExecuteResultEnum.Error;
         }
 
-        await RunAutoUpdateAsync(options);
-
-        if (!configFile.Exists())
+        if (!await EnsureSnapshotAsync(workingDirectory))
         {
-            if (string.IsNullOrWhiteSpace(envConfig.GeneratorConnectionString))
+            return ExecuteResultEnum.Error;
+        }
+
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(envConfig.GeneratorConnectionString))
             {
-                consoleService.Error("SPOCR_GENERATOR_DB is missing (.env not found or incomplete)");
-                consoleService.Output($"\tRun '{Constants.Name} init' to scaffold a .env or export SPOCR_GENERATOR_DB before running '{Constants.Name} build'.");
-                return ExecuteResultEnum.Error;
+                vnextDbContext.SetConnectionString(envConfig.GeneratorConnectionString);
             }
 
-            consoleService.Warn("[bridge] no legacy configuration file detected - skipping legacy DataContext build (using .env values only).");
-            return ExecuteResultEnum.Succeeded;
-        }
+            consoleService.PrintTitle("Generating table types from snapshot (.spocr)");
 
-        if (await RunConfigVersionCheckAsync(options) == ExecuteResultEnum.Aborted)
-            return ExecuteResultEnum.Aborted;
+            var renderer = new SimpleTemplateEngine();
+            var toolRoot = Directory.GetCurrentDirectory();
+            var templatesDir = Path.Combine(toolRoot, "src", "SpocRVNext", "Templates");
+            ITemplateLoader? loader = Directory.Exists(templatesDir) ? new FileSystemTemplateLoader(templatesDir) : null;
+            var metadata = new TableTypeMetadataProvider(workingDirectory);
+            var generator = new TableTypesGenerator(envConfig, metadata, renderer, loader, workingDirectory);
+            var written = generator.Generate();
 
-        consoleService.PrintTitle($"Build DataContext from {Constants.ConfigurationFile}");
-
-        // Configure AST verbose diagnostics (bind/derived logs) according to global --verbose flag
-        try { SpocR.Models.StoredProcedureContentModel.SetAstVerbose(options.Verbose); } catch { }
-
-        // Reuse unified configuration loading + user overrides
-        var mergedConfig = await LoadAndMergeConfigurationsAsync();
-        if (mergedConfig?.Project == null)
-        {
-            consoleService.Error("Configuration is invalid (project node missing)");
-            return ExecuteResultEnum.Error;
-        }
-
-        // Propagate merged configuration to shared configFile so generators (TemplateManager, OutputService) see updated values like Project.Output.Namespace
-        try
-        {
-            configFile.OverwriteWithConfig = mergedConfig;
-            // Force refresh of cached Config instance
-            await configFile.ReloadAsync();
-        }
-        catch (Exception ex)
-        {
-            consoleService.Warn($"Could not propagate merged configuration to FileManager: {ex.Message}");
-        }
-
-        var project = mergedConfig.Project;
-        var connectionString = project?.DataBase?.ConnectionString;
-        if (string.IsNullOrWhiteSpace(connectionString))
-        {
-            consoleService.Error("Missing database connection string");
-            consoleService.Output($"\tSet SPOCR_GENERATOR_DB in your .env (run '{Constants.Name} init' to bootstrap) before running '{Constants.Name} build'.");
-            return ExecuteResultEnum.Error;
-        }
-        if (options.Verbose)
-        {
-            consoleService.Verbose($"[build] Using connection string (length={connectionString?.Length}) from configuration.");
-        }
-
-        try
-        {
-            vnextDbContext.SetConnectionString(connectionString);
+            var outputDir = string.IsNullOrWhiteSpace(envConfig.OutputDir) ? "SpocR" : envConfig.OutputDir;
             if (options.Verbose)
             {
-                try
-                {
-                    var working = Utils.DirectoryUtils.GetWorkingDirectory();
-                    var outputBase = Utils.DirectoryUtils.GetWorkingDirectory(project.Output?.DataContext?.Path ?? "(null)");
-                    consoleService.Verbose($"[diag-build] workingDir={working} outputBase={outputBase} genMode={envConfig.GeneratorMode}");
-                }
-                catch { }
+                consoleService.Verbose($"[build] TableTypes output root: {Path.Combine(workingDirectory, outputDir)}");
             }
-            // Ensure snapshot presence (required for metadata-driven generation) Ã¢â‚¬â€œ but still require connection now (no offline mode)
-            try
-            {
-                var working = workingDirectory;
-                var schemaDir = System.IO.Path.Combine(working, ".spocr", "schema");
-                if (!System.IO.Directory.Exists(schemaDir) || System.IO.Directory.GetFiles(schemaDir, "*.json").Length == 0)
-                {
-                    consoleService.Error("No snapshot found. Run 'spocr pull' before 'spocr build'.");
-                    consoleService.Output($"\tAlternative: 'spocr rebuild{(string.IsNullOrWhiteSpace(options.Path) ? string.Empty : " -p " + options.Path)}' fÃƒÂ¼hrt Pull + Build in einem Schritt aus.");
-                    return ExecuteResultEnum.Error;
-                }
-            }
-            catch (Exception)
-            {
-                consoleService.Error("Unable to verify snapshot presence.");
-                return ExecuteResultEnum.Error;
-            }
-
-            // Optional informational warning if legacy schema section still present (non-empty) Ã¢â‚¬â€œ snapshot only build.
-            if (mergedConfig.Schema != null && mergedConfig.Schema.Count > 0 && options.Verbose)
-            {
-                consoleService.Verbose("[legacy-schema] config.Schema is ignored (snapshot-only build mode)");
-            }
-
-            var elapsed = await GenerateCodeAsync(project, options);
-
-            // Derive generator success/failure/skipped metrics from elapsed dictionary
-            // Convention: If a generator type was enabled but produced 0 ms, treat as skipped.
-            // (Future: we could carry explicit status objects instead of inferring.)
-            var enabledGenerators = elapsed.Keys.ToList();
-            var succeeded = elapsed.Where(kv => kv.Value > 0).Select(kv => kv.Key).ToList();
-            var skipped = elapsed.Where(kv => kv.Value == 0).Select(kv => kv.Key).ToList();
-
-            var summaryLines = new List<string>();
-            foreach (var kv in elapsed)
-            {
-                summaryLines.Add($"{kv.Key} generated in {kv.Value} ms.");
-            }
-
-            summaryLines.Add("");
-            summaryLines.Add($"Generators succeeded: {succeeded.Count}/{enabledGenerators.Count} [{string.Join(", ", succeeded)}]");
-            if (skipped.Count > 0)
-            {
-                summaryLines.Add($"Generators skipped (0 changes): {skipped.Count} [{string.Join(", ", skipped)}]");
-            }
-
-            consoleService.PrintSummary(summaryLines, $"{Constants.Name} v{service.Version.ToVersionString()}");
-
-            var totalElapsed = elapsed.Values.Sum();
-            consoleService.PrintTotal($"Total elapsed time: {totalElapsed} ms.");
-
-
-            // Invoke vNext pipeline: real TableTypes generation (always-on in next mode)
-            if (envConfig.GeneratorMode == "next")
-            {
-                try
-                {
-                    consoleService.PrintSubTitle($"vNext ({envConfig.GeneratorMode}) Ã¢â‚¬â€œ TableTypes");
-                    var targetProjectRoot = Utils.DirectoryUtils.GetWorkingDirectory(); // Zielprojekt (enthÃƒÂ¤lt .spocr)
-                    var cfg = EnvConfiguration.Load(projectRoot: targetProjectRoot);
-                    var renderer = new SimpleTemplateEngine();
-                    // Templates leben im Tool-Repository, nicht im Zielprojekt
-                    var toolRoot = System.IO.Directory.GetCurrentDirectory();
-                    var templatesDir = System.IO.Path.Combine(toolRoot, "src", "SpocRVNext", "Templates");
-                    ITemplateLoader? loader = System.IO.Directory.Exists(templatesDir) ? new FileSystemTemplateLoader(templatesDir) : null;
-                    var metadata = new TableTypeMetadataProvider(targetProjectRoot); // Metadaten aus Zielprojekt (.spocr)
-                    var generator = new TableTypesGenerator(cfg, metadata, renderer, loader, targetProjectRoot);
-                    var count = generator.Generate();
-                    consoleService.Gray($"[vnext] TableTypes generated: {count} artifacts (includes interface)");
-                }
-                catch (Exception vx)
-                {
-                    consoleService.Warn($"[vnext-warning] TableTypes generation failed: {vx.Message}");
-                }
-            }
-
-            // (Removed) manager-level .env prefill: now handled centrally inside EnvConfiguration for consistency.
+            consoleService.Output($"Generated {written} table type artifact(s) into '{outputDir}'.");
 
             if (options.DryRun)
             {
@@ -467,42 +240,10 @@ public class SpocrManager(
 
     public async Task<ExecuteResultEnum> RemoveAsync(ICommandOptions options)
     {
-        if (!configFile.Exists())
-        {
-            consoleService.Error("Configuration file not found");
-            consoleService.Output($"\tNothing to remove.");
-            return ExecuteResultEnum.Error;
-        }
-
         await RunAutoUpdateAsync(options);
 
-        if (options.DryRun)
-        {
-            consoleService.PrintDryRunMessage("Would remove all generated files");
-            return ExecuteResultEnum.Succeeded;
-        }
-
-        var proceed1 = consoleService.GetYesNo("Remove all generated files?", true);
-        if (!proceed1) return ExecuteResultEnum.Aborted;
-
-        try
-        {
-            output.RemoveGeneratedFiles(configFile.Config.Project.Output.DataContext.Path, options.DryRun);
-            consoleService.Output("Generated folder and files removed.");
-        }
-        catch (Exception ex)
-        {
-            consoleService.Error($"Failed to remove files: {ex.Message}");
-            return ExecuteResultEnum.Error;
-        }
-
-        var proceed2 = consoleService.GetYesNo($"Remove {Constants.ConfigurationFile}?", true);
-        if (!proceed2) return ExecuteResultEnum.Aborted;
-
-        await configFile.RemoveAsync(options.DryRun);
-        consoleService.Output($"{Constants.ConfigurationFile} removed.");
-
-        return ExecuteResultEnum.Succeeded;
+        consoleService.Warn("remove is deprecated for the vNext CLI; delete generated files manually if required.");
+        return ExecuteResultEnum.Skipped;
     }
 
     public async Task<ExecuteResultEnum> GetVersionAsync()
@@ -516,50 +257,6 @@ public class SpocrManager(
             consoleService.Output($"Latest:  {latest?.ToVersionString()} (Development build)");
         else
             consoleService.Output($"Latest:  {latest?.ToVersionString() ?? current.ToVersionString()}");
-
-        return ExecuteResultEnum.Succeeded;
-    }
-
-    public async Task ReloadConfigurationAsync()
-    {
-        await configFile.ReloadAsync();
-    }
-
-    private bool _versionCheckPerformed = false;
-    private async Task<ExecuteResultEnum> RunConfigVersionCheckAsync(ICommandOptions options)
-    {
-        if (options.NoVersionCheck || _versionCheckPerformed) return ExecuteResultEnum.Skipped;
-        _versionCheckPerformed = true;
-
-        var check = configFile.CheckVersion();
-        if (!check.DoesMatch)
-        {
-            if (check.SpocRVersion.IsGreaterThan(check.ConfigVersion))
-            {
-                consoleService.Warn($"Your local {Constants.ConfigurationFile} Version {check.SpocRVersion.ToVersionString()} is greater than the {Constants.ConfigurationFile} Version {check.ConfigVersion.ToVersionString()}");
-                var answer = consoleService.GetSelectionMultiline("Do you want to continue?", ["Continue", "Cancel"]);
-                if (answer.Value != "Continue")
-                {
-                    return ExecuteResultEnum.Aborted;
-                }
-            }
-            else if (check.SpocRVersion.IsLessThan(check.ConfigVersion))
-            {
-                consoleService.Warn($"Your local {Constants.ConfigurationFile} Version {check.SpocRVersion.ToVersionString()} is lower than the {Constants.ConfigurationFile} Version {check.ConfigVersion.ToVersionString()}");
-                var latestVersion = await autoUpdaterService.GetLatestVersionAsync();
-                var answer = consoleService.GetSelectionMultiline("Do you want to continue?", ["Continue", "Cancel", $"Update {Constants.Name} to {latestVersion}"]);
-                switch (answer.Value)
-                {
-                    case "Update":
-                        autoUpdaterService.InstallUpdate();
-                        break;
-                    case "Continue":
-                        break;
-                    default:
-                        return ExecuteResultEnum.Aborted;
-                }
-            }
-        }
 
         return ExecuteResultEnum.Succeeded;
     }
@@ -593,90 +290,23 @@ public class SpocrManager(
         }
     }
 
-    private Task<Dictionary<string, long>> GenerateCodeAsync(ProjectModel project, ICommandOptions options)
+    private async Task<bool> EnsureSnapshotAsync(string workingDirectory)
     {
         try
         {
-            if (options is IBuildCommandOptions buildOptions && buildOptions.GeneratorTypes != GeneratorTypes.All)
+            var schemaDir = Path.Combine(workingDirectory, ".spocr", "schema");
+            if (!Directory.Exists(schemaDir) || Directory.GetFiles(schemaDir, "*.json").Length == 0)
             {
-                orchestrator.EnabledGeneratorTypes = buildOptions.GeneratorTypes;
-                consoleService.Verbose($"Generator types restricted to: {buildOptions.GeneratorTypes}");
+                consoleService.Error("No snapshot found. Run 'spocr pull' before 'spocr build'.");
+                consoleService.Output("\tUse 'spocr rebuild' to run pull and build in a single step.");
+                return false;
             }
-
-            // Access still required until full removal in v5 Ã¢â‚¬â€œ locally suppress obsolete warning
-#pragma warning disable CS0618
-            return orchestrator.GenerateCodeWithProgressAsync(options.DryRun, project.Role.Kind, project.Output);
-#pragma warning restore CS0618
+            return true;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            if (options.Verbose)
-            {
-                consoleService.Error(ex.StackTrace);
-            }
-            else
-            {
-                consoleService.Output("\tRun with --verbose for more details");
-            }
-
-            return Task.FromResult(new Dictionary<string, long>());
+            consoleService.Error("Unable to verify snapshot presence.");
+            return false;
         }
-    }
-
-    private async Task<ConfigurationModel> LoadAndMergeConfigurationsAsync()
-    {
-        var config = await configFile.ReadAsync();
-        if (config == null)
-        {
-            consoleService.Error("Failed to read configuration file");
-            return new ConfigurationModel();
-        }
-
-        // Migration / normalization for Role (deprecation path)
-        try
-        {
-            // If Role missing => fill with default (Kind=Default)
-            if (config.Project != null && config.Project.Role == null)
-            {
-                config.Project.Role = new RoleModel();
-            }
-            // Deprecation warning when a non-default value is set
-            // Deprecation warning only if old value (Lib/Extension) is used
-#pragma warning disable CS0618
-            if (config.Project?.Role?.Kind is SpocR.Enums.RoleKindEnum.Lib or SpocR.Enums.RoleKindEnum.Extension)
-#pragma warning restore CS0618
-            {
-                consoleService.Warn("[deprecation] Project.Role.Kind is deprecated and will be removed in v5. Remove the 'Role' section or set it to Default. See migration guide.");
-            }
-        }
-        catch (Exception ex)
-        {
-            consoleService.Verbose($"[role-migration-warn] {ex.Message}");
-        }
-
-        var userConfigFileName = Constants.UserConfigurationFile.Replace("{userId}", globalConfigFile.Config?.UserId);
-        if (string.IsNullOrEmpty(globalConfigFile.Config?.UserId))
-        {
-            consoleService.Verbose("No user ID found in global configuration");
-            return config;
-        }
-
-        var userConfigFile = new FileManager<ConfigurationModel>(service, userConfigFileName);
-
-        if (userConfigFile.Exists())
-        {
-            consoleService.Verbose($"Merging user configuration from {userConfigFileName}");
-            var userConfig = await userConfigFile.ReadAsync();
-            if (userConfig != null)
-            {
-                return config.OverwriteWith(userConfig);
-            }
-            else
-            {
-                consoleService.Warn($"User configuration file exists but could not be read: {userConfigFileName}");
-            }
-        }
-
-        return config;
     }
 }

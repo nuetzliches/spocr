@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 namespace SpocR.Commands.Spocr;
 
 [HelpOption("-?|-h|--help")]
-[Command("remove", Description = "Removes the SpocR Project")]
+[Command("remove", Description = "Deprecated: legacy cleanup helper (manual removal recommended)")]
 public class RemoveCommand(
     SpocrManager spocrManager,
     SpocrProjectManager spocrProjectManager
@@ -14,6 +14,7 @@ public class RemoveCommand(
     public override async Task<int> OnExecuteAsync()
     {
         await base.OnExecuteAsync();
-        return (int)await spocrManager.RemoveAsync(CommandOptions);
+        var result = await spocrManager.RemoveAsync(CommandOptions);
+        return CommandResultMapper.Map(result);
     }
 }

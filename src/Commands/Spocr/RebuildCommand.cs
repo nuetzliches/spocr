@@ -25,8 +25,6 @@ public class RebuildCommand(
             return CommandResultMapper.Map(pullResult);
         }
 
-        await spocrManager.ReloadConfigurationAsync();
-
         var buildResult = await spocrManager.BuildAsync(CommandOptions);
         return CommandResultMapper.Map(buildResult);
     }

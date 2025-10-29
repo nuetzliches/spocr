@@ -92,7 +92,7 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 - [ ] Review-Findings (Konzeptfehler, unsauberer Code, Unschärfen, fehlende Tests/Qualität) laufend pflegen und priorisieren.
   - [x] RestApi-Sample kompiliert nach Result-Typ-Refresh (`dotnet build samples/restapi/RestApi.csproj -c Debug`, 2025-10-28). Endpunkte bleiben bewusst per `#if false` deaktiviert, bis JSON-Aggregate finalisiert sind.
   - [x] Debug-Sandbox `.env` bereinigt; `SPOCR_GENERATOR_MODE` entfernt, next-only Standard bestätigt (2025-10-29).
-  - [ ] CLI-Manager entkoppeln verbleibende `FileManager<ConfigurationModel>`-Verwendung und ziehen `.env`-Optionen nach.
+  - [x] CLI-Manager entkoppeln verbleibende `FileManager<ConfigurationModel>`-Verwendung und ziehen `.env`-Optionen nach. (2025-10-31: `SpocrManager` nutzt ausschließlich EnvConfiguration für Pull/Build, Legacy Remove bepreist als deprecatet)
 
 ## Dokumentation & Kommunikation
 
