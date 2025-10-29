@@ -53,6 +53,7 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
   - 2025-10-29: CLI Build-Pfad setzt kein `SpocR.DataContext` mehr voraus (`SpocrManager` nutzt nur noch den vNext DbContext); Legacy-Brücke bleibt für Restarbeiten.
   - 2025-10-31: Service-Registrierung lässt die `SpocR.DataContext`-Bridge fallen; Tests laufen nur noch auf `SpocRVNext.Data`. `src/DataContext/` bleibt als Legacy-Ordner für das Aufräum-Follow-up markiert.
   - 2025-10-31: SnapshotSchemaMetadataProvider bezieht Filter ausschließlich aus `.env`/Env-Variablen; `FileManager<ConfigurationModel>` entfällt.
+  - 2025-10-31: Schema-CLI (`spocr schema`) deaktiviert; Manager & Commands bleiben als leere Platzhalter ohne `spocr.json`-Schreibpfad.
 - [ ] Neue CLI (`init`, `pull`, `build`, `rebuild`) finalisieren und Kommunikationspaket vorbereiten.
 - [ ] Teststrategie v5 definieren (Smoke/Integration vs. Legacy-Abschaltung) und CI entsprechend planen.
 - [x] DbContext-Implementierung zu schlankem DB-Adapter für die `spocr pull`-Pipeline umbauen (Basis für `src/SpocRVNext/Templates/DbContext`).

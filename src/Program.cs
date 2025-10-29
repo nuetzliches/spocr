@@ -4,7 +4,6 @@ using McMaster.Extensions.CommandLineUtils;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SpocR.Commands.Project;
-using SpocR.Commands.Schema;
 using SpocR.Commands.Spocr;
 using SpocR.Commands.Snapshot;
 using SpocR.SpocRVNext.Data;
@@ -26,7 +25,6 @@ namespace SpocR;
 [Subcommand(typeof(VersionCommand))]
 [Subcommand(typeof(ConfigCommand))]
 [Subcommand(typeof(ProjectCommand))]
-[Subcommand(typeof(SchemaCommand))]
 [Subcommand(typeof(SnapshotCommand))]
 [Subcommand(typeof(SpocR.Commands.Test.TestCommand))]
 [HelpOption("-?|-h|--help")]

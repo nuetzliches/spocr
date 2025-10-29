@@ -32,6 +32,7 @@
 - [x] CLI-Manager auf `.env`-Only Betriebsmodus bringen (Config-File FileManager entfernen).
   - 2025-10-31: SnapshotSchemaMetadataProvider konsumiert `.env`/Environment statt `FileManager<ConfigurationModel>`.
   - 2025-10-31: `SpocrManager` entfernt `FileManager<ConfigurationModel>` Abhängigkeit; Pull/Build laufen rein über EnvConfiguration, Remove weist auf Legacy-/Manualpfad hin.
+  - 2025-10-31: `spocr schema` Kommando deaktiviert; SchemaManager/Commands nur noch leere Platzhalter ohne Legacy-Fallback.
 - [~] `.env`-Pfad finalisieren, Migration `spocr.json` → `.env` über `spocr init` absichern.
   - Debug-Sandbox `.env` bereinigt; `SPOCR_GENERATOR_MODE` entfernt, next-only Verhalten bestätigt (2025-10-29).
   - Generator liest keine `spocr.json`-Fallbacks mehr; `spocr init`/CI Inventory bleibt zu aktualisieren (2025-10-29).
