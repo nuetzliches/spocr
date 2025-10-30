@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using SpocRVNext.Configuration;
-using SpocR.Interfaces;
+using SpocR.SpocRVNext.Infrastructure;
 
 namespace SpocR.Models;
 

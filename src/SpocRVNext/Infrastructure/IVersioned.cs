@@ -1,6 +1,6 @@
 using System;
 
-namespace SpocR.Interfaces;
+namespace SpocR.SpocRVNext.Infrastructure;
 
 public interface IVersioned
 {
