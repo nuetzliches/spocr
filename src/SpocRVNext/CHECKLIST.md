@@ -37,3 +37,4 @@
 	- 2025-10-30: Namespace-Basis auf `SpocR.SpocRVNext.*` vereinheitlicht, doppelte JsonElement-Helfer zusammengeführt, Tests und CLI-Einstieg an neue Struktur angepasst.
 	- 2025-10-30: Config-Modelle in `Models/` auf Ein-Datei-pro-Typ aufgeteilt (Global, Project, Role, Output/DataContext), damit Folge-Refactorings gezielt erfolgen können.
 - [ ] Invalidierung der SQL-Objekte im Cache korrekt implementieren (bereits vorgesehen, noch nicht finalisiert), um zu verhindern, dass hier für jede Prozedur die TableTypes erneut aus der DB kommen müssen `src\SpocRVNext\Schema\SchemaManager.cs`.
+- [ ] Rauschen reduzieren: `dotnet run --project src/SpocR.csproj -- rebuild -p debug --no-cache`
