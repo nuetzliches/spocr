@@ -103,7 +103,7 @@ public class SpocrCliRuntime(
             consoleService.Error($"Database error during snapshot build: {sqlEx.Message}");
             if (options.Verbose)
             {
-                consoleService.Error(sqlEx.StackTrace);
+                consoleService.Error(sqlEx.StackTrace ?? string.Empty);
             }
             return ExecuteResultEnum.Error;
         }
@@ -112,7 +112,7 @@ public class SpocrCliRuntime(
             consoleService.Error($"Snapshot builder failed: {ex.Message}");
             if (options.Verbose)
             {
-                consoleService.Error(ex.StackTrace);
+                consoleService.Error(ex.StackTrace ?? string.Empty);
             }
             return ExecuteResultEnum.Error;
         }
@@ -209,14 +209,15 @@ public class SpocrCliRuntime(
             var generator = new TableTypesGenerator(envConfig, metadata, renderer, loader, workingDirectory);
             var written = generator.Generate();
 
-            var outputDir = string.IsNullOrWhiteSpace(envConfig.OutputDir) ? "SpocR" : envConfig.OutputDir;
+            var outputDir = string.IsNullOrWhiteSpace(envConfig.OutputDir) ? "SpocR" : envConfig.OutputDir.Trim();
             if (options.Verbose)
             {
                 consoleService.Verbose($"[build] TableTypes output root: {Path.Combine(workingDirectory, outputDir)}");
             }
             consoleService.Output($"Generated {written} table type artifact(s) into '{outputDir}'.");
 
-            consoleService.PrintTitle("Generating DbContext artifacts");
+            consoleService.PrintTitle("Generating procedure artifacts");
+
             IReadOnlyList<SpocR.SpocRVNext.Metadata.ProcedureDescriptor> procedures;
             try
             {
@@ -224,13 +225,76 @@ public class SpocrCliRuntime(
                 procedures = schemaProvider.GetProcedures();
                 if (options.Verbose)
                 {
-                    consoleService.Verbose($"[build] DbContext procedures available: {procedures.Count}");
+                    consoleService.Verbose($"[build] Procedures available: {procedures.Count}");
                 }
             }
             catch (Exception ex)
             {
                 consoleService.Warn($"Failed to load procedure metadata: {ex.Message}");
                 procedures = Array.Empty<SpocR.SpocRVNext.Metadata.ProcedureDescriptor>();
+            }
+
+            if (procedures.Count == 0)
+            {
+                consoleService.Warn("No stored procedures found in snapshot metadata – skipping procedure generation.");
+            }
+            else
+            {
+                var namespaceResolver = new NamespaceResolver(envConfig, msg => consoleService.Verbose($"[proc-ns] {msg}"));
+                var nsRoot = namespaceResolver.Resolve(workingDirectory);
+                if (string.IsNullOrWhiteSpace(nsRoot))
+                {
+                    nsRoot = "SpocR";
+                    consoleService.Warn("Namespace resolution returned empty value. Falling back to 'SpocR'.");
+                }
+
+                static string ResolveNamespaceSegment(string? outputSetting)
+                {
+                    if (string.IsNullOrWhiteSpace(outputSetting))
+                    {
+                        return "SpocR";
+                    }
+
+                    var trimmed = outputSetting.Trim().Trim('.', '/', '\\');
+                    if (string.IsNullOrWhiteSpace(trimmed))
+                    {
+                        return "SpocR";
+                    }
+
+                    var segments = trimmed.Split(new[] { '/', '\\' }, StringSplitOptions.RemoveEmptyEntries);
+                    var lastSegment = segments.LastOrDefault();
+                    if (string.IsNullOrWhiteSpace(lastSegment))
+                    {
+                        return "SpocR";
+                    }
+
+                    var sanitized = new string(lastSegment.Where(ch => char.IsLetterOrDigit(ch) || ch == '_').ToArray());
+                    return string.IsNullOrWhiteSpace(sanitized) ? "SpocR" : sanitized;
+                }
+
+                var nsSegment = ResolveNamespaceSegment(envConfig.OutputDir);
+                var finalNamespace = nsRoot.EndsWith('.' + nsSegment, StringComparison.OrdinalIgnoreCase)
+                    ? nsRoot
+                    : nsRoot + '.' + nsSegment;
+
+                var procedureOutputRoot = string.IsNullOrWhiteSpace(envConfig.OutputDir)
+                    ? Path.Combine(workingDirectory, "SpocR")
+                    : (Path.IsPathRooted(envConfig.OutputDir)
+                        ? Path.GetFullPath(envConfig.OutputDir)
+                        : Path.Combine(workingDirectory, envConfig.OutputDir));
+
+                Directory.CreateDirectory(procedureOutputRoot);
+
+                var proceduresGenerator = new ProceduresGenerator(renderer, () => procedures, loader, workingDirectory, envConfig);
+                var generatedProcedures = proceduresGenerator.Generate(finalNamespace, procedureOutputRoot);
+                consoleService.Output($"Generated {generatedProcedures} procedure artifact(s) into '{outputDir}'.");
+            }
+
+            consoleService.PrintTitle("Generating DbContext artifacts");
+
+            if (procedures.Count > 0 && options.Verbose)
+            {
+                consoleService.Verbose($"[build] DbContext procedures available: {procedures.Count}");
             }
 
             var configManager = new SpocR.SpocRVNext.Infrastructure.FileManager<SpocR.SpocRVNext.Models.ConfigurationModel>(
@@ -261,7 +325,7 @@ public class SpocrCliRuntime(
             consoleService.Error($"Database error during the build process: {sqlEx.Message}");
             if (options.Verbose)
             {
-                consoleService.Error(sqlEx.StackTrace);
+                consoleService.Error(sqlEx.StackTrace ?? string.Empty);
             }
             return ExecuteResultEnum.Error;
         }
@@ -270,7 +334,7 @@ public class SpocrCliRuntime(
             consoleService.Error($"Unexpected error during the build process: {ex.Message}");
             if (options.Verbose)
             {
-                consoleService.Error(ex.StackTrace);
+                consoleService.Error(ex.StackTrace ?? string.Empty);
             }
             return ExecuteResultEnum.Error;
         }

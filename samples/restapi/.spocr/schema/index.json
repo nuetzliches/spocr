@@ -1,14 +1,14 @@
 {
   "SchemaVersion": 1,
-  "Fingerprint": "2E4241AFB1DE45A6",
+  "Fingerprint": "9444959094338932",
   "Parser": {
     "ToolVersion": "net9.0",
     "ResultSetParserVersion": 8
   },
   "Stats": {
-    "ProcedureTotal": 8,
+    "ProcedureTotal": 10,
     "ProcedureSkipped": 0,
-    "ProcedureLoaded": 8,
+    "ProcedureLoaded": 10,
     "UdttTotal": 3,
     "TableTotal": 2,
     "ViewTotal": 0,
@@ -16,6 +16,12 @@
     "FunctionTotal": 0
   },
   "Procedures": [
+    {
+      "Schema": "samples",
+      "Name": "CreateUserWithOutput",
+      "File": "samples.CreateUserWithOutput.json",
+      "Hash": "AFB986D908C54CED"
+    },
     {
       "Schema": "samples",
       "Name": "OrderListAsJson",
@@ -27,6 +33,12 @@
       "Name": "OrderListByUserAsJson",
       "File": "samples.OrderListByUserAsJson.json",
       "Hash": "1D0B9FE05113AAFF"
+    },
+    {
+      "Schema": "samples",
+      "Name": "SumWithOutput",
+      "File": "samples.SumWithOutput.json",
+      "Hash": "A0EAEE49BCF0D347"
     },
     {
       "Schema": "samples",

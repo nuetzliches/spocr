@@ -34,6 +34,40 @@ BEGIN
 END
 GO
 
+CREATE OR ALTER PROCEDURE samples.CreateUserWithOutput
+    @DisplayName samples.DisplayNameType,
+    @Email samples.EmailAddressType,
+    @UserId INT OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    INSERT INTO samples.Users (Email, DisplayName)
+    VALUES (@Email, @DisplayName);
+
+    SET @UserId = CAST(SCOPE_IDENTITY() AS INT);
+
+    SELECT CreatedUserId = CAST(@UserId AS INT);
+END
+GO
+
+CREATE OR ALTER PROCEDURE samples.SumWithOutput
+    @FirstValue INT,
+    @SecondValue INT,
+    @Total INT OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SET @Total = (@FirstValue + @SecondValue);
+
+    SELECT
+        OperandA = CAST(@FirstValue AS INT),
+        OperandB = CAST(@SecondValue AS INT),
+        Total     = CAST(@Total AS INT);
+END
+GO
+
 CREATE OR ALTER PROCEDURE samples.OrderListAsJson
 AS
 BEGIN

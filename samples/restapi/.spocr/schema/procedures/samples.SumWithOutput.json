@@ -1,0 +1,40 @@
+{
+  "Schema": "samples",
+  "Name": "SumWithOutput",
+  "Parameters": [
+    {
+      "Name": "FirstValue",
+      "TypeRef": "sys.int",
+      "IsNullable": true
+    },
+    {
+      "Name": "SecondValue",
+      "TypeRef": "sys.int",
+      "IsNullable": true
+    },
+    {
+      "Name": "Total",
+      "TypeRef": "sys.int",
+      "IsNullable": true,
+      "IsOutput": true
+    }
+  ],
+  "ResultSets": [
+    {
+      "Columns": [
+        {
+          "Name": "OperandA",
+          "TypeRef": "sys.int"
+        },
+        {
+          "Name": "OperandB",
+          "TypeRef": "sys.int"
+        },
+        {
+          "Name": "Total",
+          "TypeRef": "sys.int"
+        }
+      ]
+    }
+  ]
+}

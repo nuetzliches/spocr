@@ -1,0 +1,30 @@
+{
+  "Schema": "samples",
+  "Name": "CreateUserWithOutput",
+  "Parameters": [
+    {
+      "Name": "DisplayName",
+      "TypeRef": "samples.DisplayNameType"
+    },
+    {
+      "Name": "Email",
+      "TypeRef": "samples.EmailAddressType"
+    },
+    {
+      "Name": "UserId",
+      "TypeRef": "sys.int",
+      "IsNullable": true,
+      "IsOutput": true
+    }
+  ],
+  "ResultSets": [
+    {
+      "Columns": [
+        {
+          "Name": "CreatedUserId",
+          "TypeRef": "sys.int"
+        }
+      ]
+    }
+  ]
+}
