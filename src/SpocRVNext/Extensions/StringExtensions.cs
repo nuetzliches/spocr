@@ -1,6 +1,7 @@
+using System;
 using System.Text;
 
-namespace SpocR.Extensions;
+namespace SpocR.SpocRVNext.Extensions;
 
 internal static class StringExtensions
 {
@@ -10,7 +11,8 @@ internal static class StringExtensions
         {
             return input;
         }
-        return $"{input[0].ToString().ToLowerInvariant()}{input.Remove(0, 1)}";
+
+        return string.Concat(input[0].ToString().ToLowerInvariant(), input.Substring(1));
     }
 
     internal static string FirstCharToUpper(this string input)
@@ -19,7 +21,8 @@ internal static class StringExtensions
         {
             return input;
         }
-        return $"{input[0].ToString().ToUpperInvariant()}{input.Remove(0, 1)}";
+
+        return string.Concat(input[0].ToString().ToUpperInvariant(), input.Substring(1));
     }
 
     internal static string ToPascalCase(this string input)
@@ -30,9 +33,9 @@ internal static class StringExtensions
         }
 
         var result = new StringBuilder();
-        bool capitalizeNext = true;
+        var capitalizeNext = true;
 
-        foreach (char c in input)
+        foreach (var c in input)
         {
             if (char.IsLetterOrDigit(c) || c == '_')
             {

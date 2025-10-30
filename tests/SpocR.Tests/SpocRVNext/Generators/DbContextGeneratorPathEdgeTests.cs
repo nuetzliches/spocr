@@ -4,7 +4,7 @@ using Xunit;
 using SpocR.Utils;
 using SpocR.SpocRVNext.Generators;
 using Microsoft.Extensions.DependencyInjection;
-using SpocR.Extensions;
+using SpocR.SpocRVNext.Extensions;
 using SpocR.SpocRVNext.Cli;
 using SpocR.Infrastructure;
 

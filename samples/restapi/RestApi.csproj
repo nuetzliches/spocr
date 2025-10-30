@@ -12,6 +12,7 @@
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.8" Condition=" '$(TargetFramework)' == 'net8.0' " />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0-rc.1.25451.107" Condition=" '$(TargetFramework)' == 'net10.0' " />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.1" />
+    <PackageReference Include="FluentValidation" Version="11.9.0" />
   </ItemGroup>
 
   <!-- Intentionally no ProjectReference to SpocR.

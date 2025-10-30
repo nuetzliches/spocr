@@ -3,7 +3,7 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
-using SpocR.Extensions;
+using SpocR.SpocRVNext.Extensions;
 using SpocR.Interfaces;
 using SpocR.Services;
 using SpocR.Utils;

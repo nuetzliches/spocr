@@ -1,5 +1,5 @@
 using System;
-using SpocR.Extensions;
+using SpocR.SpocRVNext.Extensions;
 using Shouldly;
 using Xunit;
 
@@ -41,7 +41,7 @@ public class VersionExtensionsTests
         // System.Version.Equals (instance) compares all 4 components => False
         a.Equals(b).ShouldBeFalse("System.Version considers revision component");
         // Extension-based comparison (first 3 parts) => True
-        SpocR.Extensions.VersionExtensions.Equals(a, b).ShouldBeTrue("extension Compare truncates to 3 parts");
+        SpocR.SpocRVNext.Extensions.VersionExtensions.Equals(a, b).ShouldBeTrue("extension Compare truncates to 3 parts");
     }
 }
 

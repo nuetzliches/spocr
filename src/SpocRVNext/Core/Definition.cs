@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SpocR.Extensions;
+using SpocR.SpocRVNext.Extensions;
 using SpocR.Models;
 
 namespace SpocR.SpocRVNext.Core;

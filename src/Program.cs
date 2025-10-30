@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using SpocR.SpocRVNext.Cli;
-using SpocR.Extensions;
+using SpocR.SpocRVNext.Extensions;
 using SpocR.Infrastructure;
 using SpocR.Runtime;
 using SpocR.Services;

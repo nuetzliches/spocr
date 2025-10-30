@@ -3,7 +3,7 @@ using System.IO;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using SpocR.SpocRVNext.Generators;
-using SpocR.Extensions;
+using SpocR.SpocRVNext.Extensions;
 using SpocR.SpocRVNext.Cli;
 using SpocR.SpocRVNext.Engine;
 using SpocR.Utils;

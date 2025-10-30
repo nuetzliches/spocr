@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
 using SpocR.SpocRVNext.Core;
-using SpocR.Extensions;
+using SpocR.SpocRVNext.Extensions;
 using SpocR.Infrastructure;
 using SpocR.Models;
 using SpocR.Utils;
