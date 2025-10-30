@@ -8,7 +8,7 @@ using SpocR.SpocRVNext.Data.Queries;
 using SpocR.SpocRVNext.Data.Models;
 using SpocR.SpocRVNext.Models;
 using SpocR.SpocRVNext.Services;
-using SpocR.Utils;
+using SpocR.SpocRVNext.Utils;
 
 namespace SpocR.SpocRVNext.Schema;
 

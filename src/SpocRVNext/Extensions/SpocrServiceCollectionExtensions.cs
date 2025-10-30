@@ -10,7 +10,7 @@ using SpocR.SpocRVNext.Cli;
 using SpocR.SpocRVNext.Engine;
 using SpocR.SpocRVNext.Generators;
 using SpocR.SpocRVNext.SnapshotBuilder;
-using SpocR.Utils;
+using SpocR.SpocRVNext.Utils;
 using SpocRVNext.Configuration;
 using SpocR.SpocRVNext.Infrastructure;
 

@@ -1,4 +1,4 @@
-namespace SpocR.Utils;
+namespace SpocR.SpocRVNext.Utils;
 
 internal static class CacheControl
 {

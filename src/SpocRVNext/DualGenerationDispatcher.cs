@@ -8,7 +8,7 @@ using SpocRVNext.Configuration;
 using SpocRVNext.Metadata;
 using SpocR.SpocRVNext.Generators;
 using System.Text.Json;
-using SpocR.Utils;
+using SpocR.SpocRVNext.Utils;
 
 namespace SpocR.SpocRVNext;
 

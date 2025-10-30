@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.Text;
 using SpocR.SpocRVNext.Models;
 using SpocR.SpocRVNext.Services;
-using SpocR.Utils;
+using SpocR.SpocRVNext.Utils;
 using SpocR.SpocRVNext.Engine;
 using SpocRVNext.Configuration; // for EnvConfiguration & NamespaceResolver
 using SpocR.SpocRVNext.Metadata; // ProcedureDescriptor

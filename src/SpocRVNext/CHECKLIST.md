@@ -12,10 +12,10 @@
 - [x] Migriere benötigtes aus `src\Schema` nach `src\SpocRVNext` und lösche dann das Verzeichnis. (2025-10-31: `SchemaManager` und `JsonResultTypeEnricher` nach `SpocRVNext/Schema` verschoben; Legacy-Ordner entfernt, Tests/DI aktualisiert.)
 - [x] Migriere benötigtes aus `src\Services` nach `src\SpocRVNext` und lösche dann das Verzeichnis. (2025-11-01: Alle Serviceklassen nach `SpocRVNext/Services` verschoben, Namespaces angepasst, Legacy-Ordner entfernt.)
 - [x] Migriere benötigtes aus `src\Telemetry` nach `src\SpocRVNext` und lösche dann das Verzeichnis. (2025-11-01: Telemetry-Interface & Console-Logger nach `SpocRVNext/Telemetry` verschoben; Legacy-Ordner entfernt.)
-- [ ] Migriere benötigtes aus `src\Utils` nach `src\SpocRVNext` und lösche dann das Verzeichnis.
+- [x] Migriere benötigtes aus `src\Utils` nach `src\SpocRVNext` und lösche dann das Verzeichnis. (2025-11-01: `CacheControl` & `DirectoryUtils` unter `SpocRVNext/Utils` konsolidiert; Legacy-Ordner entfernt.)
 - [ ] Migriere benötigtes aus `src\Constants.cs` nach `src\SpocRVNext` und lösche dann die Datei.
 - [ ] `src\SpocRVNext\DualGenerationDispatcher.cs` raus migrieren, es gibt nur noch vnext
-- [ ] `src\ProgramVNextCLI.cs` umbenennen und als Default CLI verwenden
+- [ ] `src\ProgramVNextCLI.cs` zu `src\Program.cs` migrieren und als Default CLI verwenden
 - [ ] Wozu brauchen wir `src\Properties`?
 - [ ] Nicht verwendeten Code in `src` ausfindig machen (Tests ignorieren, bzw. löschen, wenn einziger Konsument) und entfernen (rekursiv, bis alle unbenutzten Codezweige entfernt sind - geht das eventuell mit einem build flag effektiver?)
 - [ ] Entferne `Microsoft.CodeAnalysis`, `Microsoft.AspNet.WebApi.Client`, `System.Management` wenn nicht mehr erforderlich

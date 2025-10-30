@@ -15,7 +15,7 @@ using SpocR.SpocRVNext.Engine;
 using SpocR.SpocRVNext.Generators;
 using SpocR.SpocRVNext.SnapshotBuilder;
 using SpocR.SpocRVNext.SnapshotBuilder.Models;
-using SpocR.Utils;
+using SpocR.SpocRVNext.Utils;
 using SpocRVNext.Configuration;
 using SpocRVNext.Metadata;
 

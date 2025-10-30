@@ -192,7 +192,7 @@ public sealed class SpocRGenerator
             bool changed = previous == null || previous.TemplatesHash != templatesHash || previous.GeneratorVersion != currentVersion;
             if (changed)
             {
-                SpocR.Utils.CacheControl.ForceReload = true;
+                SpocR.SpocRVNext.Utils.CacheControl.ForceReload = true;
                 var reason = previous == null ? "initialization" : (previous.TemplatesHash != templatesHash ? "hash-diff" : "version-change");
                 Console.Out.WriteLine($"[spocr vNext] Info: Template cache-state {reason}; hash={templatesHash.Substring(0, 8)} → reload metadata. path={cacheFile}");
             }

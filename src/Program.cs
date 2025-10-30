@@ -12,7 +12,7 @@ using SpocR.SpocRVNext.Infrastructure;
 using SpocR.SpocRVNext.Runtime;
 using SpocR.SpocRVNext.Services;
 using SpocR.SpocRVNext.Data;
-using SpocR.Utils;
+using SpocR.SpocRVNext.Utils;
 using SpocRVNext.Configuration;
 
 namespace SpocR;

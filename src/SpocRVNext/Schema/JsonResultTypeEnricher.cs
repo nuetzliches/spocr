@@ -6,7 +6,7 @@ using SpocR.SpocRVNext.Data.Models;
 using SpocR.SpocRVNext.Models;
 using SpocR.SpocRVNext.Services;
 using SpocR.SpocRVNext.Metadata;
-using SpocR.Utils;
+using SpocR.SpocRVNext.Utils;
 
 namespace SpocR.SpocRVNext.Schema;
 

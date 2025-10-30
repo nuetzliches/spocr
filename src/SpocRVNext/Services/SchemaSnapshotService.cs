@@ -9,7 +9,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using SpocR.SpocRVNext.Models;
 using SpocR.SpocRVNext.SnapshotBuilder.Writers;
-using SpocR.Utils;
+using SpocR.SpocRVNext.Utils;
 
 namespace SpocR.SpocRVNext.Services;
 

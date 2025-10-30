@@ -6,7 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using SpocR.SpocRVNext.Models;
-using SpocR.Utils;
+using SpocR.SpocRVNext.Utils;
 
 namespace SpocR.SpocRVNext.Services;
 

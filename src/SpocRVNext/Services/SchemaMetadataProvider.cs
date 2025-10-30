@@ -5,7 +5,7 @@ using System.Linq;
 using SpocR.SpocRVNext.Models;
 using SpocRVNext.Configuration; // for EnvConfiguration
 using SpocR.SpocRVNext.Data.Models;
-using SpocR.Utils;
+using SpocR.SpocRVNext.Utils;
 
 namespace SpocR.SpocRVNext.Services;
 

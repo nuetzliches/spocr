@@ -1,7 +1,7 @@
 using System.IO;
 using System.Threading.Tasks;
 using Xunit;
-using SpocR.Utils;
+using SpocR.SpocRVNext.Utils;
 using SpocR.SpocRVNext.Generators;
 using Microsoft.Extensions.DependencyInjection;
 using SpocR.SpocRVNext.Extensions;

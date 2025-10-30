@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using SpocR.SpocRVNext.Services;
 using SpocR.SpocRVNext.Extensions;
-using SpocR.Utils;
+using SpocR.SpocRVNext.Utils;
 using SpocRVNext.Configuration;
 
 namespace SpocR.SpocRVNext.Infrastructure;

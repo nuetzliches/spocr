@@ -6,7 +6,7 @@ using SpocR.SpocRVNext.Generators;
 using SpocR.SpocRVNext.Extensions;
 using SpocR.SpocRVNext.Cli;
 using SpocR.SpocRVNext.Engine;
-using SpocR.Utils;
+using SpocR.SpocRVNext.Utils;
 using SpocR.SpocRVNext.Infrastructure;
 using Xunit;
 
