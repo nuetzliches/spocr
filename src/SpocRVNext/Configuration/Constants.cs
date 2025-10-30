@@ -1,6 +1,4 @@
-using SpocRVNext.Configuration;
-
-namespace SpocR;
+namespace SpocRVNext.Configuration;
 
 internal static class Constants
 {

@@ -1,8 +1,6 @@
 using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using SpocR;
-
 namespace SpocRVNext.Configuration;
 
 public class TargetFrameworkConverter : JsonConverter<string>

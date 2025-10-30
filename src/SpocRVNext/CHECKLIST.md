@@ -13,7 +13,7 @@
 - [x] Migriere benötigtes aus `src\Services` nach `src\SpocRVNext` und lösche dann das Verzeichnis. (2025-11-01: Alle Serviceklassen nach `SpocRVNext/Services` verschoben, Namespaces angepasst, Legacy-Ordner entfernt.)
 - [x] Migriere benötigtes aus `src\Telemetry` nach `src\SpocRVNext` und lösche dann das Verzeichnis. (2025-11-01: Telemetry-Interface & Console-Logger nach `SpocRVNext/Telemetry` verschoben; Legacy-Ordner entfernt.)
 - [x] Migriere benötigtes aus `src\Utils` nach `src\SpocRVNext` und lösche dann das Verzeichnis. (2025-11-01: `CacheControl` & `DirectoryUtils` unter `SpocRVNext/Utils` konsolidiert; Legacy-Ordner entfernt.)
-- [ ] Migriere benötigtes aus `src\Constants.cs` nach `src\SpocRVNext` und lösche dann die Datei.
+- [x] Migriere benötigtes aus `src\Constants.cs` nach `src\SpocRVNext` und lösche dann die Datei. (2025-11-01: Constants unter `SpocRVNext/Configuration` verschoben; Legacy-Datei entfernt.)
 - [ ] `src\SpocRVNext\DualGenerationDispatcher.cs` raus migrieren, es gibt nur noch vnext
 - [ ] `src\ProgramVNextCLI.cs` zu `src\Program.cs` migrieren und als Default CLI verwenden
 - [ ] Wozu brauchen wir `src\Properties`?

@@ -6,7 +6,6 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Data.SqlClient;
-using SpocR;
 using SpocR.SpocRVNext.Cli;
 using SpocR.SpocRVNext.Core;
 using SpocR.SpocRVNext.Extensions;
