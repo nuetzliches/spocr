@@ -1,5 +1,5 @@
 /// <summary>Generated interface for the database context abstraction.</summary>
-namespace RestApi.SpocR;
+namespace TestNs.SpocR;
 
 using System.Data.Common;
 using System.Threading;

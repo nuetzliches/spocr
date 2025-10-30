@@ -2,7 +2,7 @@
 // SpocR v4.5 Bridge Phase (vNext generator). This file is generated; do not edit directly.
 // Customize via additional partial classes or extension templates.
 #nullable enable
-namespace RestApi.SpocR;
+namespace TestNs.SpocR;
 
 using System;
 using System.Data.Common;

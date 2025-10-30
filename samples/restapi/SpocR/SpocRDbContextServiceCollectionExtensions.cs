@@ -1,4 +1,4 @@
-namespace RestApi.SpocR;
+namespace TestNs.SpocR;
 
 using System;
 using Microsoft.Extensions.Configuration;

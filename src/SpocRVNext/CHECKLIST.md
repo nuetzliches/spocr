@@ -19,6 +19,10 @@
 - [x] Wozu brauchen wir `src\Properties`? (2025-10-30: Folder entfernt, `InternalsVisibleTo` liegt bereits im Projektfile.)
 - [~] Nicht verwendeten Code in `src` ausfindig machen (Tests ignorieren, bzw. löschen, wenn einziger Konsument) und entfernen (rekursiv, bis alle unbenutzten Codezweige entfernt sind - geht das eventuell mit einem build flag effektiver?) In diesem Zuge auch nullable Warnings fixen, damit wir die Warnings reduziert bekommen.
 	- 2025-10-30: `Utils/DirectoryDiff` entfernt; ehemaliger Dual-Modus-Comparator ohne Aufrufe.
+	- 2025-10-30: Test-Projekte von ungenutzten Configuration/Roslyn/SqlClient-Paketen befreit; `SpocR.TestFramework` nutzt nur noch `xunit.abstractions`.
+	- 2025-10-30: Nullable-Warnungen in Roslyn-Helfern und FileManager reduziert (sicherer Umgang mit optionalen Attributen/Configs, keine Null-Zuweisungen mehr an `Role`).
 - [~] Entferne `Microsoft.CodeAnalysis`, `Microsoft.AspNet.WebApi.Client`, `System.Management` wenn nicht mehr erforderlich
-	- 2025-10-30: `Microsoft.CodeAnalysis.CSharp` und `Microsoft.AspNet.WebApi.Client` aus `SpocR.csproj` entfernt (pure Legacy-NuGets).
+	- 2025-10-30: `Microsoft.CodeAnalysis.CSharp` zunächst entfernt; nach Build-Check wieder aufgenommen, da `CompilationUnitSyntax`-Manipulationen weiterhin Roslyn benötigen.
+	- 2025-10-30: `Microsoft.AspNet.WebApi.Client` aus `SpocR.csproj` entfernt (legacy NuGet).
+	- 2025-10-30: `System.Management` entfernt; Paket ohne Verwendungsstellen.
 - [ ] Reorganisiere (Ordner-/Dateistruktur, Namenskonventionen, Usings) und normalisiere `src\SpocRVNext`

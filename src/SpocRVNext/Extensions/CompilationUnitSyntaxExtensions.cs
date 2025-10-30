@@ -13,7 +13,8 @@ internal static class CompilationUnitSyntaxExtensions
         var updatedUsings = new SyntaxList<UsingDirectiveSyntax>();
         foreach (var directive in root.Usings)
         {
-            var replaced = replacer.Invoke(directive.Name.ToString());
+            var original = directive.Name?.ToString() ?? string.Empty;
+            var replaced = replacer.Invoke(original);
             var name = SyntaxFactory.ParseName(replaced);
             updatedUsings = updatedUsings.Add(directive.WithName(name));
         }
@@ -40,7 +41,7 @@ internal static class CompilationUnitSyntaxExtensions
         throw new InvalidOperationException("Root must contain a namespace declaration.");
     }
 
-    internal static CompilationUnitSyntax ReplaceClassName(this CompilationUnitSyntax root, Func<string, string> replacer, Func<BaseNamespaceDeclarationSyntax, ClassDeclarationSyntax> selector = null)
+    internal static CompilationUnitSyntax ReplaceClassName(this CompilationUnitSyntax root, Func<string, string> replacer, Func<BaseNamespaceDeclarationSyntax, ClassDeclarationSyntax>? selector = null)
     {
         var nsNode = root.Members[0] as BaseNamespaceDeclarationSyntax ?? throw new InvalidOperationException("Root does not contain a namespace declaration.");
         var classNode = selector != null ? selector.Invoke(nsNode) : nsNode.Members.OfType<ClassDeclarationSyntax>().First();
@@ -72,11 +73,16 @@ internal static class CompilationUnitSyntaxExtensions
         return root;
     }
 
-    internal static CompilationUnitSyntax AddCustomAttribute(this CompilationUnitSyntax root, ref MethodDeclarationSyntax methodDeclaration, string name, AttributeArgumentListSyntax arguments = default)
+    internal static CompilationUnitSyntax AddCustomAttribute(this CompilationUnitSyntax root, ref MethodDeclarationSyntax methodDeclaration, string name, AttributeArgumentListSyntax? arguments = null)
     {
+        var attribute = SyntaxFactory.Attribute(SyntaxFactory.IdentifierName(name));
+        if (arguments is not null)
+        {
+            attribute = attribute.WithArgumentList(arguments);
+        }
+
         var attributes = methodDeclaration.AttributeLists.Add(
-            SyntaxFactory.AttributeList(SyntaxFactory.SingletonSeparatedList(
-                SyntaxFactory.Attribute(SyntaxFactory.IdentifierName(name)).WithArgumentList(arguments)))
+            SyntaxFactory.AttributeList(SyntaxFactory.SingletonSeparatedList(attribute))
             .NormalizeWhitespace());
 
         var updated = methodDeclaration.WithAttributeLists(attributes);
@@ -85,11 +91,16 @@ internal static class CompilationUnitSyntaxExtensions
         return root;
     }
 
-    internal static CompilationUnitSyntax AddCustomAttribute(this CompilationUnitSyntax root, ref ConstructorDeclarationSyntax constructorDeclaration, string name, AttributeArgumentListSyntax arguments = default)
+    internal static CompilationUnitSyntax AddCustomAttribute(this CompilationUnitSyntax root, ref ConstructorDeclarationSyntax constructorDeclaration, string name, AttributeArgumentListSyntax? arguments = null)
     {
+        var attribute = SyntaxFactory.Attribute(SyntaxFactory.IdentifierName(name));
+        if (arguments is not null)
+        {
+            attribute = attribute.WithArgumentList(arguments);
+        }
+
         var attributes = constructorDeclaration.AttributeLists.Add(
-            SyntaxFactory.AttributeList(SyntaxFactory.SingletonSeparatedList(
-                SyntaxFactory.Attribute(SyntaxFactory.IdentifierName(name)).WithArgumentList(arguments)))
+            SyntaxFactory.AttributeList(SyntaxFactory.SingletonSeparatedList(attribute))
             .NormalizeWhitespace());
 
         var updated = constructorDeclaration.WithAttributeLists(attributes);
@@ -98,15 +109,15 @@ internal static class CompilationUnitSyntaxExtensions
         return root;
     }
 
-    internal static CompilationUnitSyntax AddObsoleteAttribute(this CompilationUnitSyntax root, ref MethodDeclarationSyntax methodDeclaration, string message = null)
+    internal static CompilationUnitSyntax AddObsoleteAttribute(this CompilationUnitSyntax root, ref MethodDeclarationSyntax methodDeclaration, string? message = null)
     {
-        var arguments = !string.IsNullOrWhiteSpace(message) ? SyntaxFactory.ParseAttributeArgumentList($"(\"{message}\")") : default;
+        var arguments = !string.IsNullOrWhiteSpace(message) ? SyntaxFactory.ParseAttributeArgumentList($"(\"{message}\")") : null;
         return root.AddCustomAttribute(ref methodDeclaration, "Obsolete", arguments);
     }
 
-    internal static CompilationUnitSyntax AddObsoleteAttribute(this CompilationUnitSyntax root, ref ConstructorDeclarationSyntax constructorDeclaration, string message = null)
+    internal static CompilationUnitSyntax AddObsoleteAttribute(this CompilationUnitSyntax root, ref ConstructorDeclarationSyntax constructorDeclaration, string? message = null)
     {
-        var arguments = !string.IsNullOrWhiteSpace(message) ? SyntaxFactory.ParseAttributeArgumentList($"(\"{message}\")") : default;
+        var arguments = !string.IsNullOrWhiteSpace(message) ? SyntaxFactory.ParseAttributeArgumentList($"(\"{message}\")") : null;
         return root.AddCustomAttribute(ref constructorDeclaration, "Obsolete", arguments);
     }
 }

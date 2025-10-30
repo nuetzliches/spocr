@@ -5,6 +5,7 @@ using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using SpocR.SpocRVNext.Services;
 using SpocR.SpocRVNext.Extensions;
+using SpocR.SpocRVNext.Models;
 using SpocR.SpocRVNext.Utils;
 using SpocRVNext.Configuration;
 
@@ -13,23 +14,23 @@ namespace SpocR.SpocRVNext.Infrastructure;
 public interface IFileManager<TConfig> where TConfig : class, IVersioned
 {
     TConfig Config { get; }
-    bool TryOpen(string path, out TConfig config);
+    bool TryOpen(string path, out TConfig? config);
 }
 
 public class FileManager<TConfig>(
     SpocrService spocr,
     string fileName,
-    TConfig defaultConfig = default
+    TConfig? defaultConfig = default
 ) : IFileManager<TConfig> where TConfig : class, IVersioned
 {
-    public TConfig DefaultConfig
+    public TConfig? DefaultConfig
     {
         get => defaultConfig;
         set => defaultConfig = value;
     }
 
-    private TConfig _config;
-    private TConfig _overwritenWithConfig;
+    private TConfig? _config;
+    private TConfig? _overwritenWithConfig;
     public TConfig Config
     {
         get
@@ -38,29 +39,37 @@ public class FileManager<TConfig>(
             {
                 var config = ReadAsync().GetAwaiter().GetResult();
 
-                _config = DefaultConfig == null
-                    ? config
-                    : DefaultConfig.OverwriteWith(config);
+                if (DefaultConfig == null)
+                {
+                    _config = config;
+                }
+                else
+                {
+                    var source = config ?? DefaultConfig;
+                    _config = DefaultConfig.OverwriteWith(source);
+                }
 
                 if (OverwriteWithConfig != null)
                 {
-                    _config = _config.OverwriteWith(OverwriteWithConfig);
+                    _config = _config == null
+                        ? OverwriteWithConfig
+                        : _config.OverwriteWith(OverwriteWithConfig);
                 }
                 _overwritenWithConfig = OverwriteWithConfig;
             }
-            return _config;
+            return _config ?? throw new InvalidOperationException($"Unable to load configuration '{fileName}'. Provide a default config or ensure the file exists.");
         }
         set => _config = value;
     }
 
-    private TConfig _overwriteWithConfig;
-    public TConfig OverwriteWithConfig
+    private TConfig? _overwriteWithConfig;
+    public TConfig? OverwriteWithConfig
     {
         get => _overwriteWithConfig;
         set => _overwriteWithConfig = value;
     }
 
-    private JsonSerializerOptions _deserializerOptions;
+    private JsonSerializerOptions? _deserializerOptions;
     private JsonSerializerOptions DeserializerOptions
     {
         get => _deserializerOptions ??= new JsonSerializerOptions
@@ -72,7 +81,7 @@ public class FileManager<TConfig>(
         };
     }
 
-    private JsonSerializerOptions _serializerOptions;
+    private JsonSerializerOptions? _serializerOptions;
     private JsonSerializerOptions SerializerOptions
     {
         get => _serializerOptions ??= new JsonSerializerOptions()
@@ -96,18 +105,18 @@ public class FileManager<TConfig>(
         return File.Exists(path);
     }
 
-    public async Task<TConfig> ReadAsync()
+    public async Task<TConfig?> ReadAsync()
     {
         if (!Exists())
         {
-            return null;
+            return DefaultConfig;
         }
         var path = DirectoryUtils.GetWorkingDirectory(fileName);
         var content = await File.ReadAllTextAsync(path);
 
         var config = JsonSerializer.Deserialize<TConfig>(content, DeserializerOptions);
 
-        return config;
+        return config ?? DefaultConfig;
     }
 
     public async Task SaveAsync(TConfig config)
@@ -118,11 +127,14 @@ public class FileManager<TConfig>(
         {
             if (config is SpocR.SpocRVNext.Models.ConfigurationModel cfg)
             {
-                if (cfg?.Project?.Role != null
-                    && cfg.Project.Role.Kind == RoleKindEnum.Default
-                    && string.IsNullOrWhiteSpace(cfg.Project.Role.LibNamespace))
+                var project = cfg.Project;
+                var role = project?.Role;
+                if (role != null
+                    && role.Kind == RoleKindEnum.Default
+                    && string.IsNullOrWhiteSpace(role.LibNamespace)
+                    && project != null)
                 {
-                    cfg.Project.Role = null;
+                    project.Role = null!; // drop default role entirely so it is not written back to the config
                 }
             }
         }
@@ -132,7 +144,11 @@ public class FileManager<TConfig>(
 
         var json = JsonSerializer.Serialize(config, SerializerOptions);
         var path = DirectoryUtils.GetWorkingDirectory(fileName);
-        Directory.CreateDirectory(Path.GetDirectoryName(path));
+        var directory = Path.GetDirectoryName(path);
+        if (!string.IsNullOrEmpty(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
         await File.WriteAllTextAsync(path, json);
     }
 
@@ -158,7 +174,7 @@ public class FileManager<TConfig>(
         await Task.CompletedTask;
     }
 
-    public bool TryOpen(string path, out TConfig config)
+    public bool TryOpen(string path, out TConfig? config)
     {
         config = null;
         try

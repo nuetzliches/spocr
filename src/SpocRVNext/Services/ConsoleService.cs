@@ -299,23 +299,25 @@ public sealed class ConsoleService : IConsoleService
             {
                 Version = config.Version,
                 TargetFramework = config.TargetFramework,
-                Project = config.Project == null ? null : new ProjectModel
-                {
-                    DataBase = config.Project.DataBase,
-                    Output = config.Project.Output,
-                    DefaultSchemaStatus = config.Project.DefaultSchemaStatus,
-                    IgnoredSchemas = config.Project.IgnoredSchemas,
-                    IgnoredProcedures = config.Project.IgnoredProcedures,
-                    JsonTypeLogLevel = config.Project.JsonTypeLogLevel,
-                    Role = config.Project.Role
-                },
+                Project = config.Project is { } project
+                    ? new ProjectModel
+                    {
+                        DataBase = project.DataBase,
+                        Output = project.Output,
+                        DefaultSchemaStatus = project.DefaultSchemaStatus,
+                        IgnoredSchemas = project.IgnoredSchemas,
+                        IgnoredProcedures = project.IgnoredProcedures,
+                        JsonTypeLogLevel = project.JsonTypeLogLevel,
+                        Role = project.Role ?? new RoleModel()
+                    }
+                    : new ProjectModel(),
                 Schema = config.Schema
             };
 
 #pragma warning disable CS0618
             if (clone?.Project?.Role?.Kind == RoleKindEnum.Default && string.IsNullOrWhiteSpace(clone.Project.Role.LibNamespace))
             {
-                clone.Project.Role = null;
+                clone.Project.Role = new RoleModel();
             }
 #pragma warning restore CS0618
         }
