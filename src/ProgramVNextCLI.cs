@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using SpocR.SpocRVNext;
 using SpocRVNext.Configuration;
-using SpocR.Telemetry;
+using SpocR.SpocRVNext.Telemetry;
 using SpocR.SpocRVNext.GoldenHash; // golden hash commands
 
 namespace SpocR;
