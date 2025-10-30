@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using SpocR.SpocRVNext.Data;
 using SpocR.SpocRVNext.Data.Queries;
 using SpocR.SpocRVNext.Data.Models;
-using SpocR.Models;
+using SpocR.SpocRVNext.Models;
 using SpocR.Services;
 
 namespace SpocR.Schema;

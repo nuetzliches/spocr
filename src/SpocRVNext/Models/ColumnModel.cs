@@ -1,6 +1,6 @@
 using SpocR.SpocRVNext.Data.Models;
 
-namespace SpocR.Models;
+namespace SpocR.SpocRVNext.Models;
 
 public class ColumnModel
 {
@@ -8,7 +8,6 @@ public class ColumnModel
 
     public ColumnModel()
     {
-        // required for JSON Serializer
         _item = new Column();
     }
 
@@ -26,7 +25,7 @@ public class ColumnModel
     public bool? IsNullable
     {
         get => _item.IsNullable ? (bool?)true : null;
-        set => _item.IsNullable = value == true ? true : false;
+        set => _item.IsNullable = value == true;
     }
 
     public string SqlTypeName
@@ -38,6 +37,6 @@ public class ColumnModel
     public int? MaxLength
     {
         get => _item.MaxLength > 0 ? (int?)_item.MaxLength : null;
-        set => _item.MaxLength = (int)(value > 0 ? value : 0);
+        set => _item.MaxLength = value > 0 ? value.Value : 0;
     }
 }

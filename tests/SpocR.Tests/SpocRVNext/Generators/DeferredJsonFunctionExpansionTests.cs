@@ -5,7 +5,7 @@ using Xunit;
 using SpocR.SpocRVNext.Engine;
 using SpocR.SpocRVNext.Metadata;
 using SpocR.SpocRVNext.Generators;
-using SpocR.Models; // StoredProcedureContentModel for resolver delegate
+using SpocR.SpocRVNext.Models; // StoredProcedureContentModel for resolver delegate
 
 namespace SpocR.Tests.SpocRVNext.Generators;
 

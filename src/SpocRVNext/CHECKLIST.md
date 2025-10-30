@@ -7,7 +7,7 @@
 - [x] Migriere benötigtes aus `src\Extensions` nach `src\SpocRVNext` und lösche dann das Verzeichnis. (2025-10-30: String/Version/FileManager/DI/Roslyn Extensions in `SpocRVNext/Extensions` verschoben; Legacy-Ordner entfernt.)
 - [x] Migriere benötigtes aus `src\Infrastructure` nach `src\SpocRVNext` und lösche dann das Verzeichnis. (2025-10-30: FileManager/ExitCodes unter `SpocRVNext/Infrastructure` verschoben; Legacy-Ordner entfernt.)
 - [x] Migriere benötigtes aus `src\Interfaces` nach `src\SpocRVNext` und lösche dann das Verzeichnis. (2025-10-30: `IVersioned` nach `SpocRVNext/Infrastructure` verschoben; Legacy-Verzeichnis entfernt.)
-- [ ] Migriere benötigtes aus `src\Models` nach `src\SpocRVNext` und lösche dann das Verzeichnis.
+- [x] Migriere benötigtes aus `src\Models` nach `src\SpocRVNext` und lösche dann das Verzeichnis. (2025-10-31: Models unter `src/SpocRVNext/Models` konsolidiert, Legacy-Verzeichnis entfernt.)
 - [ ] Migriere benötigtes aus `src\Runtime` nach `src\SpocRVNext` und lösche dann das Verzeichnis.
 - [ ] Migriere benötigtes aus `src\Schema` nach `src\SpocRVNext` und lösche dann das Verzeichnis.
 - [ ] Migriere benötigtes aus `src\Services` nach `src\SpocRVNext` und lösche dann das Verzeichnis.
@@ -20,3 +20,4 @@
 - [ ] Nicht verwendeten Code in `src` ausfindig machen (Tests ignorieren, bzw. löschen, wenn einziger Konsument) und entfernen (rekursiv, bis alle unbenutzten Codezweige entfernt sind - geht das eventuell mit einem build flag effektiver?)
 - [ ] Entferne `Microsoft.CodeAnalysis`, `Microsoft.AspNet.WebApi.Client`, `System.Management` wenn nicht mehr erforderlich
 - [ ] Reorganisiere (Ordner-/Dateistruktur, Namenskonventionen, Usings) und normalisiere `src\SpocRVNext`
+- [ ] `SpocR v4.5 Bridge Phase (vNext generator)` aus Templates entfernen

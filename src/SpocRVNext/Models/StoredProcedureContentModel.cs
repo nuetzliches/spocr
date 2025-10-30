@@ -8,7 +8,7 @@ using System.Text.RegularExpressions;
 using Microsoft.SqlServer.TransactSql.ScriptDom;
 using SpocR.SpocRVNext.SnapshotBuilder.Analyzers;
 
-namespace SpocR.Models;
+namespace SpocR.SpocRVNext.Models;
 
 // Minimal stabile Implementation (einzelne Klasse, keine Duplikate, keine Diagnose-Ausgaben).
 public class StoredProcedureContentModel

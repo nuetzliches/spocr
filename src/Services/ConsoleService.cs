@@ -7,7 +7,7 @@ using System.Text.Json.Serialization;
 using SpocR.SpocRVNext.Cli;
 using SpocR.SpocRVNext.Core;
 using SpocRVNext.Configuration;
-using SpocR.Models;
+using SpocR.SpocRVNext.Models;
 
 namespace SpocR.Services;
 

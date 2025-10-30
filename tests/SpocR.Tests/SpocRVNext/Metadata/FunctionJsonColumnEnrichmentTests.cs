@@ -248,7 +248,7 @@ END",
         public void PrintSummary(IEnumerable<string> summary, string headline = null) { }
         public void PrintTotal(string total) { }
         public void PrintDryRunMessage(string message = null) { }
-        public void PrintConfiguration(SpocR.Models.ConfigurationModel config) { }
+        public void PrintConfiguration(SpocR.SpocRVNext.Models.ConfigurationModel config) { }
         public void PrintFileActionMessage(string fileName, FileActionEnum fileAction) { }
         public void PrintCorruptConfigMessage(string message) { }
         public void StartProgress(string message) { }

@@ -1,12 +1,12 @@
 using SpocR.SpocRVNext.Data.Models;
 
-namespace SpocR.Models;
+namespace SpocR.SpocRVNext.Models;
 
 public class StoredProcedureOutputModel
 {
     private readonly StoredProcedureOutput _item;
 
-    public StoredProcedureOutputModel()  // required for json serialization
+    public StoredProcedureOutputModel()
     {
         _item = new StoredProcedureOutput();
     }
@@ -40,4 +40,3 @@ public class StoredProcedureOutputModel
         set => _item.MaxLength = value;
     }
 }
-

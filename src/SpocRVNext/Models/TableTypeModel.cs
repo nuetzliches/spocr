@@ -4,13 +4,13 @@ using System.Linq;
 using System.Text.Json.Serialization;
 using SpocR.SpocRVNext.Data.Models;
 
-namespace SpocR.Models;
+namespace SpocR.SpocRVNext.Models;
 
 public class TableTypeModel : IEquatable<TableTypeModel>
 {
     private readonly TableType _item;
 
-    public TableTypeModel() // required for json serialization
+    public TableTypeModel()
     {
         _item = new TableType();
     }
@@ -37,13 +37,13 @@ public class TableTypeModel : IEquatable<TableTypeModel>
     public List<ColumnModel> _columns;
     public List<ColumnModel> Columns
     {
-        get { return _columns; }
-        set { _columns = value; }
+        get => _columns;
+        set => _columns = value;
     }
 
     public bool Equals(TableTypeModel other)
     {
-        return SchemaName == other.SchemaName && Name == other.Name;
+        return SchemaName == other?.SchemaName && Name == other?.Name;
     }
 
     public override bool Equals(object obj)
@@ -58,6 +58,6 @@ public class TableTypeModel : IEquatable<TableTypeModel>
 
     public override string ToString()
     {
-        return $"[SchemaName].[Name]";
+        return "[SchemaName].[Name]";
     }
 }

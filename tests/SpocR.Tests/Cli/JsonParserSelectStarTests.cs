@@ -1,4 +1,4 @@
-using SpocR.Models;
+using SpocR.SpocRVNext.Models;
 using Xunit;
 
 namespace SpocR.Tests.Cli;

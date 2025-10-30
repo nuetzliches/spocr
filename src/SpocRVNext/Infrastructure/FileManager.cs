@@ -116,7 +116,7 @@ public class FileManager<TConfig>(
 
         try
         {
-            if (config is SpocR.Models.ConfigurationModel cfg)
+            if (config is SpocR.SpocRVNext.Models.ConfigurationModel cfg)
             {
                 if (cfg?.Project?.Role != null
                     && cfg.Project.Role.Kind == RoleKindEnum.Default

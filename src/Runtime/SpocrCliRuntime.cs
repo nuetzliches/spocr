@@ -217,6 +217,39 @@ public class SpocrCliRuntime(
             }
             consoleService.Output($"Generated {written} table type artifact(s) into '{outputDir}'.");
 
+            consoleService.PrintTitle("Generating DbContext artifacts");
+            IReadOnlyList<SpocR.SpocRVNext.Metadata.ProcedureDescriptor> procedures;
+            try
+            {
+                var schemaProvider = new SpocR.SpocRVNext.Metadata.SchemaMetadataProvider(workingDirectory);
+                procedures = schemaProvider.GetProcedures();
+                if (options.Verbose)
+                {
+                    consoleService.Verbose($"[build] DbContext procedures available: {procedures.Count}");
+                }
+            }
+            catch (Exception ex)
+            {
+                consoleService.Warn($"Failed to load procedure metadata: {ex.Message}");
+                procedures = Array.Empty<SpocR.SpocRVNext.Metadata.ProcedureDescriptor>();
+            }
+
+            var configManager = new SpocR.SpocRVNext.Infrastructure.FileManager<SpocR.SpocRVNext.Models.ConfigurationModel>(
+                service,
+                Constants.ConfigurationFile,
+                service.GetDefaultConfiguration());
+            var dbContextOutputService = new OutputService(configManager, consoleService);
+            var dbContextGenerator = new DbContextGenerator(
+                configManager,
+                dbContextOutputService,
+                consoleService,
+                renderer,
+                loader,
+                () => procedures);
+
+            await dbContextGenerator.GenerateAsync(options.DryRun).ConfigureAwait(false);
+            consoleService.Output("DbContext artifacts updated under 'SpocR'.");
+
             if (options.DryRun)
             {
                 consoleService.PrintDryRunMessage();

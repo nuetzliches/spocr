@@ -5,7 +5,7 @@ using Microsoft.CodeAnalysis.Text;
 using SpocR.SpocRVNext.Core;
 using SpocR.SpocRVNext.Extensions;
 using SpocR.SpocRVNext.Infrastructure;
-using SpocR.Models;
+using SpocR.SpocRVNext.Models;
 using SpocR.Utils;
 using SpocRVNext.Configuration;
 

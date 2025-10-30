@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using SpocR.SpocRVNext.Data.Models;
-using SpocR.Models;
+using SpocR.SpocRVNext.Models;
 using SpocR.Services;
 using SpocR.SpocRVNext.Metadata;
 using SpocR.Utils;

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using SpocR.Models;
+using SpocR.SpocRVNext.Models;
 using SpocRVNext.Configuration; // for EnvConfiguration
 using SpocR.SpocRVNext.Data.Models;
 
@@ -106,8 +106,8 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
         // Fingerprint logging already emitted above depending on layout
 
         // Load BuildSchemas allow-list from .env and process dynamic ignore lists via environment variables.
-    List<string> ignored = new();
-    SchemaStatusEnum defaultStatus = SchemaStatusEnum.Build;
+        List<string> ignored = new();
+        SchemaStatusEnum defaultStatus = SchemaStatusEnum.Build;
         List<string>? buildSchemas = null; // SPOCR_BUILD_SCHEMAS positive allow-list
 
         try

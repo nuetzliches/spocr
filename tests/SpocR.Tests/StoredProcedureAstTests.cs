@@ -1,7 +1,7 @@
 using System;
 using System.Linq;
 using Xunit;
-using SpocR.Models;
+using SpocR.SpocRVNext.Models;
 
 namespace SpocR.Tests;
 

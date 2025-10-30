@@ -1,8 +1,8 @@
 using System.Linq;
 using Shouldly;
 using Xunit;
-using SpocR.Models;
-using static SpocR.Models.StoredProcedureContentModel; // for ResultColumnExpressionKind
+using SpocR.SpocRVNext.Models;
+using static SpocR.SpocRVNext.Models.StoredProcedureContentModel; // for ResultColumnExpressionKind
 
 namespace SpocR.Tests.Cli;
 

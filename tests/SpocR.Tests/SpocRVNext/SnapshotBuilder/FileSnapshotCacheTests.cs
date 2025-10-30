@@ -4,7 +4,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using Shouldly;
-using SpocR.Models;
+using SpocR.SpocRVNext.Models;
 using SpocR.Services;
 using SpocR.SpocRVNext.SnapshotBuilder;
 using SpocR.SpocRVNext.SnapshotBuilder.Cache;

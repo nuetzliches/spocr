@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using SpocR.Models;
+using SpocR.SpocRVNext.Models;
 using Xunit.Abstractions;
 
 namespace SpocR.TestFramework;

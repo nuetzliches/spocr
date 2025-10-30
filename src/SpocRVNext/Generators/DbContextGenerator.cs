@@ -3,7 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.Text;
-using SpocR.Models;
+using SpocR.SpocRVNext.Models;
 using SpocR.Services;
 using SpocR.Utils;
 using SpocR.SpocRVNext.Engine;

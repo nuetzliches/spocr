@@ -10,7 +10,7 @@ using SpocR.SpocRVNext.Engine;
 using SpocR.SpocRVNext.Metadata;
 using SpocRVNext.Configuration;
 using SpocR.SpocRVNext.Utils;
-using SpocR.Models;
+using SpocR.SpocRVNext.Models;
 using System.Text.Json;
 using SpocR.SpocRVNext.Diagnostics;
 
@@ -142,8 +142,8 @@ public sealed class ProceduresGenerator
         }
         */
 
-    // 2) Dynamic negative filter only when no positive list is active
-    //    Reads ignored schemas from SPOCR_IGNORED_SCHEMAS env override
+        // 2) Dynamic negative filter only when no positive list is active
+        //    Reads ignored schemas from SPOCR_IGNORED_SCHEMAS env override
         List<string> ignoredSchemas = new();
         var envIgnored = Environment.GetEnvironmentVariable("SPOCR_IGNORED_SCHEMAS");
         if (!string.IsNullOrWhiteSpace(envIgnored))

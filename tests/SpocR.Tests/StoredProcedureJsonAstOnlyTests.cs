@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using SpocR.Models;
+using SpocR.SpocRVNext.Models;
 using SpocR.Services;
 using SpocR.SpocRVNext.Data.Models;
 using SpocR.SpocRVNext.Core;

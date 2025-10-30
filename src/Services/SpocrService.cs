@@ -1,6 +1,6 @@
 using System;
 using SpocRVNext.Configuration;
-using SpocR.Models;
+using SpocR.SpocRVNext.Models;
 
 namespace SpocR.Services;
 

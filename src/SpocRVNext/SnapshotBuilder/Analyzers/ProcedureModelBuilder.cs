@@ -1,4 +1,4 @@
-using SpocR.Models;
+using SpocR.SpocRVNext.Models;
 using SpocR.SpocRVNext.SnapshotBuilder.Models;
 
 namespace SpocR.SpocRVNext.SnapshotBuilder.Analyzers;

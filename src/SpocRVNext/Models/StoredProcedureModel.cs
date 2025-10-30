@@ -4,13 +4,13 @@ using System.Linq;
 using System.Text.Json.Serialization;
 using SpocR.SpocRVNext.Data.Models;
 
-namespace SpocR.Models;
+namespace SpocR.SpocRVNext.Models;
 
 public class StoredProcedureModel : IEquatable<StoredProcedureModel>
 {
     private readonly StoredProcedure _item;
 
-    public StoredProcedureModel() // required for json serialization
+    public StoredProcedureModel()
     {
         _item = new StoredProcedure();
     }
@@ -26,14 +26,12 @@ public class StoredProcedureModel : IEquatable<StoredProcedureModel>
         set => _item.Name = value;
     }
 
-    // Exposes database modify_date from sys.objects
     public DateTime Modified
     {
         get => _item.Modified;
         set => _item.Modified = value;
     }
 
-    // Persisted modification time (ticks) for quick detection of unchanged procedures
     public long? ModifiedTicks { get; set; }
 
     [JsonIgnore]
@@ -50,7 +48,6 @@ public class StoredProcedureModel : IEquatable<StoredProcedureModel>
         set => _input = value;
     }
 
-
     private StoredProcedureContentModel _content;
 
     [JsonIgnore]
@@ -60,16 +57,12 @@ public class StoredProcedureModel : IEquatable<StoredProcedureModel>
         set => _content = value;
     }
 
-    // Expose unified result sets (JSON aware). Return null when empty to omit from serialized model.
     public IReadOnlyList<StoredProcedureContentModel.ResultSet> ResultSets
-        => (Content?.ResultSets != null && Content.ResultSets.Any()) ? Content.ResultSets : null;
-
-    // public IEnumerable<StoredProcedureInputModel> Input { get; set; }
-    // public IEnumerable<StoredProcedureOutputModel> Output { get; set; }
+        => Content?.ResultSets != null && Content.ResultSets.Any() ? Content.ResultSets : null;
 
     public bool Equals(StoredProcedureModel other)
     {
-        return SchemaName == other.SchemaName && Name == other.Name;
+        return SchemaName == other?.SchemaName && Name == other?.Name;
     }
 
     public override bool Equals(object obj)
@@ -84,6 +77,6 @@ public class StoredProcedureModel : IEquatable<StoredProcedureModel>
 
     public override string ToString()
     {
-        return $"[SchemaName].[Name]";
+        return "[SchemaName].[Name]";
     }
 }

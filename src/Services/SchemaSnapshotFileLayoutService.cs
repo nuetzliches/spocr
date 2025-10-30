@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
-using SpocR.Models;
+using SpocR.SpocRVNext.Models;
 
 namespace SpocR.Services;
 

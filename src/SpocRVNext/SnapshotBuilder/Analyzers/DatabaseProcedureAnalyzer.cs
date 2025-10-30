@@ -7,7 +7,7 @@ using System.Text.RegularExpressions;
 using SpocR.SpocRVNext.Data;
 using SpocR.SpocRVNext.Data.Models;
 using SpocR.SpocRVNext.Data.Queries;
-using SpocR.Models;
+using SpocR.SpocRVNext.Models;
 using SpocR.Services;
 using SpocR.SpocRVNext.SnapshotBuilder.Metadata;
 using SpocR.SpocRVNext.SnapshotBuilder.Models;

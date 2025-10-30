@@ -1,13 +1,13 @@
 using System.Text.Json.Serialization;
 using SpocR.SpocRVNext.Data.Models;
 
-namespace SpocR.Models;
+namespace SpocR.SpocRVNext.Models;
 
 public class StoredProcedureInputModel : ColumnModel
 {
     private readonly StoredProcedureInput _item;
 
-    public StoredProcedureInputModel() // required for json serialization
+    public StoredProcedureInputModel()
     {
         _item = new StoredProcedureInput();
     }
@@ -21,7 +21,7 @@ public class StoredProcedureInputModel : ColumnModel
     public bool? IsTableType
     {
         get => _item.IsTableType ? (bool?)true : null;
-        set => _item.IsTableType = value == true ? true : false;
+        set => _item.IsTableType = value == true;
     }
 
     public string TableTypeName

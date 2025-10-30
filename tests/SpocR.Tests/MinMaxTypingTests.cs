@@ -1,6 +1,6 @@
 using Xunit;
 using System.Linq;
-using SpocR.Models;
+using SpocR.SpocRVNext.Models;
 
 namespace SpocR.Tests;
 

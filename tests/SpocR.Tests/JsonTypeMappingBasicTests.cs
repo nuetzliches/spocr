@@ -1,7 +1,7 @@
 using System;
 using System.Linq;
 using Xunit;
-using SpocR.Models; // StoredProcedureContentModel
+using SpocR.SpocRVNext.Models; // StoredProcedureContentModel
 
 namespace SpocR.Tests;
 
@@ -39,10 +39,10 @@ END";
     {
         var model = StoredProcedureContentModel.Parse(Sql, DefaultSchema);
         var rs = Assert.Single(model.ResultSets);
-    var opt = rs.Columns.First(c => c.Name == "record.optionalRef");
-    // Da TOP 1 Subselect ohne Garantie -> sollte IsNullable = true sein (oder ForcedNullable)
-    Assert.True(opt.IsNullable == true || opt.ForcedNullable == true, "optionalRef sollte als nullable markiert sein");
-    // SqlTypeName sollte ein Ganzzahltyp sein
-    Assert.Contains(opt.SqlTypeName.ToLowerInvariant(), new[] {"int", "bigint", "smallint"});
+        var opt = rs.Columns.First(c => c.Name == "record.optionalRef");
+        // Da TOP 1 Subselect ohne Garantie -> sollte IsNullable = true sein (oder ForcedNullable)
+        Assert.True(opt.IsNullable == true || opt.ForcedNullable == true, "optionalRef sollte als nullable markiert sein");
+        // SqlTypeName sollte ein Ganzzahltyp sein
+        Assert.Contains(opt.SqlTypeName.ToLowerInvariant(), new[] { "int", "bigint", "smallint" });
     }
 }

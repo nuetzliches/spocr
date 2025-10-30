@@ -4,15 +4,15 @@ using SpocR.SpocRVNext.Data.Models;
 
 using DbSchema = SpocR.SpocRVNext.Data.Models.Schema;
 
-namespace SpocR.Models;
+namespace SpocR.SpocRVNext.Models;
 
 public class SchemaModel
 {
     private readonly DbSchema _item;
 
-    public SchemaModel() // required for json serialization
+    public SchemaModel()
     {
-    _item = new DbSchema();
+        _item = new DbSchema();
     }
 
     public SchemaModel(DbSchema item)

@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Shouldly;
 using Xunit;
-using SpocR.Models;
+using SpocR.SpocRVNext.Models;
 using SpocR.SpocRVNext.Infrastructure;
 using SpocRVNext.Configuration;
 

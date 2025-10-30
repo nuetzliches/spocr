@@ -7,7 +7,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using SpocR.Models;
+using SpocR.SpocRVNext.Models;
 using SpocR.SpocRVNext.SnapshotBuilder.Writers;
 
 namespace SpocR.Services;

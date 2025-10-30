@@ -1,7 +1,7 @@
 using System.Linq;
 using Xunit;
-using SpocR.Models;
-using static SpocR.Models.StoredProcedureContentModel;
+using SpocR.SpocRVNext.Models;
+using static SpocR.SpocRVNext.Models.StoredProcedureContentModel;
 
 namespace SpocR.Tests;
 

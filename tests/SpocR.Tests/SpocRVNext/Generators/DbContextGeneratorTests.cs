@@ -68,7 +68,7 @@ public class DbContextGeneratorTests
         services.AddSingleton<SpocR.SpocRVNext.Engine.ITemplateRenderer, SpocR.SpocRVNext.Engine.SimpleTemplateEngine>();
         services.AddSingleton<SpocR.SpocRVNext.Engine.ITemplateLoader>(_ => new SpocR.SpocRVNext.Engine.FileSystemTemplateLoader(tempTemplates));
         var provider = services.BuildServiceProvider();
-        var fm = provider.GetRequiredService<FileManager<SpocR.Models.ConfigurationModel>>();
+        var fm = provider.GetRequiredService<FileManager<SpocR.SpocRVNext.Models.ConfigurationModel>>();
         if (string.IsNullOrWhiteSpace(fm.Config.Project.Output.Namespace))
         {
             fm.Config.Project.Output.Namespace = "Test.App";
