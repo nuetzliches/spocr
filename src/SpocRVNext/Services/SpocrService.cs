@@ -13,23 +13,14 @@ public class SpocrService
         Version = GetType().Assembly.GetName().Version ?? new Version(0, 0);
     }
 
-    public ConfigurationModel GetDefaultConfiguration(string? targetFramework = null, string appNamespace = "", string connectionString = "", RoleKindEnum roleKind = default, string? libNamespace = null)
+    public ConfigurationModel GetDefaultConfiguration(string? targetFramework = null, string appNamespace = "", string connectionString = "")
     {
-        var role = new RoleModel
-        {
-            Kind = roleKind,
-            LibNamespace = roleKind == RoleKindEnum.Extension
-                ? libNamespace
-                : null
-        };
-
         return new ConfigurationModel
         {
             Version = Version,
             TargetFramework = targetFramework ?? Constants.DefaultTargetFramework.ToFrameworkString(),
             Project = new ProjectModel
             {
-                Role = role,
                 DataBase = new DataBaseModel
                 {
                     // the default appsettings.json ConnectString Identifier

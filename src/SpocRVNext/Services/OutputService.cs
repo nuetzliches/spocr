@@ -5,7 +5,6 @@ using SpocR.SpocRVNext.Core;
 using SpocR.SpocRVNext.Infrastructure;
 using SpocR.SpocRVNext.Models;
 using SpocR.SpocRVNext.Utils;
-using SpocR.SpocRVNext.Configuration;
 
 namespace SpocR.SpocRVNext.Services;
 
@@ -125,7 +124,7 @@ public class OutputService(
         string Normalize(string ns) => ns.Replace("..", ".").Trim('.');
         nameSpace = Normalize(nameSpace);
 
-        fileContent = ReplaceNamespaceMarkers(fileContent, nameSpace, configFile.Config.Project.Role.Kind);
+    fileContent = ReplaceNamespaceMarkers(fileContent, nameSpace);
 
         var targetDir = Path.GetDirectoryName(targetFileName);
         if (string.IsNullOrWhiteSpace(targetDir))
@@ -207,13 +206,8 @@ public class OutputService(
         }
     }
 
-    private static string ReplaceNamespaceMarkers(string source, string nameSpace, RoleKindEnum roleKind)
+    private static string ReplaceNamespaceMarkers(string source, string nameSpace)
     {
-        if (roleKind == RoleKindEnum.Lib)
-        {
-            return SourceDataContextRegex.Replace(source, nameSpace);
-        }
-
         var replaced = SourcePrefixRegex.Replace(source, match => nameSpace + "." + match.Groups[1].Value);
         replaced = NamespaceTokenRegex.Replace(replaced, nameSpace);
         replaced = UsingTokenRegex.Replace(replaced, nameSpace);

@@ -6,7 +6,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using SpocR.SpocRVNext.Cli;
 using SpocR.SpocRVNext.Core;
-using SpocR.SpocRVNext.Configuration;
 using SpocR.SpocRVNext.Models;
 
 namespace SpocR.SpocRVNext.Services;
@@ -282,19 +281,11 @@ public sealed class ConsoleService : IConsoleService
                         DefaultSchemaStatus = project.DefaultSchemaStatus,
                         IgnoredSchemas = project.IgnoredSchemas,
                         IgnoredProcedures = project.IgnoredProcedures,
-                        JsonTypeLogLevel = project.JsonTypeLogLevel,
-                        Role = project.Role ?? new RoleModel()
+                        JsonTypeLogLevel = project.JsonTypeLogLevel
                     }
                     : new ProjectModel(),
                 Schema = config.Schema
             };
-
-#pragma warning disable CS0618
-            if (clone?.Project?.Role?.Kind == RoleKindEnum.Default && string.IsNullOrWhiteSpace(clone.Project.Role.LibNamespace))
-            {
-                clone.Project.Role = new RoleModel();
-            }
-#pragma warning restore CS0618
         }
         catch
         {

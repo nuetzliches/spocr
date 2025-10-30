@@ -25,7 +25,8 @@
 	- 2025-11-02: CLI entfernt `--dry-run`, `--quiet`, `--no-auto-update`, `--no-version-check`; `ICommandOptions` deckt nur noch aktive Flags (Path/Verbose/Debug/NoCache/Procedure) ab, ConsoleService & Dokumentation synchronisiert.
 	- [x] Entferne `src\SpocRVNext\Models\GlobalConfigurationModel.cs` und zugehörige Implementierung (2025-11-02: GlobalConfig FileManager entfernt, CLI nutzt nur noch lokale `.env` Defaults)
 	- [x] `StoredProcedureInputModel` dürfte im aktuellen Output keine Rollen mehr spielen oder? Dann entfernen (2025-10-30: Wrapper gelöscht, SchemaManager/Definition nutzen direkt `StoredProcedureInput`.)
-	- [ ] Entferne `RoleModel` (Default ist Standard)
+	- [x] Entferne `RoleModel` (Default ist Standard) (2025-10-30: Rollentyp entfernt, Namespace-Ersatz nutzt Standardpfad.)
+	- [ ] Wenn meine Annahme zutrifft, dass `src\SpocRVNext\Services\OutputService.cs|SpocrService.cs` nicht mehr in unserer pull|build pipeline verwendet werden, bitte entfernen
 - [x] Entferne `Microsoft.CodeAnalysis`, `Microsoft.AspNet.WebApi.Client`, `System.Management` wenn nicht mehr erforderlich
 	- 2025-10-30: `Microsoft.CodeAnalysis.CSharp` zunächst entfernt; nach Build-Check wieder aufgenommen, da `CompilationUnitSyntax`-Manipulationen weiterhin Roslyn benötigen.
 	- 2025-10-30: Namespace-Rewrites auf stringbasierte Pfade migriert, Roslyn-Helfer entfernt, Package-Referenz gelöscht.
@@ -34,3 +35,4 @@
 - [~] Reorganisiere (Ordner-/Dateistruktur, Namenskonventionen, Usings) und normalisiere `src\SpocRVNext`
 	- 2025-10-30: Namespace-Basis auf `SpocR.SpocRVNext.*` vereinheitlicht, doppelte JsonElement-Helfer zusammengeführt, Tests und CLI-Einstieg an neue Struktur angepasst.
 	- 2025-10-30: Config-Modelle in `Models/` auf Ein-Datei-pro-Typ aufgeteilt (Global, Project, Role, Output/DataContext), damit Folge-Refactorings gezielt erfolgen können.
+- [ ] Invalidierung der SQL-Objekte im Cache korrekt implementieren (bereits vorgesehen, noch nicht finalisiert), um zu verhindern, dass hier für jede Prozedur die TableTypes erneut aus der DB kommen müssen `src\SpocRVNext\Schema\SchemaManager.cs`.

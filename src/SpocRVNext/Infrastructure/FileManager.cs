@@ -7,7 +7,6 @@ using SpocR.SpocRVNext.Services;
 using SpocR.SpocRVNext.Extensions;
 using SpocR.SpocRVNext.Models;
 using SpocR.SpocRVNext.Utils;
-using SpocR.SpocRVNext.Configuration;
 
 namespace SpocR.SpocRVNext.Infrastructure;
 
@@ -122,25 +121,6 @@ public class FileManager<TConfig>(
     public async Task SaveAsync(TConfig config)
     {
         config.Version = spocr.Version;
-
-        try
-        {
-            if (config is SpocR.SpocRVNext.Models.ConfigurationModel cfg)
-            {
-                var project = cfg.Project;
-                var role = project?.Role;
-                if (role != null
-                    && role.Kind == RoleKindEnum.Default
-                    && string.IsNullOrWhiteSpace(role.LibNamespace)
-                    && project != null)
-                {
-                    project.Role = null!; // drop default role entirely so it is not written back to the config
-                }
-            }
-        }
-        catch (Exception)
-        {
-        }
 
         var json = JsonSerializer.Serialize(config, SerializerOptions);
         var path = DirectoryUtils.GetWorkingDirectory(fileName);

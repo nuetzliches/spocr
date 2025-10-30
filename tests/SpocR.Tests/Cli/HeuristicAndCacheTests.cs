@@ -10,7 +10,6 @@ using Moq;
 using SpocR.SpocRVNext.Data;
 using SpocR.SpocRVNext.Data.Models;
 using SpocR.SpocRVNext.Models;
-using SpocR.SpocRVNext.Configuration;
 using SpocR.SpocRVNext.Services;
 using Xunit;
 using SchemaManager = SpocR.SpocRVNext.Schema.SchemaManager;
@@ -250,7 +249,6 @@ public class HeuristicAndCacheTests
                     TableTypes = new DataContextTableTypesModel { Path = "./tables" },
                 }
             },
-            Role = new RoleModel { Kind = RoleKindEnum.Default },
             DefaultSchemaStatus = SchemaStatusEnum.Build
         },
         Schema = schemas.Select(s => new SchemaModel { Name = s, Status = SchemaStatusEnum.Build }).ToList()

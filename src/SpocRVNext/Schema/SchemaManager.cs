@@ -454,7 +454,7 @@ public class SchemaManager(
         }
 
         // Build a simple fingerprint (avoid secrets): use output namespace or role kind + schemas + SP count
-        var projectId = config?.Project?.Output?.Namespace ?? config?.Project?.Role?.Kind.ToString() ?? "UnknownProject";
+    var projectId = config?.Project?.Output?.Namespace ?? "UnknownProject";
         var fingerprintRaw = $"{projectId}|{schemaListString}|{storedProcedures.Count}";
         var fingerprint = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(fingerprintRaw))).Substring(0, 16);
 

@@ -4,7 +4,6 @@ namespace SpocR.SpocRVNext.Models;
 
 public class ProjectModel
 {
-    public RoleModel Role { get; set; } = new();
     public DataBaseModel DataBase { get; set; } = new();
     public OutputModel Output { get; set; } = new();
     public SchemaStatusEnum DefaultSchemaStatus { get; set; } = SchemaStatusEnum.Build;
