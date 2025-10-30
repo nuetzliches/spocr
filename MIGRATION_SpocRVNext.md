@@ -435,20 +435,19 @@ Documentation:
 
 ### Diff / Observability Policy
 
-Status: Relaxed ("weiter-relaxed" selection) – implemented in `DualGenerationDispatcher` + `DirectoryDiff`.
+Status: Relaxed ("weiter-relaxed" selection) – manifest hashing now driven by the experimental `generate-next` helper; dual-mode diff workflow retired with the dispatcher cleanup.
 
 Principles:
 
 1. Informational first: structural differences (added/removed/changed counts) are reported, not failed.
 2. Determinism focus: Each generator must be individually deterministic (hash manifest per run) – non-determinism MAY raise dedicated exit code once enforcement added.
-3. Allow-list: `.spocr-diff-allow` (glob patterns) filters known/accepted churn from the "changed" set for noise reduction only.
+3. Allow-list: `.spocr-diff-allow` (glob patterns) is dormant until diff enforcement returns; keep curated entries for the follow-up phase.
 4. Exit Codes reserved (21–23) for future enforcement (non-determinism, missing artifacts, diff anomalies) – currently not triggered in relaxed mode.
 5. Documentation > Parity: Breaking functional improvements proceed with clear CHANGELOG/Migration entries; we do not chase cosmetic parity.
 
 Artifacts:
 
-- `debug/codegen-demo/manifest-legacy.json` and `manifest-next.json` (SHA256 per file + aggregate hash)
-- `debug/codegen-demo/diff-summary.txt` (counts + allow-list info)
+- `debug/codegen-demo/next/manifest.hash.json` (SHA256 per file + aggregate hash)
 
 Planned escalation path:
 
