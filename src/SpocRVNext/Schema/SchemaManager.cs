@@ -8,6 +8,7 @@ using SpocR.SpocRVNext.Data.Queries;
 using SpocR.SpocRVNext.Data.Models;
 using SpocR.SpocRVNext.Models;
 using SpocR.Services;
+using SpocR.Utils;
 
 namespace SpocR.SpocRVNext.Schema;
 
@@ -55,7 +56,7 @@ public class SchemaManager(
         if (StoredProcedureContentModel.ResolveTableColumnType == null)
         {
             // Prefer snapshot metadata (expanded) over live DB calls. Tables/Views/UDTTs/UDTs are loaded before procedures.
-            var tableMeta = new SpocR.SpocRVNext.Metadata.TableMetadataProvider(Utils.DirectoryUtils.GetWorkingDirectory());
+            var tableMeta = new SpocR.SpocRVNext.Metadata.TableMetadataProvider(DirectoryUtils.GetWorkingDirectory());
             var tableIndex = tableMeta.GetAll()?.GroupBy(t => t.Schema + "." + t.Name, StringComparer.OrdinalIgnoreCase)
                                       .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase) ?? new Dictionary<string, SpocR.SpocRVNext.Metadata.TableInfo>(StringComparer.OrdinalIgnoreCase);
 
@@ -212,7 +213,7 @@ public class SchemaManager(
             var knownSchemas = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             try
             {
-                var working = Utils.DirectoryUtils.GetWorkingDirectory();
+                var working = DirectoryUtils.GetWorkingDirectory();
                 var schemaDir = System.IO.Path.Combine(working, ".spocr", "schema");
                 // Fixup phase: repair procedures that have exactly one EXEC placeholder but are missing a local JSON result set.
                 // Scenario: parser did not capture the FOR JSON SELECT (e.g. complex construction) and after forwarding only a placeholder remains.
@@ -499,7 +500,7 @@ public class SchemaManager(
         {
             if (!disableCache)
             {
-                var working = Utils.DirectoryUtils.GetWorkingDirectory();
+                var working = DirectoryUtils.GetWorkingDirectory();
                 var schemaDir = System.IO.Path.Combine(working, ".spocr", "schema");
                 if (System.IO.Directory.Exists(schemaDir))
                 {
