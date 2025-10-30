@@ -19,7 +19,7 @@ using SpocR.Utils;
 using SpocRVNext.Configuration;
 using SpocRVNext.Metadata;
 
-namespace SpocR.Runtime;
+namespace SpocR.SpocRVNext.Runtime;
 
 /// <summary>
 /// Central runtime orchestration for the vNext CLI commands (pull/build/rebuild/version).

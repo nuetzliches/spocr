@@ -3,7 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
 using SpocR.SpocRVNext.Models;
-using SpocR.Runtime;
+using SpocR.SpocRVNext.Runtime;
 using SpocR.Schema;
 using SpocR.Services;
 using SpocR.SpocRVNext.Cli;
