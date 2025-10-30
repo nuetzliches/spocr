@@ -5,7 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Shouldly;
 using SpocR.SpocRVNext.Models;
-using SpocR.Services;
+using SpocR.SpocRVNext.Services;
 using SpocR.SpocRVNext.SnapshotBuilder;
 using SpocR.SpocRVNext.SnapshotBuilder.Cache;
 using SpocR.SpocRVNext.SnapshotBuilder.Models;

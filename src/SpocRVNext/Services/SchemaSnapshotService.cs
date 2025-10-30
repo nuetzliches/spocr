@@ -9,8 +9,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using SpocR.SpocRVNext.Models;
 using SpocR.SpocRVNext.SnapshotBuilder.Writers;
+using SpocR.Utils;
 
-namespace SpocR.Services;
+namespace SpocR.SpocRVNext.Services;
 
 public interface ISchemaSnapshotService
 {
@@ -29,7 +30,7 @@ public class SchemaSnapshotService : ISchemaSnapshotService
 
     private string EnsureDir()
     {
-        var working = Utils.DirectoryUtils.GetWorkingDirectory();
+        var working = DirectoryUtils.GetWorkingDirectory();
         if (string.IsNullOrEmpty(working)) return null;
         var dir = Path.Combine(working, ".spocr", "cache");
         try { Directory.CreateDirectory(dir); } catch { }
@@ -211,14 +212,14 @@ public class SchemaSnapshotService : ISchemaSnapshotService
     // We still probe that directory when upgrading older snapshots or bridging consumers that expect the historical layout.
     private static string ResolveLegacySchemaDir()
     {
-        var working = Utils.DirectoryUtils.GetWorkingDirectory();
+        var working = DirectoryUtils.GetWorkingDirectory();
         if (string.IsNullOrEmpty(working)) return string.Empty;
         return Path.Combine(working, ".spocr", "schema");
     }
 
     private static string ResolveLegacyCacheDir()
     {
-        var working = Utils.DirectoryUtils.GetWorkingDirectory();
+        var working = DirectoryUtils.GetWorkingDirectory();
         if (string.IsNullOrEmpty(working)) return string.Empty;
         return Path.Combine(working, ".spocr", "cache", "schema");
     }

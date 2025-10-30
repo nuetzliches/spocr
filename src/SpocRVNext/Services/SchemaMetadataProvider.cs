@@ -5,8 +5,9 @@ using System.Linq;
 using SpocR.SpocRVNext.Models;
 using SpocRVNext.Configuration; // for EnvConfiguration
 using SpocR.SpocRVNext.Data.Models;
+using SpocR.Utils;
 
-namespace SpocR.Services;
+namespace SpocR.SpocRVNext.Services;
 
 public interface ISchemaMetadataProvider
 {
@@ -40,11 +41,11 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
         // 3) index.json file changed since last load (timestamp newer)
         try
         {
-            var workingReload = Utils.DirectoryUtils.GetWorkingDirectory() ?? string.Empty;
+            var workingReload = DirectoryUtils.GetWorkingDirectory() ?? string.Empty;
             var schemaDirProbe = Path.Combine(workingReload, ".spocr", "schema");
             var indexPathProbe = Path.Combine(schemaDirProbe, "index.json");
             var indexLastWrite = File.Exists(indexPathProbe) ? File.GetLastWriteTimeUtc(indexPathProbe) : DateTime.MinValue;
-            bool noCacheFlag = SpocR.Utils.CacheControl.ForceReload;
+            bool noCacheFlag = CacheControl.ForceReload;
             // Performance-Fix: --no-cache erzwingt nur den ersten Reload (wenn _schemas noch nicht geladen).
             // Danach wird ForceReload zurückgesetzt, damit nachfolgende Generator-Aufrufe nicht jede Abfrage erneut laden.
             var shouldReload = _schemas == null || (noCacheFlag && _schemas == null) || (indexLastWrite > _lastLoadUtc && indexLastWrite != DateTime.MinValue);
@@ -56,7 +57,7 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
         }
         catch { /* ignore reload detection errors */ }
 
-        var working = Utils.DirectoryUtils.GetWorkingDirectory();
+        var working = DirectoryUtils.GetWorkingDirectory();
         var schemaDir = Path.Combine(working, ".spocr", "schema");
         if (!Directory.Exists(schemaDir))
         {
@@ -112,7 +113,7 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
 
         try
         {
-            var workingDir = Utils.DirectoryUtils.GetWorkingDirectory();
+            var workingDir = DirectoryUtils.GetWorkingDirectory();
             var envConfig = EnvConfiguration.Load(projectRoot: workingDir);
             if (envConfig.BuildSchemas != null && envConfig.BuildSchemas.Count > 0)
             {
@@ -315,9 +316,9 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
         _fingerprint = snapshot?.Fingerprint;
         try { _console.Verbose($"[snapshot-provider] loaded schemas={_schemas.Count} fingerprint={_fingerprint}"); } catch { }
         // Reset ForceReload after first actual reload so subsequent GetSchemas() calls are fast.
-        if (SpocR.Utils.CacheControl.ForceReload)
+        if (CacheControl.ForceReload)
         {
-            SpocR.Utils.CacheControl.ForceReload = false;
+            CacheControl.ForceReload = false;
         }
         // Diagnostics: identify JSON result sets without columns (RawJson fallback)
         try

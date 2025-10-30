@@ -11,7 +11,7 @@ using SpocR.SpocRVNext.Data;
 using SpocR.SpocRVNext.Data.Models;
 using SpocR.SpocRVNext.Models;
 using SpocRVNext.Configuration;
-using SpocR.Services;
+using SpocR.SpocRVNext.Services;
 using Xunit;
 using SchemaManager = SpocR.SpocRVNext.Schema.SchemaManager;
 using DbSchema = SpocR.SpocRVNext.Data.Models.Schema;
@@ -266,7 +266,7 @@ public class HeuristicAndCacheTests
         var defs = new Dictionary<string, string> { { "dbo.GetUsers", "SELECT 1" } };
         var ctx = new TestDbContext(SilentConsole(), new[] { sp }, defs, new(), new());
         var cache = new FakeLocalCacheService();
-        var manager = new SchemaManager(ctx, SilentConsole(), new FakeSchemaSnapshotService(), new SpocR.Services.SchemaSnapshotFileLayoutService(), cache);
+        var manager = new SchemaManager(ctx, SilentConsole(), new FakeSchemaSnapshotService(), new SpocR.SpocRVNext.Services.SchemaSnapshotFileLayoutService(), cache);
         var cfg = TestConfig("dbo");
 
         // First run populates cache
@@ -277,7 +277,7 @@ public class HeuristicAndCacheTests
         // Prepare second run with loaded cache snapshot
         cache.Loaded = cache.Saved; // unchanged modify_date
         var ctx2 = new TestDbContext(SilentConsole(), new[] { sp }, defs, new(), new());
-        var manager2 = new SchemaManager(ctx2, SilentConsole(), new FakeSchemaSnapshotService(), new SpocR.Services.SchemaSnapshotFileLayoutService(), cache);
+        var manager2 = new SchemaManager(ctx2, SilentConsole(), new FakeSchemaSnapshotService(), new SpocR.SpocRVNext.Services.SchemaSnapshotFileLayoutService(), cache);
         var schemas2 = await manager2.ListAsync(cfg);
         ctx2.DefinitionCalls.ShouldBe(0, "definition should be skipped when modify_date unchanged");
     }

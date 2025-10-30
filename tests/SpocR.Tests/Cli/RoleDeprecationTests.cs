@@ -22,7 +22,7 @@ public class RoleDeprecationTests
                 DataBase = new DataBaseModel { ConnectionString = "Server=.;Database=Db;Trusted_Connection=True;" }
             }
         };
-        var service = new SpocR.Services.SpocrService();
+        var service = new SpocR.SpocRVNext.Services.SpocrService();
         var tempFile = System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.IO.Path.GetRandomFileName() + ".json");
         var fm = new FileManager<ConfigurationModel>(service, tempFile);
         await fm.SaveAsync(cfg);
@@ -43,7 +43,7 @@ public class RoleDeprecationTests
                 DataBase = new DataBaseModel { ConnectionString = "cs" }
             }
         };
-        var service = new SpocR.Services.SpocrService();
+        var service = new SpocR.SpocRVNext.Services.SpocrService();
         var tempFile = System.IO.Path.Combine(System.IO.Path.GetTempPath(), System.IO.Path.GetRandomFileName() + ".json");
         var fm = new FileManager<ConfigurationModel>(service, tempFile);
         await fm.SaveAsync(cfg);

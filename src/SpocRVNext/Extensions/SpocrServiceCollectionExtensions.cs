@@ -5,7 +5,7 @@ using Microsoft.Extensions.Options;
 using SpocR.SpocRVNext.Models;
 using SpocR.SpocRVNext.Runtime;
 using SpocR.SpocRVNext.Schema;
-using SpocR.Services;
+using SpocR.SpocRVNext.Services;
 using SpocR.SpocRVNext.Cli;
 using SpocR.SpocRVNext.Engine;
 using SpocR.SpocRVNext.Generators;

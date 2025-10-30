@@ -15,7 +15,7 @@ namespace SpocR.Tests.Cli;
 public class JsonParserV5InferenceTests
 {
     // Direct parser invocation tests (no DB / manager dependency)
-    private sealed class TestConsole : SpocR.Services.IConsoleService
+    private sealed class TestConsole : SpocR.SpocRVNext.Services.IConsoleService
     {
         public bool IsVerbose => false;
         public bool IsQuiet => false;
@@ -30,8 +30,8 @@ public class JsonParserV5InferenceTests
         public void Yellow(string message) { }
         public void Red(string message) { }
         public void Gray(string message) { }
-        public SpocR.Services.Choice GetSelection(string prompt, List<string> options) => new(-1, string.Empty);
-        public SpocR.Services.Choice GetSelectionMultiline(string prompt, List<string> options) => new(-1, string.Empty);
+        public SpocR.SpocRVNext.Services.Choice GetSelection(string prompt, List<string> options) => new(-1, string.Empty);
+        public SpocR.SpocRVNext.Services.Choice GetSelectionMultiline(string prompt, List<string> options) => new(-1, string.Empty);
         public bool GetYesNo(string prompt, bool isDefaultConfirmed, ConsoleColor? promptColor = null, ConsoleColor? promptBgColor = null) => true;
         public string GetString(string prompt, string defaultValue = "", ConsoleColor? promptColor = null) => defaultValue;
         public void PrintTitle(string title) { }

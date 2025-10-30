@@ -9,7 +9,7 @@ using SpocR.SpocRVNext.Models;
 using SpocR.Utils;
 using SpocRVNext.Configuration;
 
-namespace SpocR.Services;
+namespace SpocR.SpocRVNext.Services;
 
 public class OutputService(
     FileManager<ConfigurationModel> configFile,

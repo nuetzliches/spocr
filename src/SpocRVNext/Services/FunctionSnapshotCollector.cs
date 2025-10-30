@@ -7,10 +7,10 @@ using System.Text.RegularExpressions;
 using Microsoft.SqlServer.TransactSql.ScriptDom;
 using SpocR.SpocRVNext.Data;
 using SpocR.SpocRVNext.Data.Queries;
-using SpocR.Services;
 using SpocR.SpocRVNext.Metadata;
+using SpocR.SpocRVNext.Models;
 
-namespace SpocR.Services;
+namespace SpocR.SpocRVNext.Services;
 
 /// <summary>
 /// Collects function metadata (scalar + TVF) and populates the SchemaSnapshot.Functions list.

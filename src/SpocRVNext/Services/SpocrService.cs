@@ -2,7 +2,7 @@ using System;
 using SpocRVNext.Configuration;
 using SpocR.SpocRVNext.Models;
 
-namespace SpocR.Services;
+namespace SpocR.SpocRVNext.Services;
 
 public class SpocrService
 {

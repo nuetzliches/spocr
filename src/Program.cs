@@ -10,7 +10,7 @@ using SpocR.SpocRVNext.Cli;
 using SpocR.SpocRVNext.Extensions;
 using SpocR.SpocRVNext.Infrastructure;
 using SpocR.SpocRVNext.Runtime;
-using SpocR.Services;
+using SpocR.SpocRVNext.Services;
 using SpocR.SpocRVNext.Data;
 using SpocR.Utils;
 using SpocRVNext.Configuration;

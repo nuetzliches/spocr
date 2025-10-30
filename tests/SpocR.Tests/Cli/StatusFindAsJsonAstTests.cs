@@ -1,15 +1,15 @@
 using System.Linq;
 using Xunit;
-using SpocR.Services;
+using SpocR.SpocRVNext.Services;
 
 namespace SpocR.Tests.Cli;
 
 public class StatusFindAsJsonAstTests
 {
-    [Fact]
-    public void StatusFindAsJson_FunctionSelect_ForJsonColumnsExtracted()
-    {
-        var sql = @"CREATE FUNCTION [workflow].[StatusFindAsJson]
+	[Fact]
+	public void StatusFindAsJson_FunctionSelect_ForJsonColumnsExtracted()
+	{
+		var sql = @"CREATE FUNCTION [workflow].[StatusFindAsJson]
 (
 	@Context			[core].[Context] READONLY,
 	@StatusId			[core].[id],
@@ -106,24 +106,24 @@ BEGIN
 	RETURN @Result;
 END";
 
-        var ast = new JsonFunctionAstExtractor().Parse(sql);
-        Assert.True(ast.ReturnsJson, "FOR JSON nicht erkannt");
-        Assert.False(ast.ReturnsJsonArray, "WITHOUT_ARRAY_WRAPPER sollte Objekt liefern");
-        // Top-Level Spalten
-        var names = ast.Columns.Select(c => c.Name).ToList();
-        Assert.Contains("statusId", names);
-        Assert.Contains("nodeId", names);
-        Assert.Contains("isActive", names);
-        Assert.Contains("isHidden", names);
-        Assert.Contains("displayName", names);
-        Assert.Contains("description", names);
-        Assert.True(names.Contains("paths"), "paths missing. Extracted columns: " + string.Join(",", names));
-        Assert.Contains("inStatusActions", names);
+		var ast = new JsonFunctionAstExtractor().Parse(sql);
+		Assert.True(ast.ReturnsJson, "FOR JSON nicht erkannt");
+		Assert.False(ast.ReturnsJsonArray, "WITHOUT_ARRAY_WRAPPER sollte Objekt liefern");
+		// Top-Level Spalten
+		var names = ast.Columns.Select(c => c.Name).ToList();
+		Assert.Contains("statusId", names);
+		Assert.Contains("nodeId", names);
+		Assert.Contains("isActive", names);
+		Assert.Contains("isHidden", names);
+		Assert.Contains("displayName", names);
+		Assert.Contains("description", names);
+		Assert.True(names.Contains("paths"), "paths missing. Extracted columns: " + string.Join(",", names));
+		Assert.Contains("inStatusActions", names);
 
-        var pathsCol = ast.Columns.First(c => c.Name == "paths");
-        Assert.True(pathsCol.IsNestedJson);
-        Assert.True(pathsCol.Children.Count > 0);
-        // Rekursive status in paths
-        Assert.Contains(pathsCol.Children, ch => ch.Name == "status");
-    }
+		var pathsCol = ast.Columns.First(c => c.Name == "paths");
+		Assert.True(pathsCol.IsNestedJson);
+		Assert.True(pathsCol.Children.Count > 0);
+		// Rekursive status in paths
+		Assert.Contains(pathsCol.Children, ch => ch.Name == "status");
+	}
 }

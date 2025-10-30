@@ -4,20 +4,20 @@ using System.IO;
 using System.Linq;
 using Microsoft.SqlServer.TransactSql.ScriptDom;
 
-namespace SpocR.Services;
+namespace SpocR.SpocRVNext.Services;
 
 // Finale saubere Implementierung
 public sealed class JsonFunctionAstExtractor
 {
     private sealed class FastReader : TextReader
-    { private readonly string _t; private int _p; public FastReader(string t)=>_t=t??string.Empty; public override int Read(char[] b,int i,int c){ if(_p>=_t.Length) return 0; int k=Math.Min(c,_t.Length-_p); _t.CopyTo(_p,b,i,k); _p+=k; return k;} public override int Read()=> _p>=_t.Length? -1 : _t[_p++]; }
+    { private readonly string _t; private int _p; public FastReader(string t) => _t = t ?? string.Empty; public override int Read(char[] b, int i, int c) { if (_p >= _t.Length) return 0; int k = Math.Min(c, _t.Length - _p); _t.CopyTo(_p, b, i, k); _p += k; return k; } public override int Read() => _p >= _t.Length ? -1 : _t[_p++]; }
     private sealed class QsCollectorVisitor : TSqlFragmentVisitor
-    { private readonly Action<QuerySpecification> _on; public QsCollectorVisitor(Action<QuerySpecification> on)=>_on=on; public override void Visit(TSqlFragment f){ if (f is QuerySpecification qs) _on(qs); base.Visit(f);} }
+    { private readonly Action<QuerySpecification> _on; public QsCollectorVisitor(Action<QuerySpecification> on) => _on = on; public override void Visit(TSqlFragment f) { if (f is QuerySpecification qs) _on(qs); base.Visit(f); } }
 
     public JsonFunctionAstResult Parse(string sql)
     {
         var res = new JsonFunctionAstResult(); if (string.IsNullOrWhiteSpace(sql)) return res;
-        var parser = new TSql160Parser(false); using var reader = new FastReader(sql); var fragment = parser.Parse(reader, out var errs); if (errs?.Count>0) res.Errors.AddRange(errs.Select(e=>e.Message));
+        var parser = new TSql160Parser(false); using var reader = new FastReader(sql); var fragment = parser.Parse(reader, out var errs); if (errs?.Count > 0) res.Errors.AddRange(errs.Select(e => e.Message));
         var specs = new List<QuerySpecification>(); fragment.Accept(new QsCollectorVisitor(q => specs.Add(q)));
         var jsonSpecs = specs.Where(q => GetForJsonClause(q) != null).ToList(); if (jsonSpecs.Count == 0) return res;
         QuerySpecification? root = jsonSpecs.FirstOrDefault(q => RootFragmentHasWithoutArrayWrapper(sql, q));
@@ -40,7 +40,7 @@ public sealed class JsonFunctionAstExtractor
     {
         if (depth > 20) return new JsonFunctionAstColumn { Name = alias }; // Sicherheitsgrenze
 
-        JsonFunctionAstColumn Make(string name, bool nested=false, bool returnsJson=false, bool? returnsJsonArray=null)
+        JsonFunctionAstColumn Make(string name, bool nested = false, bool returnsJson = false, bool? returnsJsonArray = null)
         {
             var col = new JsonFunctionAstColumn
             {
@@ -59,7 +59,7 @@ public sealed class JsonFunctionAstExtractor
             var fc = GetForJsonClause(qs);
             if (fc != null)
             {
-                var col = Make(alias, nested:true, returnsJson:true, returnsJsonArray: !GetWithoutArrayWrapper(fc));
+                var col = Make(alias, nested: true, returnsJson: true, returnsJsonArray: !GetWithoutArrayWrapper(fc));
                 foreach (var inner in qs.SelectElements.OfType<SelectScalarExpression>())
                 {
                     var a = inner.ColumnName?.Value ?? InferAlias(inner.Expression);
@@ -70,7 +70,7 @@ public sealed class JsonFunctionAstExtractor
         }
         if (expr is FunctionCall fcCall && fcCall.FunctionName?.Value?.Equals("JSON_QUERY", StringComparison.OrdinalIgnoreCase) == true)
         {
-            return Make(alias, nested:true, returnsJson:true);
+            return Make(alias, nested: true, returnsJson: true);
         }
         return Make(alias);
     }

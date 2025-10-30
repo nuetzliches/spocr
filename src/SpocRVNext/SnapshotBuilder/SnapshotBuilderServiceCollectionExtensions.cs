@@ -1,6 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using SpocR.SpocRVNext.Data;
-using SpocR.Services;
+using SpocR.SpocRVNext.Services;
 using SpocR.SpocRVNext.SnapshotBuilder.Analyzers;
 using SpocR.SpocRVNext.SnapshotBuilder.Cache;
 using SpocR.SpocRVNext.SnapshotBuilder.Collectors;

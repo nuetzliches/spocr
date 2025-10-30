@@ -6,7 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
-using SpocR.Services; // FunctionSnapshotCollector + Snapshot models
+using SpocR.SpocRVNext.Services; // FunctionSnapshotCollector + Snapshot models
 using SpocR.SpocRVNext.Core;
 using SpocR.SpocRVNext.Data; // DbContext base
 using SpocR.SpocRVNext.Data.Queries; // FunctionRow / ParamRow models
@@ -238,8 +238,8 @@ END",
         public void Yellow(string message) { }
         public void Red(string message) { }
         public void Gray(string message) { }
-        public SpocR.Services.Choice GetSelection(string prompt, List<string> options) => new(0, options.First());
-        public SpocR.Services.Choice GetSelectionMultiline(string prompt, List<string> options) => new(0, options.First());
+        public SpocR.SpocRVNext.Services.Choice GetSelection(string prompt, List<string> options) => new(0, options.First());
+        public SpocR.SpocRVNext.Services.Choice GetSelectionMultiline(string prompt, List<string> options) => new(0, options.First());
         public bool GetYesNo(string prompt, bool isDefaultConfirmed, ConsoleColor? promptColor = null, ConsoleColor? promptBgColor = null) => isDefaultConfirmed;
         public string GetString(string prompt, string defaultValue = "", ConsoleColor? promptColor = null) => defaultValue;
         public void PrintTitle(string title) { }

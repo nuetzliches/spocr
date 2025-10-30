@@ -5,7 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.SqlClient;
 using SpocR.SpocRVNext.Data;
-using SpocR.Services;
+using SpocR.SpocRVNext.Services;
 using SpocR.SpocRVNext.SnapshotBuilder.Models;
 
 namespace SpocR.SpocRVNext.SnapshotBuilder.Metadata;

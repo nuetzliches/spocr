@@ -5,8 +5,9 @@ using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using SpocR.SpocRVNext.Models;
+using SpocR.Utils;
 
-namespace SpocR.Services;
+namespace SpocR.SpocRVNext.Services;
 
 /// <summary>
 /// Very lightweight local metadata cache. Not committed to source control.
@@ -32,7 +33,7 @@ public class LocalCacheService : ILocalCacheService
 
     private void EnsureRoot()
     {
-        var working = Utils.DirectoryUtils.GetWorkingDirectory();
+        var working = DirectoryUtils.GetWorkingDirectory();
         if (string.IsNullOrEmpty(working)) return; // nothing we can do yet
         if (_rootDir == null || !string.Equals(_lastWorkingDir, working, StringComparison.OrdinalIgnoreCase))
         {

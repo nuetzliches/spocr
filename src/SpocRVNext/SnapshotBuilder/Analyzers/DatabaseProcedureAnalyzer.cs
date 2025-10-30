@@ -8,7 +8,7 @@ using SpocR.SpocRVNext.Data;
 using SpocR.SpocRVNext.Data.Models;
 using SpocR.SpocRVNext.Data.Queries;
 using SpocR.SpocRVNext.Models;
-using SpocR.Services;
+using SpocR.SpocRVNext.Services;
 using SpocR.SpocRVNext.SnapshotBuilder.Metadata;
 using SpocR.SpocRVNext.SnapshotBuilder.Models;
 using SpocR.SpocRVNext.Utils;

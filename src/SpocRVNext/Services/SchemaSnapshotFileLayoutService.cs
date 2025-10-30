@@ -6,8 +6,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
 using SpocR.SpocRVNext.Models;
+using SpocR.Utils;
 
-namespace SpocR.Services;
+namespace SpocR.SpocRVNext.Services;
 
 /// <summary>
 /// New file-based snapshot writer: creates an index.json plus subfolders 'procedures/' and 'tabletypes/'.
@@ -24,7 +25,7 @@ public sealed class SchemaSnapshotFileLayoutService
 
     private string EnsureBaseDir()
     {
-        var working = Utils.DirectoryUtils.GetWorkingDirectory();
+        var working = DirectoryUtils.GetWorkingDirectory();
         if (string.IsNullOrEmpty(working)) return null;
         var baseDir = Path.Combine(working, ".spocr", "schema");
         Directory.CreateDirectory(baseDir);

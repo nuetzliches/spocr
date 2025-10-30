@@ -6,7 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using SpocR.SpocRVNext.Data;
-using SpocR.Services;
+using SpocR.SpocRVNext.Services;
 using SpocR.SpocRVNext.SnapshotBuilder.Metadata;
 using SpocR.SpocRVNext.SnapshotBuilder.Models;
 using SpocR.SpocRVNext.Utils;

@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SpocR.Services;
+using SpocR.SpocRVNext.Models;
 
-namespace SpocR.Services;
+namespace SpocR.SpocRVNext.Services;
 
 /// <summary>
 /// Post-Snapshot zentrale Spalten-Enrichment-Pipeline (Phase nach Tabellen/View-Ladung).

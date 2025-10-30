@@ -1,5 +1,5 @@
 using System;
-using SpocR.Services; // for HashUtils
+using SpocR.SpocRVNext.Services; // for HashUtils
 
 namespace SpocR.SpocRVNext.Metadata
 {

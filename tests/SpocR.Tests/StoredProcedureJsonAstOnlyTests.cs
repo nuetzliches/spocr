@@ -5,7 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Xunit;
 using SpocR.SpocRVNext.Models;
-using SpocR.Services;
+using SpocR.SpocRVNext.Services;
 using SpocR.SpocRVNext.Data.Models;
 using SpocR.SpocRVNext.Core;
 using Microsoft.Data.SqlClient;

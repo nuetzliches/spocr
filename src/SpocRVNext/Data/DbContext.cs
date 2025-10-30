@@ -6,7 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.DependencyInjection;
-using SpocR.Services;
+using SpocR.SpocRVNext.Services;
 
 namespace SpocR.SpocRVNext.Data;
 

@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.Text;
 using SpocR.SpocRVNext.Models;
-using SpocR.Services;
+using SpocR.SpocRVNext.Services;
 using SpocR.Utils;
 using SpocR.SpocRVNext.Engine;
 using SpocRVNext.Configuration; // for EnvConfiguration & NamespaceResolver

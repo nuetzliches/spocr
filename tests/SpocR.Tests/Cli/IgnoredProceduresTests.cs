@@ -8,7 +8,7 @@ using Xunit;
 using SpocR.SpocRVNext.Data;
 using SpocR.SpocRVNext.Data.Models;
 using SpocR.SpocRVNext.Models;
-using SpocR.Services;
+using SpocR.SpocRVNext.Services;
 
 using DbSchema = SpocR.SpocRVNext.Data.Models.Schema;
 

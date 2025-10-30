@@ -9,7 +9,7 @@ using SpocR.SpocRVNext.Core;
 using SpocRVNext.Configuration;
 using SpocR.SpocRVNext.Models;
 
-namespace SpocR.Services;
+namespace SpocR.SpocRVNext.Services;
 
 /// <summary>
 /// Interface describing the console abstraction used by the CLI and generators.
