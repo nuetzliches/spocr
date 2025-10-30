@@ -591,8 +591,7 @@ public class SchemaManager(
                         {
                             storedProcedure.Input = snapProc.Inputs
                                 .Select(MapSnapshotInputToModel)
-                                .Where(model => model != null)
-                                .Select(model => model!)
+                                .OfType<StoredProcedureInput>()
                                 .ToList();
                         }
                         // ResultSets hydration
@@ -676,7 +675,7 @@ public class SchemaManager(
                         if (storedProcedure.Input == null)
                         {
                             var inputs = await dbContext.StoredProcedureInputListAsync(storedProcedure.SchemaName, storedProcedure.Name, cancellationToken);
-                            storedProcedure.Input = inputs?.Select(i => new StoredProcedureInputModel(i)).ToList();
+                            storedProcedure.Input = inputs?.ToList();
                         }
                     }
                 }
@@ -708,7 +707,7 @@ public class SchemaManager(
 
                     // Inputs & Outputs
                     var inputsFull = await dbContext.StoredProcedureInputListAsync(storedProcedure.SchemaName, storedProcedure.Name, cancellationToken);
-                    storedProcedure.Input = inputsFull?.Select(i => new StoredProcedureInputModel(i)).ToList();
+                    storedProcedure.Input = inputsFull?.ToList();
 
                     var outputsFull = await dbContext.StoredProcedureOutputListAsync(storedProcedure.SchemaName, storedProcedure.Name, cancellationToken);
                     var outputModels = outputsFull?.Select(i => new StoredProcedureOutputModel(i)).ToList() ?? new List<StoredProcedureOutputModel>();
@@ -906,7 +905,7 @@ public class SchemaManager(
         return schemas;
     }
 
-    private static StoredProcedureInputModel? MapSnapshotInputToModel(SnapshotInput snapshotInput)
+    private static StoredProcedureInput? MapSnapshotInputToModel(SnapshotInput snapshotInput)
     {
         if (snapshotInput == null)
         {
@@ -953,7 +952,7 @@ public class SchemaManager(
             stored.SqlTypeName = BuildSqlTypeName(scalarSchema, scalarName) ?? snapshotInput.TypeRef ?? string.Empty;
         }
 
-        return new StoredProcedureInputModel(stored);
+        return stored;
     }
 
     private static (string? Schema, string? Name) SplitTypeRef(string? typeRef)

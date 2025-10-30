@@ -17,11 +17,15 @@
 - [x] `src\SpocRVNext\DualGenerationDispatcher.cs` raus migrieren, es gibt nur noch vnext (2025-10-30: Dispatcher gelöscht; `generate-next` verwendet NextOnlyDemoRunner ohne Legacy-Pfad.)
 - [x] `src\ProgramVNextCLI.cs` zu `src\Program.cs` migrieren und als Default CLI verwenden (2025-10-30: Experimental Befehle in `Program.cs` integriert, Datei entfernt.)
 - [x] Wozu brauchen wir `src\Properties`? (2025-10-30: Folder entfernt, `InternalsVisibleTo` liegt bereits im Projektfile.)
-- [~] Nicht verwendeten Code in `src` ausfindig machen (Tests ignorieren, bzw. löschen, wenn einziger Konsument) und entfernen (rekursiv, bis alle unbenutzten Codezweige entfernt sind - geht das eventuell mit einem build flag effektiver?) In diesem Zuge auch nullable Warnings fixen (in src/ strict aktivieren), damit wir die Warnings reduziert bekommen. Lösche leere Dateien.
+- [~] Nicht verwendeten Code in `src` ausfindig machen (Tests ignorieren, bzw. löschen, wenn einziger Konsument) und entfernen (rekursiv, bis alle unbenutzten Codezweige entfernt sind - geht das eventuell mit einem build flag effektiver?) In diesem Zuge auch nullable Warnings fixen (in src/ strict aktivieren), damit wir die Warnings reduziert bekommen. Lösche leere Dateien. Entferne alte Felder von `ICommandOptions`
 	- 2025-10-30: `Utils/DirectoryDiff` entfernt; ehemaliger Dual-Modus-Comparator ohne Aufrufe.
 	- 2025-10-30: Test-Projekte von ungenutzten Configuration/Roslyn/SqlClient-Paketen befreit; `SpocR.TestFramework` nutzt nur noch `xunit.abstractions`.
 	- 2025-10-30: Nullable-Warnungen in Roslyn-Helfern und FileManager reduziert (sicherer Umgang mit optionalen Attributen/Configs, keine Null-Zuweisungen mehr an `Role`).
 	- 2025-10-30: FileManager entfernt Default-Rollen beim Speichern; `RoleDeprecationTests` grün, Gesamt-Suite wartet weiter auf regenerierte Sample-Ausgaben & Golden-Hash-Anpassung.
+	- 2025-11-02: CLI entfernt `--dry-run`, `--quiet`, `--no-auto-update`, `--no-version-check`; `ICommandOptions` deckt nur noch aktive Flags (Path/Verbose/Debug/NoCache/Procedure) ab, ConsoleService & Dokumentation synchronisiert.
+	- [x] Entferne `src\SpocRVNext\Models\GlobalConfigurationModel.cs` und zugehörige Implementierung (2025-11-02: GlobalConfig FileManager entfernt, CLI nutzt nur noch lokale `.env` Defaults)
+	- [x] `StoredProcedureInputModel` dürfte im aktuellen Output keine Rollen mehr spielen oder? Dann entfernen (2025-10-30: Wrapper gelöscht, SchemaManager/Definition nutzen direkt `StoredProcedureInput`.)
+	- [ ] Entferne `RoleModel` (Default ist Standard)
 - [x] Entferne `Microsoft.CodeAnalysis`, `Microsoft.AspNet.WebApi.Client`, `System.Management` wenn nicht mehr erforderlich
 	- 2025-10-30: `Microsoft.CodeAnalysis.CSharp` zunächst entfernt; nach Build-Check wieder aufgenommen, da `CompilationUnitSyntax`-Manipulationen weiterhin Roslyn benötigen.
 	- 2025-10-30: Namespace-Rewrites auf stringbasierte Pfade migriert, Roslyn-Helfer entfernt, Package-Referenz gelöscht.
@@ -29,3 +33,4 @@
 	- 2025-10-30: `System.Management` entfernt; Paket ohne Verwendungsstellen.
 - [~] Reorganisiere (Ordner-/Dateistruktur, Namenskonventionen, Usings) und normalisiere `src\SpocRVNext`
 	- 2025-10-30: Namespace-Basis auf `SpocR.SpocRVNext.*` vereinheitlicht, doppelte JsonElement-Helfer zusammengeführt, Tests und CLI-Einstieg an neue Struktur angepasst.
+	- 2025-10-30: Config-Modelle in `Models/` auf Ein-Datei-pro-Typ aufgeteilt (Global, Project, Role, Output/DataContext), damit Folge-Refactorings gezielt erfolgen können.

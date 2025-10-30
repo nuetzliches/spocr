@@ -1,4 +1,3 @@
-using System.IO;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
@@ -10,7 +9,6 @@ using SpocR.SpocRVNext.Cli;
 using SpocR.SpocRVNext.Engine;
 using SpocR.SpocRVNext.Generators;
 using SpocR.SpocRVNext.SnapshotBuilder;
-using SpocR.SpocRVNext.Utils;
 using SpocR.SpocRVNext.Configuration;
 using SpocR.SpocRVNext.Infrastructure;
 
@@ -26,7 +24,6 @@ public static class SpocrServiceCollectionExtensions
         services.AddOptions<SpocROptions>()
             .Configure(options =>
             {
-                options.GlobalConfigPath = GetGlobalConfigPath();
                 options.LocalConfigPath = Constants.ConfigurationFile;
             });
 
@@ -63,35 +60,15 @@ public static class SpocrServiceCollectionExtensions
         {
             var options = provider.GetRequiredService<IOptions<SpocROptions>>();
             var spocrService = provider.GetRequiredService<SpocrService>();
-            return new FileManager<GlobalConfigurationModel>(
-                spocrService,
-                options.Value.GlobalConfigPath,
-                spocrService.GetGlobalDefaultConfiguration());
-        });
-
-        services.AddSingleton(provider =>
-        {
-            var options = provider.GetRequiredService<IOptions<SpocROptions>>();
-            var spocrService = provider.GetRequiredService<SpocrService>();
             return new FileManager<ConfigurationModel>(
                 spocrService,
                 options.Value.LocalConfigPath,
                 spocrService.GetDefaultConfiguration());
         });
     }
-
-    private static string GetGlobalConfigPath()
-    {
-#if DEBUG
-        return Path.Combine(DirectoryUtils.GetWorkingDirectory(), Constants.GlobalConfigurationFile);
-#else
-        return Path.Combine(DirectoryUtils.GetAppDataDirectory(), Constants.GlobalConfigurationFile);
-#endif
-    }
 }
 
 public class SpocROptions
 {
-    public string GlobalConfigPath { get; set; }
-    public string LocalConfigPath { get; set; }
+    public string LocalConfigPath { get; set; } = string.Empty;
 }

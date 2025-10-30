@@ -33,10 +33,7 @@ If the connection string is missing or empty, the command fails fast with guidan
 | `--no-cache` | Ignore existing `.spocr/cache` entries and force a full re-parse. |
 | `--procedure <schema.proc>` | Comma-separated filter that maps to `SPOCR_BUILD_PROCEDURES` for the current run. |
 | `-v, --verbose` | Emit per-procedure progress, timings, and cache reuse hints. |
-| `-d, --dry-run` | Print a dry-run banner after execution (pipeline still performs its work). |
-| `-q, --quiet` | Suppress update checks and confirmations (CI-friendly). |
-
-> Additional global switches (`--no-auto-update`, `--no-version-check`, `--debug`, `-f/--force`) behave as described in the [CLI overview](../index.md).
+| `--debug` | Use the debug environment wiring (mirrors the legacy switch in v5). |
 
 When `--no-cache` is specified you will only see `[proc-loaded]` entries (no `[proc-skip]`) and the banner `[cache] Disabled (--no-cache)`. Use this after modifying parsing/JSON heuristics or when validating metadata changes.
 

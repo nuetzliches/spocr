@@ -13,7 +13,7 @@ using SpocR.SpocRVNext.Services;
 using SpocR.SpocRVNext.Engine;
 using SpocR.SpocRVNext.Generators;
 using SpocR.SpocRVNext.SnapshotBuilder;
-using SpocR.SpocRVNext.SnapshotBuilder.Models;
+using SnapshotProcedureDescriptor = SpocR.SpocRVNext.SnapshotBuilder.Models.ProcedureDescriptor;
 using SpocR.SpocRVNext.Utils;
 using SpocR.SpocRVNext.Configuration;
 using SpocR.SpocRVNext.Metadata;
@@ -121,7 +121,7 @@ public class SpocrCliRuntime(
             stopwatch.Stop();
         }
 
-        var selectedProcedures = result.ProceduresSelected ?? Array.Empty<ProcedureDescriptor>();
+        var selectedProcedures = result.ProceduresSelected ?? Array.Empty<SnapshotProcedureDescriptor>();
         var groupedBySchema = selectedProcedures
             .GroupBy(p => string.IsNullOrWhiteSpace(p.Schema) ? "(unknown)" : p.Schema, StringComparer.OrdinalIgnoreCase)
             .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
@@ -162,11 +162,6 @@ public class SpocrCliRuntime(
                 .OrderBy(static pair => pair.Key, StringComparer.OrdinalIgnoreCase)
                 .Select(static pair => $"{pair.Key}={pair.Value}"));
             consoleService.Info($"[snapshot] metrics: {metricsSummary}");
-        }
-
-        if (options.DryRun)
-        {
-            consoleService.PrintDryRunMessage();
         }
 
         return ExecuteResultEnum.Succeeded;
@@ -310,13 +305,8 @@ public class SpocrCliRuntime(
                 loader,
                 () => procedures);
 
-            await dbContextGenerator.GenerateAsync(options.DryRun).ConfigureAwait(false);
+            await dbContextGenerator.GenerateAsync(isDryRun: false).ConfigureAwait(false);
             consoleService.Output("DbContext artifacts updated under 'SpocR'.");
-
-            if (options.DryRun)
-            {
-                consoleService.PrintDryRunMessage();
-            }
 
             return ExecuteResultEnum.Succeeded;
         }

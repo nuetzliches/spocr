@@ -17,7 +17,6 @@ namespace SpocR.SpocRVNext.Services;
 public interface IConsoleService
 {
     bool IsVerbose { get; }
-    bool IsQuiet { get; }
 
     void Info(string message);
     void Error(string message);
@@ -42,7 +41,6 @@ public interface IConsoleService
     void PrintSubTitle(string title);
     void PrintSummary(IEnumerable<string> summary, string? headline = null);
     void PrintTotal(string total);
-    void PrintDryRunMessage(string? message = null);
     void PrintConfiguration(ConfigurationModel config);
     void PrintFileActionMessage(string fileName, FileActionEnum fileAction);
     void PrintCorruptConfigMessage(string message);
@@ -70,7 +68,6 @@ public sealed class ConsoleService : IConsoleService
     }
 
     public bool IsVerbose => _commandOptions?.Verbose ?? false;
-    public bool IsQuiet => _commandOptions?.Quiet ?? false;
 
     private static TextWriter StdOut => Console.Out;
     private static TextWriter StdErr => Console.Error;
@@ -83,17 +80,12 @@ public sealed class ConsoleService : IConsoleService
 
     public void Output(string message)
     {
-        if (IsQuiet)
-        {
-            return;
-        }
-
         WriteLine(StdOut, message, foregroundColor: null);
     }
 
     public void Verbose(string message)
     {
-        if (!IsVerbose || IsQuiet)
+        if (!IsVerbose)
         {
             return;
         }
@@ -105,11 +97,6 @@ public sealed class ConsoleService : IConsoleService
 
     public void DrawProgressBar(int percentage, int barSize = 40)
     {
-        if (IsQuiet)
-        {
-            return;
-        }
-
         percentage = Math.Clamp(percentage, 0, 100);
         barSize = Math.Max(10, barSize);
 
@@ -270,18 +257,6 @@ public sealed class ConsoleService : IConsoleService
         Success(_lineMinus);
         Success(total);
         Success(string.Empty);
-    }
-
-    public void PrintDryRunMessage(string? message = null)
-    {
-        if (!string.IsNullOrWhiteSpace(message))
-        {
-            Output(message);
-        }
-
-        Output(_lineMinus);
-        Output("Run with \"dry run\" means no changes were made");
-        Output(_lineMinus);
     }
 
     public void PrintConfiguration(ConfigurationModel config)

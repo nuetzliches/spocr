@@ -35,15 +35,16 @@ public class GoldenHashPipelineDeterminismTests
 
         string RunCli()
         {
-            // Use 'dotnet run' on the main project for rebuild; disable auto-update to keep snapshot stable
+            // Use 'dotnet run' on the main project for rebuild; disable auto-update via env variable to keep snapshot stable
             var psi = new ProcessStartInfo
             {
                 FileName = "dotnet",
                 WorkingDirectory = root,
-                Arguments = "run --project src/SpocR.csproj -- rebuild -p samples/restapi --no-auto-update --no-cache",
+                Arguments = "run --project src/SpocR.csproj -- rebuild -p samples/restapi --no-cache",
                 RedirectStandardOutput = true,
                 RedirectStandardError = true
             };
+            psi.Environment["SPOCR_SKIP_UPDATE"] = "1";
             using var proc = Process.Start(psi)!;
             var stdout = proc.StandardOutput.ReadToEnd();
             var stderr = proc.StandardError.ReadToEnd();

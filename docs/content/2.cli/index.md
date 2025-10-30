@@ -12,15 +12,10 @@ The SpocR CLI operates against `.env` files that declare connection strings, nam
 | Option | Description |
 | ------ | ----------- |
 | `-p, --path <dir>` | Override the working directory (must contain the target `.env`). |
-| `-d, --dry-run` | Print a dry-run banner after execution (writes still occur in the current pipeline). |
-| `-f, --force` | Continue despite warnings when a command supports it. |
-| `-q, --quiet` | Suppress interactive prompts and skip auto-update checks. |
 | `-v, --verbose` | Emit detailed logging (pipeline steps, timings, cache hints). |
+| `--debug` | Use the debug environment wiring (mirrors legacy `--debug` switch). |
 | `--no-cache` | Force a full snapshot rebuild in `pull`, ignoring cached metadata. |
 | `--procedure <schema.proc>` | Limit `pull` (and future generators) to matching stored procedures (wildcards supported). |
-| `--no-auto-update` | Skip the auto-update probe (useful for CI). |
-| `--no-version-check` | Suppress version compatibility checks against generated artifacts. |
-| `--debug` | Use the debug environment wiring (mirrors legacy `--debug` switch).
 
 ## Core Commands
 

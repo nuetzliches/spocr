@@ -95,14 +95,7 @@ SPOCR_SKIP_UPDATE=1      # or true/yes/on
 SPOCR_NO_UPDATE=true     # alias
 ```
 
-CLI flags:
-
-```
---no-auto-update   # disables check for that invocation
---quiet            # implicitly suppresses update prompts
-```
-
-If any is present, the auto-update service exits without contacting package sources. Record any changes to this behavior in the guardrail checklists.
+The v5 CLI no longer exposes dedicated flags to skip update prompts. Existing environment variables remain honored for compatibility (set them in CI if update checks must stay disabled). Record any changes to this behavior in the guardrail checklists.
 
 ---
 

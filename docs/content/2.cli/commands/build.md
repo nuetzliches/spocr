@@ -28,7 +28,7 @@ spocr build [options]
 | ------ | ----------- |
 | `--generators <list>` | Optional comma-separated filter (`TableTypes,Inputs,Models,StoredProcedures`). Only `TableTypes` is active in the current v5 toolchain; additional generators will light up as the pipeline expands. |
 
-> Global flags such as `-p/--path`, `-d/--dry-run`, `-f/--force`, `-v/--verbose`, and `--no-cache` are documented on the [CLI overview](../index.md) and apply to this command as well.
+> Global flags such as `-p/--path`, `-v/--verbose`, `--no-cache`, `--procedure`, and `--debug` are documented on the [CLI overview](../index.md) and apply to this command as well.
 
 ## Behavior Contract (Draft)
 

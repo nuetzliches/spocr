@@ -4,26 +4,39 @@ using System.Text.Json.Serialization;
 
 namespace SpocR.SpocRVNext.Configuration;
 
-public class StringVersionConverter : JsonConverter<Version>
+public sealed class StringVersionConverter : JsonConverter<Version?>
 {
-    public override Version Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    public override Version? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
+        if (reader.TokenType == JsonTokenType.Null)
+        {
+            return null;
+        }
+
         var versionText = reader.GetString();
         if (string.IsNullOrWhiteSpace(versionText))
         {
             return null;
         }
-        return new Version(versionText);
+
+        try
+        {
+            return Version.Parse(versionText);
+        }
+        catch (FormatException)
+        {
+            return null;
+        }
     }
 
-    public override void Write(Utf8JsonWriter writer, Version version, JsonSerializerOptions options)
+    public override void Write(Utf8JsonWriter writer, Version? value, JsonSerializerOptions options)
     {
-        if (version == null)
+        if (value is null)
         {
-            writer.WriteNull("Version");
+            writer.WriteNullValue();
             return;
         }
 
-        writer.WriteStringValue($"{version.Major}.{version.Minor}.{version.Build}");
+        writer.WriteStringValue(value.ToString());
     }
 }

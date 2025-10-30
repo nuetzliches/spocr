@@ -284,7 +284,7 @@ public class SnapshotSchemaMetadataProvider : ISchemaMetadataProvider
                                     }
                                 }
 
-                                return new StoredProcedureInputModel(storedInput);
+                                return storedInput;
                             }).ToList(),
                             Content = new StoredProcedureContentModel
                             {

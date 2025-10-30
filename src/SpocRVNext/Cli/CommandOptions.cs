@@ -7,17 +7,7 @@ namespace SpocR.SpocRVNext.Cli;
 public interface ICommandOptions
 {
     string Path { get; }
-    [Obsolete("Remove from Project")]
-    bool DryRun { get; }
-    [Obsolete("Remove from Project")]
-    bool Force { get; }
-    [Obsolete("Remove from Project")]
-    bool Quiet { get; }
     bool Verbose { get; }
-    [Obsolete("Remove from Project")]
-    bool NoVersionCheck { get; set; }
-    [Obsolete("Remove from Project")]
-    bool NoAutoUpdate { get; set; }
     bool Debug { get; }
     bool NoCache { get; }
     string Procedure { get; }
@@ -44,35 +34,14 @@ public class CommandOptions : ICommandOptions
         }
 
         _current.Path = options.Path?.Trim() ?? string.Empty;
-        _current.DryRun = options.DryRun;
-        _current.Force = options.Force;
-        _current.Quiet = options.Quiet;
         _current.Verbose = options.Verbose;
-        _current.NoVersionCheck = options.NoVersionCheck;
-        _current.NoAutoUpdate = options.NoAutoUpdate;
         _current.Debug = options.Debug;
         _current.NoCache = options.NoCache;
         _current.Procedure = options.Procedure?.Trim() ?? string.Empty;
     }
 
     public string Path => _current.Path?.Trim();
-    public bool DryRun => _current.DryRun;
-    public bool Force => _current.Force;
-    public bool Quiet => _current.Quiet;
     public bool Verbose => _current.Verbose;
-
-    public bool NoVersionCheck
-    {
-        get => _current.NoVersionCheck;
-        set => _current.NoVersionCheck = value;
-    }
-
-    public bool NoAutoUpdate
-    {
-        get => _current.NoAutoUpdate;
-        set => _current.NoAutoUpdate = value;
-    }
-
     public bool Debug => _current.Debug;
     public bool NoCache => _current.NoCache;
     public string Procedure => _current.Procedure;
@@ -84,12 +53,7 @@ public class CommandOptions : ICommandOptions
 public sealed class CliCommandOptions : ICommandOptions
 {
     public string Path { get; set; }
-    public bool DryRun { get; set; }
-    public bool Force { get; set; }
-    public bool Quiet { get; set; }
     public bool Verbose { get; set; }
-    public bool NoVersionCheck { get; set; }
-    public bool NoAutoUpdate { get; set; }
     public bool Debug { get; set; }
     public bool NoCache { get; set; }
     public string Procedure { get; set; }

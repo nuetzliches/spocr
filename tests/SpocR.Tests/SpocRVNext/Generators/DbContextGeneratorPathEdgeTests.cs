@@ -60,12 +60,7 @@ public class DbContextGeneratorPathEdgeTests
     private sealed class TestOptionsVerbose : ICommandOptions
     {
         public string Path { get; set; } = string.Empty;
-        public bool DryRun { get; set; }
-        public bool Force { get; set; }
-        public bool Quiet { get; set; }
         public bool Verbose { get; set; } = true;
-        public bool NoVersionCheck { get; set; }
-        public bool NoAutoUpdate { get; set; }
         public bool Debug { get; set; }
         public bool NoCache { get; set; }
         public string Procedure { get; set; } = string.Empty;

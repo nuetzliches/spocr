@@ -41,10 +41,10 @@ public class StoredProcedureModel : IEquatable<StoredProcedureModel>
         set => _item.SchemaName = value;
     }
 
-    private IEnumerable<StoredProcedureInputModel> _input;
-    public IEnumerable<StoredProcedureInputModel> Input
+    private IReadOnlyList<StoredProcedureInput>? _input;
+    public IReadOnlyList<StoredProcedureInput>? Input
     {
-        get => _input?.Any() ?? false ? _input : null;
+        get => _input != null && _input.Count > 0 ? _input : null;
         set => _input = value;
     }
 

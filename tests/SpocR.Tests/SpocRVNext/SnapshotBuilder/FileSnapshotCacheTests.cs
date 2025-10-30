@@ -81,8 +81,7 @@ public sealed class FileSnapshotCacheTests
   private sealed class NoopConsole : IConsoleService
   {
     public bool IsVerbose => false;
-    public bool IsQuiet => false;
-    public void CompleteProgress(bool success = true, string message = null) { }
+    public void CompleteProgress(bool success = true, string? message = null) { }
     public void DrawProgressBar(int percentage, int barSize = 40) { }
     public void Error(string message) { }
     public void Gray(string message) { }
@@ -95,11 +94,10 @@ public sealed class FileSnapshotCacheTests
     public void Output(string message) { }
     public void PrintConfiguration(ConfigurationModel config) { }
     public void PrintCorruptConfigMessage(string message) { }
-    public void PrintDryRunMessage(string message = null) { }
     public void PrintFileActionMessage(string fileName, FileActionEnum fileAction) { }
     public void PrintImportantTitle(string title) { }
     public void PrintSubTitle(string title) { }
-    public void PrintSummary(IEnumerable<string> summary, string headline = null) { }
+    public void PrintSummary(IEnumerable<string> summary, string? headline = null) { }
     public void PrintTitle(string title) { }
     public void PrintTotal(string total) { }
     public void Red(string message) { }

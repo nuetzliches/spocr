@@ -33,17 +33,6 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 
 ## Überblick 2025-10-27
 
-- SnapshotBuilder pipeline treibt `spocr pull`; Detailplanung liegt in `src/SpocRVNext/SnapshotBuilder/CHECKLIST.md`.
-- Forced-Upgrade-Plan v5 wird in `src/SpocRVNext/CHECKLIST.md` geführt; dieses Dokument bündelt den Gesamtstatus.
-- JSON Typisierung läuft AST-first, Restarbeiten und Tests sind unten verlinkt.
-
-## Abgeschlossene Eckpunkte
-
-- [x] Legacy-Generator v4.5 eingefroren (Sentinel `legacy-freeze.txt`, EPIC E001).
-- [x] Parallelbetrieb alter/neuer Output abgeschlossen; deterministische Hashes sichern den vereinheitlichten Generator.
-- [x] `.env`-Migration samt Bootstrap und Warnpfad umgesetzt (README aktualisiert).
-- [x] Golden-Hash-Pipeline & Diff-Reporting aktiv (Relaxed Mode, CLI-Befehle `write-golden`/`verify-golden`).
-- [x] Sample `samples/restapi` baut und besteht CRUD-Smoke über die neue Pipeline.
 - [x] Generator-Mode-Toggles entfernt; CLI, Tests und Doku arbeiten ausschließlich im next-only Modus (2025-10-29).
 
 ## Roadmap & Migration (Abgleich mit `src/SpocRVNext/CHECKLIST.md`)
@@ -60,6 +49,7 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
   - 2025-10-31: SnapshotSchemaMetadataProvider bezieht Filter ausschließlich aus `.env`/Env-Variablen; `FileManager<ConfigurationModel>` entfällt.
   - 2025-10-31: Schema-CLI (`spocr schema`) deaktiviert; Manager & Commands bleiben als leere Platzhalter ohne `spocr.json`-Schreibpfad.
   - 2025-10-31: CLI-Legacy-Scanner warnt bei `spocr.json`, `spocr.global.json` und `DataContext/`; Debug-Sandbox enthält keine `spocr.json` mehr.
+  - 2025-11-02: Globale Konfiguration (`spocr.global.json`) entfernt; DI registriert keine Global-FileManager mehr.
   - 2025-10-29: Unbenutzte vNext Inputs/Outputs/Results-Generatoren entfernt; konsolidierte Procedures-Generation bleibt aktiv.
   - 2025-10-31: `src/CodeGenerators` gelöscht; CLI/DI registrieren nur noch SnapshotBuilder- und DbContext-Komponenten.
   - 2025-10-29: `src/Attributes` entfernt; `WriteProtectedBySystem` entfällt ohne Folgeabhängigkeiten.
@@ -125,6 +115,7 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
   - 2025-10-28: CLI `pull`/`build`/`rebuild` Hilfetexte auf `.env`-Kontext ohne Preview-Toggles umgestellt.
   - 2025-10-31: CLI-Dokumentation auf den entfernten `spocr test`-Befehl angepasst (`README`, `docs/content/2.cli/*`, `tests/README.md`); Workaround über `dotnet test` beschrieben.
   - 2025-10-31: `docs/content/2.cli` Befehlsreferenzen auf `.env`-/JSON-Defaults und neue Global-Optionen synchronisiert (Overview, pull, build).
+  - 2025-11-02: Global-Optionen erneut abgestimmt – entfernte Flags (`--dry-run`, `--quiet`, `--no-auto-update`, `--no-version-check`) aus CLI, Docs und Checklisten gestrichen.
   - 2025-10-29: MIGRATION Docs auf Zielzustand gesetzt, Legacy-Narrative in Hauptseiten noch zu kürzen.
 - [x] README/Docs: Namespace-Ableitung & Override mit Beispiel diff ergänzen. (docs/content/3.reference/env-bootstrap.md)
 - [>] CHANGELOG v4.5-rc/v5 vorbereiten (Removed Keys, neue CLI, Bridge Policy).
@@ -137,6 +128,7 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
   - README, CHANGELOG, Migration Guide & Instructions um Hinweis auf Xtraq ergänzt (2025-10-29).
 - [~] Inhalte aus `src/SpocRVNext` eine Ebene höher ziehen und Struktur konsolidieren.
   - 2025-10-30: Namespace-Layout auf `SpocR.SpocRVNext.*` vereinheitlicht, JsonElement-Helfer zentralisiert, Tests/CLI auf neue Namespaces gebracht.
+  - 2025-10-30: Configmodelle pro Typ in eigene Dateien verschoben (Global, Project, Output/DataContext), erleichtert gezielte Rewrites.
 - [ ] `.ai/` Inhalte nach jeder relevanten Änderung prüfen und synchronisieren (Guidelines, Prompts, README).
 
 ## CI, Automatisierung & Release

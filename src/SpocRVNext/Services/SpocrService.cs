@@ -10,26 +10,10 @@ public class SpocrService
 
     public SpocrService()
     {
-        Version = GetType().Assembly.GetName().Version;
+        Version = GetType().Assembly.GetName().Version ?? new Version(0, 0);
     }
 
-    public GlobalConfigurationModel GetGlobalDefaultConfiguration()
-    {
-        return new GlobalConfigurationModel
-        {
-            Version = Version,
-            TargetFramework = Constants.DefaultTargetFramework.ToFrameworkString(),
-            AutoUpdate = new GlobalAutoUpdateConfigurationModel
-            {
-                Enabled = true,
-                LongPauseInMinutes = 1440,
-                ShortPauseInMinutes = 15,
-                NextCheckTicks = 0
-            }
-        };
-    }
-
-    public ConfigurationModel GetDefaultConfiguration(string targetFramework = null, string appNamespace = "", string connectionString = "", RoleKindEnum roleKind = default, string libNamespace = null)
+    public ConfigurationModel GetDefaultConfiguration(string? targetFramework = null, string appNamespace = "", string connectionString = "", RoleKindEnum roleKind = default, string? libNamespace = null)
     {
         var role = new RoleModel
         {

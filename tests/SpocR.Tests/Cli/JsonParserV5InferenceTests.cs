@@ -18,7 +18,6 @@ public class JsonParserV5InferenceTests
     private sealed class TestConsole : SpocR.SpocRVNext.Services.IConsoleService
     {
         public bool IsVerbose => false;
-        public bool IsQuiet => false;
         public void Info(string message) { }
         public void Error(string message) { }
         public void Warn(string message) { }
@@ -37,14 +36,13 @@ public class JsonParserV5InferenceTests
         public void PrintTitle(string title) { }
         public void PrintImportantTitle(string title) { }
         public void PrintSubTitle(string title) { }
-        public void PrintSummary(IEnumerable<string> summary, string headline = "") { }
+        public void PrintSummary(IEnumerable<string> summary, string? headline = "") { }
         public void PrintTotal(string total) { }
-        public void PrintDryRunMessage(string message = "") { }
         public void PrintConfiguration(ConfigurationModel config) { }
         public void PrintFileActionMessage(string fileName, FileActionEnum action) { }
         public void PrintCorruptConfigMessage(string message) { }
         public void StartProgress(string message) { }
-        public void CompleteProgress(bool success = true, string message = "") { }
+        public void CompleteProgress(bool success = true, string? message = "") { }
         public void UpdateProgressStatus(string status, bool success = true, int? percentage = null) { }
     }
 

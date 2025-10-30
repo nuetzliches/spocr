@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using SpocR.SpocRVNext.Data.Models;
 using SpocR.SpocRVNext.Extensions;
 using SpocR.SpocRVNext.Models;
 
@@ -59,7 +60,7 @@ public static class Definition
 
         public IReadOnlyList<StoredProcedureContentModel.ResultSet> ResultSets => storedProcedure.ResultSets;
 
-        public IEnumerable<StoredProcedureInputModel> Input => storedProcedure.Input ?? [];
+        public IReadOnlyList<StoredProcedureInput> Input => storedProcedure.Input ?? Array.Empty<StoredProcedureInput>();
 
         public bool IsPureWrapper
         {

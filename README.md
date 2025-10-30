@@ -46,7 +46,7 @@ dotnet test tests/Tests.sln --configuration Debug
 
 > ℹ️ The legacy `spocr test` verb was removed from the v5 CLI. Until the new validation surface lands, use `dotnet test` (see Quick Start) to execute the unit and integration suites.
 
-Use `spocr --help` to discover all verbs and shared options (profiles, verbosity, dry-runs, etc.).
+Use `spocr --help` to discover all verbs and shared options (profiles, verbosity, caching, etc.).
 
 ## Configuration via `.env`
 
@@ -94,9 +94,6 @@ Useful maintenance commands:
 ```cmd
 :: Remove older snapshots but retain the latest five
 spocr snapshot clean
-
-:: Show deletions without touching disk
-spocr snapshot clean --dry-run
 ```
 
 The `debug/README.md` file documents every artifact produced during a pull/build/test cycle.

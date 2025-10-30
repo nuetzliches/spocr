@@ -7,13 +7,12 @@
       "request": "launch",
       "preLaunchTask": "build",
       "program": "${workspaceFolder}/src/bin/Debug/net8.0/SpocR.dll",
-      // available commands: "create", "pull", "build", "rebuild", "remove", options: "-d|--dry-run"
+      // available commands: "create", "pull", "build", "rebuild", "remove", options: "--verbose", "--no-cache"
       "args": [
         "rebuild"
         //"ls"
         //"-f",
         //"-s"
-        //"-d"
       ],
       "cwd": "${workspaceFolder}/src",
       "console": "integratedTerminal",

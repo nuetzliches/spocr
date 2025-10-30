@@ -31,18 +31,6 @@ public static class Program
 
     public static async Task<int> RunCliAsync(string[] args)
     {
-        var quiet = false;
-        for (int i = 0; i < args.Length; i++)
-        {
-            var token = args[i];
-            if (string.Equals(token, "--quiet", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(token, "-q", StringComparison.OrdinalIgnoreCase))
-            {
-                quiet = true;
-                break;
-            }
-        }
-
         try
         {
             string? cliConfig = null;
@@ -189,26 +177,15 @@ public static class Program
         var runtime = serviceProvider.GetRequiredService<SpocrCliRuntime>();
         var commandOptionsAccessor = serviceProvider.GetRequiredService<CommandOptions>();
 
-        var pathOption = new Option<string?>("--path", "Path to the project root containing .env");
-        pathOption.AddAlias("-p");
+    var pathOption = new Option<string?>("--path", "Path to the project root containing .env");
+    pathOption.AddAlias("-p");
 
-        var dryRunOption = new Option<bool>("--dry-run", "Run command without making any changes");
-        dryRunOption.AddAlias("-d");
+    var verboseOption = new Option<bool>("--verbose", "Show additional diagnostic information");
+    verboseOption.AddAlias("-v");
 
-        var forceOption = new Option<bool>("--force", "Run command even if warnings were raised");
-        forceOption.AddAlias("-f");
-
-        var quietOption = new Option<bool>("--quiet", "Run without extra interaction");
-        quietOption.AddAlias("-q");
-
-        var verboseOption = new Option<bool>("--verbose", "Show additional diagnostic information");
-        verboseOption.AddAlias("-v");
-
-        var noVersionCheckOption = new Option<bool>("--no-version-check", "Ignore version mismatch between installation and config file");
-        var noAutoUpdateOption = new Option<bool>("--no-auto-update", "Skip the auto update check");
-        var debugOption = new Option<bool>("--debug", "Use debug environment settings");
-        var noCacheOption = new Option<bool>("--no-cache", "Do not read or write the local procedure metadata cache");
-        var procedureOption = new Option<string?>("--procedure", "Process only specific procedures (comma separated schema.name)");
+    var debugOption = new Option<bool>("--debug", "Use debug environment settings");
+    var noCacheOption = new Option<bool>("--no-cache", "Do not read or write the local procedure metadata cache");
+    var procedureOption = new Option<string?>("--procedure", "Process only specific procedures (comma separated schema.name)");
 
         var root = new RootCommand("SpocR CLI (vNext)")
         {
@@ -217,12 +194,7 @@ public static class Program
 
         static CliCommandOptions BindOptions(ParseResult parseResult,
             Option<string?> path,
-            Option<bool> dryRun,
-            Option<bool> force,
-            Option<bool> quiet,
             Option<bool> verbose,
-            Option<bool> noVersionCheck,
-            Option<bool> noAutoUpdate,
             Option<bool> debug,
             Option<bool> noCache,
             Option<string?> procedure)
@@ -230,12 +202,7 @@ public static class Program
             return new CliCommandOptions
             {
                 Path = parseResult.GetValueForOption(path)?.Trim(),
-                DryRun = parseResult.GetValueForOption(dryRun),
-                Force = parseResult.GetValueForOption(force),
-                Quiet = parseResult.GetValueForOption(quiet),
                 Verbose = parseResult.GetValueForOption(verbose),
-                NoVersionCheck = parseResult.GetValueForOption(noVersionCheck),
-                NoAutoUpdate = parseResult.GetValueForOption(noAutoUpdate),
                 Debug = parseResult.GetValueForOption(debug),
                 NoCache = parseResult.GetValueForOption(noCache),
                 Procedure = parseResult.GetValueForOption(procedure)?.Trim()
@@ -256,12 +223,7 @@ public static class Program
         void AddCommonOptions(Command command)
         {
             command.AddOption(pathOption);
-            command.AddOption(dryRunOption);
-            command.AddOption(forceOption);
-            command.AddOption(quietOption);
             command.AddOption(verboseOption);
-            command.AddOption(noVersionCheckOption);
-            command.AddOption(noAutoUpdateOption);
             command.AddOption(debugOption);
             command.AddOption(noCacheOption);
             command.AddOption(procedureOption);
@@ -271,7 +233,7 @@ public static class Program
         AddCommonOptions(pullCommand);
         pullCommand.SetHandler(async context =>
         {
-            var options = BindOptions(context.ParseResult, pathOption, dryRunOption, forceOption, quietOption, verboseOption, noVersionCheckOption, noAutoUpdateOption, debugOption, noCacheOption, procedureOption);
+            var options = BindOptions(context.ParseResult, pathOption, verboseOption, debugOption, noCacheOption, procedureOption);
             PrepareCommandEnvironment(options);
             commandOptionsAccessor.Update(options);
             var result = await runtime.PullAsync(options).ConfigureAwait(false);
@@ -283,7 +245,7 @@ public static class Program
         AddCommonOptions(buildCommand);
         buildCommand.SetHandler(async context =>
         {
-            var options = BindOptions(context.ParseResult, pathOption, dryRunOption, forceOption, quietOption, verboseOption, noVersionCheckOption, noAutoUpdateOption, debugOption, noCacheOption, procedureOption);
+            var options = BindOptions(context.ParseResult, pathOption, verboseOption, debugOption, noCacheOption, procedureOption);
             PrepareCommandEnvironment(options);
             commandOptionsAccessor.Update(options);
             var result = await runtime.BuildAsync(options).ConfigureAwait(false);
@@ -295,7 +257,7 @@ public static class Program
         AddCommonOptions(rebuildCommand);
         rebuildCommand.SetHandler(async context =>
         {
-            var options = BindOptions(context.ParseResult, pathOption, dryRunOption, forceOption, quietOption, verboseOption, noVersionCheckOption, noAutoUpdateOption, debugOption, noCacheOption, procedureOption);
+            var options = BindOptions(context.ParseResult, pathOption, verboseOption, debugOption, noCacheOption, procedureOption);
             PrepareCommandEnvironment(options);
             commandOptionsAccessor.Update(options);
 
@@ -312,25 +274,23 @@ public static class Program
         root.AddCommand(rebuildCommand);
 
         var versionCommand = new Command("version", "Show installed and latest SpocR versions");
-        versionCommand.AddOption(quietOption);
         versionCommand.AddOption(verboseOption);
-        versionCommand.AddOption(noAutoUpdateOption);
         versionCommand.SetHandler(async context =>
         {
             var options = new CliCommandOptions
             {
-                Quiet = context.ParseResult.GetValueForOption(quietOption),
-                Verbose = context.ParseResult.GetValueForOption(verboseOption),
-                NoAutoUpdate = context.ParseResult.GetValueForOption(noAutoUpdateOption)
+                Verbose = context.ParseResult.GetValueForOption(verboseOption)
             };
             commandOptionsAccessor.Update(options);
             context.ExitCode = CommandResultMapper.Map(await runtime.GetVersionAsync().ConfigureAwait(false));
         });
         root.AddCommand(versionCommand);
 
-        var initCommand = new Command("init", "Initialize SpocR project (.env bootstrap)");
-        initCommand.AddOption(pathOption);
-        initCommand.AddOption(forceOption);
+    var initCommand = new Command("init", "Initialize SpocR project (.env bootstrap)");
+    initCommand.AddOption(pathOption);
+    var initForceOption = new Option<bool>("--force", "Overwrite existing .env");
+    initForceOption.AddAlias("-f");
+    initCommand.AddOption(initForceOption);
 
         var namespaceOption = new Option<string?>("--namespace", "Root namespace (SPOCR_NAMESPACE)");
         namespaceOption.AddAlias("-n");
@@ -347,7 +307,7 @@ public static class Program
         initCommand.SetHandler(async context =>
         {
             var targetPath = context.ParseResult.GetValueForOption(pathOption)?.Trim();
-            var force = context.ParseResult.GetValueForOption(forceOption);
+            var force = context.ParseResult.GetValueForOption(initForceOption);
             var nsValue = context.ParseResult.GetValueForOption(namespaceOption)?.Trim();
             var connection = context.ParseResult.GetValueForOption(connectionOption)?.Trim();
             var schemas = context.ParseResult.GetValueForOption(schemasOption)?.Trim();
@@ -419,10 +379,7 @@ public static class Program
             root.AddCommand(experimentalCommand);
         }
 
-        if (!quiet)
-        {
-            root.Description += "\nSet SPOCR_EXPERIMENTAL_CLI=1 to enable additional experimental commands.";
-        }
+        root.Description += "\nSet SPOCR_EXPERIMENTAL_CLI=1 to enable additional experimental commands.";
 
         return await root.InvokeAsync(args).ConfigureAwait(false);
     }

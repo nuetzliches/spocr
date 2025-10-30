@@ -226,7 +226,6 @@ END",
     private sealed class NullConsoleService : IConsoleService
     {
         public bool IsVerbose => false;
-        public bool IsQuiet => false;
         public void Info(string message) { }
         public void Error(string message) { }
         public void Warn(string message) { }
@@ -245,14 +244,13 @@ END",
         public void PrintTitle(string title) { }
         public void PrintImportantTitle(string title) { }
         public void PrintSubTitle(string title) { }
-        public void PrintSummary(IEnumerable<string> summary, string headline = null) { }
+        public void PrintSummary(IEnumerable<string> summary, string? headline = null) { }
         public void PrintTotal(string total) { }
-        public void PrintDryRunMessage(string message = null) { }
         public void PrintConfiguration(SpocR.SpocRVNext.Models.ConfigurationModel config) { }
         public void PrintFileActionMessage(string fileName, FileActionEnum fileAction) { }
         public void PrintCorruptConfigMessage(string message) { }
         public void StartProgress(string message) { }
-        public void CompleteProgress(bool success = true, string message = null) { }
+        public void CompleteProgress(bool success = true, string? message = null) { }
         public void UpdateProgressStatus(string status, bool success = true, int? percentage = null) { }
     }
 }

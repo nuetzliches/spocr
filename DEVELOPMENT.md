@@ -237,8 +237,9 @@ Initial setup for a fresh repository or sample (`samples/restapi`):
 
 2. Rebuild mit Schema Snapshot:
    ```cmd
-   dotnet run --project src/SpocR.csproj -- rebuild -p samples/restapi --no-auto-update
+   dotnet run --project src/SpocR.csproj -- rebuild -p samples/restapi
    ```
+   Optional: Setze `SPOCR_SKIP_UPDATE=1`, falls CI-/automatisierte Läufe ohne Update-Check stattfinden sollen.
 3. Falls keine `.env` existiert:
    - Der `EnvBootstrapper` fragt interaktiv: "Create new .env from example now? [Y/n]:"
    - Mit "Y" wird aus `samples/restapi/.env.example` oder einem Fallback-Template eine `.env` im Repo Root erstellt.
