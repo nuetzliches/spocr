@@ -17,6 +17,7 @@
 - [x] `src\SpocRVNext\DualGenerationDispatcher.cs` raus migrieren, es gibt nur noch vnext (2025-10-30: Dispatcher gelöscht; `generate-next` verwendet NextOnlyDemoRunner ohne Legacy-Pfad.)
 - [x] `src\ProgramVNextCLI.cs` zu `src\Program.cs` migrieren und als Default CLI verwenden (2025-10-30: Experimental Befehle in `Program.cs` integriert, Datei entfernt.)
 - [x] Wozu brauchen wir `src\Properties`? (2025-10-30: Folder entfernt, `InternalsVisibleTo` liegt bereits im Projektfile.)
-- [ ] Nicht verwendeten Code in `src` ausfindig machen (Tests ignorieren, bzw. löschen, wenn einziger Konsument) und entfernen (rekursiv, bis alle unbenutzten Codezweige entfernt sind - geht das eventuell mit einem build flag effektiver?)
+- [~] Nicht verwendeten Code in `src` ausfindig machen (Tests ignorieren, bzw. löschen, wenn einziger Konsument) und entfernen (rekursiv, bis alle unbenutzten Codezweige entfernt sind - geht das eventuell mit einem build flag effektiver?) In diesem Zuge auch nullable Warnings fixen, damit wir die Warnings reduziert bekommen.
+	- 2025-10-30: `Utils/DirectoryDiff` entfernt; ehemaliger Dual-Modus-Comparator ohne Aufrufe.
 - [ ] Entferne `Microsoft.CodeAnalysis`, `Microsoft.AspNet.WebApi.Client`, `System.Management` wenn nicht mehr erforderlich
 - [ ] Reorganisiere (Ordner-/Dateistruktur, Namenskonventionen, Usings) und normalisiere `src\SpocRVNext`
