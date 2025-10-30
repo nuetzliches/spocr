@@ -16,8 +16,8 @@ dotnet_diagnostic.CS8767.severity = none
 # (Optional) keep obsolete usage visible
 dotnet_diagnostic.CS0618.severity = warning
 
-# Re-enable strict nullable diagnostics for ProgramVNextCLI explicitly
-[src/ProgramVNextCLI.cs]
+# Re-enable strict nullable diagnostics for the main CLI entry point
+[src/Program.cs]
 dotnet_diagnostic.CS8600.severity = warning
 dotnet_diagnostic.CS8601.severity = warning
 dotnet_diagnostic.CS8602.severity = warning
