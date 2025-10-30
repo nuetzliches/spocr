@@ -4,7 +4,7 @@ using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
 using SpocR.SpocRVNext.Core;
 using SpocR.SpocRVNext.Extensions;
-using SpocR.Infrastructure;
+using SpocR.SpocRVNext.Infrastructure;
 using SpocR.Models;
 using SpocR.Utils;
 using SpocRVNext.Configuration;

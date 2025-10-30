@@ -6,7 +6,7 @@ using SpocR.SpocRVNext.Generators;
 using Microsoft.Extensions.DependencyInjection;
 using SpocR.SpocRVNext.Extensions;
 using SpocR.SpocRVNext.Cli;
-using SpocR.Infrastructure;
+using SpocR.SpocRVNext.Infrastructure;
 
 namespace SpocR.Tests.SpocRVNext.Generators;
 

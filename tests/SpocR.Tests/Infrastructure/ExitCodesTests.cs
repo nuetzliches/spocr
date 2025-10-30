@@ -1,5 +1,5 @@
 using Shouldly;
-using SpocR.Infrastructure;
+using SpocR.SpocRVNext.Infrastructure;
 using Xunit;
 
 namespace SpocR.Tests.Infrastructure;

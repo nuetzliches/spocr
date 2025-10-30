@@ -3,7 +3,6 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.CodeAnalysis.Text;
-using SpocR.Infrastructure;
 using SpocR.Models;
 using SpocR.Services;
 using SpocR.Utils;
@@ -13,6 +12,7 @@ using SpocR.SpocRVNext.Metadata; // ProcedureDescriptor
 using System.Collections.Generic;
 using System.Text;
 using SpocR.SpocRVNext.Utils; // NamePolicy
+using SpocR.SpocRVNext.Infrastructure;
 
 namespace SpocR.SpocRVNext.Generators;
 

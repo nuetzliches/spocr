@@ -1,4 +1,4 @@
-namespace SpocR.Infrastructure;
+namespace SpocR.SpocRVNext.Infrastructure;
 
 /// <summary>
 /// Central definition of process exit codes used by the SpocR CLI.
@@ -23,51 +23,20 @@ namespace SpocR.Infrastructure;
 /// </summary>
 public static class ExitCodes
 {
-    /// <summary>Successful execution.</summary>
     public const int Success = 0;
-
-    /// <summary>Validation or user input error (non-fatal domain level).</summary>
     public const int ValidationError = 10;
-
-    /// <summary>Code generation pipeline error.</summary>
     public const int GenerationError = 20;
-
-    /// <summary>Code generation produced non-deterministic output (hash mismatch across runs).</summary>
     public const int GenerationNonDeterministic = 21;
-
-    /// <summary>Expected generated artifact missing.</summary>
     public const int GenerationMissingArtifact = 22;
-
-    /// <summary>Unexpected structural diff detected (outside allow-list / policy).</summary>
     public const int GenerationDiffAnomaly = 23;
-
-    /// <summary>External dependency / environment / network / database failure.</summary>
     public const int DependencyError = 30;
-
-    /// <summary>Test suite failure (aggregate).</summary>
     public const int TestFailure = 40;
-
-    /// <summary>Unit test failures occurred.</summary>
     public const int UnitTestFailure = 41;
-
-    /// <summary>Integration test failures occurred.</summary>
     public const int IntegrationTestFailure = 42;
-
-    /// <summary>Validation test failures occurred.</summary>
     public const int ValidationTestFailure = 43;
-
-    /// <summary>Benchmark execution failure.</summary>
     public const int BenchmarkFailure = 50;
-
-    /// <summary>Rollback / recovery operation failure.</summary>
     public const int RollbackFailure = 60;
-
-    /// <summary>Configuration parsing / validation failure.</summary>
     public const int ConfigurationError = 70;
-
-    /// <summary>Unexpected internal error / unhandled exception.</summary>
     public const int InternalError = 80;
-
-    /// <summary>Reserved for future extension / experimental features.</summary>
     public const int Reserved = 99;
 }

@@ -3,13 +3,13 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
-using SpocR.SpocRVNext.Extensions;
 using SpocR.Interfaces;
 using SpocR.Services;
+using SpocR.SpocRVNext.Extensions;
 using SpocR.Utils;
 using SpocRVNext.Configuration;
 
-namespace SpocR.Infrastructure;
+namespace SpocR.SpocRVNext.Infrastructure;
 
 public interface IFileManager<TConfig> where TConfig : class, IVersioned
 {
@@ -113,26 +113,22 @@ public class FileManager<TConfig>(
 
     public async Task SaveAsync(TConfig config)
     {
-        // Overwrite with current SpocR-Version
         config.Version = spocr.Version;
 
-        // Spezialfall: spocr.json Konfiguration bereinigen (nur wenn es sich um ConfigurationModel handelt)
         try
         {
             if (config is SpocR.Models.ConfigurationModel cfg)
             {
-                // Wenn Role vorhanden aber Kind == Default und kein LibNamespace => Role entfernen (Deprecation Pfad)
                 if (cfg?.Project?.Role != null
                     && cfg.Project.Role.Kind == RoleKindEnum.Default
                     && string.IsNullOrWhiteSpace(cfg.Project.Role.LibNamespace))
                 {
-                    cfg.Project.Role = null; // Wird dank JsonIgnoreCondition.WhenWritingNull nicht geschrieben
+                    cfg.Project.Role = null;
                 }
             }
         }
         catch (Exception)
         {
-            // Bereinigungsfehler ignorieren – darf das Speichern nicht verhindern
         }
 
         var json = JsonSerializer.Serialize(config, SerializerOptions);
@@ -163,12 +159,6 @@ public class FileManager<TConfig>(
         await Task.CompletedTask;
     }
 
-    /// <summary>
-    /// Attempts to load the configuration from a given path.
-    /// </summary>
-    /// <param name="path">The directory path where the configuration file should be located.</param>
-    /// <param name="config">The configuration that was loaded if successful.</param>
-    /// <returns>True if the configuration was loaded successfully; otherwise false.</returns>
     public bool TryOpen(string path, out TConfig config)
     {
         config = null;
@@ -184,7 +174,6 @@ public class FileManager<TConfig>(
 
             if (!Exists())
             {
-                // Reset the path
                 DirectoryUtils.SetBasePath(originalWorkingDirectory);
                 return false;
             }

@@ -5,7 +5,7 @@
 - [x] Migriere benötigtes aus `src\Converters` nach `src\SpocRVNext` und lösche dann das Verzeichnis. (2025-10-31: JsonConverter-Helfer nach `SpocRVNext/Configuration` verschoben; Legacy-Ordner entfernt.)
 - [x] Migriere benötigtes aus `src\Enums` nach `src\SpocRVNext` und lösche dann das Verzeichnis. (2025-10-31: CLI/FileAction/Role/TargetFramework Enums nach vNext verschoben; Legacy-Ordner entfernt.)
 - [x] Migriere benötigtes aus `src\Extensions` nach `src\SpocRVNext` und lösche dann das Verzeichnis. (2025-10-30: String/Version/FileManager/DI/Roslyn Extensions in `SpocRVNext/Extensions` verschoben; Legacy-Ordner entfernt.)
-- [ ] Migriere benötigtes aus `src\Infrastructure` nach `src\SpocRVNext` und lösche dann das Verzeichnis.
+- [x] Migriere benötigtes aus `src\Infrastructure` nach `src\SpocRVNext` und lösche dann das Verzeichnis. (2025-10-30: FileManager/ExitCodes unter `SpocRVNext/Infrastructure` verschoben; Legacy-Ordner entfernt.)
 - [ ] Migriere benötigtes aus `src\Interfaces` nach `src\SpocRVNext` und lösche dann das Verzeichnis.
 - [ ] Migriere benötigtes aus `src\Models` nach `src\SpocRVNext` und lösche dann das Verzeichnis.
 - [ ] Migriere benötigtes aus `src\Runtime` nach `src\SpocRVNext` und lösche dann das Verzeichnis.
@@ -17,6 +17,6 @@
 - [ ] `src\SpocRVNext\DualGenerationDispatcher.cs` raus migrieren, es gibt nur noch vnext
 - [ ] `src\ProgramVNextCLI.cs` umbenennen und als Default CLI verwenden
 - [ ] Wozu brauchen wir `src\Properties`?
-- [ ] Nicht verwendeten Code in `src\SpocRVNext` ausfindig machen und entfernen (rekursiv, bis alle unbenutzten Codezweige entfernt sind)
+- [ ] Nicht verwendeten Code in `src\SpocRVNext` ausfindig machen (Tests ignorieren, bzw. löschen, wenn einziger Konsument) und entfernen (rekursiv, bis alle unbenutzten Codezweige entfernt sind)
 - [ ] Entferne `Microsoft.CodeAnalysis`, `Microsoft.AspNet.WebApi.Client`, `System.Management` wenn nicht mehr erforderlich
 - [ ] Reorganisiere (Dateistruktur, Namenskonventionen, Usings) und normalisiere `src\SpocRVNext`

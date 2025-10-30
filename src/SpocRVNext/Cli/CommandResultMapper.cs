@@ -1,5 +1,5 @@
-using SpocR.Infrastructure;
 using SpocR.SpocRVNext.Core;
+using SpocR.SpocRVNext.Infrastructure;
 
 namespace SpocR.SpocRVNext.Cli;
 

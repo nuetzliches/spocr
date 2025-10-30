@@ -7,7 +7,7 @@ using SpocR.SpocRVNext.Extensions;
 using SpocR.SpocRVNext.Cli;
 using SpocR.SpocRVNext.Engine;
 using SpocR.Utils;
-using SpocR.Infrastructure;
+using SpocR.SpocRVNext.Infrastructure;
 using Xunit;
 
 namespace SpocR.Tests.SpocRVNext.Generators;

@@ -2,7 +2,6 @@ using System.IO;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
-using SpocR.Infrastructure;
 using SpocR.Models;
 using SpocR.Runtime;
 using SpocR.Schema;
@@ -13,6 +12,7 @@ using SpocR.SpocRVNext.Generators;
 using SpocR.SpocRVNext.SnapshotBuilder;
 using SpocR.Utils;
 using SpocRVNext.Configuration;
+using SpocR.SpocRVNext.Infrastructure;
 
 namespace SpocR.SpocRVNext.Extensions;
 

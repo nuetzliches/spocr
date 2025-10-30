@@ -2,7 +2,7 @@ using System.Text.Json;
 using Shouldly;
 using Xunit;
 using SpocR.Models;
-using SpocR.Infrastructure;
+using SpocR.SpocRVNext.Infrastructure;
 using SpocRVNext.Configuration;
 
 namespace SpocR.Tests.Cli;
