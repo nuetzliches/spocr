@@ -5,7 +5,7 @@ using System.Linq;
 using SpocR.SpocRVNext.Engine;
 using SpocR.SpocRVNext.Generators;
 using SpocR.SpocRVNext.Metadata;
-using SpocRVNext.Configuration;
+using SpocR.SpocRVNext.Configuration;
 using Xunit;
 
 namespace SpocR.Tests;

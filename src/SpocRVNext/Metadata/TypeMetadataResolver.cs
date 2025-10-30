@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 
-namespace SpocRVNext.Metadata;
+namespace SpocR.SpocRVNext.Metadata;
 
 /// <summary>
 /// Resolves <c>schema.name</c> type references coming from expanded snapshot artifacts into

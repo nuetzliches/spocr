@@ -10,7 +10,7 @@ using Moq;
 using SpocR.SpocRVNext.Data;
 using SpocR.SpocRVNext.Data.Models;
 using SpocR.SpocRVNext.Models;
-using SpocRVNext.Configuration;
+using SpocR.SpocRVNext.Configuration;
 using SpocR.SpocRVNext.Services;
 using Xunit;
 using SchemaManager = SpocR.SpocRVNext.Schema.SchemaManager;

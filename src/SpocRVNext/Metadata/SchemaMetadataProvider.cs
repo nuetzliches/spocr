@@ -3,8 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
-using SpocRVNext.Metadata; // reuse TableTypeInfo & ColumnInfo + TableTypeMetadataProvider
-using SpocR.SpocRVNext.Metadata; // bring descriptor record types into scope
+using SpocR.SpocRVNext.Metadata; // reuse TableTypeInfo & ColumnInfo + TableTypeMetadataProvider
 using SpocR.SpocRVNext.Utils;
 
 namespace SpocR.SpocRVNext.Metadata
@@ -201,7 +200,7 @@ namespace SpocR.SpocRVNext.Metadata
                         var maxLen = ip.GetPropertyOrDefaultInt("MaxLength");
                         var precision = ip.GetPropertyOrDefaultInt("Precision");
                         var scale = ip.GetPropertyOrDefaultInt("Scale");
-                        var isNullable = SchemaMetadataProviderJsonExtensions.GetPropertyOrDefaultBoolStrict(ip, "IsNullable");
+                        var isNullable = ip.GetPropertyOrDefaultBoolStrict("IsNullable");
                         var isOutput = ip.GetPropertyOrDefaultBool("IsOutput");
                         var explicitTableType = ip.GetPropertyOrDefaultBool("IsTableType");
                         var legacyTtSchema = ip.GetPropertyOrDefault("TableTypeSchema");
@@ -289,7 +288,7 @@ namespace SpocR.SpocRVNext.Metadata
                         var resolved = typeResolver.Resolve(typeRef, maxLen, precision, scale);
                         var sqlType = resolved?.SqlType ?? opEl.GetPropertyOrDefault("SqlTypeName") ?? string.Empty;
                         var effectiveMaxLen = resolved?.MaxLength ?? maxLen;
-                        var isNullable = SpocR.SpocRVNext.Metadata.SchemaMetadataProviderJsonExtensions.GetPropertyOrDefaultBoolStrict(opEl, "IsNullable");
+                        var isNullable = opEl.GetPropertyOrDefaultBoolStrict("IsNullable");
                         if (string.IsNullOrWhiteSpace(sqlType) && !string.IsNullOrWhiteSpace(typeRef)) sqlType = typeRef;
                         var clr = MapSqlToClr(sqlType, isNullable);
                         var fd = new FieldDescriptor(clean, NamePolicy.Sanitize(clean), clr, isNullable, sqlType, effectiveMaxLen);
@@ -319,7 +318,7 @@ namespace SpocR.SpocRVNext.Metadata
                                 var resolved = typeResolver.Resolve(typeRef, maxLen, precision, scale);
                                 var sqlType = resolved?.SqlType ?? c.GetPropertyOrDefault("SqlTypeName") ?? string.Empty;
                                 var effectiveMaxLen = resolved?.MaxLength ?? maxLen;
-                                var isNullable = SpocR.SpocRVNext.Metadata.SchemaMetadataProviderJsonExtensions.GetPropertyOrDefaultBoolStrict(c, "IsNullable");
+                                var isNullable = c.GetPropertyOrDefaultBoolStrict("IsNullable");
                                 if (string.IsNullOrWhiteSpace(sqlType) && !string.IsNullOrWhiteSpace(typeRef)) sqlType = typeRef;
                                 var clr = MapSqlToClr(sqlType, isNullable);
                                 string? functionRef = null;
@@ -548,7 +547,7 @@ namespace SpocR.SpocRVNext.Metadata
                                                 var resolved = typeResolver.Resolve(typeRef, maxLenVal, precisionVal, scaleVal);
                                                 var sqlType = resolved?.SqlType ?? pe.GetPropertyOrDefault("SqlTypeName") ?? pe.GetPropertyOrDefault("SqlType") ?? string.Empty;
                                                 int maxLen = (resolved?.MaxLength ?? maxLenVal) ?? 0;
-                                                bool isNullable = SpocR.SpocRVNext.Metadata.SchemaMetadataProviderJsonExtensions.GetPropertyOrDefaultBoolStrict(pe, "IsNullable");
+                                                bool isNullable = pe.GetPropertyOrDefaultBoolStrict("IsNullable");
                                                 bool isOutput = pe.GetPropertyOrDefaultBool("IsOutput");
                                                 if (string.IsNullOrWhiteSpace(sqlType) && !string.IsNullOrWhiteSpace(typeRef)) sqlType = typeRef;
                                                 var clr = SqlClrTypeMapper.Map(sqlType, isNullable);
@@ -564,7 +563,7 @@ namespace SpocR.SpocRVNext.Metadata
                                                 var colName = ce.GetPropertyOrDefault("Name") ?? string.Empty;
                                                 if (string.IsNullOrWhiteSpace(colName)) continue;
                                                 var typeRef = ce.GetPropertyOrDefault("TypeRef");
-                                                bool isNullable = SpocR.SpocRVNext.Metadata.SchemaMetadataProviderJsonExtensions.GetPropertyOrDefaultBoolStrict(ce, "IsNullable");
+                                                bool isNullable = ce.GetPropertyOrDefaultBoolStrict("IsNullable");
                                                 var maxLenVal = ce.GetPropertyOrDefaultInt("MaxLength");
                                                 var precisionVal = ce.GetPropertyOrDefaultInt("Precision");
                                                 var scaleVal = ce.GetPropertyOrDefaultInt("Scale");
@@ -659,28 +658,6 @@ namespace SpocR.SpocRVNext.Metadata
         }
     }
 
-    internal static class SchemaMetadataProviderJsonExtensions
-    {
-        public static bool GetPropertyOrDefaultBoolStrict(this JsonElement el, string name)
-        {
-            if (!el.TryGetProperty(name, out var v)) return false; // fehlend => false (NOT NULL default)
-            if (v.ValueKind == JsonValueKind.True) return true;
-            if (v.ValueKind == JsonValueKind.False) return false;
-            if (v.ValueKind == JsonValueKind.String)
-            {
-                var s = v.GetString();
-                if (string.Equals(s, "true", StringComparison.OrdinalIgnoreCase)) return true;
-                if (string.Equals(s, "false", StringComparison.OrdinalIgnoreCase)) return false;
-                return false;
-            }
-            if (v.ValueKind == JsonValueKind.Number)
-            {
-                if (v.TryGetInt32(out var i)) return i != 0;
-                return false;
-            }
-            return false;
-        }
-    }
 }
 
 namespace SpocR.SpocRVNext.Metadata

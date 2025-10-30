@@ -1,6 +1,6 @@
 using System.IO;
 using Xunit;
-using SpocRVNext.Configuration;
+using SpocR.SpocRVNext.Configuration;
 
 namespace SpocR.Tests.SpocRVNext.Configuration;
 

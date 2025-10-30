@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using SpocR.SpocRVNext.Models;
-using SpocRVNext.Configuration; // for EnvConfiguration
+using SpocR.SpocRVNext.Configuration; // for EnvConfiguration
 using SpocR.SpocRVNext.Data.Models;
 using SpocR.SpocRVNext.Utils;
 

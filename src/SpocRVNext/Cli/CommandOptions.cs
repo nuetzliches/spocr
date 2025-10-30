@@ -7,11 +7,16 @@ namespace SpocR.SpocRVNext.Cli;
 public interface ICommandOptions
 {
     string Path { get; }
+    [Obsolete("Remove from Project")]
     bool DryRun { get; }
+    [Obsolete("Remove from Project")]
     bool Force { get; }
+    [Obsolete("Remove from Project")]
     bool Quiet { get; }
     bool Verbose { get; }
+    [Obsolete("Remove from Project")]
     bool NoVersionCheck { get; set; }
+    [Obsolete("Remove from Project")]
     bool NoAutoUpdate { get; set; }
     bool Debug { get; }
     bool NoCache { get; }

@@ -3,7 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Xml.Linq;
 
-namespace SpocRVNext.Configuration;
+namespace SpocR.SpocRVNext.Configuration;
 
 /// <summary>
 /// Resolves a namespace for generated code using a compositional strategy:

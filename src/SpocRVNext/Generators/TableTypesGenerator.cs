@@ -2,8 +2,8 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text;
-using SpocRVNext.Configuration;
-using SpocRVNext.Metadata;
+using SpocR.SpocRVNext.Configuration;
+using SpocR.SpocRVNext.Metadata;
 using SpocR.SpocRVNext.Engine;
 
 namespace SpocR.SpocRVNext.Generators;

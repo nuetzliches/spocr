@@ -11,7 +11,7 @@ using SpocR.SpocRVNext.Engine;
 using SpocR.SpocRVNext.Generators;
 using SpocR.SpocRVNext.SnapshotBuilder;
 using SpocR.SpocRVNext.Utils;
-using SpocRVNext.Configuration;
+using SpocR.SpocRVNext.Configuration;
 using SpocR.SpocRVNext.Infrastructure;
 
 namespace SpocR.SpocRVNext.Extensions;

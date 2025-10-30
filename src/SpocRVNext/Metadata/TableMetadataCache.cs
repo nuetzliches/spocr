@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
-using SpocRVNext.Metadata;
+using SpocR.SpocRVNext.Metadata;
 
 namespace SpocR.SpocRVNext.Metadata;
 
@@ -206,7 +206,7 @@ internal sealed class TableMetadataCache : ITableMetadataCache
                     Name = column.GetPropertyOrDefault("Name") ?? string.Empty,
                     TypeRef = typeRef ?? string.Empty,
                     SqlType = sqlType,
-                    IsNullable = TableMetadataProviderJsonExtensions.GetPropertyOrDefaultBoolStrict(column, "IsNullable"),
+                    IsNullable = column.GetPropertyOrDefaultBoolStrict("IsNullable"),
                     MaxLength = resolved?.MaxLength ?? maxLen,
                     Precision = resolved?.Precision ?? precision,
                     Scale = resolved?.Scale ?? scale,

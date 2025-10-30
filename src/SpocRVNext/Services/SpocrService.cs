@@ -1,5 +1,5 @@
 using System;
-using SpocRVNext.Configuration;
+using SpocR.SpocRVNext.Configuration;
 using SpocR.SpocRVNext.Models;
 
 namespace SpocR.SpocRVNext.Services;

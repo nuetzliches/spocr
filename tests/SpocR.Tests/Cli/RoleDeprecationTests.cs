@@ -3,7 +3,7 @@ using Shouldly;
 using Xunit;
 using SpocR.SpocRVNext.Models;
 using SpocR.SpocRVNext.Infrastructure;
-using SpocRVNext.Configuration;
+using SpocR.SpocRVNext.Configuration;
 
 namespace SpocR.Tests.Cli;
 

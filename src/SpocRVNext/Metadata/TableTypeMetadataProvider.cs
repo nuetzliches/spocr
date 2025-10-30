@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 
-namespace SpocRVNext.Metadata;
+namespace SpocR.SpocRVNext.Metadata;
 
 /// <summary>
 /// Minimal vNext-only reader for user defined table type metadata sourced from the latest snapshot under .spocr/schema.
@@ -268,30 +268,3 @@ internal sealed class TableTypeMetadataProvider : ITableTypeMetadataProvider
     }
 }
 
-internal static class JsonExtensions
-{
-    public static string? GetPropertyOrDefault(this JsonElement el, string name)
-        => el.TryGetProperty(name, out var v) ? v.GetString() : null;
-    public static bool GetPropertyOrDefaultBool(this JsonElement el, string name)
-    {
-        if (!el.TryGetProperty(name, out var v)) return false; // fehlend -> false
-        if (v.ValueKind == JsonValueKind.True) return true;
-        if (v.ValueKind == JsonValueKind.False) return false;
-        // Bool kann auch als Zahl oder String kodiert sein (robuste Fallbacks)
-        if (v.ValueKind == JsonValueKind.String)
-        {
-            var s = v.GetString();
-            if (string.Equals(s, "true", StringComparison.OrdinalIgnoreCase)) return true;
-            if (string.Equals(s, "false", StringComparison.OrdinalIgnoreCase)) return false;
-            return false;
-        }
-        if (v.ValueKind == JsonValueKind.Number)
-        {
-            if (v.TryGetInt32(out var i)) return i != 0;
-            return false;
-        }
-        return false;
-    }
-    public static int? GetPropertyOrDefaultInt(this JsonElement el, string name)
-        => el.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var i) ? i : null;
-}

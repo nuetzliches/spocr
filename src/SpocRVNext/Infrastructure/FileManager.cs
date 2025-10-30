@@ -7,7 +7,7 @@ using SpocR.SpocRVNext.Services;
 using SpocR.SpocRVNext.Extensions;
 using SpocR.SpocRVNext.Models;
 using SpocR.SpocRVNext.Utils;
-using SpocRVNext.Configuration;
+using SpocR.SpocRVNext.Configuration;
 
 namespace SpocR.SpocRVNext.Infrastructure;
 

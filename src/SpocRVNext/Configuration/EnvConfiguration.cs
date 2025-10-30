@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 
-namespace SpocRVNext.Configuration;
+namespace SpocR.SpocRVNext.Configuration;
 
 /// <summary>
 /// Strongly typed configuration for vNext generator with precedence:

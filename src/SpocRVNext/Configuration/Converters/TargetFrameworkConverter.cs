@@ -1,7 +1,7 @@
 using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-namespace SpocRVNext.Configuration;
+namespace SpocR.SpocRVNext.Configuration;
 
 public class TargetFrameworkConverter : JsonConverter<string>
 {

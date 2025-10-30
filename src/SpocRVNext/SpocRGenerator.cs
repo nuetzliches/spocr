@@ -1,5 +1,5 @@
 using SpocR.SpocRVNext.Engine;
-using SpocRVNext.Configuration; // note: EnvConfiguration lives in SpocRVNext.Configuration
+using SpocR.SpocRVNext.Configuration; // note: EnvConfiguration lives in SpocRVNext.Configuration
 using SpocR.SpocRVNext.Generators;
 using SpocR.SpocRVNext.Metadata;
 using System;

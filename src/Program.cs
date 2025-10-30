@@ -21,8 +21,7 @@ using SpocR.SpocRVNext.GoldenHash;
 using SpocR.SpocRVNext.Telemetry;
 using SpocR.SpocRVNext.Utils;
 using SpocR.SpocRVNext.Metadata;
-using SpocRVNext.Configuration;
-using SpocRVNext.Metadata;
+using SpocR.SpocRVNext.Configuration;
 
 namespace SpocR;
 

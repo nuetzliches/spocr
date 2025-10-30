@@ -135,7 +135,8 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
   - JSON Snapshot Flags aktualisiert (`docs/content/3.reference/json-procedures.md`).
 - [~] SpocR Freeze-Kommunikation dokumentieren: v4.5 weist auf `nuetzliches/xtraq` (Namespace `Xtraq`, Version `1.0.0`) als Nachfolger hin.
   - README, CHANGELOG, Migration Guide & Instructions um Hinweis auf Xtraq ergänzt (2025-10-29).
-- [ ] Inhalte aus `src/SpocRVNext` eine Ebene höher ziehen und Struktur konsolidieren.
+- [~] Inhalte aus `src/SpocRVNext` eine Ebene höher ziehen und Struktur konsolidieren.
+  - 2025-10-30: Namespace-Layout auf `SpocR.SpocRVNext.*` vereinheitlicht, JsonElement-Helfer zentralisiert, Tests/CLI auf neue Namespaces gebracht.
 - [ ] `.ai/` Inhalte nach jeder relevanten Änderung prüfen und synchronisieren (Guidelines, Prompts, README).
 
 ## CI, Automatisierung & Release

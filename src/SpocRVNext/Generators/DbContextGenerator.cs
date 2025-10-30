@@ -6,7 +6,7 @@ using SpocR.SpocRVNext.Models;
 using SpocR.SpocRVNext.Services;
 using SpocR.SpocRVNext.Utils;
 using SpocR.SpocRVNext.Engine;
-using SpocRVNext.Configuration; // for EnvConfiguration & NamespaceResolver
+using SpocR.SpocRVNext.Configuration; // for EnvConfiguration & NamespaceResolver
 using SpocR.SpocRVNext.Metadata; // ProcedureDescriptor
 using System.Collections.Generic;
 using System.Text;

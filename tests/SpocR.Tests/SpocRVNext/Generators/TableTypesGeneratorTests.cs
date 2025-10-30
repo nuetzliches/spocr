@@ -2,8 +2,8 @@ using System;
 using System.IO;
 using System.Linq;
 using Xunit;
-using SpocRVNext.Configuration;
-using SpocRVNext.Metadata;
+using SpocR.SpocRVNext.Configuration;
+using SpocR.SpocRVNext.Metadata;
 using SpocR.SpocRVNext.Generators;
 
 namespace SpocR.Tests.SpocRVNext.Generators;

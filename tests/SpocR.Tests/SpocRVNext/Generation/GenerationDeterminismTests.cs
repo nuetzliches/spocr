@@ -7,7 +7,7 @@ using Xunit;
 using SpocR.SpocRVNext;
 using SpocR.SpocRVNext.Engine;
 using SpocR.SpocRVNext.Metadata;
-using SpocRVNext.Configuration;
+using SpocR.SpocRVNext.Configuration;
 
 namespace SpocR.Tests.SpocRVNext.Generation;
 

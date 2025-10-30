@@ -8,7 +8,7 @@ using System.Data.Common;
 using System.Text.RegularExpressions;
 using SpocR.SpocRVNext.Engine;
 using SpocR.SpocRVNext.Metadata;
-using SpocRVNext.Configuration;
+using SpocR.SpocRVNext.Configuration;
 using SpocR.SpocRVNext.Utils;
 using SpocR.SpocRVNext.Models;
 using System.Text.Json;
