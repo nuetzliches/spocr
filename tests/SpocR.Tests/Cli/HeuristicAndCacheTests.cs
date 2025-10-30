@@ -13,7 +13,7 @@ using SpocR.SpocRVNext.Models;
 using SpocRVNext.Configuration;
 using SpocR.Services;
 using Xunit;
-using SchemaManager = SpocR.Schema.SchemaManager;
+using SchemaManager = SpocR.SpocRVNext.Schema.SchemaManager;
 using DbSchema = SpocR.SpocRVNext.Data.Models.Schema;
 
 namespace SpocR.Tests.Cli;

@@ -7,7 +7,7 @@ using Shouldly;
 using SpocR.SpocRVNext.Models;
 using SpocR.SpocRVNext.Core;
 using SpocR.SpocRVNext.Data.Models;
-using SpocR.Schema;
+using SpocR.SpocRVNext.Schema;
 using Xunit;
 
 namespace SpocR.Tests.Cli;

@@ -9,7 +9,7 @@ using SpocR.Services;
 using SpocR.SpocRVNext.Data.Models;
 using SpocR.SpocRVNext.Core;
 using Microsoft.Data.SqlClient;
-using SchemaManager = SpocR.Schema.SchemaManager;
+using SchemaManager = SpocR.SpocRVNext.Schema.SchemaManager;
 using DbSchema = SpocR.SpocRVNext.Data.Models.Schema;
 
 namespace SpocR.Tests;

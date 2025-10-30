@@ -9,7 +9,7 @@ using SpocR.SpocRVNext.Data.Models;
 using SpocR.SpocRVNext.Models;
 using SpocR.Services;
 
-namespace SpocR.Schema;
+namespace SpocR.SpocRVNext.Schema;
 
 public class SchemaManager(
     DbContext dbContext,

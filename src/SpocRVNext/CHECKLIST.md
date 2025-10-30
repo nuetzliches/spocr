@@ -9,7 +9,7 @@
 - [x] Migriere benötigtes aus `src\Interfaces` nach `src\SpocRVNext` und lösche dann das Verzeichnis. (2025-10-30: `IVersioned` nach `SpocRVNext/Infrastructure` verschoben; Legacy-Verzeichnis entfernt.)
 - [x] Migriere benötigtes aus `src\Models` nach `src\SpocRVNext` und lösche dann das Verzeichnis. (2025-10-31: Models unter `src/SpocRVNext/Models` konsolidiert, Legacy-Verzeichnis entfernt.)
 - [x] Migriere benötigtes aus `src\Runtime` nach `src\SpocRVNext` und lösche dann das Verzeichnis. (2025-10-31: `SpocrCliRuntime` unter `SpocRVNext/Runtime` verschoben; Legacy-Ordner entfernt.)
-- [ ] Migriere benötigtes aus `src\Schema` nach `src\SpocRVNext` und lösche dann das Verzeichnis.
+- [x] Migriere benötigtes aus `src\Schema` nach `src\SpocRVNext` und lösche dann das Verzeichnis. (2025-10-31: `SchemaManager` und `JsonResultTypeEnricher` nach `SpocRVNext/Schema` verschoben; Legacy-Ordner entfernt, Tests/DI aktualisiert.)
 - [ ] Migriere benötigtes aus `src\Services` nach `src\SpocRVNext` und lösche dann das Verzeichnis.
 - [ ] Migriere benötigtes aus `src\Telemetry` nach `src\SpocRVNext` und lösche dann das Verzeichnis.
 - [ ] Migriere benötigtes aus `src\Utils` nach `src\SpocRVNext` und lösche dann das Verzeichnis.
