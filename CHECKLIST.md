@@ -152,7 +152,8 @@ Status-Legende: `[ ]` offen, `[x]` erledigt, `[>]` deferred, `[~]` teilweise umg
 - [>] `dotnet list package --outdated` Review durchführen und sicherheitsrelevante Updates planen.
 - [>] Lizenzprüfung der genutzten NuGet-Pakete durchführen.
 - [>] DB-Testnutzer auf Least-Privilege prüfen und festhalten.
-- [ ] Roslyn-, `McMaster.Extensions.CommandLineUtils`-, `Microsoft.AspNet.WebApi.Client`- und `Microsoft.CodeAnalysis.CSharp`-Abhängigkeiten auf vNext-Relevanz prüfen und nach Möglichkeit entfernen.
+- [x] Roslyn-, `McMaster.Extensions.CommandLineUtils`-, `Microsoft.AspNet.WebApi.Client`- und `Microsoft.CodeAnalysis.CSharp`-Abhängigkeiten auf vNext-Relevanz prüfen und nach Möglichkeit entfernen.
+  - 2025-10-30: CLI nutzt nur noch stringbasierte Namespace-Rewrites; `Microsoft.CodeAnalysis.CSharp` entfernt.
 
 ## EPIC Status (Kurzfassung)
 

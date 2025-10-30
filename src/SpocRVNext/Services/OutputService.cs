@@ -1,9 +1,7 @@
 using System.IO;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.Text;
 using SpocR.SpocRVNext.Core;
-using SpocR.SpocRVNext.Extensions;
 using SpocR.SpocRVNext.Infrastructure;
 using SpocR.SpocRVNext.Models;
 using SpocR.SpocRVNext.Utils;
@@ -118,9 +116,6 @@ public class OutputService(
         var runtimeConnectionStringIdentifier = configFile.Config.Project.DataBase.RuntimeConnectionStringIdentifier ?? "DefaultConnection";
         fileContent = fileContent.Replace(@"<spocr>DefaultConnection</spocr>", runtimeConnectionStringIdentifier);
 
-        var tree = CSharpSyntaxTree.ParseText(fileContent);
-        var root = tree.GetCompilationUnitRoot();
-
         if (string.IsNullOrWhiteSpace(nameSpace))
         {
             throw new System.InvalidOperationException("OutputService: Provided namespace is empty – ensure configuration Project.Output.Namespace is set before generation.");
@@ -130,34 +125,32 @@ public class OutputService(
         string Normalize(string ns) => ns.Replace("..", ".").Trim('.');
         nameSpace = Normalize(nameSpace);
 
-        if (configFile.Config.Project.Role.Kind == RoleKindEnum.Lib)
-        {
-            root = root.ReplaceUsings(u => u.Replace("Source.DataContext", nameSpace));
-            root = root.ReplaceNamespace(ns => ns.Replace("Source.DataContext", nameSpace));
-        }
-        else
-        {
-            root = root.ReplaceUsings(u => u.Replace("Source.", nameSpace + "."));
-            root = root.ReplaceNamespace(ns => ns.Replace("Source.", nameSpace + "."));
-        }
+        fileContent = ReplaceNamespaceMarkers(fileContent, nameSpace, configFile.Config.Project.Role.Kind);
 
         var targetDir = Path.GetDirectoryName(targetFileName);
+        if (string.IsNullOrWhiteSpace(targetDir))
+        {
+            throw new System.InvalidOperationException($"OutputService: Unable to determine directory for '{targetFileName}'.");
+        }
         if (!Directory.Exists(targetDir))
         {
             Directory.CreateDirectory(targetDir);
         }
 
-        var sourceText = root.GetText();
-
-        await WriteAsync(targetFileName, sourceText, isDryRun);
+        await WriteAsync(targetFileName, fileContent, isDryRun);
     }
 
-    public async Task WriteAsync(string targetFileName, SourceText sourceText, bool isDryRun)
+    public async Task WriteAsync(string targetFileName, string content, bool isDryRun)
     {
-        var folderName = new DirectoryInfo(Path.GetDirectoryName(targetFileName)).Name;
+        var directoryName = Path.GetDirectoryName(targetFileName);
+        if (string.IsNullOrWhiteSpace(directoryName))
+        {
+            throw new System.InvalidOperationException($"OutputService: Unable to determine directory for '{targetFileName}'.");
+        }
+        var folderName = new DirectoryInfo(directoryName).Name;
         var fileName = Path.GetFileName(targetFileName);
         var fileAction = FileActionEnum.Created;
-        var outputFileText = sourceText.ToString();
+        var outputFileText = content;
 
         // Legacy XML auto-generated header removed to reduce diff churn and align with vNext minimalist output style.
 
@@ -213,4 +206,22 @@ public class OutputService(
                 Directory.Delete(pathToDelete, true);
         }
     }
+
+    private static string ReplaceNamespaceMarkers(string source, string nameSpace, RoleKindEnum roleKind)
+    {
+        if (roleKind == RoleKindEnum.Lib)
+        {
+            return SourceDataContextRegex.Replace(source, nameSpace);
+        }
+
+        var replaced = SourcePrefixRegex.Replace(source, match => nameSpace + "." + match.Groups[1].Value);
+        replaced = NamespaceTokenRegex.Replace(replaced, nameSpace);
+        replaced = UsingTokenRegex.Replace(replaced, nameSpace);
+        return replaced;
+    }
+
+    private static readonly Regex SourceDataContextRegex = new(@"(?<!\w)Source\.DataContext(?!\w)", RegexOptions.Compiled);
+    private static readonly Regex SourcePrefixRegex = new(@"(?<!\w)Source\.([A-Za-z0-9_]+)", RegexOptions.Compiled);
+    private static readonly Regex NamespaceTokenRegex = new(@"(?<=namespace\s+)Source(?=\b)", RegexOptions.Compiled);
+    private static readonly Regex UsingTokenRegex = new(@"(?<=using\s+)Source(?=\b)", RegexOptions.Compiled);
 }

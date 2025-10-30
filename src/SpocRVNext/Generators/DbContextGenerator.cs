@@ -2,7 +2,6 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.CodeAnalysis.Text;
 using SpocR.SpocRVNext.Models;
 using SpocR.SpocRVNext.Services;
 using SpocR.SpocRVNext.Utils;
@@ -11,7 +10,6 @@ using SpocRVNext.Configuration; // for EnvConfiguration & NamespaceResolver
 using SpocR.SpocRVNext.Metadata; // ProcedureDescriptor
 using System.Collections.Generic;
 using System.Text;
-using SpocR.SpocRVNext.Utils; // NamePolicy
 using SpocR.SpocRVNext.Infrastructure;
 
 namespace SpocR.SpocRVNext.Generators;
@@ -257,7 +255,7 @@ public class DbContextGenerator
         return "net" + digits;
     }
 
-    private string Render(string logicalName, SourceText fallback, object model)
+    private string Render(string logicalName, string fallback, object model)
     {
         if (_loader != null && _loader.TryLoad(Path.GetFileNameWithoutExtension(logicalName), out var tpl))
         {
@@ -270,10 +268,10 @@ public class DbContextGenerator
                 _console.Warn($"[dbctx] Template render failed for {logicalName}, using fallback. Error: {ex.Message}");
             }
         }
-        return fallback.ToString();
+        return fallback;
     }
 
-    private static SourceText GetTemplate_Interface(string ns, string methods) => SourceText.From($"" +
+    private static string GetTemplate_Interface(string ns, string methods) =>
         "/// <summary>Generated interface for the database context abstraction.</summary>\n" +
         $"namespace {ns};\n\n" +
         "using System.Data.Common;\nusing System.Threading;\nusing System.Threading.Tasks;\n\n" +
@@ -284,9 +282,10 @@ public class DbContextGenerator
         "    Task<bool> HealthCheckAsync(CancellationToken cancellationToken = default);\n" +
         "    int CommandTimeout { get; }\n" +
         (string.IsNullOrWhiteSpace(methods) ? string.Empty : methods) +
-        "}\n");
+        "}\n";
 
-    private static SourceText GetTemplate_Options(string ns) => SourceText.From($"namespace {ns};\n\n" +
+    private static string GetTemplate_Options(string ns) =>
+        $"namespace {ns};\n\n" +
         "using System.Text.Json;\n\n" +
         "public sealed class SpocRDbContextOptions\n{\n" +
         "    public string? ConnectionString { get; set; }\n" +
@@ -296,9 +295,10 @@ public class DbContextGenerator
         "    public int? RetryDelayMs { get; set; }\n" +
         "    public JsonSerializerOptions? JsonSerializerOptions { get; set; }\n" +
         "    public bool EnableDiagnostics { get; set; } = true;\n" +
-        "}\n");
+        "}\n";
 
-    private static SourceText GetTemplate_Context(string ns, string methods) => SourceText.From($"namespace {ns};\n\n" +
+    private static string GetTemplate_Context(string ns, string methods) =>
+        $"namespace {ns};\n\n" +
         "using System.Data.Common;\nusing System.Diagnostics;\nusing System.Threading;\nusing System.Threading.Tasks;\nusing Microsoft.Data.SqlClient;\n\n" +
         "public partial class SpocRDbContext : ISpocRDbContext\n" +
         "{\n" +
@@ -327,9 +327,10 @@ public class DbContextGenerator
         "        try { await using var conn = new SqlConnection(_options.ConnectionString); await conn.OpenAsync(cancellationToken).ConfigureAwait(false); return true; } catch { return false; }\n" +
         "    }\n" +
         (string.IsNullOrWhiteSpace(methods) ? string.Empty : methods) +
-        "}\n");
+        "}\n";
 
-    private static SourceText GetTemplate_Di(string ns) => SourceText.From($"namespace {ns};\n\n" +
+    private static string GetTemplate_Di(string ns) =>
+        $"namespace {ns};\n\n" +
         "using System;\nusing Microsoft.Extensions.Configuration;\nusing Microsoft.Extensions.DependencyInjection;\n\n" +
         "public static class SpocRDbContextServiceCollectionExtensions\n" +
         "{\n" +
@@ -340,9 +341,10 @@ public class DbContextGenerator
         "        services.AddScoped<ISpocRDbContext>(sp => new SpocRDbContext(sp.GetRequiredService<SpocRDbContextOptions>()));\n" +
         "        return services;\n" +
         "    }\n" +
-        "}\n");
+        "}\n";
 
-    private static SourceText GetTemplate_Endpoints(string ns) => SourceText.From($"namespace {ns};\n\n" +
+    private static string GetTemplate_Endpoints(string ns) =>
+        $"namespace {ns};\n\n" +
         "using Microsoft.AspNetCore.Builder;\nusing Microsoft.AspNetCore.Http;\nusing Microsoft.Extensions.DependencyInjection;\nusing System.Threading;\nusing System.Threading.Tasks;\n\n" +
         "public static class SpocRDbContextEndpointRouteBuilderExtensions\n" +
         "{\n" +
@@ -351,11 +353,11 @@ public class DbContextGenerator
         "        endpoints.MapGet(\"/spocr/health/db\", async (ISpocRDbContext db, CancellationToken ct) => { var healthy = await db.HealthCheckAsync(ct).ConfigureAwait(false); return healthy ? Results.Ok(new { status = \"ok\" }) : Results.Problem(\"database unavailable\", statusCode: 503); });\n" +
         "        return endpoints;\n" +
         "    }\n" +
-        "}\n");
+        "}\n";
     private async Task WriteAsync(string dir, string fileName, string source, bool isDryRun)
     {
         var path = Path.Combine(dir, fileName);
-        await _outputService.WriteAsync(path, SourceText.From(source), isDryRun);
+        await _outputService.WriteAsync(path, source, isDryRun);
     }
 
     private static string NormalizeProcedurePart(string procPart)

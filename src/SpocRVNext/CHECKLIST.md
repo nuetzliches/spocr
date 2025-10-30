@@ -22,8 +22,9 @@
 	- 2025-10-30: Test-Projekte von ungenutzten Configuration/Roslyn/SqlClient-Paketen befreit; `SpocR.TestFramework` nutzt nur noch `xunit.abstractions`.
 	- 2025-10-30: Nullable-Warnungen in Roslyn-Helfern und FileManager reduziert (sicherer Umgang mit optionalen Attributen/Configs, keine Null-Zuweisungen mehr an `Role`).
 	- 2025-10-30: FileManager entfernt Default-Rollen beim Speichern; `RoleDeprecationTests` grün, Gesamt-Suite wartet weiter auf regenerierte Sample-Ausgaben & Golden-Hash-Anpassung.
-- [~] Entferne `Microsoft.CodeAnalysis`, `Microsoft.AspNet.WebApi.Client`, `System.Management` wenn nicht mehr erforderlich
+- [x] Entferne `Microsoft.CodeAnalysis`, `Microsoft.AspNet.WebApi.Client`, `System.Management` wenn nicht mehr erforderlich
 	- 2025-10-30: `Microsoft.CodeAnalysis.CSharp` zunächst entfernt; nach Build-Check wieder aufgenommen, da `CompilationUnitSyntax`-Manipulationen weiterhin Roslyn benötigen.
+	- 2025-10-30: Namespace-Rewrites auf stringbasierte Pfade migriert, Roslyn-Helfer entfernt, Package-Referenz gelöscht.
 	- 2025-10-30: `Microsoft.AspNet.WebApi.Client` aus `SpocR.csproj` entfernt (legacy NuGet).
 	- 2025-10-30: `System.Management` entfernt; Paket ohne Verwendungsstellen.
-- [ ] Reorganisiere (Ordner-/Dateistruktur, Namenskonventionen, Usings) und normalisiere `src\SpocRVNext`
+- [>] Reorganisiere (Ordner-/Dateistruktur, Namenskonventionen, Usings) und normalisiere `src\SpocRVNext`
