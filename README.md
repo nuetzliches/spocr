@@ -1,3 +1,5 @@
+> **Deprecation notice:** SpocR is no longer maintained. Please migrate to [Xtraq](https://github.com/nuetzliches/xtraq) using the guide at https://nuetzliches.github.io/xtraq/getting-started/migrating-from-spocr. The CLI now emits a warning for every invocation and future updates will only happen in Xtraq.
+
 # SpocR [![Publish NuGet](https://github.com/nuetzliches/spocr/actions/workflows/dotnet.yml/badge.svg)](https://github.com/nuetzliches/spocr/actions/workflows/dotnet.yml) [![NuGet Badge](https://img.shields.io/nuget/v/SpocR.svg)](https://www.nuget.org/packages/SpocR/)
 
 - Scaffolds your Stored Procedures and Models to C# Files

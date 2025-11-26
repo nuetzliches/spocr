@@ -6,11 +6,12 @@ using Microsoft.Extensions.DependencyInjection;
 using SpocR.Commands.Project;
 using SpocR.Commands.Schema;
 using SpocR.Commands.Spocr;
-using SpocR.Commands.StoredProcdure;
 using SpocR.DataContext;
 using SpocR.Extensions;
 using SpocR.AutoUpdater;
 using System.IO;
+using SpocR.Services;
+using SpocR.Infrastructure;
 
 namespace SpocR;
 
@@ -24,42 +25,56 @@ namespace SpocR;
 [Subcommand(typeof(ConfigCommand))]
 [Subcommand(typeof(ProjectCommand))]
 [Subcommand(typeof(SchemaCommand))]
-[Subcommand(typeof(StoredProcdureCommand))]
 [HelpOption("-?|-h|--help")]
 public class Program
 {
-    static async Task<int> Main(string[] args)
+    /// <summary>
+    /// In-process entry point for the SpocR CLI used by the test suite and potential host integrations.
+    /// Rationale:
+    ///  - Allows meta / integration tests to invoke the CLI without spawning an external process (faster & fewer race conditions).
+    ///  - Eliminates Windows file locking issues observed with repeated <c>dotnet run</c> / apphost executions (MSB3026/MSB3027 during rebuilds).
+    ///  - Provides a single place to construct DI + command conventions while keeping <c>Main</c> minimal.
+    ///  - Enables future programmatic embedding (e.g., other tools calling SpocR as a library) without reflection hacks.
+    ///
+    /// Notes for maintainers:
+    ///  - Tests call this method directly; removing or changing the signature will break in-process meta tests.
+    ///  - Keep side-effects (env var reads, working directory assumptions) confined here to mirror real CLI startup.
+    ///  - If additional global setup is added, prefer extending this method rather than duplicating logic in tests.
+    /// </summary>
+    public static async Task<int> RunCliAsync(string[] args)
     {
-        // Umgebung aus Umgebungsvariablen ermitteln
+        // Determine environment from environment variables
         string environment = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ??
                              Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ??
                              "Production";
 
-        // Konfiguration mit den bestehenden Microsoft.Extensions.Configuration-APIs erstellen
+        // Build configuration using the standard Microsoft.Extensions.Configuration APIs
         var configuration = new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
             .AddJsonFile("appsettings.json", optional: true, reloadOnChange: false)
             .AddJsonFile($"appsettings.{environment}.json", optional: true, reloadOnChange: false)
             .Build();
 
-        // ServiceCollection für Dependency Injection
+        // Create the ServiceCollection for dependency injection
         var services = new ServiceCollection();
 
-        // Konfiguration als Service registrieren
+        // Register configuration as a service
         services.AddSingleton<IConfiguration>(configuration);
 
-        // SpocR-Dienste registrieren
+        // Register SpocR services
         services.AddSpocR();
         services.AddDbContext();
 
-        // Auto-Update Dienste registrieren
+        // Register auto update services
         services.AddTransient<AutoUpdaterService>();
         services.AddTransient<IPackageManager, NugetService>();
 
-        // ServiceProvider erstellen
+        // Build the service provider
         using var serviceProvider = services.BuildServiceProvider();
 
-        // CommandLine-App mit Dependency Injection konfigurieren
+        PrintDeprecationBanner(serviceProvider.GetService<IConsoleService>());
+
+        // Configure the command line app with dependency injection
         var app = new CommandLineApplication<Program>
         {
             Name = "spocr",
@@ -72,49 +87,70 @@ public class Program
 
         await app.InitializeGlobalConfigAsync(serviceProvider);
 
-        return await app.ExecuteAsync(args);
+        try
+        {
+            return await app.ExecuteAsync(args);
+        }
+        catch (CliValidationException validationEx)
+        {
+            try
+            {
+                var console = serviceProvider.GetService<IConsoleService>();
+                if (console is not null)
+                {
+                    console.Error(validationEx.Message);
+                }
+                else
+                {
+                    Console.Error.WriteLine(validationEx.Message);
+                }
+            }
+            catch { }
 
-        // Automatische Prüfung auf Updates beim Startup
-        // var consoleService = serviceProvider.GetRequiredService<IConsoleService>();
-        // var autoUpdater = serviceProvider.GetRequiredService<AutoUpdaterService>();
-
-        // Aktuelle Umgebung anzeigen
-        // consoleService.Verbose($"Current environment: {environment}");
-
-        // try
-        // {
-        //     // Prüfung auf Updates, aber nicht blockierend ausführen
-        //     _ = Task.Run(async () =>
-        //     {
-        //         try
-        //         {
-        //             await autoUpdater.RunAsync();
-        //         }
-        //         catch (Exception ex)
-        //         {
-        //             // Fehler beim Update-Check sollten die Hauptfunktion nicht beeinträchtigen
-        //             consoleService.Warn($"Update check failed: {ex.Message}");
-        //         }
-        //     });
-
-        //     app.OnExecute(() =>
-        //     {
-        //         app.ShowRootCommandFullNameAndVersion();
-        //         app.ShowHelp();
-        //         return 0;
-        //     });
-
-        //     // Command line ausführen
-        //     return await app.ExecuteAsync(args);
-        // }
-        // catch (Exception ex)
-        // {
-        //     consoleService.Error($"Unhandled exception: {ex.Message}");
-        //     if (ex.InnerException != null)
-        //     {
-        //         consoleService.Error($"Inner exception: {ex.InnerException.Message}");
-        //     }
-        //     return 1; // Fehlercode zurückgeben
-        // }
+            return ExitCodes.ValidationError;
+        }
+        catch (Exception ex)
+        {
+            try
+            {
+                var console = serviceProvider.GetService<IConsoleService>();
+                console?.Error($"Unhandled exception: {ex.Message}");
+                if (ex.InnerException != null)
+                    console?.Error($"Inner exception: {ex.InnerException.Message}");
+            }
+            catch { }
+            return ExitCodes.InternalError;
+        }
     }
+
+    private Task<int> OnExecuteAsync(CommandLineApplication app, IConsoleService consoleService)
+    {
+        consoleService.Warn("No command specified. Showing help...");
+        app.ShowHelp();
+        return Task.FromResult(ExitCodes.ValidationError);
+    }
+
+    private static readonly string[] DeprecationBannerLines = new[]
+    {
+        "[SpocR deprecated] This tool is no longer maintained.",
+        "Please migrate to Xtraq: https://github.com/nuetzliches/xtraq",
+        "Migration guide: https://nuetzliches.github.io/xtraq/getting-started/migrating-from-spocr"
+    };
+
+    private static void PrintDeprecationBanner(IConsoleService consoleService)
+    {
+        foreach (var line in DeprecationBannerLines)
+        {
+            if (consoleService is not null)
+            {
+                consoleService.Warn(line);
+            }
+            else
+            {
+                Console.WriteLine(line);
+            }
+        }
+    }
+
+    static Task<int> Main(string[] args) => RunCliAsync(args);
 }
